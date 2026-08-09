@@ -1,8 +1,8 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/mathuo/dockview/blob/HEAD/static/img/dockview-lockup-dark.svg?raw=true">
-  <img src="https://github.com/mathuo/dockview/blob/HEAD/static/img/dockview-lockup-light.svg?raw=true" alt="Dockview" width="480">
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/dockview/dockview/blob/HEAD/static/img/dockview-lockup-dark.svg?raw=true">
+  <img src="https://github.com/dockview/dockview/blob/HEAD/static/img/dockview-lockup-light.svg?raw=true" alt="Dockview" width="480">
 </picture>
 
 <h1>dockview-enterprise</h1>
@@ -11,9 +11,9 @@
 
 [![npm version](https://img.shields.io/npm/v/dockview-enterprise)](https://www.npmjs.com/package/dockview-enterprise)
 [![npm downloads](https://img.shields.io/npm/dm/dockview-enterprise)](https://www.npmjs.com/package/dockview-enterprise)
-[![CI](https://img.shields.io/github/actions/workflow/status/mathuo/dockview/main.yml?branch=master&label=CI)](https://github.com/mathuo/dockview/actions?query=workflow%3ACI)
-[![Coverage](https://img.shields.io/sonar/coverage/mathuo_dockview?server=https%3A%2F%2Fsonarcloud.io)](https://sonarcloud.io/summary/overall?id=mathuo_dockview)
-[![Quality gate](https://img.shields.io/sonar/quality_gate/mathuo_dockview?server=https%3A%2F%2Fsonarcloud.io)](https://sonarcloud.io/summary/overall?id=mathuo_dockview)
+[![CI](https://img.shields.io/github/actions/workflow/status/dockview/dockview/main.yml?branch=master&label=CI)](https://github.com/dockview/dockview/actions?query=workflow%3ACI)
+[![Coverage](https://img.shields.io/sonar/coverage/dockview_dockview?server=https%3A%2F%2Fsonarcloud.io)](https://sonarcloud.io/summary/overall?id=dockview_dockview)
+[![Quality gate](https://img.shields.io/sonar/quality_gate/dockview_dockview?server=https%3A%2F%2Fsonarcloud.io)](https://sonarcloud.io/summary/overall?id=dockview_dockview)
 
 </div>
 

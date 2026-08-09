@@ -247,7 +247,6 @@ describe('dockviewPanel', () => {
         cut.init({ params: { a: '1', b: '2' }, title: 'A title' });
         expect(cut.params).toEqual({ a: '1', b: '2' });
 
-        // update 'a' and add 'c'
         cut.update({ params: { a: '-1', c: '3' } });
         expect(cut.params).toEqual({ a: '-1', b: '2', c: '3' });
         expect(model.update).toHaveBeenCalledWith({

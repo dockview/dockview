@@ -89,7 +89,6 @@ export class GridviewAngularComponent implements OnInit, OnDestroy, OnChanges {
             const coreChanges: Partial<GridviewOptions> = {};
             let hasChanges = false;
 
-            // Check for changes in core gridview properties
             PROPERTY_KEYS_GRIDVIEW.forEach((key) => {
                 if (changes[key] && !changes[key].isFirstChange()) {
                     (coreChanges as any)[key] = changes[key].currentValue;
@@ -122,7 +121,6 @@ export class GridviewAngularComponent implements OnInit, OnDestroy, OnChanges {
             ...frameworkOptions,
         });
 
-        // Emit ready event
         this.ready.emit({ api: this.gridviewApi });
     }
 

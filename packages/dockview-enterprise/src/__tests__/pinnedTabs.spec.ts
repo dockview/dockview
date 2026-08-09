@@ -444,6 +444,7 @@ describe('pinned tabs: reorder guard', () => {
             onDidPanelPinnedChange: stub,
             onDidAddGroup: stub,
             onDidRemoveGroup: stub,
+            onDidOptionsChange: stub,
             onDidLayoutFromJSON: stub,
             onDidRemovePanel: stub,
         } as any);

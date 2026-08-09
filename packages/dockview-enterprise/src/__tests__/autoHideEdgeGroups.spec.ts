@@ -251,6 +251,29 @@ describe('auto-hide edge groups', () => {
         d.dispose();
     });
 
+    test('the title bar takes the tab-bar colour, the backdrop the group frame', () => {
+        const d = make(true);
+        collapsedEdgeWithPanel(d);
+        // Distinct frame (group) vs tab-bar (tab strip) colours — in dark/spaced
+        // themes the frame is the near-black inter-group gap colour, so the title
+        // bar must take the lighter tab-bar colour rather than reading as black.
+        strip(d).style.backgroundColor = 'rgb(11, 6, 17)'; // frame
+        const stripBar = strip(d).querySelector(
+            '.dv-tabs-and-actions-container'
+        ) as HTMLElement;
+        expect(stripBar).toBeTruthy();
+        stripBar.style.backgroundColor = 'rgb(22, 18, 31)'; // tab bar
+
+        d.api.peekEdgeGroup('left', true);
+        const header = container.querySelector(
+            '.dv-edge-peek-header'
+        ) as HTMLElement;
+        expect(header.style.backgroundColor).toBe('rgb(22, 18, 31)'); // tab bar
+        expect(peek()!.style.backgroundColor).toBe('rgb(11, 6, 17)'); // frame
+
+        d.dispose();
+    });
+
     test('off (default): peeking is a no-op', () => {
         const d = make(undefined);
         collapsedEdgeWithPanel(d);
@@ -309,6 +332,31 @@ describe('auto-hide edge groups', () => {
             // strip orientation restored to the edge position
             expect(d.getEdgeGroupPanel('left')!.api.getHeaderPosition()).toBe(
                 'left'
+            );
+
+            d.dispose();
+        });
+
+        test('pinning tags the group as a tool window; auto-hiding untags it', () => {
+            const d = make(true);
+            collapsedEdgeWithPanel(d);
+            d.api.peekEdgeGroup('left', true);
+
+            // pin (dock) → the group is a tool window (spaced themes reshape its
+            // rounding off this class)
+            (
+                container.querySelector('.dv-edge-peek-pin') as HTMLElement
+            ).click();
+            expect(strip(d).classList.contains('dv-edge-tool-window')).toBe(
+                true
+            );
+
+            // the docked pushpin auto-hides → the tag is removed
+            (
+                strip(d).querySelector('.dv-edge-peek-pin') as HTMLElement
+            ).click();
+            expect(strip(d).classList.contains('dv-edge-tool-window')).toBe(
+                false
             );
 
             d.dispose();

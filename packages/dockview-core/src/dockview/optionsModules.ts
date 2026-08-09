@@ -110,12 +110,6 @@ export const OPTION_MODULE_RULES: OptionModuleRule[] = [
         when: (o) => !!o.overflow?.mru,
     },
     {
-        optionKey: 'overflow',
-        reason: 'overflow.thumbnails',
-        moduleName: 'AdvancedOverflow',
-        when: (o) => !!o.overflow?.thumbnails,
-    },
-    {
         optionKey: 'autoHideEdgeGroups',
         reason: 'autoHideEdgeGroups',
         moduleName: 'AutoHideEdgeGroup',

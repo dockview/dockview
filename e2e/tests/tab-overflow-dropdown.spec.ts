@@ -26,23 +26,19 @@ test.describe('tab overflow dropdown', () => {
     }) => {
         await setup(page);
 
-        // The strip overflows: the dropdown handle appears.
         const handle = page.locator('.dv-tabs-overflow-dropdown-default');
         await expect(handle).toBeVisible();
         await handle.click();
 
-        // The dropdown lists the overflowed tabs.
         const overflow = page.locator('.dv-tabs-overflow-container');
         await expect(overflow).toBeVisible();
         await expect(overflow.locator('.dv-tab')).not.toHaveCount(0);
 
-        // Pick the first hidden tab → it becomes the active tab…
         const hiddenTab = overflow.locator('.dv-tab').first();
         const title = (await hiddenTab.textContent())!.trim();
         await hiddenTab.click();
 
         await expect(page.locator('.dv-active-tab')).toHaveText(title);
-        // …and the dropdown closes.
         await expect(overflow).toHaveCount(0);
     });
 

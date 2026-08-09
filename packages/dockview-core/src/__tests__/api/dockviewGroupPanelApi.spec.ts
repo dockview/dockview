@@ -106,7 +106,6 @@ describe('DockviewGroupPanelApiImpl', () => {
             );
 
             expect(cut.isCollapsed()).toBe(false);
-            // accessor should not have been called since there is no group
             expect(accessor.isEdgeGroupCollapsed).not.toHaveBeenCalled();
         });
     });

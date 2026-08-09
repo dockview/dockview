@@ -1840,6 +1840,105 @@ describe('ContextMenuController', () => {
         });
     });
 
+    describe('showForChip() component items', () => {
+        // A renderer stub whose element and init spy the test can inspect.
+        const rendererStub = (initMock: jest.Mock) => ({
+            element: document.createElement('div'),
+            init: initMock,
+            dispose: jest.fn(),
+        });
+
+        // Drive showForChip with a single chip `component` item. Reuses the
+        // top-level makeAccessor (which already wires the chip callback, the
+        // component factory and the api), then returns the rendered menu plus
+        // the tabGroup/group references so assertions can match them.
+        function showChipComponent(
+            item: object,
+            createContextMenuItemComponent?: jest.Mock,
+            api: any = {}
+        ) {
+            const { accessor, openPopover, close } = makeAccessor({
+                getTabGroupChipContextMenuItems: jest
+                    .fn()
+                    .mockReturnValue([item]),
+                createContextMenuItemComponent,
+                api,
+            });
+            const tabGroup = fromPartial<ITabGroup>({ label: 'Monitoring' });
+            const group = makeGroup();
+            new ContextMenuController(accessor).showForChip(
+                tabGroup,
+                group,
+                new MouseEvent('contextmenu', { cancelable: true })
+            );
+            const menuEl = openPopover.mock.calls[0][0] as HTMLElement;
+            return { menuEl, close, tabGroup, group };
+        }
+
+        test('calls createContextMenuItemComponent and inits with the chip params', () => {
+            const componentRef = { type: 'my-chip-component' };
+            const initMock = jest.fn();
+            const stub = rendererStub(initMock);
+            const factory = jest.fn().mockReturnValue(stub);
+            const api = {} as any;
+
+            const { menuEl, tabGroup, group } = showChipComponent(
+                { component: componentRef },
+                factory,
+                api
+            );
+
+            expect(factory).toHaveBeenCalledWith(
+                expect.objectContaining({ component: componentRef })
+            );
+            // The chip menu hands over the tab group (not a panel) plus the
+            // group and api.
+            expect(initMock).toHaveBeenCalledWith(
+                expect.objectContaining({ tabGroup, group, api })
+            );
+            expect(menuEl.contains(stub.element)).toBe(true);
+        });
+
+        test('forwards componentProps to renderer.init()', () => {
+            const initMock = jest.fn();
+            const factory = jest.fn().mockReturnValue(rendererStub(initMock));
+
+            showChipComponent(
+                { component: {}, componentProps: { foo: 'bar' } },
+                factory
+            );
+
+            expect(initMock).toHaveBeenCalledWith(
+                expect.objectContaining({ componentProps: { foo: 'bar' } })
+            );
+        });
+
+        test('init receives a close function that calls popupService.close()', () => {
+            const initMock = jest.fn();
+            const factory = jest.fn().mockReturnValue(rendererStub(initMock));
+
+            const { close } = showChipComponent({ component: {} }, factory);
+
+            const { close: closeFn } = initMock.mock.calls[0][0];
+            closeFn();
+            expect(close).toHaveBeenCalled();
+        });
+
+        test('skips the item if createContextMenuItemComponent returns undefined', () => {
+            const factory = jest.fn().mockReturnValue(undefined);
+
+            const { menuEl } = showChipComponent({ component: {} }, factory);
+
+            expect(menuEl.children).toHaveLength(0);
+        });
+
+        test('skips a component item when no createContextMenuItemComponent factory is configured', () => {
+            const { menuEl } = showChipComponent({ component: {} });
+
+            expect(menuEl.children).toHaveLength(0);
+        });
+    });
+
     describe("chip 'rename' input", () => {
         function makeChipAccessor(items: unknown[]) {
             const openPopover = jest.fn();

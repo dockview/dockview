@@ -1,93 +1,93 @@
 {
-    "name": "dockview-vue",
-    "version": "7.0.4",
-    "description": "Vue 3 docking layout manager — tabs, groups, grids, splitviews, drag and drop, floating panels",
-    "keywords": [
-        "splitview",
-        "split-view",
-        "gridview",
-        "grid-view",
-        "dockview",
-        "dock-view",
-        "grid",
-        "tabs",
-        "layout",
-        "layout manager",
-        "dock layout",
-        "dock",
-        "docking",
-        "splitter",
-        "drag-and-drop",
-        "drag",
-        "drop",
-        "touch",
-        "mobile",
-        "typescript",
-        "zero-dependency",
-        "ide-layout",
-        "panel",
-        "resizable",
-        "floating",
-        "serialization",
-        "workbench",
-        "vue",
-        "vue-component",
-        "vue3",
-        "composition-api"
-    ],
-    "main": "dist/dockview-vue.umd.cjs",
-    "module": "dist/dockview-vue.es.js",
-    "types": "dist/types/index.d.ts",
-    "exports": {
-        ".": {
-            "types": "./dist/types/index.d.ts",
-            "import": "./dist/dockview-vue.es.js",
-            "require": "./dist/dockview-vue.umd.cjs"
-        },
-        "./dist/styles/*": "./dist/styles/*",
-        "./package.json": "./package.json"
+  "name": "dockview-vue",
+  "version": "8.0.0",
+  "description": "Vue 3 docking layout manager — tabs, groups, grids, splitviews, drag and drop, floating panels",
+  "keywords": [
+    "splitview",
+    "split-view",
+    "gridview",
+    "grid-view",
+    "dockview",
+    "dock-view",
+    "grid",
+    "tabs",
+    "layout",
+    "layout manager",
+    "dock layout",
+    "dock",
+    "docking",
+    "splitter",
+    "drag-and-drop",
+    "drag",
+    "drop",
+    "touch",
+    "mobile",
+    "typescript",
+    "zero-dependency",
+    "ide-layout",
+    "panel",
+    "resizable",
+    "floating",
+    "serialization",
+    "workbench",
+    "vue",
+    "vue-component",
+    "vue3",
+    "composition-api"
+  ],
+  "main": "dist/dockview-vue.umd.cjs",
+  "module": "dist/dockview-vue.es.js",
+  "types": "dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/dockview-vue.es.js",
+      "require": "./dist/dockview-vue.umd.cjs"
     },
-    "sideEffects": [
-        "**/*.css",
-        "**/*.scss"
-    ],
-    "homepage": "https://github.com/mathuo/dockview",
-    "bugs": {
-        "url": "https://github.com/mathuo/dockview/issues"
-    },
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/mathuo/dockview.git",
-        "directory": "packages/dockview-vue"
-    },
-    "type": "module",
-    "license": "MIT",
-    "author": "https://github.com/mathuo",
-    "files": [
-        "dist",
-        "README.md",
-        "LICENCE.md"
-    ],
-    "scripts": {
-        "build:bundle": "echo 'noop'",
-        "build:js": "vite build",
-        "build:types": "vue-tsc --project tsconfig.build-types.json --declaration --emitDeclarationOnly --outDir dist/types",
-        "build:css": "node scripts/copy-css.cjs",
-        "build": "npm run build:js && npm run build:types && npm run build:css",
-        "clean": "rimraf dist/ .build/ .rollup.cache/",
-        "rebuild": "npm run clean && npm run build",
-        "types:check": "attw --pack . --ignore-rules false-esm internal-resolution-error",
-        "test": "vitest run",
-        "test:cov": "vitest run --coverage && node scripts/fix-lcov-paths.cjs",
-        "lint": "biome lint src",
-        "lint:fix": "biome lint --write src",
-        "format": "biome format --write src",
-        "format:check": "biome format src"
-    },
-    "dependencies": {
-        "dockview": "^7.0.4"
-    },
-    "peerDependencies": {
-        "vue": "^3.4.0"
-    }
+    "./dist/styles/*": "./dist/styles/*",
+    "./package.json": "./package.json"
+  },
+  "sideEffects": [
+    "**/*.css",
+    "**/*.scss"
+  ],
+  "homepage": "https://github.com/dockview/dockview",
+  "bugs": {
+    "url": "https://github.com/dockview/dockview/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dockview/dockview.git",
+    "directory": "packages/dockview-vue"
+  },
+  "type": "module",
+  "license": "MIT",
+  "author": "https://github.com/mathuo",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENCE.md"
+  ],
+  "scripts": {
+    "build:bundle": "echo 'noop'",
+    "build:js": "vite build",
+    "build:types": "vue-tsc --project tsconfig.build-types.json --declaration --emitDeclarationOnly --outDir dist/types",
+    "build:css": "node scripts/copy-css.cjs",
+    "build": "npm run build:js && npm run build:types && npm run build:css",
+    "clean": "rimraf dist/ .build/ .rollup.cache/",
+    "rebuild": "npm run clean && npm run build",
+    "types:check": "attw --pack . --ignore-rules false-esm internal-resolution-error",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage && node scripts/fix-lcov-paths.cjs",
+    "lint": "biome lint src",
+    "lint:fix": "biome lint --write src",
+    "format": "biome format --write src",
+    "format:check": "biome format src"
+  },
+  "dependencies": {
+    "dockview": "^8.0.0"
+  },
+  "peerDependencies": {
+    "vue": "^3.4.0"
+  }
 }

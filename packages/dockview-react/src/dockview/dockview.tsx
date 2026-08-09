@@ -21,6 +21,7 @@ import {
     GetTabContextMenuItemsParams,
     GetTabGroupChipContextMenuItemsParams,
     IContextMenuItemComponentProps,
+    IChipContextMenuItemComponentProps,
 } from 'dockview';
 import { ReactPanelContentPart } from './reactContentPart';
 import { ReactPanelHeaderPart } from './reactHeaderPart';
@@ -87,7 +88,6 @@ export interface IDockviewReactProps extends DockviewOptions {
      * before the browser snapshots it.
      */
     groupDragGhostComponent?: React.FunctionComponent<IDockviewGroupDragGhostProps>;
-    //
     onReady: (event: DockviewReadyEvent) => void;
     onDidDrop?: (event: DockviewDidDropEvent) => void;
     onWillDrop?: (event: DockviewWillDropEvent) => void;
@@ -204,7 +204,10 @@ export const DockviewReact = React.forwardRef(
                     }
                     return new ReactContextMenuItemPart(
                         options.id,
-                        options.component as React.FunctionComponent<IContextMenuItemComponentProps>,
+                        options.component as React.FunctionComponent<
+                            | IContextMenuItemComponentProps
+                            | IChipContextMenuItemComponentProps
+                        >,
                         { addPortal }
                     );
                 },

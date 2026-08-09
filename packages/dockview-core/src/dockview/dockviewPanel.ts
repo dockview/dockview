@@ -217,7 +217,6 @@ export class DockviewPanel
     }
 
     public update(event: PanelUpdateEvent): void {
-        // merge the new parameters with the existing parameters
         this._params = {
             ...this._params,
             ...event.params,
@@ -233,7 +232,6 @@ export class DockviewPanel
             }
         }
 
-        // update the view with the updated props
         this.view.update({
             params: this._params,
         });

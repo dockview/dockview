@@ -106,8 +106,8 @@ export class LiveRegionService
         const mainDoc = host.element.ownerDocument;
         this._mainWindow = mainDoc.defaultView ?? window;
 
-        // The main window's region lives inside the dockview element (existing
-        // behaviour). Popout windows get their own pair in their own document.
+        // The main window's region lives inside the dockview element. Popout
+        // windows get their own pair in their own document.
         const mainPair: RegionPair = {
             polite: createLiveRegion(mainDoc, 'polite'),
             assertive: createLiveRegion(mainDoc, 'assertive'),

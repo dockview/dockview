@@ -341,7 +341,6 @@ export class SplitviewComponent
 
         const queue: Function[] = [];
 
-        // take note of the existing dimensions
         const width = this.width;
         const height = this.height;
 

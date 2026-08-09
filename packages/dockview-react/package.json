@@ -1,94 +1,94 @@
 {
-    "name": "dockview-react",
-    "version": "7.0.4",
-    "description": "React docking layout manager — tabs, groups, grids, splitviews, drag and drop, floating panels",
-    "keywords": [
-        "splitview",
-        "split-view",
-        "gridview",
-        "grid-view",
-        "dockview",
-        "dock-view",
-        "grid",
-        "tabs",
-        "layout",
-        "layout manager",
-        "dock layout",
-        "dock",
-        "docking",
-        "splitter",
-        "drag-and-drop",
-        "drag",
-        "drop",
-        "touch",
-        "mobile",
-        "typescript",
-        "zero-dependency",
-        "ide-layout",
-        "panel",
-        "resizable",
-        "floating",
-        "serialization",
-        "workbench",
-        "react",
-        "react-component"
-    ],
-    "homepage": "https://github.com/mathuo/dockview",
-    "bugs": {
-        "url": "https://github.com/mathuo/dockview/issues"
+  "name": "dockview-react",
+  "version": "8.0.0",
+  "description": "React docking layout manager — tabs, groups, grids, splitviews, drag and drop, floating panels",
+  "keywords": [
+    "splitview",
+    "split-view",
+    "gridview",
+    "grid-view",
+    "dockview",
+    "dock-view",
+    "grid",
+    "tabs",
+    "layout",
+    "layout manager",
+    "dock layout",
+    "dock",
+    "docking",
+    "splitter",
+    "drag-and-drop",
+    "drag",
+    "drop",
+    "touch",
+    "mobile",
+    "typescript",
+    "zero-dependency",
+    "ide-layout",
+    "panel",
+    "resizable",
+    "floating",
+    "serialization",
+    "workbench",
+    "react",
+    "react-component"
+  ],
+  "homepage": "https://github.com/dockview/dockview",
+  "bugs": {
+    "url": "https://github.com/dockview/dockview/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dockview/dockview.git",
+    "directory": "packages/dockview-react"
+  },
+  "license": "MIT",
+  "author": "https://github.com/mathuo",
+  "main": "./dist/package/main.cjs.js",
+  "module": "./dist/package/main.esm.mjs",
+  "types": "./dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/cjs/index.d.ts",
+      "import": "./dist/package/main.esm.mjs",
+      "require": "./dist/package/main.cjs.js"
     },
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/mathuo/dockview.git",
-        "directory": "packages/dockview-react"
-    },
-    "license": "MIT",
-    "author": "https://github.com/mathuo",
-    "main": "./dist/package/main.cjs.js",
-    "module": "./dist/package/main.esm.mjs",
-    "types": "./dist/cjs/index.d.ts",
-    "exports": {
-        ".": {
-            "types": "./dist/cjs/index.d.ts",
-            "import": "./dist/package/main.esm.mjs",
-            "require": "./dist/package/main.cjs.js"
-        },
-        "./dist/styles/*": "./dist/styles/*",
-        "./dist/*": "./dist/*",
-        "./package.json": "./package.json"
-    },
-    "sideEffects": [
-        "**/*.css",
-        "**/*.scss"
-    ],
-    "files": [
-        "dist/package",
-        "dist/cjs/**/*.d.ts",
-        "dist/styles",
-        "dist/*.js",
-        "README.md",
-        "LICENCE.md"
-    ],
-    "scripts": {
-        "build:bundle": "rolldown -c rolldown.config.mjs",
-        "build:cjs": "tsc --build ./tsconfig.json --verbose --extendedDiagnostics",
-        "build:css": "node scripts/copy-css.js",
-        "build": "npm run build:cjs && npm run build:css",
-        "clean": "rimraf dist/ .build/ .rollup.cache/",
-        "rebuild": "npm run clean && npm run build && npm run build:bundle",
-        "types:check": "attw --pack . --ignore-rules false-cjs",
-        "test": "jest --selectProjects dockview-react",
-        "test:cov": "jest --selectProjects dockview-react --coverage",
-        "lint": "biome lint src",
-        "lint:fix": "biome lint --write src",
-        "format": "biome format --write src",
-        "format:check": "biome format src"
-    },
-    "dependencies": {
-        "dockview": "^7.0.4"
-    },
-    "peerDependencies": {
-        "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0",
-        "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0"
-    }
+    "./dist/styles/*": "./dist/styles/*",
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
+  },
+  "sideEffects": [
+    "**/*.css",
+    "**/*.scss"
+  ],
+  "files": [
+    "dist/package",
+    "dist/cjs/**/*.d.ts",
+    "dist/styles",
+    "dist/*.js",
+    "README.md",
+    "LICENCE.md"
+  ],
+  "scripts": {
+    "build:bundle": "rolldown -c rolldown.config.mjs",
+    "build:cjs": "tsc --build ./tsconfig.json --verbose --extendedDiagnostics",
+    "build:css": "node scripts/copy-css.js",
+    "build": "npm run build:cjs && npm run build:css",
+    "clean": "rimraf dist/ .build/ .rollup.cache/",
+    "rebuild": "npm run clean && npm run build && npm run build:bundle",
+    "types:check": "attw --pack . --ignore-rules false-cjs",
+    "test": "jest --selectProjects dockview-react",
+    "test:cov": "jest --selectProjects dockview-react --coverage",
+    "lint": "biome lint src",
+    "lint:fix": "biome lint --write src",
+    "format": "biome format --write src",
+    "format:check": "biome format src"
+  },
+  "dependencies": {
+    "dockview": "^8.0.0"
+  },
+  "peerDependencies": {
+    "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0",
+    "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0"
+  }
 }

@@ -28,17 +28,14 @@ test.describe('layout history (in-grid undo/redo)', () => {
             (window as any).__dv.addPanelAt('beta', 'right')
         );
 
-        // Two side-by-side groups, and the split is on the undo stack.
         expect(await groupCount(page)).toBe(2);
         expect(await canUndo(page)).toBe(true);
         expect(await canRedo(page)).toBe(false);
 
-        // Undo → beta's add is reverted, back to a single group.
         await page.evaluate(() => (window as any).__dv.undo());
         await expect.poll(() => groupCount(page)).toBe(1);
         expect(await canRedo(page)).toBe(true);
 
-        // Redo → the split returns.
         await page.evaluate(() => (window as any).__dv.redo());
         await expect.poll(() => groupCount(page)).toBe(2);
     });
@@ -54,7 +51,6 @@ test.describe('layout history (in-grid undo/redo)', () => {
         await page.evaluate(() => (window as any).__dv.closePanel('beta'));
         await expect(page.locator('.dv-tab')).toHaveCount(1);
 
-        // Undo the close → beta comes back.
         await page.evaluate(() => (window as any).__dv.undo());
         await expect(page.locator('.dv-tab')).toHaveCount(2);
         await expect(
@@ -77,7 +73,6 @@ test.describe('layout history (in-grid undo/redo)', () => {
             )
             .toBe(true);
 
-        // Undo → the maximize is lifted.
         await page.evaluate(() => (window as any).__dv.undo());
         await expect
             .poll(() =>

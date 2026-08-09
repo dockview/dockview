@@ -56,8 +56,30 @@ test.describe('tab-group chips', () => {
         await page.waitForTimeout(250);
         await page.mouse.click(600, 450);
         await expect(page.locator('.dv-context-menu')).toHaveCount(0);
-        // The chip itself survives.
         await expect(chip).toBeVisible();
+    });
+
+    test('a chip `component` menu item renders with its componentProps and tabGroup', async ({
+        page,
+    }) => {
+        // `?chipcomponent=1` makes the chip menu return a `component` item; the
+        // fixture's createContextMenuItemComponent renders it, so this exercises
+        // the chip-menu component path end-to-end (jsdom unit tests mock the
+        // renderer). The rendered text proves both componentProps.badge ("X")
+        // and the chip's tabGroup.label ("Monitoring") reached the component.
+        await page.goto('/e2e/fixtures/index.html?chipcomponent=1');
+        await page.waitForFunction(() => (window as any).__ready === true);
+        await page.evaluate(() => (window as any).__dv.setupTabGroupChip());
+
+        const chip = page.locator('.dv-tab-group-chip');
+        await expect(chip).toBeVisible();
+        await chip.click({ button: 'right' });
+
+        const menu = page.locator('.dv-context-menu');
+        await expect(menu).toBeVisible();
+        await expect(menu.locator('.chip-component-item')).toHaveText(
+            'chip:X:Monitoring'
+        );
     });
 });
 

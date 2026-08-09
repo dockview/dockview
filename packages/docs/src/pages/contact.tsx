@@ -43,12 +43,14 @@ declare global {
                 el: HTMLElement,
                 opts: {
                     sitekey: string;
+                    appearance?: 'always' | 'execute' | 'interaction-only';
                     callback: (token: string) => void;
                     'expired-callback'?: () => void;
                     'error-callback'?: () => void;
                 }
             ) => string;
             reset: (id?: string) => void;
+            remove: (id?: string) => void;
         };
     }
 }

@@ -153,8 +153,7 @@ describe('AngularRenderer', () => {
         // Reproduces the disposal-order bug from issue #1220: dockview-core's
         // OverlayRenderContainer reads `panel.view.content.element` while
         // tearing down its own disposables, by which point the renderer has
-        // already been disposed. Previously the getter threw "Angular
-        // renderer not initialized" here.
+        // already been disposed.
         const renderer = new AngularRenderer<TestComponent>({
             component: TestComponent,
             injector,
@@ -226,7 +225,6 @@ describe('AngularRenderer', () => {
     });
 
     it('should render view from template', () => {
-        // Create component with template
         const templateRenderer = new AngularRenderer({
             component: TemplateHolderComponent,
             injector,
@@ -239,7 +237,6 @@ describe('AngularRenderer', () => {
 
         expect(template).toBeDefined();
 
-        // Create view from template
         const renderer = new AngularRenderer({
             component: template,
             injector: templateRenderer.component.injector, // use container injector to ensure we have a view

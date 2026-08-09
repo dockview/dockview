@@ -80,7 +80,6 @@ describe('defaultTab', () => {
 
         let el = cut.element.querySelector('.dv-default-tab-action');
 
-        // Create a custom event to verify preventDefault is called
         const clickEvent = new Event('click', { cancelable: true });
         const preventDefaultSpy = jest.spyOn(clickEvent, 'preventDefault');
 
@@ -108,13 +107,11 @@ describe('defaultTab', () => {
 
         let el = cut.element.querySelector('.dv-default-tab-action');
 
-        // Create a custom event and prevent it before dispatching
         const clickEvent = new Event('click', { cancelable: true });
         clickEvent.preventDefault();
 
         el!.dispatchEvent(clickEvent);
 
-        // Close should not be called if event was already prevented
         expect(api.close).not.toHaveBeenCalled();
     });
 

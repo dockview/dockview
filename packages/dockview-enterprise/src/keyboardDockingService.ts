@@ -411,13 +411,38 @@ export class KeyboardDockingService
      */
     private _showHint(text: string): void {
         if (!this._hint) {
-            const doc = this.host.rootElement.ownerDocument;
+            const mainDoc = this.host.rootElement.ownerDocument;
+            // Mount the hint in the window that currently has focus, so a move
+            // armed inside a popout shows its guidance in that popout, not the
+            // opener (mirrors how announcements route to the focused window's
+            // live region).
+            const doc = this._focusedDocument();
+            // In the main window scope the hint to the dock shell (a positioned
+            // ancestor). A popout exposes no shell handle, so anchor it to that
+            // window's body; the hint is `position: absolute; bottom`, so it
+            // lands at the foot of whichever window armed the move.
+            const parent = doc === mainDoc ? this.host.rootElement : doc.body;
             this._hint = doc.createElement('div');
             this._hint.className = 'dv-keyboard-docking-hint';
             this._hint.setAttribute('aria-hidden', 'true');
-            this.host.rootElement.appendChild(this._hint);
+            parent.appendChild(this._hint);
         }
         this._hint.textContent = text;
+    }
+
+    /** The document of the window that currently has focus (a popout, if a
+     *  keydown was made there), falling back to the main window. */
+    private _focusedDocument(): Document {
+        for (const win of this.host.getPopoutWindows()) {
+            try {
+                if (win.document.hasFocus()) {
+                    return win.document;
+                }
+            } catch {
+                // A closing / cross-origin window can throw on access; ignore.
+            }
+        }
+        return this.host.rootElement.ownerDocument;
     }
 
     private _hideHint(): void {

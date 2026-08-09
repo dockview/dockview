@@ -16,8 +16,8 @@ import { LicenseModule } from './licenseService';
 // superset of `dockview`.
 export * from 'dockview';
 
-// TabGroupChipsModule / TabGroupChipsService are now free and live in
-// dockview-core; they remain re-exported here via `export * from 'dockview'`
+// TabGroupChipsModule / TabGroupChipsService are free and live in
+// dockview-core; they are re-exported here via `export * from 'dockview'`
 // above so `dockview-enterprise` stays a drop-in superset.
 export { ContextMenuController, ContextMenuModule } from './contextMenu';
 export {

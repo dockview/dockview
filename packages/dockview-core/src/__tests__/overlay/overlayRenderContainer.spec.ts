@@ -597,7 +597,7 @@ describe('overlayRenderContainer', () => {
                 onDidVisibilityChange: onDidVisibilityChange2.event,
                 onDidDimensionsChange: onDidDimensionsChange2.event,
                 onDidLocationChange: onDidLocationChange2.event,
-                isVisible: false, // This panel is not visible
+                isVisible: false,
                 location: { type: 'grid' },
             },
             view: {
@@ -612,7 +612,6 @@ describe('overlayRenderContainer', () => {
             },
         });
 
-        // Mock getBoundingClientRect for consistent testing
         jest.spyOn(
             referenceContainer.element,
             'getBoundingClientRect'
@@ -634,30 +633,24 @@ describe('overlayRenderContainer', () => {
             })
         );
 
-        // Attach both panels
         const container1 = cut.attach({ panel: panel1, referenceContainer });
         const container2 = cut.attach({ panel: panel2, referenceContainer });
 
         await exhaustMicrotaskQueue();
         await exhaustAnimationFrame();
 
-        // Clear previous calls to getBoundingClientRect
         jest.clearAllMocks();
 
-        // Call updateAllPositions
         cut.updateAllPositions();
 
         // Should trigger resize for visible panels only
         await exhaustAnimationFrame();
 
-        // Verify that positioning was updated for visible panel
         expect(container1.style.left).toBe('50px');
         expect(container1.style.top).toBe('100px');
         expect(container1.style.width).toBe('150px');
         expect(container1.style.height).toBe('250px');
 
-        // Verify getBoundingClientRect was called for visible panel only
-        // updateAllPositions should call the resize function which triggers getBoundingClientRect
         expect(
             referenceContainer.element.getBoundingClientRect
         ).toHaveBeenCalled();

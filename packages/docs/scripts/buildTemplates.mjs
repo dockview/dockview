@@ -243,9 +243,9 @@ const COMPONENT_SELECTORS = {
 const list = [];
 
 const githubUrl =
-    'https://github.com/mathuo/dockview/tree/master/packages/docs/templates';
+    'https://github.com/dockview/dockview/tree/master/packages/docs/templates';
 const codeSandboxUrl =
-    'https://codesandbox.io/p/sandbox/github/mathuo/dockview/tree/gh-pages/templates';
+    'https://codesandbox.io/p/sandbox/github/dockview/dockview/tree/gh-pages/templates';
 
 async function buildTemplates() {
     for (const component of COMPONENTS) {

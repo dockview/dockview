@@ -122,8 +122,7 @@ describe('DnD compass', () => {
         make(true);
         const r = service.resolver!;
         // 200x100: the top cell ends at y=27 and the centre starts at y=31, a
-        // 4px gap that used to resolve to null (the overlay would disappear). A
-        // pointer in the gap now snaps to whichever cell is nearer, so the
+        // 4px gap. A pointer in the gap snaps to whichever cell is nearer, so the
         // overlay stays on as the cursor crosses between cells.
         expect(r.resolve(args(100, 28))).toEqual({
             position: 'top',

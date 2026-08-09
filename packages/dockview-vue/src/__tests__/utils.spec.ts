@@ -14,6 +14,7 @@ import {
     DockviewGroupPanelModel,
     IDockviewPanel,
     IContextMenuItemComponentProps,
+    IChipContextMenuItemComponentProps,
 } from 'dockview';
 import {
     VueContextMenuItemRenderer,
@@ -303,7 +304,6 @@ describe('VuePart', () => {
     });
 
     test('should handle init call without throwing', () => {
-        // Test that init can be called without throwing
         // Note: may fail due to Vue environment setup but should not crash the test
         try {
             vuePart.init();
@@ -481,7 +481,6 @@ describe('VueHeaderActionsRenderer', () => {
 
         onDidAddPanel.fire(undefined);
 
-        // cloneVNode should have been called for the update
         expect(vueRenderMock).toHaveBeenCalled();
 
         renderer.dispose();
@@ -634,7 +633,6 @@ describe('VueHeaderActionsRenderer', () => {
 
         vueRenderMock.mockClear();
 
-        // Fire each event and check it triggers a render
         onDidAddPanel.fire(undefined);
         expect(vueRenderMock).toHaveBeenCalledTimes(1);
 
@@ -656,7 +654,7 @@ describe('VueHeaderActionsRenderer', () => {
     });
 
     test('should preserve full params including api after reactive updates', () => {
-        // Regression test for https://github.com/mathuo/dockview/issues/1127
+        // Regression test for https://github.com/dockview/dockview/issues/1127
         // Partial updates (e.g. isGroupActive) must not discard api and other fields
         const renderer = new VueHeaderActionsRenderer(
             mockComponent,
@@ -757,6 +755,23 @@ describe('VueContextMenuItemRenderer', () => {
 
         const passedProps = createVNodeMock.mock.calls[0][1];
         expect(passedProps.params.componentProps).toBe(componentProps);
+    });
+
+    test('chip props (tabGroup) are forwarded via params', () => {
+        // The same renderer serves the chip menu, whose props carry a `tabGroup`
+        // instead of a `panel`; the tests above already cover the params /
+        // componentProps pass-through, so this only checks the tabGroup shape.
+        const renderer = new VueContextMenuItemRenderer(
+            mockComponent,
+            mockParent
+        );
+        const props = {
+            tabGroup: {},
+        } as unknown as IChipContextMenuItemComponentProps;
+
+        renderer.init(props);
+
+        expect(createVNodeMock.mock.calls[0][1].params).toBe(props);
     });
 
     test('dispose unmounts the component', () => {

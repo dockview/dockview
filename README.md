@@ -11,9 +11,9 @@
 
 [![npm version](https://img.shields.io/npm/v/dockview)](https://www.npmjs.com/package/dockview)
 [![npm downloads](https://img.shields.io/npm/dm/dockview)](https://www.npmjs.com/package/dockview-core)
-[![CI](https://img.shields.io/github/actions/workflow/status/mathuo/dockview/main.yml?branch=master&label=CI)](https://github.com/mathuo/dockview/actions?query=workflow%3ACI)
-[![Coverage](https://img.shields.io/sonar/coverage/mathuo_dockview?server=https%3A%2F%2Fsonarcloud.io)](https://sonarcloud.io/summary/overall?id=mathuo_dockview)
-[![Quality gate](https://img.shields.io/sonar/quality_gate/mathuo_dockview?server=https%3A%2F%2Fsonarcloud.io)](https://sonarcloud.io/summary/overall?id=mathuo_dockview)
+[![CI](https://img.shields.io/github/actions/workflow/status/dockview/dockview/main.yml?branch=master&label=CI)](https://github.com/dockview/dockview/actions?query=workflow%3ACI)
+[![Coverage](https://img.shields.io/sonar/coverage/dockview_dockview?server=https%3A%2F%2Fsonarcloud.io)](https://sonarcloud.io/summary/overall?id=dockview_dockview)
+[![Quality gate](https://img.shields.io/sonar/quality_gate/dockview_dockview?server=https%3A%2F%2Fsonarcloud.io)](https://sonarcloud.io/summary/overall?id=dockview_dockview)
 [![Bundle size](https://img.shields.io/bundlephobia/minzip/dockview?label=size)](https://bundlephobia.com/result?p=dockview)
 
 </div>
@@ -104,7 +104,7 @@ yarn format     # Format all packages
 
 ## Contributing
 
-Contributions are welcome! Please open an [issue](https://github.com/mathuo/dockview/issues) or submit a pull request.
+Contributions are welcome! Please open an [issue](https://github.com/dockview/dockview/issues) or submit a pull request.
 
 ## Licence
 

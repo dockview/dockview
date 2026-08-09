@@ -8,13 +8,15 @@ tags: [enterprise]
 
 Starting with version 8.0.0, Dockview ships in two forms: a free version and an enterprise version.
 
-Dockview and all of the framework packages remain free and open under an MIT licence, exactly as they are today. Alongside them, **Dockview Enterprise** is a commercially licensed version. [See pricing and licensing](/docs/overview/licence).
+Dockview and all of the framework packages remain free and open under an MIT licence, exactly as they are today. Alongside them, **Dockview Enterprise** is a commercially licensed extension.
 
 Nothing you rely on today has been taken away. If a feature was free in Dockview, it stays free, and every Dockview package, enterprise included, will always have zero external dependencies.
 
 If you are already using Dockview and you don't need the enterprise features, there is nothing to do. No licence key, no extra package, no import changes.
 
 <!-- truncate -->
+
+<BlogReaction id="v8-feedback" />
 
 ## Why enterprise?
 
@@ -31,7 +33,7 @@ There are still many features I want to build, and many of them will stay in the
 
 Dockview itself stays open source under MIT. The enterprise code lives in the same repository and you can read all of it, though it is source-available under the commercial licence rather than MIT.
 
-Enterprise features ship in a separate `dockview-enterprise` package and are unlocked with a licence key. The check runs against the release date of the build you are running, not today's date, so a deployed application never starts watermarking itself. See [Enterprise setup](/docs/overview/enterprise-setup) for installing the package and applying a key.
+Enterprise features ship in a separate `dockview-enterprise` package and are unlocked with a licence key. See [Enterprise setup](/docs/overview/enterprise-setup) for installing the package and applying a key.
 
 You are free to evaluate the enterprise features locally without a key, where Dockview shows a small watermark in the corner of the layout. A licence is required to deploy to production. If you want to trial it first, you can [start a free 30-day trial](/trial).
 
@@ -39,7 +41,7 @@ You are free to evaluate the enterprise features locally without a key, where Do
 
 The first release covers:
 
-- **Multi-row tabs** and **pinned tabs**: wrap a crowded tab strip onto extra rows, or pin the tabs that matter so they sort first and never overflow
+- **Multi-row tabs** and **pinned tabs**: wrap a tab strip onto extra rows, or pin the tabs that matter so they sort first and never overflow
 - **Advanced overflow**: the overflow dropdown becomes a command-palette style switcher, with search, most-recently-used ordering and keyboard navigation
 - **Context menus** for tabs and tab group chips
 - **DnD compass**: an explicit set of drop targets to aim at while dragging, instead of resolving the drop from whichever quadrant the cursor is over
@@ -48,7 +50,7 @@ The first release covers:
 - **Layout history**: a bounded undo/redo stack for layout changes, so a mis-drag or an accidental close is recoverable
 - **Keyboard docking** and spatial navigation: move and dock panels without a mouse
 
-Deciding what went where was the hardest part. Dockview Enterprise is _for_ enterprises, and it should never come at the expense of Dockview being a great free layout manager.
+Deciding what went where was the hardest part. Dockview Enterprise is for enterprises, and it should never come at the expense of Dockview being a great free layout manager.
 
 The rule I settled on: the free version should aim to never be behind the competition. Enterprise is ideally for capabilities no other library gives away, and for the ones used mostly by large enterprises.
 
@@ -77,3 +79,5 @@ Either way, email me at [matt@dockview.dev](mailto:matt@dockview.dev) before you
 Thanks for reading, and thanks for using Dockview.
 
 Matt
+
+<BlogFeedback id="v8-feedback" />

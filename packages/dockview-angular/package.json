@@ -1,80 +1,80 @@
 {
-    "name": "dockview-angular",
-    "version": "7.0.4",
-    "description": "Angular docking layout manager — tabs, groups, grids, splitviews, drag and drop, floating panels",
-    "keywords": [
-        "splitview",
-        "split-view",
-        "gridview",
-        "grid-view",
-        "dockview",
-        "dock-view",
-        "grid",
-        "tabs",
-        "layout",
-        "layout manager",
-        "dock layout",
-        "dock",
-        "docking",
-        "splitter",
-        "drag-and-drop",
-        "drag",
-        "drop",
-        "touch",
-        "mobile",
-        "typescript",
-        "zero-dependency",
-        "ide-layout",
-        "panel",
-        "resizable",
-        "floating",
-        "serialization",
-        "workbench",
-        "angular",
-        "angular-component"
-    ],
-    "homepage": "https://github.com/mathuo/dockview",
-    "bugs": {
-        "url": "https://github.com/mathuo/dockview/issues"
-    },
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/mathuo/dockview.git",
-        "directory": "packages/dockview-angular"
-    },
-    "license": "MIT",
-    "author": "https://github.com/mathuo",
-    "files": [
-        "dist",
-        "README.md",
-        "LICENCE.md"
-    ],
-    "module": "./dist/fesm2022/dockview-angular.mjs",
-    "typings": "./dist/types/dockview-angular.d.ts",
-    "sideEffects": [
-        "**/*.css",
-        "**/*.scss"
-    ],
-    "scripts": {
-        "build:angular": "ng-packagr -c tsconfig.lib.json -p ng-package.json",
-        "build:css": "node scripts/copy-css.js",
-        "build": "npm run build:angular && npm run build:css",
-        "clean": "rimraf dist/ .build/ .rollup.cache/",
-        "rebuild": "npm run clean && npm run build",
-        "types:check": "attw --pack . --ignore-rules cjs-resolves-to-esm",
-        "test": "jest --selectProjects dockview-angular",
-        "test:cov": "jest --selectProjects dockview-angular --coverage",
-        "lint": "biome lint src",
-        "lint:fix": "biome lint --write src",
-        "format": "biome format --write src",
-        "format:check": "biome format src"
-    },
-    "dependencies": {
-        "dockview": "^7.0.4"
-    },
-    "peerDependencies": {
-        "@angular/common": ">=21.0.6",
-        "@angular/core": ">=21.0.6",
-        "rxjs": ">=7.0.0"
-    }
+  "name": "dockview-angular",
+  "version": "8.0.0",
+  "description": "Angular docking layout manager — tabs, groups, grids, splitviews, drag and drop, floating panels",
+  "keywords": [
+    "splitview",
+    "split-view",
+    "gridview",
+    "grid-view",
+    "dockview",
+    "dock-view",
+    "grid",
+    "tabs",
+    "layout",
+    "layout manager",
+    "dock layout",
+    "dock",
+    "docking",
+    "splitter",
+    "drag-and-drop",
+    "drag",
+    "drop",
+    "touch",
+    "mobile",
+    "typescript",
+    "zero-dependency",
+    "ide-layout",
+    "panel",
+    "resizable",
+    "floating",
+    "serialization",
+    "workbench",
+    "angular",
+    "angular-component"
+  ],
+  "homepage": "https://github.com/dockview/dockview",
+  "bugs": {
+    "url": "https://github.com/dockview/dockview/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dockview/dockview.git",
+    "directory": "packages/dockview-angular"
+  },
+  "license": "MIT",
+  "author": "https://github.com/mathuo",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENCE.md"
+  ],
+  "module": "./dist/fesm2022/dockview-angular.mjs",
+  "typings": "./dist/types/dockview-angular.d.ts",
+  "sideEffects": [
+    "**/*.css",
+    "**/*.scss"
+  ],
+  "scripts": {
+    "build:angular": "ng-packagr -c tsconfig.lib.json -p ng-package.json",
+    "build:css": "node scripts/copy-css.js",
+    "build": "npm run build:angular && npm run build:css",
+    "clean": "rimraf dist/ .build/ .rollup.cache/",
+    "rebuild": "npm run clean && npm run build",
+    "types:check": "attw --pack . --ignore-rules cjs-resolves-to-esm",
+    "test": "jest --selectProjects dockview-angular",
+    "test:cov": "jest --selectProjects dockview-angular --coverage",
+    "lint": "biome lint src",
+    "lint:fix": "biome lint --write src",
+    "format": "biome format --write src",
+    "format:check": "biome format src"
+  },
+  "dependencies": {
+    "dockview": "^8.0.0"
+  },
+  "peerDependencies": {
+    "@angular/common": ">=21.0.6",
+    "@angular/core": ">=21.0.6",
+    "rxjs": ">=7.0.0"
+  }
 }

@@ -729,8 +729,8 @@ export class Gridview implements IDisposable {
         oldRoot.element.remove();
 
         const child = oldRoot.removeChild(0); // Remove child to prevent double disposal
-        oldRoot.dispose(); // Dispose old root (won't dispose removed child)
-        child.dispose(); // Dispose the removed child
+        oldRoot.dispose(); // won't dispose the removed child
+        child.dispose();
 
         this._root = cloneNode(
             childReference,

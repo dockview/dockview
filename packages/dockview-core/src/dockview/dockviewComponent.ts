@@ -1879,9 +1879,8 @@ export class DockviewComponent
         // positioned from the source element's viewport-relative rect, so it
         // is offset here by the opener window's own screen position. Doing the
         // normalisation in one place keeps the window construction below
-        // coordinate-space agnostic; previously the opener offset was added
-        // unconditionally at construction, double-offsetting a restored popout
-        // whenever the opener sat on a non-primary monitor (screenX/Y != 0).
+        // coordinate-space agnostic, and avoids double-offsetting a restored
+        // popout when the opener sits on a non-primary monitor (screenX/Y != 0).
         function getBox(): Box {
             if (options?.position) {
                 return options.position;
@@ -3022,11 +3021,15 @@ export class DockviewComponent
     /**
      * Reveal (create-or-fill) the edge group at `position` and move the dragged
      * item described by `data` into it. A newly created edge group is created
-     * collapsed and flagged `autoReveal` so it tears down to zero footprint when
-     * later emptied. If an edge group already exists there it is reused: the
-     * panel is added to its tabs and its collapsed/toggled state is left as-is
-     * (never re-created; `addEdgeGroup` throws on a duplicate position). No-op if
-     * the EdgeGroup module is absent.
+     * collapsed, flagged `autoReveal` so it tears down to zero footprint when
+     * later emptied, and takes its auto-hide state from `options.autoHide`. If an
+     * edge group already exists there it is reused: the panel is added to its
+     * tabs and its collapsed/toggled *and auto-hide* state are left as-is (never
+     * re-created; `addEdgeGroup` throws on a duplicate position). This keeps a
+     * drag-reveal from silently converting a static edge group into an
+     * auto-hiding one; to change an existing group's auto-hide, call
+     * `api.getEdgeGroup(position)?.setAutoHide(...)` directly. No-op if the
+     * EdgeGroup module is absent.
      *
      * This is the primitive behind the dock-to-edge groups: the two-band
      * drag-reveal affordance routes its outer-band drops here.
@@ -3052,12 +3055,11 @@ export class DockviewComponent
                     collapsed: true,
                 });
                 group = service.get(position);
-            } else if (options?.autoHide !== undefined) {
-                // Route through setEdgeGroupAutoHide (not the raw service) so
-                // onDidEdgeGroupAutoHideChange fires and the auto-hide
-                // controller reconciles the group's chrome.
-                this.setEdgeGroupAutoHide(group, options.autoHide);
             }
+            // An existing edge group is reused with its auto-hide state left
+            // as-is: a drag-reveal must not flip a static edge group into an
+            // auto-hiding one. Programmatic callers that intend to change it use
+            // `api.getEdgeGroup(position)?.setAutoHide(...)`.
             if (!group) {
                 return;
             }
@@ -3518,7 +3520,6 @@ export class DockviewComponent
         const { grid, panels, activeGroup } = data;
 
         try {
-            // take note of the existing dimensions
             const width = this.width;
             const height = this.height;
 

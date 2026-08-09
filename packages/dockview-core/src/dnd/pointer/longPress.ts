@@ -50,7 +50,6 @@ export class LongPressDetector extends CompositeDisposable {
             return;
         }
 
-        // Cancel any in-flight press first.
         this._cancelPending();
 
         this._pointerId = event.pointerId;

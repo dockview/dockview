@@ -98,12 +98,10 @@ describe('contentContainer', () => {
         expect(focus).toBe(0);
         expect(blur).toBe(0);
 
-        // container has focus within
         fireEvent.focus(contentRenderer.element);
         expect(focus).toBe(1);
         expect(blur).toBe(0);
 
-        // container looses focus
         fireEvent.blur(contentRenderer.element);
         jest.runAllTimers();
         expect(focus).toBe(1);
@@ -122,12 +120,10 @@ describe('contentContainer', () => {
         // expect(focus).toBe(2);
         // expect(blur).toBe(1);
 
-        // new panel recieves focus
         fireEvent.focus(contentRenderer2.element);
         expect(focus).toBe(2);
         expect(blur).toBe(1);
 
-        // new panel looses focus
         fireEvent.blur(contentRenderer2.element);
         jest.runAllTimers();
         expect(focus).toBe(2);

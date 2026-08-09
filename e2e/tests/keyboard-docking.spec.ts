@@ -47,6 +47,27 @@ test.describe('cross-window keyboard docking', () => {
         );
     });
 
+    test('the on-screen docking hint appears in the popout it was armed in, not the opener', async ({
+        page,
+        context,
+    }) => {
+        const win = await popout(page, context);
+
+        await win.locator('.dv-test-panel').first().click();
+        await win.keyboard.press('Control+m');
+
+        // The narration routes to the popout (already covered above). The
+        // visible on-screen hint must follow: a keyboard user working inside the
+        // popout needs to see the guidance in the window they are looking at.
+        await expect(win.locator('.dv-keyboard-docking-hint')).toContainText(
+            'Moving beta'
+        );
+        // And it must NOT appear in the opener window.
+        await expect(page.locator('.dv-keyboard-docking-hint')).toHaveCount(0);
+
+        await win.keyboard.press('Escape');
+    });
+
     test('a keyboard split committed inside a popout acts on the popout group', async ({
         page,
         context,

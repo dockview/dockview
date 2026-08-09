@@ -109,9 +109,8 @@ describe('dom', () => {
     });
 
     test('disableIframePointEvents respects the rootNode parameter', () => {
-        // Iframes in a popout document must be shieldable independently
-        // of the main document. The rootNode parameter previously was
-        // ignored, so the function always walked the main document.
+        // Iframes in a popout document must be shieldable independently of
+        // the main document, which is what the rootNode parameter selects.
         const main = document.createElement('iframe');
         document.body.appendChild(main);
 

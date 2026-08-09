@@ -62,9 +62,7 @@ export class EdgeGroupService implements IEdgeGroupService {
     private readonly _autoHide = new WeakMap<DockviewGroupPanel, boolean>();
     private readonly _autoReveal = new WeakMap<DockviewGroupPanel, boolean>();
 
-    // No constructor needed; the host is currently unused. The
-    // IEdgeGroupServiceHost slot stays for symmetry with the other modules
-    // and to leave room for future host callbacks.
+    // No constructor needed; the host is currently unused.
 
     add(
         position: EdgeGroupPosition,

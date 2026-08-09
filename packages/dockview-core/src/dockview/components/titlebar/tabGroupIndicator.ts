@@ -640,23 +640,26 @@ export class WrapTabGroupIndicator extends BaseTabGroupIndicator {
         svg: SVGSVGElement,
         path: SVGPathElement,
         underline: HTMLElement,
-        t: number,
         mainSize: number,
+        crossSize: number,
+        near: number,
         isVertical: boolean
     ): void {
-        if (isVertical) {
-            svg.setAttribute('width', String(t));
-            svg.setAttribute('height', String(mainSize));
-            underline.style.width = `${t}px`;
-            underline.style.height = `${mainSize}px`;
-            path.setAttribute('d', `M ${t / 2},0 L ${t / 2},${mainSize}`);
-        } else {
-            svg.setAttribute('width', String(mainSize));
-            svg.setAttribute('height', String(t));
-            underline.style.width = `${mainSize}px`;
-            underline.style.height = `${t}px`;
-            path.setAttribute('d', `M 0,${t / 2} L ${mainSize},${t / 2}`);
-        }
+        // Match the curved path's full cross-size SVG and inset `near` edge so
+        // the fallback bar is drawn inside the container clip box too (see the
+        // clip note in `applyShape`), never flush against it.
+        const svgW = isVertical ? crossSize : mainSize;
+        const svgH = isVertical ? mainSize : crossSize;
+        svg.setAttribute('width', String(svgW));
+        svg.setAttribute('height', String(svgH));
+        underline.style.width = `${svgW}px`;
+        underline.style.height = `${svgH}px`;
+        path.setAttribute(
+            'd',
+            isVertical
+                ? `M ${near},0 L ${near},${mainSize}`
+                : `M 0,${near} L ${mainSize},${near}`
+        );
     }
 
     /**
@@ -703,13 +706,41 @@ export class WrapTabGroupIndicator extends BaseTabGroupIndicator {
         path.setAttribute('stroke', color);
         path.setAttribute('stroke-width', String(t));
 
+        // The tab strip (`.dv-tabs-container`) clips its children with
+        // `overflow: auto`, and that clip box lines up with this SVG's viewport
+        // (the underline element always spans the full container cross-axis).
+        // A stroke whose centre is only `half` (t/2) from an edge has its outer
+        // rim sitting exactly on the boundary, so the browser shaves it - the
+        // accent looks clipped along the tab's outer edge (most visible where
+        // the line arches over the active tab). Offset the anchored edges one
+        // full stroke-width in so the whole rim clears the clip by `half`, for
+        // every header position (top/bottom/left/right).
+        const inset = t;
+        const headerPosition = this._ctx.getHeaderPosition();
+        const isBottomHeader = !isVertical && headerPosition === 'bottom';
+        const isRightHeader = isVertical && headerPosition === 'right';
+
+        // `near`: the group's long-run edge (the strip edge adjacent to the
+        // content); `far`: the wrap-around edge that arches over the active tab.
+        // Both are cross-axis coordinates in the SVG, inset from the clip box.
+        let near: number;
+        let far: number;
+        if (isVertical) {
+            near = isRightHeader ? crossSize - inset : inset;
+            far = isRightHeader ? inset : crossSize - inset;
+        } else {
+            near = isBottomHeader ? inset : crossSize - inset;
+            far = isBottomHeader ? crossSize - inset : inset;
+        }
+
         if (!activeTabEntry) {
             this._applyStraightLine(
                 svg,
                 path,
                 underline,
-                t,
                 mainSize,
+                crossSize,
+                near,
                 isVertical
             );
             return;
@@ -745,16 +776,18 @@ export class WrapTabGroupIndicator extends BaseTabGroupIndicator {
                 svg,
                 path,
                 underline,
-                t,
                 mainSize,
+                crossSize,
+                near,
                 isVertical
             );
             return;
         }
 
         const r = 6; // corner radius
-        const half = t / 2;
-        const headerPosition = this._ctx.getHeaderPosition();
+        // Curve direction: the sign that steps from the near edge toward the
+        // far edge (over the active tab); positive when `far` is the larger.
+        const cd = far > near ? 1 : -1;
 
         if (isVertical) {
             const svgW = crossSize;
@@ -764,23 +797,17 @@ export class WrapTabGroupIndicator extends BaseTabGroupIndicator {
             underline.style.width = `${svgW}px`;
             underline.style.height = `${svgH}px`;
 
-            // right header: indicator on the left edge (invert x sides)
-            const isRightHeader = headerPosition === 'right';
-            const xNear = isRightHeader ? svgW - half : half;
-            const xFar = isRightHeader ? half : svgW - half;
-            const cd = isRightHeader ? -1 : 1; // curve direction
-
             const d = [
-                `M ${xNear},0`,
-                `L ${xNear},${aStart - r}`,
-                `Q ${xNear},${aStart} ${xNear + cd * r},${aStart}`,
-                `L ${xFar - cd * r},${aStart}`,
-                `Q ${xFar},${aStart} ${xFar},${aStart + r}`,
-                `L ${xFar},${aEnd - r}`,
-                `Q ${xFar},${aEnd} ${xFar - cd * r},${aEnd}`,
-                `L ${xNear + cd * r},${aEnd}`,
-                `Q ${xNear},${aEnd} ${xNear},${aEnd + r}`,
-                `L ${xNear},${svgH}`,
+                `M ${near},0`,
+                `L ${near},${aStart - r}`,
+                `Q ${near},${aStart} ${near + cd * r},${aStart}`,
+                `L ${far - cd * r},${aStart}`,
+                `Q ${far},${aStart} ${far},${aStart + r}`,
+                `L ${far},${aEnd - r}`,
+                `Q ${far},${aEnd} ${far - cd * r},${aEnd}`,
+                `L ${near + cd * r},${aEnd}`,
+                `Q ${near},${aEnd} ${near},${aEnd + r}`,
+                `L ${near},${svgH}`,
             ].join(' ');
 
             path.setAttribute('d', d);
@@ -792,23 +819,17 @@ export class WrapTabGroupIndicator extends BaseTabGroupIndicator {
             underline.style.width = `${svgW}px`;
             underline.style.height = `${svgH}px`;
 
-            // bottom header: indicator on the top edge (invert y sides)
-            const isBottomHeader = headerPosition === 'bottom';
-            const yNear = isBottomHeader ? half : svgH - half;
-            const yFar = isBottomHeader ? svgH - half : half;
-            const cd = isBottomHeader ? 1 : -1; // curve direction
-
             const d = [
-                `M 0,${yNear}`,
-                `L ${aStart - r},${yNear}`,
-                `Q ${aStart},${yNear} ${aStart},${yNear + cd * r}`,
-                `L ${aStart},${yFar - cd * r}`,
-                `Q ${aStart},${yFar} ${aStart + r},${yFar}`,
-                `L ${aEnd - r},${yFar}`,
-                `Q ${aEnd},${yFar} ${aEnd},${yFar - cd * r}`,
-                `L ${aEnd},${yNear + cd * r}`,
-                `Q ${aEnd},${yNear} ${aEnd + r},${yNear}`,
-                `L ${svgW},${yNear}`,
+                `M 0,${near}`,
+                `L ${aStart - r},${near}`,
+                `Q ${aStart},${near} ${aStart},${near + cd * r}`,
+                `L ${aStart},${far - cd * r}`,
+                `Q ${aStart},${far} ${aStart + r},${far}`,
+                `L ${aEnd - r},${far}`,
+                `Q ${aEnd},${far} ${aEnd},${far - cd * r}`,
+                `L ${aEnd},${near + cd * r}`,
+                `Q ${aEnd},${near} ${aEnd + r},${near}`,
+                `L ${svgW},${near}`,
             ].join(' ');
 
             path.setAttribute('d', d);

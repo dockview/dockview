@@ -212,7 +212,6 @@ export class DockviewGroupPanelApiImpl extends GridviewPanelApiImpl {
             this._onDidPeekChange,
             this._onDidHeaderDirectionChange,
             this._onDidVisibilityChange.event((event) => {
-                // When becoming visible, apply any pending size change
                 if (event.isVisible && this._pendingSize) {
                     super.setSize(this._pendingSize);
                     this._pendingSize = undefined;
@@ -222,10 +221,8 @@ export class DockviewGroupPanelApiImpl extends GridviewPanelApiImpl {
     }
 
     public override setSize(event: SizeEvent): void {
-        // Always store the requested size
         this._pendingSize = { ...event };
 
-        // Apply the size change immediately
         super.setSize(event);
     }
 

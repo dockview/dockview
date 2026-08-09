@@ -98,9 +98,9 @@ tabGroup.indexOfPanel('panel-1');
 
 ## Colour palette
 
-`tabGroup.color` is any CSS color string: either an id from the active palette
+`tabGroup.color` is any CSS colour string: either an id from the active palette
 or a raw CSS literal (`'#abc123'`, `'rgb(...)'`). Resolution to a concrete value
-is handled by Dockview's color palette.
+is handled by Dockview's colour palette.
 
 The default palette ships with 9 named entries:
 
@@ -123,7 +123,7 @@ purely via CSS overrides. The full set is exported as `DEFAULT_TAB_GROUP_COLORS`
 
 Replace the default palette with `tabGroupColors`. The list fully replaces the
 defaults; there is no merge. Each entry needs an `id` (stored on `tabGroup.color`
-and serialized) and a `value` (any CSS color expression). An optional `label`
+and serialized) and a `value` (any CSS colour expression). An optional `label`
 appears as a tooltip in the context-menu picker.
 
 ```ts
@@ -169,9 +169,9 @@ chip renderers that want to read from it (e.g. to render their own picker).
 
 ### Disabling colour
 
-Set `tabGroupAccent: 'off'` to opt out of the built-in color concept entirely.
+Set `tabGroupAccent: 'off'` to opt out of the built-in colour concept entirely.
 Dockview stops writing the `--dv-tab-group-color` custom property, hides
-the color picker, and applies `dv-tab-group-chip--accent-off` to chips. The
+the colour picker, and applies `dv-tab-group-chip--accent-off` to chips. The
 `tabGroup.color` field is still preserved as data, so pair this with a
 `createTabGroupChipComponent` to own the chip visual end-to-end.
 
@@ -303,7 +303,7 @@ Pass string shortcuts to render standard menu entries without any extra code:
 | Value           | Behaviour                                                             |
 | --------------- | -------------------------------------------------------------------- |
 | `'rename'`      | An inline text input to rename the tab group                         |
-| `'colorPicker'` | A grid of color swatches to change the tab group color               |
+| `'colorPicker'` | A grid of colour swatches to change the tab group colour             |
 | `'collapse'`    | Collapse the tab group. Renders as `Expand` when already collapsed   |
 | `'close'`       | Close every panel belonging to the tab group                         |
 | `'separator'`   | Render a visual divider                                              |
@@ -330,7 +330,7 @@ getTabGroupChipContextMenuItems: (params) => [
 
 ## Custom chip renderer
 
-To fully customize how tab group chips look, provide a `createTabGroupChipComponent` factory. It receives the `ITabGroup` and must return an `ITabGroupChipRenderer`.
+To fully customise how tab group chips look, provide a `createTabGroupChipComponent` factory. It receives the `ITabGroup` and must return an `ITabGroupChipRenderer`.
 
 <FrameworkSpecific framework="React">
     <DocRef
@@ -406,15 +406,15 @@ Tab group appearance can be customised through CSS custom properties:
 
 | Property | Default | Description |
 | --- | --- | --- |
-| `--dv-tab-group-color-grey` | `#5f6368` | Color for grey chips |
-| `--dv-tab-group-color-blue` | `#1a73e8` | Color for blue chips |
-| `--dv-tab-group-color-red` | `#d93025` | Color for red chips |
-| `--dv-tab-group-color-yellow` | `#f9ab00` | Color for yellow chips |
-| `--dv-tab-group-color-green` | `#188038` | Color for green chips |
-| `--dv-tab-group-color-pink` | `#d01884` | Color for pink chips |
-| `--dv-tab-group-color-purple` | `#a142f4` | Color for purple chips |
-| `--dv-tab-group-color-cyan` | `#007b83` | Color for cyan chips |
-| `--dv-tab-group-color-orange` | `#e8710a` | Color for orange chips |
+| `--dv-tab-group-color-grey` | `#5f6368` | Colour for grey chips |
+| `--dv-tab-group-color-blue` | `#1a73e8` | Colour for blue chips |
+| `--dv-tab-group-color-red` | `#d93025` | Colour for red chips |
+| `--dv-tab-group-color-yellow` | `#f9ab00` | Colour for yellow chips |
+| `--dv-tab-group-color-green` | `#188038` | Colour for green chips |
+| `--dv-tab-group-color-pink` | `#d01884` | Colour for pink chips |
+| `--dv-tab-group-color-purple` | `#a142f4` | Colour for purple chips |
+| `--dv-tab-group-color-cyan` | `#007b83` | Colour for cyan chips |
+| `--dv-tab-group-color-orange` | `#e8710a` | Colour for orange chips |
 | `--dv-tab-group-chip-padding` | `4px 8px` | Chip padding |
 | `--dv-tab-group-chip-border-radius` | `6px` | Chip border radius |
 | `--dv-tab-group-chip-font-size` | `11px` | Chip font size |

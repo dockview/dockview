@@ -17,6 +17,7 @@ import type {
     IWatermarkRenderer,
     IContextMenuItemRenderer,
     IContextMenuItemComponentProps,
+    IChipContextMenuItemComponentProps,
     PanelUpdateEvent,
     Parameters,
     TabPartInitParameters,
@@ -386,7 +387,11 @@ export class VueContextMenuItemRenderer
     extends AbstractVueRenderer
     implements IContextMenuItemRenderer
 {
-    init(props: IContextMenuItemComponentProps): void {
+    init(
+        props:
+            | IContextMenuItemComponentProps
+            | IChipContextMenuItemComponentProps
+    ): void {
         this.mount({ params: props });
     }
 

@@ -622,13 +622,11 @@ describe('splitview', () => {
             .getElementsByClassName('dv-sash')
             .item(0) as HTMLElement;
 
-        // validate the expected state before drag
         expect([view1.size, view2.size]).toEqual([200, 200]);
         expect(sashElement).toBeTruthy();
         expect(view1.element.parentElement!.style.pointerEvents).toBe('');
         expect(view2.element.parentElement!.style.pointerEvents).toBe('');
 
-        // start the drag event
         fireEvent(
             sashElement,
             new MouseEvent('pointerdown', { clientX: 50, clientY: 100 })
@@ -654,7 +652,6 @@ describe('splitview', () => {
         );
         expect([view1.size, view2.size]).toEqual([225, 175]);
 
-        // end the drag event
         fireEvent(
             document,
             new MouseEvent('pointerup', { clientX: 70, clientY: 110 })
@@ -754,12 +751,10 @@ describe('splitview', () => {
             .getElementsByClassName('dv-sash')
             .item(0) as HTMLElement;
 
-        // validate the expected state before drag
         expect([view1.size, view2.size]).toEqual([200, 200]);
         expect(view1.element.parentElement!.style.pointerEvents).toBe('');
         expect(view2.element.parentElement!.style.pointerEvents).toBe('');
 
-        // start the drag event
         fireEvent(
             sashElement,
             new MouseEvent('pointerdown', { clientX: 50, clientY: 100 })
@@ -779,7 +774,6 @@ describe('splitview', () => {
         expect(view1.element.parentElement!.style.pointerEvents).toBe('');
         expect(view2.element.parentElement!.style.pointerEvents).toBe('');
 
-        // cleanup
         addEventListenerSpy.mockRestore();
         removeEventListenerSpy.mockRestore();
     });

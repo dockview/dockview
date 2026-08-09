@@ -323,7 +323,7 @@ describe('DockviewVue Component', () => {
     });
 });
 
-// Regression coverage for https://github.com/mathuo/dockview/issues/1301
+// Regression coverage for https://github.com/dockview/dockview/issues/1301
 // `<script setup>` users (and anyone not using the Options API) need to be
 // able to supply panel components without registering globally in main.ts.
 describe('DockviewVue components prop (issue #1301)', () => {

@@ -132,6 +132,52 @@ describe('accessibility: keyboard docking', () => {
         expect(hint()).toBeNull();
     });
 
+    test('the on-screen hint mounts in the focused popout window, not the opener', () => {
+        make(true);
+        twoGroups();
+
+        // Simulate a focused popout window whose document reports focus. The
+        // hint must follow focus into that window (jsdom cannot open a real
+        // second window, so stub the popout set the service reads).
+        const popoutDoc = document.implementation.createHTMLDocument('popout');
+        popoutDoc.hasFocus = () => true;
+        const fakeWin = { document: popoutDoc } as unknown as Window;
+        jest.spyOn(dockview, 'getPopoutWindows').mockReturnValue([fakeWin]);
+
+        fireEvent.keyDown(dockview.element, { key: 'm', ctrlKey: true });
+
+        // The hint is in the focused popout document, not the main container.
+        expect(
+            popoutDoc.querySelector('.dv-keyboard-docking-hint')?.textContent
+        ).toContain('Moving P2');
+        expect(container.querySelector('.dv-keyboard-docking-hint')).toBeNull();
+
+        fireEvent.keyDown(dockview.element, { key: 'Escape' });
+    });
+
+    test('a popout whose document throws on access is skipped (hint falls back to the main window)', () => {
+        make(true);
+        twoGroups();
+
+        // A closing / cross-origin popout can throw on `.document`; the focus
+        // scan must swallow that and fall back to the main window.
+        const fakeWin = {
+            get document(): Document {
+                throw new Error('window is closing');
+            },
+        } as unknown as Window;
+        jest.spyOn(dockview, 'getPopoutWindows').mockReturnValue([fakeWin]);
+
+        fireEvent.keyDown(dockview.element, { key: 'm', ctrlKey: true });
+
+        // Fell back to the main container without throwing.
+        expect(
+            container.querySelector('.dv-keyboard-docking-hint')?.textContent
+        ).toContain('Moving P2');
+
+        fireEvent.keyDown(dockview.element, { key: 'Escape' });
+    });
+
     test('renders the drop preview during the move and clears it on cancel', () => {
         make(true);
         twoGroups();

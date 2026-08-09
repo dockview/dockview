@@ -81,7 +81,6 @@ export const WatermarkModule = defineModule<'watermarkService', IWatermarkHost>(
         serviceKey: 'watermarkService',
         create: (host) => new WatermarkService(host),
         init: (host, service) => {
-            // Initial evaluation reflects the watermark state at construction time.
             service.update();
             return new CompositeDisposable(
                 Event.any(

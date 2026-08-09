@@ -115,7 +115,6 @@ test.describe('smart guides (floating snap)', () => {
             { steps: 25 }
         );
 
-        // a drop-preview rectangle is shown over the merge target
         await expect(page.locator('.dv-smart-guide-preview')).toBeVisible();
 
         await page.mouse.up();
@@ -184,7 +183,6 @@ test.describe('smart guides (floating snap)', () => {
         await page.mouse.move(targetBox.x + grab + 5, startY, { steps: 20 });
         await page.mouse.up();
 
-        // The event fired at least once, reporting an X-axis snap.
         const snaps = await page.evaluate(() => (window as any).__dv.snaps());
         expect(snaps.length).toBeGreaterThan(0);
         expect(snaps.some((s: any) => s.axes.includes('x'))).toBe(true);

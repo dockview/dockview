@@ -19,14 +19,12 @@ test.describe('floating groups', () => {
     }) => {
         await setup(page);
 
-        // Exactly one floating group, rendered as a single resize-container.
         expect(
             await page.evaluate(() => (window as any).__dv.floatingCount())
         ).toBe(1);
         const overlay = page.locator('.dv-resize-container');
         await expect(overlay).toHaveCount(1);
 
-        // Its panel content is mounted and the docked `main` panel still shows.
         await expect(overlay.locator('.dv-test-panel')).toContainText(
             'floater'
         );

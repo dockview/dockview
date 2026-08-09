@@ -203,7 +203,6 @@ export class GridviewComponent
         try {
             const queue: Function[] = [];
 
-            // take note of the existing dimensions
             const width = this.width;
             const height = this.height;
 
@@ -259,7 +258,6 @@ export class GridviewComponent
                 this._onDidRemoveGroup.fire(group);
             }
 
-            // fires clean-up events and clears the underlying HTML gridview.
             this.clear();
 
             /**

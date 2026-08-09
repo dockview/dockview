@@ -168,6 +168,24 @@ function sameSet(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
 }
 
 /**
+ * The tighter (smaller) of two optional line caps, treating `undefined` as
+ * unbounded. Combines the explicit `overflow.maxRows` with the space-derived
+ * cap so the wrap is bounded by whichever is stricter.
+ */
+function tighterCap(
+    a: number | undefined,
+    b: number | undefined
+): number | undefined {
+    if (a === undefined) {
+        return b;
+    }
+    if (b === undefined) {
+        return a;
+    }
+    return Math.min(a, b);
+}
+
+/**
  * Drives wrap layout for one group. The wrap itself is CSS (the inert
  * `.dv-tabs-container--wrap` rules in core); this controller toggles that class
  * on the group's tab list and, when the wrapped row count changes, asks the host
@@ -180,6 +198,13 @@ function sameSet(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
  * (tabs on rows beyond the cap) to the free forced-overflow seam so those tabs
  * spill into the dropdown. Detection is a row-count test, not the free path's
  * horizontal-clip test, since nothing clips horizontally when tabs wrap.
+ *
+ * Even without `overflow.maxRows` the cap is bounded by the group's cross-size:
+ * a wrap that would grow the header past the group box (more rows than the group
+ * is tall, or more columns than it is wide) is clamped to what fits and the
+ * surplus routed to the dropdown, so the extra tabs never render off-screen
+ * where they can't be reached. The two caps compose: the effective cap is
+ * whichever of the explicit and the space-derived limit is stricter.
  *
  * Wraps both horizontal headers (into rows) and vertical/edge-group headers
  * (into columns); a hidden header is a no-op.
@@ -238,10 +263,11 @@ class WrapController extends CompositeDisposable {
             this._wrapped = true;
             list.classList.add(WRAP_CLASS);
 
-            // Sync the row cap (may change without a wrap on/off transition, e.g.
-            // a runtime `overflow.maxRows` update).
+            // Sync the explicit row cap (may change without a wrap on/off
+            // transition, e.g. a runtime `overflow.maxRows` update). The CSS clip
+            // is applied in `measure`, which combines this with the space-derived
+            // cap and runs at the end of `apply`.
             this._maxRows = resolveMaxRows(this.host.options.overflow);
-            this.applyCap(list);
 
             if (first) {
                 // Mutating layout synchronously inside the ResizeObserver
@@ -304,15 +330,59 @@ class WrapController extends CompositeDisposable {
     }
 
     /** Toggle the capped class + `--dv-max-tab-rows` var so CSS clips the strip
-     *  to the cap (or removes the clip when unbounded). */
-    private applyCap(list: HTMLElement): void {
-        if (this._maxRows === undefined) {
+     *  to `cap` lines (or removes the clip when `cap` is `undefined`). */
+    private applyCap(list: HTMLElement, cap: number | undefined): void {
+        if (cap === undefined) {
             list.classList.remove(CAPPED_CLASS);
             list.style.removeProperty(MAX_ROWS_VAR);
         } else {
             list.classList.add(CAPPED_CLASS);
-            list.style.setProperty(MAX_ROWS_VAR, String(this._maxRows));
+            list.style.setProperty(MAX_ROWS_VAR, String(cap));
         }
+    }
+
+    /**
+     * The per-line thickness (row height / column width) core sizes wrapped tabs
+     * by, read from the header's `--dv-tabs-and-actions-container-height`. `0`
+     * when it can't be resolved (e.g. jsdom, where stylesheet vars don't
+     * compute), which callers treat as "unmeasurable".
+     */
+    private readLineSize(list: HTMLElement): number {
+        const header = list.closest<HTMLElement>(`.${HEADER_CLASS}`);
+        if (!header) {
+            return 0;
+        }
+        const lineSize = Number.parseFloat(
+            getComputedStyle(header).getPropertyValue(LINE_SIZE_VARIABLE)
+        );
+        return Number.isFinite(lineSize) && lineSize > 0 ? lineSize : 0;
+    }
+
+    /**
+     * The number of wrapped lines that fit within the group's cross-size — the
+     * axis the header grows along (height for a horizontal header, width for a
+     * vertical one). Beyond this the header would grow past the group box and
+     * push its surplus tabs off-screen (unreachable: the wrapped strip doesn't
+     * scroll), so it bounds the effective cap even without an explicit
+     * `overflow.maxRows`. One line is reserved for content so the panel never
+     * collapses to nothing. `undefined` when the size can't be measured (no
+     * group box or unresolved line thickness — e.g. jsdom, whose `clientWidth`/
+     * `clientHeight` are 0), leaving wrap unbounded there.
+     */
+    private spaceCap(list: HTMLElement): number | undefined {
+        const lineSize = this.readLineSize(list);
+        if (lineSize <= 0) {
+            return undefined;
+        }
+        const group = list.closest<HTMLElement>('.dv-groupview');
+        if (!group) {
+            return undefined;
+        }
+        const cross = this._vertical ? group.clientWidth : group.clientHeight;
+        if (cross <= 0) {
+            return undefined;
+        }
+        return Math.max(1, Math.floor(cross / lineSize) - 1);
     }
 
     /**
@@ -406,16 +476,23 @@ class WrapController extends CompositeDisposable {
             return;
         }
 
-        const { rows, surplus } = measureRows(
-            list,
-            this._maxRows,
-            this._vertical
-        );
+        // The effective cap is the tighter of the explicit `overflow.maxRows`
+        // and the number of lines that fit within the group's cross-size. The
+        // latter stops an unbounded (or generously-capped) wrap from growing the
+        // header past the group and rendering its surplus tabs off-screen; those
+        // lines spill into the overflow dropdown instead, exactly as maxRows does.
+        const cap = tighterCap(this._maxRows, this.spaceCap(list));
+
+        // Sync the CSS clip (capped class + `--dv-max-tab-rows`) to the effective
+        // cap. It can move on a resize independently of `overflow.maxRows`, so it
+        // is applied here on every measure rather than once in `apply`.
+        this.applyCap(list, cap);
+
+        const { rows, surplus } = measureRows(list, cap, this._vertical);
 
         // Only the visible (capped) rows drive header height, so relayout keys
         // off the effective count, not the natural one.
-        const effectiveRows =
-            this._maxRows === undefined ? rows : Math.min(rows, this._maxRows);
+        const effectiveRows = cap === undefined ? rows : Math.min(rows, cap);
 
         // Route the surplus set to the dropdown (idempotent: skip when unchanged
         // so we don't rebuild the dropdown, which would loop via the observer).
@@ -461,10 +538,8 @@ class WrapController extends CompositeDisposable {
             header.style.removeProperty('width');
             return;
         }
-        const lineSize = Number.parseFloat(
-            getComputedStyle(header).getPropertyValue(LINE_SIZE_VARIABLE)
-        );
-        if (Number.isFinite(lineSize) && lineSize > 0) {
+        const lineSize = this.readLineSize(list);
+        if (lineSize > 0) {
             header.style.width = `${columns * lineSize}px`;
         }
     }

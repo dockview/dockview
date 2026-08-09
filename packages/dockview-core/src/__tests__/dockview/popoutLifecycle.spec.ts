@@ -94,8 +94,6 @@ describe('popout lifecycle', () => {
         // a genuine user close fires `beforeunload`, which drives teardown
         expect(() => popoutWindow.close()).not.toThrow();
 
-        // the removal is reported once, the popout is no longer enumerable, and
-        // the panel survives in the grid
         expect(removed).toEqual([popoutId]);
         expect(dockview.getPopouts()).toEqual([]);
         expect(dockview.panels.find((p) => p.id === 'p1')).toBeDefined();

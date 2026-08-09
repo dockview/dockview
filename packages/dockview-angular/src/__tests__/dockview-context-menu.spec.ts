@@ -5,6 +5,8 @@ import {
     DockviewGroupPanel,
     IDockviewPanel,
     IContextMenuItemComponentProps,
+    IChipContextMenuItemComponentProps,
+    ITabGroup,
 } from 'dockview';
 import { DockviewAngularComponent } from '../lib/dockview/dockview-angular.component';
 import { AngularRenderer } from '../lib/utils/angular-renderer';
@@ -22,6 +24,18 @@ class TestContextMenuItemComponent {}
 })
 class TestContextMenuItemWithInputsComponent {
     @Input() panel!: IDockviewPanel;
+    @Input() group!: DockviewGroupPanel;
+    @Input() api!: any;
+    @Input() close!: () => void;
+    @Input() componentProps?: object;
+}
+
+@Component({
+    selector: 'test-chip-context-menu-item-with-inputs',
+    template: '<div></div>',
+})
+class TestChipContextMenuItemWithInputsComponent {
+    @Input() tabGroup!: ITabGroup;
     @Input() group!: DockviewGroupPanel;
     @Input() api!: any;
     @Input() close!: () => void;
@@ -64,7 +78,6 @@ describe('DockviewAngularComponent – context menu', () => {
     it('createContextMenuItemComponent returns an AngularRenderer for a component', () => {
         component.ngOnInit();
 
-        // Access the private method via casting to any
         const frameworkOptions = (component as any).createFrameworkOptions();
         const factory = frameworkOptions.createContextMenuItemComponent;
 
@@ -148,6 +161,32 @@ describe('DockviewAngularComponent – context menu', () => {
         expect(instance.close).toBe(closeFn);
         expect(instance.componentProps).toBe(extraProps);
 
+        renderer.dispose();
+    });
+
+    it('forwards tabGroup to the Angular component @Input for chip menu items', () => {
+        // The panel test above covers the group/close/componentProps mapping; a
+        // chip item differs only in carrying `tabGroup` in place of `panel`, so
+        // this asserts just that the renderer forwards the tabGroup @Input.
+        component.ngOnInit();
+        const factory = (component as any).createFrameworkOptions()
+            .createContextMenuItemComponent;
+        const renderer: AngularRenderer<TestChipContextMenuItemWithInputsComponent> =
+            factory({
+                id: 'test-id',
+                component:
+                    TestChipContextMenuItemWithInputsComponent as Type<never>,
+            } as CreateContextMenuItemComponentOptions);
+
+        const tabGroup = {} as ITabGroup;
+        renderer.init({
+            tabGroup,
+            group: {} as never,
+            api: {} as never,
+            close: jest.fn(),
+        } as IChipContextMenuItemComponentProps);
+
+        expect(renderer.component.instance.tabGroup).toBe(tabGroup);
         renderer.dispose();
     });
 });

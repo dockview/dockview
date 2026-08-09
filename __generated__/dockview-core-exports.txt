@@ -135,6 +135,7 @@ IAutoHideEdgeGroupHost
 IAutoHideEdgeGroupService
 IBaseGrid
 IBaseView
+IChipContextMenuItemComponentProps
 IContentContainer
 IContentRenderer
 IContextMenuHost
@@ -217,7 +218,6 @@ OVERFLOW_WRAP_TABS_CAPPED_CLASS
 OVERFLOW_WRAP_TABS_CLASS
 OVERFLOW_WRAP_TABS_VERTICAL_TAB_HEIGHT_VARIABLE
 Orientation
-OverflowThumbnailRenderer
 PROPERTY_KEYS_DOCKVIEW
 PROPERTY_KEYS_GRIDVIEW
 PROPERTY_KEYS_PANEVIEW

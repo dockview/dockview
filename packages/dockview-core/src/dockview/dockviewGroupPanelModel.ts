@@ -933,7 +933,6 @@ export class DockviewGroupPanelModel
             return;
         }
 
-        // Remove and re-add at new index within the group
         tabGroup.removePanel(panelId);
         tabGroup.addPanel(panelId, newIndex);
 
@@ -1495,13 +1494,6 @@ export class DockviewGroupPanelModel
             skipSetGroupActive?: boolean;
         } = {}
     ): void {
-        /**
-         * set the panel group
-         * add the panel
-         * check if group active
-         * check if panel active
-         */
-
         if (
             typeof options.index !== 'number' ||
             options.index > this.panels.length

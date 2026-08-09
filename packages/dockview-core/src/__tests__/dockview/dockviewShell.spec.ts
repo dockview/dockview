@@ -164,7 +164,6 @@ describe('EdgeGroupView', () => {
             const view = new EdgeGroupView({ id: 'test' }, group, 'horizontal');
             view.setCollapsed(true);
             const afterFirst = view.isCollapsed;
-            // Calling again with same value should not throw and state stays same
             view.setCollapsed(true);
             expect(view.isCollapsed).toBe(afterFirst);
         });

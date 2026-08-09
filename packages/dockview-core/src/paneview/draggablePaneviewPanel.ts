@@ -193,7 +193,6 @@ export abstract class DraggablePaneviewPanel extends PaneviewPanel {
 
         const existingPanel = containerApi.getPanel(panelId);
         if (!existingPanel) {
-            // if the panel doesn't exist
             this._onDidDrop.fire({
                 ...event,
                 panel: this,

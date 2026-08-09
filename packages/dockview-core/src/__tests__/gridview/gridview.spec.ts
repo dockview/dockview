@@ -104,7 +104,7 @@ describe('gridview', () => {
         const serialized = gridview.serialize();
         const branch = (serialized.root as any).data[1];
         expect(branch.type).toBe('branch');
-        // the fix: branch carries its visibility + cached size (was undefined)
+        // branch carries its visibility + cached size
         expect(branch.visible).toBe(false);
         expect(branch.size).toBeGreaterThan(0);
 
@@ -956,7 +956,6 @@ describe('gridview', () => {
             ).toEqual(dimensions);
         }
 
-        // base case assertions
         assertLayout();
         expect(gridview.hasMaximizedView()).toBeFalsy();
         expect(counter).toBe(0);
@@ -1224,8 +1223,6 @@ describe('gridview', () => {
             );
         }
 
-        // hide each view one by one
-
         assertVisibility([true, true, true, true, true, true]);
 
         gridview.setViewVisible(getGridLocation(view5.element), false);
@@ -1245,8 +1242,6 @@ describe('gridview', () => {
 
         gridview.setViewVisible(getGridLocation(view6.element), false);
         assertVisibility([false, false, false, false, false, false]);
-
-        // un-hide each view one by one
 
         gridview.setViewVisible(getGridLocation(view1.element), true);
         assertVisibility([true, false, false, false, false, false]);
@@ -1269,7 +1264,6 @@ describe('gridview', () => {
 
     describe('normalize', () => {
         test('should normalize after structure correctly', () => {
-            // This test verifies that the normalize method works correctly
             // Since gridview already normalizes during remove operations,
             // we'll test the method directly with known scenarios
             const gridview = new Gridview(
@@ -1279,7 +1273,6 @@ describe('gridview', () => {
             );
             gridview.layout(1000, 1000);
 
-            // Create a simple structure and test that normalize doesn't break anything
             const view1 = new MockGridview('1');
             const view2 = new MockGridview('2');
 
@@ -1315,7 +1308,6 @@ describe('gridview', () => {
 
             const afterNormalize = gridview.serialize();
 
-            // Structure should remain unchanged
             expect(afterNormalize).toEqual(beforeNormalize);
         });
 
@@ -1353,7 +1345,6 @@ describe('gridview', () => {
             );
             gridview.layout(1000, 1000);
 
-            // Call normalize on empty gridview
             expect(() => gridview.normalize()).not.toThrow();
 
             // Should still be able to add views after normalizing empty gridview
@@ -1373,7 +1364,6 @@ describe('gridview', () => {
             );
             gridview.layout(1000, 1000);
 
-            // Verify the normalize method exists and can be called
             expect(typeof gridview.normalize).toBe('function');
             expect(() => gridview.normalize()).not.toThrow();
         });

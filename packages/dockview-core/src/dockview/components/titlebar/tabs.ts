@@ -959,7 +959,6 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                             OVERFLOW_WRAP_TABS_CLASS
                         );
                         if (!wrap) {
-                            // Collapse source tab instantly (no transition)
                             tab.element.style.transition = 'none';
                             toggleClass(tab.element, 'dv-tab--dragging', true);
                             void tab.element.offsetHeight; // force reflow
@@ -1389,14 +1388,12 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
             if (!this._animState) {
                 return;
             }
-            // Collapse all group tabs instantly
             for (const t of this._tabs) {
                 if (groupPanelIds.has(t.value.panel.id)) {
                     t.value.element.style.transition = 'none';
                     toggleClass(t.value.element, 'dv-tab--dragging', true);
                 }
             }
-            // Collapse the group chip instantly
             const chipEntry = this._tabGroupManager.chipRenderers.get(
                 tabGroup.id
             );

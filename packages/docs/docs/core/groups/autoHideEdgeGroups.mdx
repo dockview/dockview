@@ -15,7 +15,7 @@ Auto-hide turns a collapsed edge group into a **Visual Studio-style pinnable too
 
 For the basics of creating, sizing, collapsing, and serializing edge groups, see [Edge Groups](/docs/core/groups/edgeGroups).
 
-The `autoHideEdgeGroups` option sets the per-edge default, but auto-hide is also resolved **per group**: pass `autoHide` to `addEdgeGroup`, or call `api.setAutoHide` at runtime, to opt a single edge group in or out. This lets a static always-docked edge group and an auto-hiding one co-exist in the same layout.
+The `autoHideEdgeGroups` option sets the per-edge default, but auto-hide is also resolved **per group**: pass `autoHide` to `addEdgeGroup`, or call `api.getEdgeGroup(position)?.setAutoHide(...)` at runtime, to opt a single edge group in or out. This lets a static always-docked edge group and an auto-hiding one co-exist in the same layout.
 
 Enable it with the `autoHideEdgeGroups` option: pass `true` for all four edges, or an object to enable specific edges:
 
@@ -117,7 +117,7 @@ api.pinEdgeGroup('left');
 api.autoHideEdgeGroup('left');
 ```
 
-`peekEdgeGroup` and `pinEdgeGroup` require the enterprise auto-hide edge groups feature and are no-ops without it; `autoHideEdgeGroup` collapses the group in all cases.
+`peekEdgeGroup`, `pinEdgeGroup` and `autoHideEdgeGroup` all require the enterprise auto-hide edge groups feature; without it they log a missing-module note and do nothing. To collapse an edge group without the feature, use the group API's `collapse()` (see [Edge Groups](/docs/core/groups/edgeGroups)).
 
 ## Observing the peek state
 

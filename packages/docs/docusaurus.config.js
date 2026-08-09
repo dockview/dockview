@@ -41,7 +41,7 @@ const config = {
 
     // GitHub pages deployment config.
     // If you aren't using GitHub pages, you don't need these.
-    organizationName: 'mathuo', // Usually your GitHub org/user name.
+    organizationName: 'dockview', // Usually your GitHub org/user name.
     projectName: 'dockview', // Usually your repo name.
 
     // Even if you don't use internalization, you can use this field to set useful
@@ -232,7 +232,7 @@ const config = {
                 description:
                     'A zero dependency docking layout manager for building IDE-like interfaces with tabs, groups, grids, splitviews, drag and drop, floating panels, and popout windows. Touch and mobile ready. Supports React, Vue, Angular, and vanilla TypeScript.',
                 url: 'https://dockview.dev',
-                codeRepository: 'https://github.com/mathuo/dockview',
+                codeRepository: 'https://github.com/dockview/dockview',
                 programmingLanguage: ['TypeScript', 'JavaScript'],
                 runtimePlatform: ['Browser'],
                 license: 'https://opensource.org/licenses/MIT',
@@ -361,7 +361,7 @@ const config = {
                         position: 'right',
                     },
                     {
-                        href: 'https://github.com/mathuo/dockview',
+                        href: 'https://github.com/dockview/dockview',
                         position: 'right',
                         className: 'header-github-link',
                         'aria-label': 'GitHub repository',
@@ -377,6 +377,10 @@ const config = {
                             {
                                 label: 'Get Started',
                                 to: '/docs/overview/introduction',
+                            },
+                            {
+                                label: "What's new",
+                                to: '/whats-new',
                             },
                             {
                                 label: 'Demo',
@@ -423,7 +427,7 @@ const config = {
                         items: [
                             {
                                 label: 'GitHub',
-                                href: 'https://github.com/mathuo/dockview',
+                                href: 'https://github.com/dockview/dockview',
                             },
                             {
                                 label: 'LinkedIn',
@@ -461,7 +465,7 @@ const config = {
             },
             announcementBar: {
                 id: 'announcementBar', // Increment on change
-                content: `⭐️ If you like Dockview, give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/mathuo/dockview">GitHub</a>`,
+                content: `⭐️ If you like Dockview, give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/dockview/dockview">GitHub</a>`,
             },
             tableOfContents: {
                 maxHeadingLevel: 5,

@@ -4,7 +4,7 @@ import BrowserOnly from '@docusaurus/BrowserOnly';
 import { useColorMode } from '@docusaurus/theme-common';
 
 const BASE_SANDBOX_URL =
-    'https://codesandbox.io/s/github/mathuo/dockview/tree/gh-pages';
+    'https://codesandbox.io/s/github/dockview/dockview/tree/gh-pages';
 
 export const _CodeRunner = (props: { id: string; height?: number }) => {
     const [framework] = useActiveFramework();

@@ -37,7 +37,6 @@ test.describe('popout multi-window popup routing', () => {
             popout.locator('.dv-tab', { hasText: 'beta' })
         ).toBeVisible();
 
-        // right-click beta's tab (in the popout) to open its context menu
         await popout
             .locator('.dv-tab', { hasText: 'beta' })
             .click({ button: 'right' });
@@ -58,7 +57,6 @@ test.describe('popout multi-window popup routing', () => {
             (window as any).__dv.addPanelAt('alpha', 'right'); // separate group
         });
 
-        // pop out alpha's (active) group, then drag 'beta' into the popout
         const popout = await popoutActiveGroup(page, context);
         await page.evaluate(() => (window as any).__dv.splitIntoPopout('beta'));
         await expect(

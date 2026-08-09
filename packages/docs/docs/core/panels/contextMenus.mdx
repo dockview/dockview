@@ -203,8 +203,14 @@ getTabContextMenuItems: (params) => [
 ```
 </FrameworkSpecific>
 
-Pass extra data to a component item with `componentProps`; it is forwarded to
-the component as `props.componentProps`.
+Pass extra data to a component item with `componentProps`. How your component
+reads it depends on the framework, matching how that framework surfaces the
+other renderer props:
+
+- **React**: a direct prop, `props.componentProps`.
+- **Vue**: nested under the single `params` prop, `params.componentProps`
+  (the same place `params.api`, `params.panel` and the rest live).
+- **Angular**: a `@Input() componentProps` on the component.
 
 ### Raw element items
 
@@ -283,6 +289,13 @@ getTabGroupChipContextMenuItems: (params) => [
 ];
 ```
 
+A `component` item on the chip menu receives
+`IChipContextMenuItemComponentProps`. It mirrors the tab menu's
+`IContextMenuItemComponentProps` but carries the `tabGroup` the chip represents
+in place of a single `panel`, since a chip spans several panels. The `group`,
+`api`, `close` and `componentProps` fields are the same, surfaced per framework
+as described above for tabs.
+
 See [Tab groups](/docs/core/panels/tabGroups#chip-context-menu) for the full
 chip API.
 
@@ -298,3 +311,11 @@ getTabContextMenuItems: (params) =>
 
 Omitting the builder entirely disables the menu everywhere and lets the native
 browser context menu through.
+
+:::info Pinning adds an item even without a builder
+When `pinnedTabs` is enabled (and `pinnedTabs.contextMenuItem` is left at its
+default), a built-in `'pin'` item is prepended to the tab menu automatically, so
+the menu still opens even when the builder returns an empty array or is omitted.
+Set `pinnedTabs.contextMenuItem: false` to drop it and restore full suppression.
+This applies to the tab menu only; the chip menu is unaffected.
+:::

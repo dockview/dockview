@@ -14,6 +14,10 @@ This page covers the headline additions. For the upgrade notes and the single
 [breaking change](#breaking-changes), see
 [Migrating to v8](/docs/releases/migrating/migrating-to-v8).
 
+[Dockview launches an enterprise version](/blog/dockview-enterprise) explains why
+v8 starts shipping a commercially licensed package alongside the free one, and
+what it means if you already use Dockview.
+
 :::info The `dockview-enterprise` package
 v8 introduces `dockview-enterprise`, a separately-licensed package. Most of the
 additions below are part of it; [Licensing](/docs/overview/licence) is the full
@@ -28,8 +32,8 @@ unchanged.
 The new [`pinnedTabs`](/docs/core/panels/pinnedTabs) option lets a panel be
 pinned to the front of the tab strip, keeping it in place while other tabs come
 and go. Pinned tabs stay ahead of unpinned ones, are excluded from the overflow
-dropdown, and can render compact (hiding the close button, Chrome-style) or on a
-separate row. Pin and unpin by dragging tabs into or out of that separate row, from
+dropdown, and can render compact (icon-only, hiding the title and close button, Chrome-style)
+or on a separate row. Pin and unpin by dragging tabs into or out of that separate row, from
 the keyboard with `Ctrl+Shift+Enter`, or from the built-in tab context menu via the
 new `'pin'` item; in inline mode pinned tabs can stay stuck to the left edge as the
 strip scrolls. Pinning round-trips through serialization.
@@ -84,7 +88,7 @@ The new [`dndCompass`](/docs/core/dnd/dndCompass) option replaces the
 cursor-quadrant drop logic with a VS Code-style "compass" that highlights the
 cell you are aiming at while dragging, and previews docking a group to the
 whole-layout edge. For finer control, the new
-[`dropPositionResolver`](/docs/core/dnd/dndCompass) option lets you override how a
+[`dropPositionResolver`](/docs/core/dnd/dropPosition) option lets you override how a
 pointer location maps to a drop position on the group and layout-edge targets.
 See [DnD compass](/docs/core/dnd/dndCompass).
 
@@ -102,8 +106,8 @@ snap together into a docked or merged group. See
 
 The new [`layoutHistory`](/docs/core/state/history) option records structural
 layout mutations and lets you undo and redo them (move, float, popout,
-maximize, add, and remove) coalescing resize gestures and spanning popout
-windows. See [Layout history](/docs/core/state/history).
+maximize, add, remove, and tab-group changes) coalescing resize gestures and
+spanning popout windows. See [Layout history](/docs/core/state/history).
 
 ### Auto-hide edge groups
 
@@ -112,7 +116,7 @@ back into view on demand, VS Code tool-window style. Enable it with the new
 [`autoHideEdgeGroups`](/docs/core/groups/autoHideEdgeGroups) option; clicking a collapsed
 tab peeks the group, and you can pin it back to a docked group or dismiss it.
 Auto-hide is resolved **per edge** (and can be toggled per group via
-`addEdgeGroup({ autoHide })` / `api.setAutoHide`), so a static and an auto-hiding
+`addEdgeGroup({ autoHide })` / `api.getEdgeGroup(position)?.setAutoHide(...)`), so a static and an auto-hiding
 edge group can co-exist; peek animation is tuned globally through the new
 `edgeGroupPeek` option. See
 [Auto-hide edge groups](/docs/core/groups/autoHideEdgeGroups).
@@ -130,9 +134,9 @@ docks an edge group) and with auto-hide, and can be driven programmatically via
 
 ### Keyboard docking across popout windows & refreshed a11y
 
-Keyboard docking now works across popout windows, so you can move a group into or
-out of a popout entirely from the keyboard, with a dedicated "float" terminal
-action. It builds on refreshed accessibility work: per-window live regions with
+Keyboard docking now works across popout windows, so you can move the active
+panel into or out of a popout entirely from the keyboard, with a dedicated
+"float" terminal action that lifts it into a floating group. It builds on refreshed accessibility work: per-window live regions with
 focus-aware routing, `:focus-visible` focus indicators, and honest, localised
 accessible names on tab controls. See [Keyboard navigation](/docs/advanced/keyboard)
 and [Accessibility](/docs/advanced/accessibility).

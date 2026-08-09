@@ -285,7 +285,6 @@ export class BranchNode extends CompositeDisposable implements IView {
         this.splitview.setViewVisible(index, visible);
         // a child's visibility changed, so our aggregate min/max are stale
         this.invalidateCachedSizes();
-        // }
         const areAllChildrenHidden = this.splitview.contentSize === 0;
 
         // If all children are hidden then the parent should hide the entire splitview

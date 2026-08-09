@@ -40,7 +40,6 @@ export class DockviewGroupPanel
     private readonly _explicitConstraints: Partial<Constraints> = {};
 
     override get minimumWidth(): number {
-        // Check for explicitly set group constraint first
         if (typeof this._explicitConstraints.minimumWidth === 'number') {
             return this._explicitConstraints.minimumWidth;
         }
@@ -53,7 +52,6 @@ export class DockviewGroupPanel
     }
 
     override get minimumHeight(): number {
-        // Check for explicitly set group constraint first
         if (typeof this._explicitConstraints.minimumHeight === 'number') {
             return this._explicitConstraints.minimumHeight;
         }
@@ -66,7 +64,6 @@ export class DockviewGroupPanel
     }
 
     override get maximumWidth(): number {
-        // Check for explicitly set group constraint first
         if (typeof this._explicitConstraints.maximumWidth === 'number') {
             return this._explicitConstraints.maximumWidth;
         }
@@ -79,7 +76,6 @@ export class DockviewGroupPanel
     }
 
     override get maximumHeight(): number {
-        // Check for explicitly set group constraint first
         if (typeof this._explicitConstraints.maximumHeight === 'number') {
             return this._explicitConstraints.maximumHeight;
         }
@@ -155,8 +151,6 @@ export class DockviewGroupPanel
                 this.api._onDidActivePanelChange.fire(event);
             }),
             this.api.onDidConstraintsChangeInternal((event: any) => {
-                // Track explicitly set constraints to override panel constraints
-                // Extract numeric values from functions or values
                 if (event.minimumWidth !== undefined) {
                     this._explicitConstraints.minimumWidth =
                         typeof event.minimumWidth === 'function'

@@ -35,7 +35,6 @@ test.describe('pinned tabs', () => {
             (window as any).__dv.setupPinned(['a', 'b', 'c'], [])
         );
 
-        // Baseline: single-row header, no pinned row.
         const headerBefore = (await box(
             page,
             '.dv-tabs-and-actions-container'
@@ -43,7 +42,6 @@ test.describe('pinned tabs', () => {
         const contentBefore = (await box(page, '.dv-content-container'))!;
         expect(await page.locator('.dv-pinned-row').count()).toBe(0);
 
-        // Pin a tab → the second row mounts.
         await page.evaluate(() => (window as any).__dv.setPinned('a', true));
         await expect(page.locator('.dv-pinned-row')).toBeVisible();
 
@@ -55,22 +53,18 @@ test.describe('pinned tabs', () => {
         ))!;
         const contentAfter = (await box(page, '.dv-content-container'))!;
 
-        // The pinned row sits above the main strip.
         expect(pinnedRow.y).toBeLessThan(mainStrip.y);
 
-        // The header grew by a row and the content shrank by the same amount.
         const grow = headerAfter.height - headerBefore.height;
         const shrink = contentBefore.height - contentAfter.height;
         expect(grow).toBeGreaterThan(0);
         expect(shrink).toBeGreaterThan(0);
         expect(Math.abs(grow - shrink)).toBeLessThan(2);
 
-        // The pinned tab renders in the row.
         await expect(page.locator('.dv-pinned-row .dv-pinned-tab')).toHaveText(
             'a'
         );
 
-        // Unpinning the last pinned tab collapses the row back.
         await page.evaluate(() => (window as any).__dv.setPinned('a', false));
         await expect(page.locator('.dv-pinned-row')).toHaveCount(0);
         const headerRestored = (await box(
@@ -179,7 +173,6 @@ test.describe('pinned tabs', () => {
             mainTab.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
         });
 
-        // 'c' is now pinned and shows in the row after 'a'.
         await expect(page.locator('.dv-pinned-row .dv-pinned-tab')).toHaveText([
             'a',
             'c',
@@ -193,7 +186,6 @@ test.describe('pinned tabs', () => {
         page,
     }) => {
         await setup(page, { mode: 'separate-row', dnd: 'html5' });
-        // Pin a & b (row [a, b]); c stays unpinned and visible in the strip.
         await page.evaluate(() =>
             (window as any).__dv.setupPinned(['a', 'b', 'c'], ['a', 'b'])
         );
@@ -236,7 +228,6 @@ test.describe('pinned tabs', () => {
             rowTab.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
         });
 
-        // 'a' is unpinned and gone from the row (only 'b' remains pinned).
         await expect
             .poll(() => page.evaluate(() => (window as any).__dv.isPinned('a')))
             .toBe(false);
@@ -305,7 +296,6 @@ test.describe('pinned tabs', () => {
             { ids, pinned }
         );
 
-        // The strip overflows: the dropdown handle appears.
         const handle = page.locator('.dv-tabs-overflow-dropdown-default');
         await expect(handle).toBeVisible();
         await handle.click();
@@ -337,7 +327,6 @@ test.describe('pinned tabs', () => {
         await page.evaluate(() =>
             (window as any).__dv.setupPinned(['a', 'b', 'c'], [])
         );
-        // Added in order, nothing pinned yet.
         expect(
             await page.evaluate(() => (window as any).__dv.tabTitles())
         ).toEqual(['a', 'b', 'c']);
@@ -395,7 +384,6 @@ test.describe('pinned tabs', () => {
         // Precondition: the strip really does overflow (so sticky matters).
         const rest = await drift();
         expect(rest.scrollWidth).toBeGreaterThan(rest.clientWidth);
-        // At rest the pinned tab hugs the left edge.
         expect(rest.fromLeft).toBeLessThan(8);
 
         // Scroll the strip right and fire the on-scroll self-heal recompute.
@@ -518,7 +506,6 @@ test.describe('pinned tabs', () => {
         await page.keyboard.press('Control+Shift+Enter');
         await expect(page.locator('.dv-tab--pinned')).toContainText('bravo');
 
-        // Pressing again unpins.
         await page.evaluate(() =>
             document.querySelector<HTMLElement>('.dv-tab')?.focus()
         );

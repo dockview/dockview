@@ -151,9 +151,6 @@ export class ContentContainer
             (this.panel && this.group.isPanelActive(this.panel));
 
         if (this.panel?.view.content.element.parentElement === this._element) {
-            /**
-             * If the currently attached panel is mounted directly to the content then remove it
-             */
             this.panel.view.content.element.remove();
             this.panel.view.content.onHide?.();
         }

@@ -129,7 +129,7 @@ api.onDidPanelPinnedChange((event) => {
 
 ## Context menu
 
-When `contextMenuItem` is left enabled (the default) a "Pin"/"Unpin" item is added to the tab context menu, toggling based on the tab's current state. If you build your own tab context menu, you can include the built-in `'pin'` item:
+When `contextMenuItem` is left enabled (the default) a "Pin"/"Unpin" item is added to the tab context menu automatically, toggling based on the tab's current state. If you want to place it yourself, set `pinnedTabs.contextMenuItem: false` to stop the automatic injection (otherwise the item appears twice), then include the built-in `'pin'` item in your own builder:
 
 ```tsx
 getTabContextMenuItems={({ panel }) => [

@@ -267,9 +267,8 @@ describe('tabsContainer', () => {
             () => 100
         );
 
-        // simulate an internal same-accessor drag (the buggy path):
-        // the void container previously short-circuited to `return true`
-        // for same-accessor drags regardless of the group's locked state.
+        // an internal same-accessor drag: the void container must honour the
+        // group's locked state rather than short-circuiting to `return true`.
         LocalSelectionTransfer.getInstance().setData(
             [new PanelTransfer('testcomponentid', 'anothergroupid', 'panel1')],
             PanelTransfer.prototype
@@ -455,8 +454,6 @@ describe('tabsContainer', () => {
         expect(query).toHaveLength(1);
         expect(query[0].children).toHaveLength(0);
 
-        // add left action
-
         const left = document.createElement('div');
         left.className = 'test-left-actions-element';
         cut.setLeftActionsElement(left);
@@ -470,8 +467,6 @@ describe('tabsContainer', () => {
         );
         expect(query[0].children).toHaveLength(1);
 
-        // add left action
-
         const left2 = document.createElement('div');
         left2.className = 'test-left-actions-element-2';
         cut.setLeftActionsElement(left2);
@@ -484,8 +479,6 @@ describe('tabsContainer', () => {
             'test-left-actions-element-2'
         );
         expect(query[0].children).toHaveLength(1);
-
-        // remove left action
 
         cut.setLeftActionsElement(undefined);
         query = cut.element.querySelectorAll(
@@ -523,8 +516,6 @@ describe('tabsContainer', () => {
         expect(query).toHaveLength(1);
         expect(query[0].children).toHaveLength(0);
 
-        // add right action
-
         const right = document.createElement('div');
         right.className = 'test-right-actions-element';
         cut.setRightActionsElement(right);
@@ -538,8 +529,6 @@ describe('tabsContainer', () => {
         );
         expect(query[0].children).toHaveLength(1);
 
-        // add right action
-
         const right2 = document.createElement('div');
         right2.className = 'test-right-actions-element-2';
         cut.setRightActionsElement(right2);
@@ -552,8 +541,6 @@ describe('tabsContainer', () => {
             'test-right-actions-element-2'
         );
         expect(query[0].children).toHaveLength(1);
-
-        // remove right action
 
         cut.setRightActionsElement(undefined);
         query = cut.element.querySelectorAll(
@@ -1171,7 +1158,6 @@ describe('tabsContainer', () => {
             const cut = new TabsContainer(accessor, groupPanel);
             (cut as any).tabs = mockTabs;
 
-            // Simulate overflow tabs
             (cut as any).toggleDropdown({
                 tabs: ['test-panel'],
                 tabGroups: [],
@@ -1179,41 +1165,32 @@ describe('tabsContainer', () => {
                 reset: false,
             });
 
-            // Find the dropdown trigger and click it
             const dropdownTrigger = cut.element.querySelector(
                 '.dv-tabs-overflow-dropdown-root'
             );
             expect(dropdownTrigger).toBeTruthy();
 
-            // Simulate clicking the dropdown trigger
             fireEvent.click(dropdownTrigger!);
 
-            // Verify popup was opened
             expect(mockPopupService.openPopover).toHaveBeenCalled();
 
-            // Get the popover content
             const popoverContent =
                 mockPopupService.openPopover.mock.calls[0][0];
             expect(popoverContent).toBeTruthy();
 
-            // Find the tab wrapper in the popover
             const tabWrapper = popoverContent.querySelector('.dv-tab');
             expect(tabWrapper).toBeTruthy();
 
-            // Verify the close button is visible in dropdown
             const closeButton = tabWrapper!.querySelector(
                 '.dv-default-tab-action'
             ) as HTMLElement;
             expect(closeButton).toBeTruthy();
             expect(closeButton.style.display).not.toBe('none');
 
-            // Simulate clicking the close button
             fireEvent.click(closeButton!);
 
-            // Verify that the close method was called
             expect(mockClose).toHaveBeenCalledTimes(1);
 
-            // Verify that tab activation methods were NOT called when clicking close button
             expect(mockScrollIntoView).not.toHaveBeenCalled();
             expect(mockSetActive).not.toHaveBeenCalled();
         });
@@ -1314,7 +1291,6 @@ describe('tabsContainer', () => {
             const cut = new TabsContainer(accessor, groupPanel);
             (cut as any).tabs = mockTabs;
 
-            // Simulate overflow tabs
             (cut as any).toggleDropdown({
                 tabs: ['test-panel'],
                 tabGroups: [],
@@ -1322,32 +1298,26 @@ describe('tabsContainer', () => {
                 reset: false,
             });
 
-            // Find the dropdown trigger and click it
             const dropdownTrigger = cut.element.querySelector(
                 '.dv-tabs-overflow-dropdown-root'
             );
             expect(dropdownTrigger).toBeTruthy();
 
-            // Simulate clicking the dropdown trigger
             fireEvent.click(dropdownTrigger!);
 
-            // Get the popover content
             const popoverContent =
                 mockPopupService.openPopover.mock.calls[0][0];
             const tabWrapper = popoverContent.querySelector('.dv-tab');
 
-            // Simulate clicking the tab content (not the close button)
             const tabContent = tabWrapper!.querySelector(
                 '.dv-default-tab-content'
             );
             fireEvent.click(tabContent!);
 
-            // Verify that tab activation methods were called
             expect(mockPopupService.close).toHaveBeenCalled();
             expect(mockScrollIntoView).toHaveBeenCalled();
             expect(mockSetActive).toHaveBeenCalled();
 
-            // Verify that close was NOT called when clicking content
             expect(mockClose).not.toHaveBeenCalled();
         });
 
@@ -1447,7 +1417,6 @@ describe('tabsContainer', () => {
             const cut = new TabsContainer(accessor, groupPanel);
             (cut as any).tabs = mockTabs;
 
-            // Simulate overflow tabs
             (cut as any).toggleDropdown({
                 tabs: ['test-panel'],
                 tabGroups: [],
@@ -1455,13 +1424,11 @@ describe('tabsContainer', () => {
                 reset: false,
             });
 
-            // Find the dropdown trigger and click it
             const dropdownTrigger = cut.element.querySelector(
                 '.dv-tabs-overflow-dropdown-root'
             );
             fireEvent.click(dropdownTrigger!);
 
-            // Get the popover content
             const popoverContent =
                 mockPopupService.openPopover.mock.calls[0][0];
             const tabWrapper = popoverContent.querySelector('.dv-tab');

@@ -129,12 +129,9 @@ export const DockviewDefaultTab: React.FunctionComponent<
             className="dv-default-tab"
         >
             {isPinned && (
-                // Leading pin glyph. Mirrors the core vanilla tab's injected
-                // indicator (`.dv-tab-pin`), which core suppresses for custom
-                // `tabComponent`s like this one. The `dv-tab--pinned` /
-                // `dv-tab--pinned-compact` classes on the outer `.dv-tab`
-                // container (applied by core regardless of renderer) drive the
-                // glyph styling, close-button hiding, and compact title hiding.
+                // Core injects a `.dv-tab-pin` indicator for vanilla tabs but
+                // suppresses it for custom `tabComponent`s like this one, so
+                // render it here.
                 <div className="dv-tab-pin">
                     <PinButton />
                 </div>

@@ -110,6 +110,14 @@
                 // by default (`contextMenuItem: false`) so the base context-menu
                 // spec keeps seeing exactly its app-supplied items.
                 const pinAutoInject = params.get('pinautoinject') === '1';
+                // `?chipcomponent=1` adds a custom `component` item to the tab
+                // group chip context menu so the chip-menu component path (and
+                // `componentProps` forwarding) can be driven end-to-end. Off by
+                // default so the base chip spec sees only its rename + label
+                // items. The vanilla fixture has no framework component layer,
+                // so `createContextMenuItemComponent` below treats the item's
+                // `component` field as a `(props) => HTMLElement` factory.
+                const chipComponent = params.get('chipcomponent') === '1';
                 // Handle to the inner dockview mounted by the 'nested-dockview'
                 // panel (set in createComponent), so the #1495 nested-edge-group
                 // spec can read/serialize the inner edge group.
@@ -165,11 +173,56 @@
                     // Tab-group chip context menu (TabGroupChipsModule) — inert
                     // until a chip is right-clicked, which only the tab-group
                     // chip spec does.
-                    getTabGroupChipContextMenuItems: () => [
-                        'rename',
-                        'separator',
-                        { label: 'Custom Action', action: () => {} },
-                    ],
+                    getTabGroupChipContextMenuItems: () =>
+                        chipComponent
+                            ? [
+                                  'rename',
+                                  'separator',
+                                  {
+                                      // `component` is a factory the fixture's
+                                      // createContextMenuItemComponent turns into
+                                      // a DOM node; it renders both the forwarded
+                                      // componentProps and the chip's tabGroup so
+                                      // the spec can assert both reached it.
+                                      component: (props) => {
+                                          const el =
+                                              document.createElement('span');
+                                          el.className = 'chip-component-item';
+                                          el.textContent =
+                                              'chip:' +
+                                              props.componentProps.badge +
+                                              ':' +
+                                              props.tabGroup.label;
+                                          return el;
+                                      },
+                                      componentProps: { badge: 'X' },
+                                  },
+                              ]
+                            : [
+                                  'rename',
+                                  'separator',
+                                  { label: 'Custom Action', action: () => {} },
+                              ],
+                    // Vanilla fixture has no framework adapter, so provide a
+                    // minimal renderer that treats a menu item's `component`
+                    // field as a `(props) => HTMLElement` factory. Inert unless
+                    // an item actually supplies a `component` (only the chip
+                    // menu does, under `?chipcomponent=1`).
+                    createContextMenuItemComponent: (options) => {
+                        const factory = options.component;
+                        if (typeof factory !== 'function') {
+                            return undefined;
+                        }
+                        const element = document.createElement('div');
+                        element.className = 'dv-context-menu-item';
+                        return {
+                            element,
+                            init(props) {
+                                element.appendChild(factory(props));
+                            },
+                            dispose() {},
+                        };
+                    },
                     createComponent: (options) => {
                         // A panel that hosts its own (nested) dockview with a
                         // right edge group — drives the #1495 scenario where the

@@ -107,10 +107,8 @@ export class OverlayRenderContainer extends CompositeDisposable {
             return;
         }
 
-        // Invalidate position cache to force recalculation
         this.positionCache.invalidate();
 
-        // Call resize function directly for all visible panels
         for (const entry of Object.values(this.map)) {
             if (entry.panel.api.isVisible && entry.resize) {
                 entry.resize();
@@ -225,7 +223,6 @@ export class OverlayRenderContainer extends CompositeDisposable {
                 );
                 const box2 = this.positionCache.getPosition(this.element);
 
-                // Use traditional positioning for overlay containers
                 const left = box.left - box2.left;
                 const top = box.top - box2.top;
                 const width = box.width;
@@ -431,11 +428,8 @@ export class OverlayRenderContainer extends CompositeDisposable {
             visibilityChanged();
         });
 
-        // dispose of logic asoccciated with previous reference-container
         this.map[panel.api.id].disposable.dispose();
-        // and reset the disposable to the active reference-container
         this.map[panel.api.id].disposable = disposable;
-        // store the resize function for direct access
         this.map[panel.api.id].resize = resize;
 
         return focusContainer;

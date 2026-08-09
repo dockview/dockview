@@ -1,49 +1,49 @@
 {
-    "name": "dockview-docs",
-    "version": "7.0.4",
-    "private": true,
-    "scripts": {
-        "build": "npm run copy-llms && npm run build-templates && docusaurus build",
-        "clear": "docusaurus clear",
-        "copy-llms": "node scripts/copyLlms.mjs",
-        "start": "npm run copy-llms && concurrently \"docusaurus start\" \"npm run start-esm-server\"",
-        "start-esm-server": "node web-server/index.mjs",
-        "swizzle": "docusaurus swizzle @docusaurus/theme-classic",
-        "docs:version": "docusaurus docs:version",
-        "typecheck": "tsc",
-        "build-templates": "node scripts/buildTemplates.mjs",
-        "build-templates:local": "node scripts/buildTemplates.mjs --local",
-        "record-clips": "node scripts/record/recordClips.mjs"
-    },
-    "browserslist": {
-        "production": [
-            ">0.5%",
-            "not dead",
-            "not op_mini all"
-        ],
-        "development": [
-            "last 1 chrome version",
-            "last 1 firefox version",
-            "last 1 safari version"
-        ]
-    },
-    "dependencies": {
-        "@docusaurus/core": "^3.10.1",
-        "@docusaurus/module-type-aliases": "^3.10.1",
-        "@docusaurus/preset-classic": "^3.10.1",
-        "@docusaurus/theme-search-algolia": "^3.10.1",
-        "@mdx-js/react": "^3.1.1",
-        "@radix-ui/react-dropdown-menu": "^2.1.16",
-        "clsx": "^2.1.1",
-        "dockview": "^7.0.4",
-        "dockview-react": "^7.0.4",
-        "prism-react-renderer": "^2.4.1",
-        "source-map-loader": "^5.0.0",
-        "vanilla-cookieconsent": "^3.1.0"
-    },
-    "devDependencies": {
-        "@docusaurus/plugin-client-redirects": "^3.10.1",
-        "@tsconfig/docusaurus": "^2.0.9",
-        "docusaurus-plugin-sass": "^0.2.6"
-    }
+  "name": "dockview-docs",
+  "version": "8.0.0",
+  "private": true,
+  "scripts": {
+    "build": "npm run copy-llms && npm run build-templates && docusaurus build",
+    "clear": "docusaurus clear",
+    "copy-llms": "node scripts/copyLlms.mjs",
+    "start": "npm run copy-llms && concurrently \"docusaurus start\" \"npm run start-esm-server\"",
+    "start-esm-server": "node web-server/index.mjs",
+    "swizzle": "docusaurus swizzle @docusaurus/theme-classic",
+    "docs:version": "docusaurus docs:version",
+    "typecheck": "tsc",
+    "build-templates": "node scripts/buildTemplates.mjs",
+    "build-templates:local": "node scripts/buildTemplates.mjs --local",
+    "record-clips": "node scripts/record/recordClips.mjs"
+  },
+  "browserslist": {
+    "production": [
+      ">0.5%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "dependencies": {
+    "@docusaurus/core": "^3.10.1",
+    "@docusaurus/module-type-aliases": "^3.10.1",
+    "@docusaurus/preset-classic": "^3.10.1",
+    "@docusaurus/theme-search-algolia": "^3.10.1",
+    "@mdx-js/react": "^3.1.1",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "clsx": "^2.1.1",
+    "dockview": "^8.0.0",
+    "dockview-react": "^8.0.0",
+    "prism-react-renderer": "^2.4.1",
+    "source-map-loader": "^5.0.0",
+    "vanilla-cookieconsent": "^3.1.0"
+  },
+  "devDependencies": {
+    "@docusaurus/plugin-client-redirects": "^3.10.1",
+    "@tsconfig/docusaurus": "^2.0.9",
+    "docusaurus-plugin-sass": "^0.2.6"
+  }
 }

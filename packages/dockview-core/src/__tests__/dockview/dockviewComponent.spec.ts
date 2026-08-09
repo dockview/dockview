@@ -177,7 +177,6 @@ describe('dockviewComponent', () => {
                 disableDnd: false,
             });
 
-            // Add some panels to create tabs
             const panel1 = dockview.addPanel({
                 id: 'panel1',
                 component: 'default',
@@ -187,7 +186,6 @@ describe('dockviewComponent', () => {
                 component: 'default',
             });
 
-            // Get all tab elements and void containers
             const tabElements = Array.from(
                 dockview.element.querySelectorAll('.dv-tab')
             ) as HTMLElement[];
@@ -195,7 +193,6 @@ describe('dockviewComponent', () => {
                 dockview.element.querySelectorAll('.dv-void-container')
             ) as HTMLElement[];
 
-            // Initially tabs should be draggable (disableDnd: false)
             tabElements.forEach((tab) => {
                 expect(tab.draggable).toBe(true);
             });
@@ -203,10 +200,8 @@ describe('dockviewComponent', () => {
                 expect(container.draggable).toBe(true);
             });
 
-            // Update options to disable DnD
             dockview.updateOptions({ disableDnd: true });
 
-            // Now tabs should not be draggable
             tabElements.forEach((tab) => {
                 expect(tab.draggable).toBe(false);
             });
@@ -214,10 +209,8 @@ describe('dockviewComponent', () => {
                 expect(container.draggable).toBe(false);
             });
 
-            // Update options to enable DnD again
             dockview.updateOptions({ disableDnd: false });
 
-            // Tabs should be draggable again
             tabElements.forEach((tab) => {
                 expect(tab.draggable).toBe(true);
             });
@@ -366,7 +359,6 @@ describe('dockviewComponent', () => {
             const tab = dockview.element.querySelector(
                 '.dv-tab'
             ) as HTMLElement;
-            // disableDnd: true wins regardless of strategy.
             expect(tab.draggable).toBe(false);
         });
 
@@ -386,16 +378,13 @@ describe('dockviewComponent', () => {
                 disableDnd: false,
             });
 
-            // Set disableDnd to true
             dockview.updateOptions({ disableDnd: true });
 
-            // Add a panel after the option change
             const panel = dockview.addPanel({
                 id: 'panel1',
                 component: 'default',
             });
 
-            // New tab should not be draggable
             const tabElement = dockview.element.querySelector(
                 '.dv-tab'
             ) as HTMLElement;
@@ -496,7 +485,6 @@ describe('dockviewComponent', () => {
                 position: 'center',
             });
 
-            // tab groups: create, collapse, move panels between groups, and destroy
             const targetGroup = panel6.api.group;
             const tg1 = dockview.api.createTabGroup({
                 groupId: targetGroup.id,
@@ -527,19 +515,16 @@ describe('dockviewComponent', () => {
 
             tg1.collapse();
 
-            // remove a panel from its tab group
             dockview.api.removePanelFromTabGroup({
                 groupId: targetGroup.id,
                 panelId: panel4.id,
             });
 
-            // explicitly dissolve a tab group
             dockview.api.dissolveTabGroup({
                 groupId: targetGroup.id,
                 tabGroupId: tg2.id,
             });
 
-            // edge groups: add, toggle visibility, collapse, add panels, remove
             dockview.addEdgeGroup('left', {
                 id: 'edge-left',
                 initialSize: 200,
@@ -701,18 +686,15 @@ describe('dockviewComponent', () => {
             expect(panel1.api.location.type).toBe('popout');
             expect(dockview.groups).toHaveLength(3); // panel2 + hidden reference + popout
 
-            // Move popout group to left of panel2
             panel1.api.group.api.moveTo({
                 group: panel2.api.group,
                 position: 'left',
             });
 
-            // Core assertions: should be back in grid and positioned correctly
             expect(panel1.api.location.type).toBe('grid');
-            expect(dockview.groups).toHaveLength(2); // Should clean up properly
+            expect(dockview.groups).toHaveLength(2);
             expect(dockview.panels).toHaveLength(2);
 
-            // Verify both panels are visible and accessible
             expect(panel1.api.isVisible).toBe(true);
             expect(panel2.api.isVisible).toBe(true);
         });
@@ -749,14 +731,12 @@ describe('dockviewComponent', () => {
             await dockview.addPopoutGroup(panel1.api.group);
             expect(panel1.api.location.type).toBe('popout');
 
-            // Test moving to different positions
             ['top', 'bottom', 'left', 'right'].forEach((position) => {
                 panel1.api.group.api.moveTo({
                     group: panel2.api.group,
                     position: position as any,
                 });
 
-                // Should be back in grid and work correctly regardless of position
                 expect(panel1.api.location.type).toBe('grid');
                 expect(panel1.api.isVisible).toBe(true);
                 expect(panel2.api.isVisible).toBe(true);
@@ -794,14 +774,12 @@ describe('dockviewComponent', () => {
                 position: { direction: 'right' },
             });
 
-            // Store reference group ID before popout
             const originalGroupId = panel1.group.id;
 
             await dockview.addPopoutGroup(panel1.api.group);
             expect(panel1.api.location.type).toBe('popout');
             expect(dockview.groups).toHaveLength(3); // panel2 + hidden reference + popout
 
-            // Move to new position - should clean up reference group
             panel1.api.group.api.moveTo({
                 group: panel2.api.group,
                 position: 'right',
@@ -810,7 +788,6 @@ describe('dockviewComponent', () => {
             expect(panel1.api.location.type).toBe('grid');
             expect(dockview.groups).toHaveLength(2); // Just panel2 + panel1 in new position
 
-            // Reference group should be cleaned up (no longer exist)
             const referenceGroupStillExists = dockview.groups.some(
                 (g) => g.id === originalGroupId
             );
@@ -1038,27 +1015,23 @@ describe('dockviewComponent', () => {
         });
         const group2 = panel1!.group;
 
-        // Verify panel1 is active after move (default behavior)
         expect(dockview.activeGroup).toBe(group2);
         expect(dockview.activePanel).toBe(panel1);
 
-        // Set a different group active and make panel2 the active panel
         dockview.doSetGroupActive(group1);
         group1.model.openPanel(panel2!);
         expect(dockview.activeGroup).toBe(group1);
         expect(dockview.activePanel?.id).toBe(panel2?.id);
 
-        // Move panel3 to group2 with skipSetActive
         dockview.moveGroupOrPanel({
             from: { groupId: group1.id, panelId: 'panel3' },
             to: { group: group2, position: 'center' },
             skipSetActive: true,
         });
 
-        // group1 should still be active, not group2
         expect(dockview.activeGroup).toBe(group1);
-        expect(dockview.activePanel?.id).toBe(panel2?.id); // panel2 should still be active in group1
-        expect(panel3!.group).toBe(group2); // panel3 should have moved to group2
+        expect(dockview.activePanel?.id).toBe(panel2?.id);
+        expect(panel3!.group).toBe(group2);
 
         dockview.dispose();
     });
@@ -1101,27 +1074,22 @@ describe('dockviewComponent', () => {
         const panel2 = dockview.getGroupPanel('panel2')!;
         const panel3 = dockview.getGroupPanel('panel3')!;
 
-        // Create separate groups
         panel2.api.moveTo({ position: 'right' });
         panel3.api.moveTo({ group: panel2.group, position: 'center' });
 
-        // Set panel1's group as active and ensure panel1 is the active panel
         dockview.doSetGroupActive(panel1.group);
         panel1.group.model.openPanel(panel1);
         expect(dockview.activeGroup).toBe(panel1.group);
         expect(dockview.activePanel?.id).toBe(panel1.id);
 
-        // Move panel2's entire group to panel1's group with skipSetActive
         dockview.moveGroupOrPanel({
             from: { groupId: panel2.group.id },
             to: { group: panel1.group, position: 'center' },
             skipSetActive: true,
         });
 
-        // panel1's group should still be active and there should be an active panel
         expect(dockview.activeGroup).toBe(panel1.group);
         expect(dockview.activePanel).toBeTruthy();
-        // All panels should now be in the same group
         expect(panel2.group).toBe(panel1.group);
         expect(panel3.group).toBe(panel1.group);
 
@@ -1148,7 +1116,6 @@ describe('dockviewComponent', () => {
         const panel3 = dockview.getGroupPanel('panel3')!;
         const sourceGroup = panel1.group;
 
-        // Create a tab group containing panel1 and panel2
         const tabGroup = sourceGroup.model.createTabGroup({
             label: 'Feature',
             color: 'blue',
@@ -1156,9 +1123,6 @@ describe('dockviewComponent', () => {
         sourceGroup.model.addPanelToTabGroup(tabGroup.id, 'panel1');
         sourceGroup.model.addPanelToTabGroup(tabGroup.id, 'panel2');
 
-        // Create a second group to be the destination by moving panel1 out
-        // and then moving it back, using moveGroupOrPanel to ensure a
-        // separate group exists
         dockview.moveGroupOrPanel({
             from: { groupId: sourceGroup.id, panelId: 'panel3' },
             to: { group: sourceGroup, position: 'right' },
@@ -1166,7 +1130,6 @@ describe('dockviewComponent', () => {
         const destGroup = panel3.group;
         expect(destGroup).not.toBe(sourceGroup);
 
-        // Move the tab group to the destination group
         dockview.moveGroupOrPanel({
             from: {
                 groupId: sourceGroup.id,
@@ -1219,7 +1182,6 @@ describe('dockviewComponent', () => {
         sourceGroup.model.addPanelToTabGroup(tabGroup.id, 'panel1');
         tabGroup.collapse();
 
-        // Create destination by splitting panel2 out
         dockview.moveGroupOrPanel({
             from: { groupId: sourceGroup.id, panelId: 'panel2' },
             to: { group: sourceGroup, position: 'right' },
@@ -1268,7 +1230,6 @@ describe('dockviewComponent', () => {
         sourceGroup.model.addPanelToTabGroup(tabGroup.id, 'panel1');
         tabGroup.collapse();
 
-        // Split panel2 out to make a destination group
         dockview.moveGroupOrPanel({
             from: { groupId: sourceGroup.id, panelId: 'panel2' },
             to: { group: sourceGroup, position: 'right' },
@@ -1348,7 +1309,6 @@ describe('dockviewComponent', () => {
         sourceGroup.model.addPanelToTabGroup(tabGroup.id, 'panel1');
         sourceGroup.model.addPanelToTabGroup(tabGroup.id, 'panel2');
 
-        // Move tab group to the right (creates a new group)
         dockview.moveGroupOrPanel({
             from: {
                 groupId: sourceGroup.id,
@@ -1357,7 +1317,6 @@ describe('dockviewComponent', () => {
             to: { group: sourceGroup, position: 'right' },
         });
 
-        // Should have 2 groups now
         expect(dockview.groups).toHaveLength(2);
 
         // panel3 stays in source
@@ -1399,7 +1358,6 @@ describe('dockviewComponent', () => {
         const panel4 = dockview.getGroupPanel('panel4')!;
         const sourceGroup = panel1.group;
 
-        // Create tab group with only panel1 and panel2
         const tabGroup = sourceGroup.model.createTabGroup({
             label: 'Partial',
             color: 'purple',
@@ -1407,7 +1365,6 @@ describe('dockviewComponent', () => {
         sourceGroup.model.addPanelToTabGroup(tabGroup.id, 'panel1');
         sourceGroup.model.addPanelToTabGroup(tabGroup.id, 'panel2');
 
-        // Create destination by moving panel4 via moveGroupOrPanel
         dockview.moveGroupOrPanel({
             from: { groupId: sourceGroup.id, panelId: 'panel4' },
             to: { group: sourceGroup, position: 'right' },
@@ -1455,7 +1412,6 @@ describe('dockviewComponent', () => {
         const panel2 = dockview.getGroupPanel('panel2')!;
         const sourceGroup = panel1.group;
 
-        // Create a tab group on the source spanning both panels.
         const tabGroup = sourceGroup.model.createTabGroup({
             label: 'Feature',
             color: 'blue',
@@ -2630,14 +2586,11 @@ describe('dockviewComponent', () => {
             const panel2 = dockview.getGroupPanel('panel2')!;
             const panel3 = dockview.getGroupPanel('panel3')!;
 
-            // Verify that always visible panels have been positioned
             const overlayContainer = dockview.overlayRenderContainer;
 
-            // Check that panels with renderer: 'always' are attached to overlay container
             expect(panel2.api.renderer).toBe('always');
             expect(panel3.api.renderer).toBe('always');
 
-            // Get the overlay elements for always visible panels
             const panel2Overlay = overlayContainer.element.querySelector(
                 '[data-panel-id]'
             ) as HTMLElement;
@@ -2645,7 +2598,6 @@ describe('dockviewComponent', () => {
                 '[data-panel-id]:not(:first-child)'
             ) as HTMLElement;
 
-            // Verify positioning has been applied (should not be 0 after layout)
             if (panel2Overlay) {
                 const style = getComputedStyle(panel2Overlay);
                 expect(style.position).toBe('absolute');
@@ -2655,16 +2607,13 @@ describe('dockviewComponent', () => {
                 expect(style.height).not.toBe('0px');
             }
 
-            // Test that updateAllPositions method works correctly
             const updateSpy = jest.spyOn(
                 overlayContainer,
                 'updateAllPositions'
             );
 
-            // Call fromJSON again to trigger position updates
             dockview.fromJSON(dockview.toJSON());
 
-            // Wait for the position update to be called
             await new Promise((resolve) => requestAnimationFrame(resolve));
 
             expect(updateSpy).toHaveBeenCalled();
@@ -7731,16 +7680,13 @@ describe('dockviewComponent', () => {
             dockview.layout(800, 600);
 
             try {
-                // 1. Create a panel
                 const panel = dockview.addPanel({
                     id: 'test-panel',
                     component: 'default',
                 });
 
-                // Verify initial state
                 expect(panel.api.location.type).toBe('grid');
 
-                // 2. Move to floating group
                 dockview.addFloatingGroup(panel, {
                     position: {
                         bottom: 50,
@@ -7750,17 +7696,14 @@ describe('dockviewComponent', () => {
                     height: 300,
                 });
 
-                // Verify floating state
                 expect(panel.api.location.type).toBe('floating');
 
-                // 3. Move back to grid using addGroup + moveTo pattern (reproducing user's exact issue)
+                // Move back to grid using addGroup + moveTo pattern (reproducing user's exact issue)
                 const addGroup = dockview.addGroup();
                 panel.api.moveTo({ group: addGroup });
 
-                // THIS IS THE FIX: Component should still be visible
                 expect(panel.api.location.type).toBe('grid');
 
-                // Test multiple scenarios
                 const panel2 = dockview.addPanel({
                     id: 'panel-2',
                     component: 'default',
@@ -8162,7 +8105,6 @@ describe('dockviewComponent', () => {
             await dockview.addPopoutGroup(panel2);
             panel2.api.moveTo({ group: panel1.api.group, position: 'right' });
 
-            // confirm panel is rendered on DOM
             expect(
                 panel2.group.element.querySelectorAll(
                     '.dv-content-container > .testpanel-panel_2'
@@ -8172,7 +8114,6 @@ describe('dockviewComponent', () => {
             await dockview.addPopoutGroup(panel3);
             panel3.api.moveTo({ group: panel1.api.group, position: 'right' });
 
-            // confirm panel is rendered to always overlay container
             // Query from `container` because the overlay render container is
             // anchored to the shell element (parent of dockview.element).
             expect(
@@ -9361,7 +9302,6 @@ describe('dockviewComponent', () => {
             const didLayoutChangeHandler = jest.fn();
             dockview.onDidLayoutChange(didLayoutChangeHandler);
 
-            // add panel
             const panel1 = dockview.addPanel({
                 id: 'panel_1',
                 component: 'default',
@@ -9374,22 +9314,18 @@ describe('dockviewComponent', () => {
             jest.runAllTimers();
             expect(didLayoutChangeHandler).toHaveBeenCalledTimes(1);
 
-            // add group
             const group = dockview.addGroup();
             jest.runAllTimers();
             expect(didLayoutChangeHandler).toHaveBeenCalledTimes(2);
 
-            // remove group
             group.api.close();
             jest.runAllTimers();
             expect(didLayoutChangeHandler).toHaveBeenCalledTimes(3);
 
-            // active panel
             panel1.api.setActive();
             jest.runAllTimers();
             expect(didLayoutChangeHandler).toHaveBeenCalledTimes(4);
 
-            // move panel
             dockview.moveGroupOrPanel({
                 from: {
                     groupId: panel1.group.api.id,
@@ -9402,7 +9338,6 @@ describe('dockviewComponent', () => {
                 },
             });
 
-            // remove panel
             panel2.api.close();
             jest.runAllTimers();
             expect(didLayoutChangeHandler).toHaveBeenCalledTimes(5);
@@ -9450,7 +9385,6 @@ describe('dockviewComponent', () => {
             const didLayoutChangeHandler = jest.fn();
             dockview.onDidLayoutChange(didLayoutChangeHandler);
 
-            // add edge group
             dockview.addEdgeGroup('left', { id: 'edge-left' });
             jest.runAllTimers();
             expect(didLayoutChangeHandler).toHaveBeenCalledTimes(1);
@@ -10024,30 +9958,23 @@ describe('dockviewComponent', () => {
             const panel2 = dockview.getGroupPanel('panel2')!;
             const panel3 = dockview.getGroupPanel('panel3')!;
 
-            // Move panel2 to a new group to create separate groups
             panel2.api.moveTo({ position: 'right' });
 
-            // Move panel3 to panel2's group
             panel3.api.moveTo({ group: panel2.group, position: 'center' });
 
-            // panel2's group should be active
             expect(dockview.activeGroup).toBe(panel2.group);
 
-            // Set panel1's group as active
             dockview.doSetGroupActive(panel1.group);
             expect(dockview.activeGroup).toBe(panel1.group);
 
-            // Now move panel2's group to panel1's group without setting it active
             panel2.group.api.moveTo({
                 group: panel1.group,
                 position: 'center',
                 skipSetActive: true,
             });
 
-            // panel1's group should still be active and there should be an active panel
             expect(dockview.activeGroup).toBe(panel1.group);
             expect(dockview.activePanel).toBeTruthy();
-            // panel2 and panel3 should now be in panel1's group
             expect(panel2.group).toBe(panel1.group);
             expect(panel3.group).toBe(panel1.group);
         });
@@ -10084,20 +10011,16 @@ describe('dockviewComponent', () => {
             const panel1 = dockview.getGroupPanel('panel1')!;
             const panel2 = dockview.getGroupPanel('panel2')!;
 
-            // Move panel2 to a new group to the right
             panel2.api.moveTo({ position: 'right' });
 
-            // Set panel1's group as active
             dockview.doSetGroupActive(panel1.group);
             expect(dockview.activeGroup).toBe(panel1.group);
 
-            // Move panel1 to panel2's group (should activate panel2's group)
             panel1.api.moveTo({
                 group: panel2.group,
                 position: 'center',
             });
 
-            // panel2's group should now be active and panel1 should be the active panel
             expect(dockview.activeGroup).toBe(panel2.group);
             expect(dockview.activePanel?.id).toBe(panel1.id);
             expect(panel1.group).toBe(panel2.group);
@@ -10546,7 +10469,6 @@ describe('dockviewComponent', () => {
         });
     });
 
-    // Adding back tests one by one to identify problematic expectations
     describe('GitHub Issue #991 - Group remains active after tab header space drag', () => {
         let container: HTMLElement;
 
@@ -10570,7 +10492,6 @@ describe('dockviewComponent', () => {
             });
             dockview.layout(1000, 1000);
 
-            // Create panel in first group
             dockview.addPanel({
                 id: 'panel1',
                 component: 'default',
@@ -10579,15 +10500,12 @@ describe('dockviewComponent', () => {
             const panel1 = dockview.getGroupPanel('panel1')!;
             const originalGroup = panel1.group;
 
-            // Set up initial state - make sure group is active
             dockview.doSetGroupActive(originalGroup);
             expect(dockview.activeGroup).toBe(originalGroup);
             expect(dockview.activePanel?.id).toBe('panel1');
 
-            // Move panel to edge position
             panel1.api.moveTo({ position: 'right' });
 
-            // After move, there should still be an active group and panel
             expect(dockview.activeGroup).toBeTruthy();
             expect(dockview.activePanel).toBeTruthy();
             expect(dockview.activePanel?.id).toBe('panel1');
@@ -10614,7 +10532,6 @@ describe('dockviewComponent', () => {
             });
             dockview.layout(1000, 1000);
 
-            // Create two groups with panels
             dockview.addPanel({
                 id: 'panel1',
                 component: 'default',
@@ -10631,21 +10548,17 @@ describe('dockviewComponent', () => {
             const group1 = panel1.group;
             const group2 = panel2.group;
 
-            // Set group1 as active initially
             dockview.doSetGroupActive(group1);
             expect(dockview.activeGroup).toBe(group1);
             expect(dockview.activePanel?.id).toBe('panel1');
 
-            // Move panel2's group to panel1's group (center merge)
             dockview.moveGroupOrPanel({
                 from: { groupId: group2.id },
                 to: { group: group1, position: 'center' },
             });
 
-            // After move, the target group should be active and have an active panel
             expect(dockview.activeGroup).toBeTruthy();
             expect(dockview.activePanel).toBeTruthy();
-            // Both panels should now be in the same group
             expect(panel1.group).toBe(panel2.group);
         });
 
@@ -10665,7 +10578,6 @@ describe('dockviewComponent', () => {
             });
             dockview.layout(1000, 1000);
 
-            // Create panel
             dockview.addPanel({
                 id: 'panel1',
                 component: 'default',
@@ -10673,17 +10585,13 @@ describe('dockviewComponent', () => {
 
             const panel1 = dockview.getGroupPanel('panel1')!;
 
-            // Verify content is initially rendered
             expect(panel1.view.content.element.parentElement).toBeTruthy();
 
-            // Move panel to edge position
             panel1.api.moveTo({ position: 'left' });
 
-            // After move, panel content should still be rendered (fixes content disappearing)
             expect(panel1.view.content.element.parentElement).toBeTruthy();
             expect(dockview.activePanel?.id).toBe('panel1');
 
-            // Panel should be visible and active
             expect(panel1.api.isVisible).toBe(true);
             expect(panel1.api.isActive).toBe(true);
         });
@@ -10704,7 +10612,6 @@ describe('dockviewComponent', () => {
             });
             dockview.layout(1000, 1000);
 
-            // Create group with one panel
             dockview.addPanel({
                 id: 'panel1',
                 component: 'default',
@@ -10713,15 +10620,12 @@ describe('dockviewComponent', () => {
             const panel1 = dockview.getGroupPanel('panel1')!;
             const group = panel1.group;
 
-            // Verify initial state
             expect(dockview.activeGroup).toBe(group);
             expect(dockview.activePanel?.id).toBe('panel1');
             expect(panel1.view.content.element.parentElement).toBeTruthy();
 
-            // Move panel to trigger group move logic
             panel1.api.moveTo({ position: 'right' });
 
-            // Panel content should render correctly (the fix ensures first panel is not skipped)
             expect(panel1.view.content.element.parentElement).toBeTruthy();
             expect(dockview.activePanel?.id).toBe('panel1');
             expect(panel1.api.isActive).toBe(true);
@@ -10743,7 +10647,6 @@ describe('dockviewComponent', () => {
             });
             dockview.layout(1000, 1000);
 
-            // Create two groups
             dockview.addPanel({
                 id: 'panel1',
                 component: 'default',
@@ -10760,19 +10663,15 @@ describe('dockviewComponent', () => {
             const group1 = panel1.group;
             const group2 = panel2.group;
 
-            // Set group2 as active
             dockview.doSetGroupActive(group2);
             expect(dockview.activeGroup).toBe(group2);
 
-            // Move group2 to group1 with skipSetActive option
             dockview.moveGroupOrPanel({
                 from: { groupId: group2.id },
                 to: { group: group1, position: 'center' },
                 skipSetActive: true,
             });
 
-            // After merge, there should still be an active group and panel
-            // The skipSetActive should be respected in the implementation
             expect(dockview.activeGroup).toBeTruthy();
             expect(dockview.activePanel).toBeTruthy();
         });
@@ -10798,7 +10697,6 @@ describe('dockviewComponent', () => {
 
             dockview.layout(800, 600);
 
-            // Add two panels so we have layout that can be resized
             const panel1 = dockview.addPanel({
                 id: 'panel1',
                 component: 'default',
@@ -10810,20 +10708,16 @@ describe('dockviewComponent', () => {
                 position: { direction: 'right' },
             });
 
-            // Initial state should be 400px each
             expect(panel1.group.api.width).toBe(400);
             expect(panel2.group.api.width).toBe(400);
 
-            // Set size to 350px width and immediately set invisible
             panel1.group.api.setSize({ width: 350 });
-            expect(panel1.group.api.width).toBe(350); // Should work immediately
+            expect(panel1.group.api.width).toBe(350);
 
             panel1.group.api.setVisible(false);
 
-            // Group should be invisible
             expect(panel1.group.api.isVisible).toBe(false);
 
-            // Make visible again
             panel1.group.api.setVisible(true);
 
             // The width should be preserved as 350px, not reverted to initial/minimal size
@@ -10860,19 +10754,15 @@ describe('dockviewComponent', () => {
                 position: { direction: 'right' },
             });
 
-            // Set size to 350px width
             panel1.group.api.setSize({ width: 350 });
             expect(panel1.group.api.width).toBe(350);
 
-            // Set different size while visible
             panel1.group.api.setSize({ width: 400 });
             expect(panel1.group.api.width).toBe(400);
 
-            // Then set invisible
             panel1.group.api.setVisible(false);
             expect(panel1.group.api.isVisible).toBe(false);
 
-            // Make visible again
             panel1.group.api.setVisible(true);
 
             // The most recent size (400px) should be preserved
@@ -10880,7 +10770,7 @@ describe('dockviewComponent', () => {
         });
 
         test('issue 1020: addGroup + moveTo with defaultRenderer="always" repositions panel overlay', async () => {
-            // Reproduces https://github.com/mathuo/dockview/issues/1020
+            // Reproduces https://github.com/dockview/dockview/issues/1020
             // The user split a group by creating a new adjacent group and
             // moving the active panel into it. With defaultRenderer="always"
             // the panel's content overlay stayed at the old grid coordinates
@@ -10926,10 +10816,8 @@ describe('dockviewComponent', () => {
                 skipSetActive: false,
             });
 
-            // Move is wired correctly.
             expect(panel1.group).toBe(newGroup);
             expect(newGroup.activePanel?.id).toBe('panel1');
-            // The single-panel source group should have been cleaned up.
             expect(dv.groups).not.toContain(sourceGroup);
 
             // The fix schedules updateAllPositions on the next animation
@@ -10939,7 +10827,6 @@ describe('dockviewComponent', () => {
             await new Promise((resolve) => requestAnimationFrame(resolve));
             expect(updateSpy).toHaveBeenCalled();
 
-            // Content node must still be in the DOM tree.
             expect(panel1.view.content.element.parentElement).toBeTruthy();
 
             updateSpy.mockRestore();
@@ -11110,13 +10997,11 @@ describe('dockviewComponent', () => {
 
             expect(tabGroup.panelIds).toEqual(['panel1', 'panel2']);
 
-            // Move panel2 to the other group
             dockview.moveGroupOrPanel({
                 from: { groupId: groupId, panelId: 'panel2' },
                 to: { group: panel3.group, position: 'center' },
             });
 
-            // panel2 should no longer be in the tab group
             expect(tabGroup.containsPanel('panel2')).toBe(false);
             expect(tabGroup.panelIds).toEqual(['panel1']);
         });
@@ -11147,7 +11032,6 @@ describe('dockviewComponent', () => {
             tabGroup.collapse();
             expect(tabGroup.collapsed).toBe(true);
 
-            // Close the only panel in the group
             dockview.removePanel(panel1);
 
             // Tab group should have been auto-destroyed (isEmpty triggers dispose)
@@ -11178,10 +11062,8 @@ describe('dockviewComponent', () => {
             // normally batched via queueMicrotask)
             (panel1.group.model as any).tabsContainer.tabs.updateTabGroups();
 
-            // The tab group was created without a label
             expect(tabGroup.label).toBe('');
 
-            // Verify the chip exists with empty label class via DOM
             const chips =
                 panel1.group.element.querySelectorAll('.dv-tab-group-chip');
             expect(chips.length).toBeGreaterThan(0);
@@ -11240,11 +11122,9 @@ describe('dockviewComponent', () => {
                 panelId: 'panel3',
             });
 
-            // Snapshot and restore
             const state = dockview.toJSON();
             dockview.fromJSON(state);
 
-            // Verify tab groups survived the round-trip
             const restoredGroup = dockview.api.panels[0].group;
             const restored = dockview.api.getTabGroups({
                 groupId: restoredGroup.id,
@@ -11287,7 +11167,6 @@ describe('dockviewComponent', () => {
 
             const groupId = panel1.group.id;
 
-            // Create a collapsed tab group containing panel1 and panel2
             const tg1 = dockview.api.createTabGroup({
                 groupId,
                 label: 'Collapsed',
@@ -11308,7 +11187,6 @@ describe('dockviewComponent', () => {
             // panel3 is ungrouped and should be the active panel
             expect(panel1.group.activePanel?.id).toBe('panel3');
 
-            // Snapshot and restore
             const state = dockview.toJSON();
             dockview.fromJSON(state);
 
@@ -11318,7 +11196,6 @@ describe('dockviewComponent', () => {
 
             expect(activeId).toBe('panel3');
 
-            // Verify collapsed group was restored correctly
             const restored = dockview.api.getTabGroups({
                 groupId: restoredGroup.id,
             });
@@ -12428,7 +12305,7 @@ describe('dockviewComponent', () => {
                 dv2.dispose();
             });
 
-            test('revealing into an existing edge with autoHide fires the change event', () => {
+            test('revealing into an existing static edge leaves its auto-hide state untouched', () => {
                 const c = document.createElement('div');
                 const dv = createFixedDockview(c, ['left'], {
                     left: { id: 'left-group' },
@@ -12450,12 +12327,19 @@ describe('dockviewComponent', () => {
                     { autoHide: true }
                 );
 
-                // the reuse path must fire the event so a listener (the
-                // auto-hide controller) can reconcile the group's chrome
-                expect(fired).toContain('left-group');
+                // The reuse path adds the panel but must NOT change the existing
+                // group's auto-hide: a drag-reveal (which always passes
+                // autoHide:true) can't be allowed to silently convert a static
+                // edge group into an auto-hiding one. Programmatic callers use
+                // `getEdgeGroup(position).setAutoHide(...)` for that. So no
+                // change event fires and the group stays static.
+                expect(
+                    dv.getEdgeGroupPanel('left')!.panels.map((p) => p.id)
+                ).toContain('p1');
+                expect(fired).toEqual([]);
                 expect(
                     dv.isEdgeGroupAutoHide(dv.getEdgeGroupPanel('left')!)
-                ).toBe(true);
+                ).toBe(false);
                 dv.dispose();
             });
 

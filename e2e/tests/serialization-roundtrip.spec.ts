@@ -31,7 +31,6 @@ test.describe('serialization round-trips', () => {
         const maxId = await page.evaluate(() =>
             (window as any).__dv.setupTwoGroupsMaximizeFirst()
         );
-        // Live: one group is maximized.
         expect(
             await page.evaluate(() => (window as any).__dv.hasMaximizedGroup())
         ).toBe(true);
@@ -44,7 +43,6 @@ test.describe('serialization round-trips', () => {
 
         await reloadAndRestore(page, json);
 
-        // The same group is maximized again after the round-trip.
         await expect
             .poll(() =>
                 page.evaluate(() => (window as any).__dv.hasMaximizedGroup())
@@ -71,8 +69,6 @@ test.describe('serialization round-trips', () => {
 
         await reloadAndRestore(page, json);
 
-        // The edge group is rebuilt at its position, still holding its panel,
-        // and the panel content renders.
         await expect
             .poll(() =>
                 page.evaluate(() =>
@@ -108,7 +104,6 @@ test.describe('serialization round-trips', () => {
 
         await reloadAndRestore(page, json);
 
-        // The chip is rebuilt with its label.
         await expect(page.locator('.dv-tab-group-chip')).toHaveText(
             'Monitoring'
         );

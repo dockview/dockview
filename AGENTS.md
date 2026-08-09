@@ -138,7 +138,7 @@ NX handles build ordering automatically via `dependsOn: ["^build"]`. The depende
     the same PR. If Sonar reports a new issue, fix it (or, if genuinely a false
     positive, mark it Won't Fix / Accepted in SonarCloud with a justification)
     before merging. Fetch the exact findings from
-    `https://sonarcloud.io/api/issues/search?componentKeys=mathuo_dockview&pullRequest=<PR>&issueStatuses=OPEN,CONFIRMED&resolved=false`
+    `https://sonarcloud.io/api/issues/search?componentKeys=dockview_dockview&pullRequest=<PR>&issueStatuses=OPEN,CONFIRMED&resolved=false`
     rather than trusting the summary comment, which can lag a commit behind.
 
 ## Development Notes

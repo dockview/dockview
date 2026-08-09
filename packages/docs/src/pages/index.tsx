@@ -20,13 +20,33 @@ const FRAMEWORK_LINKS: { label: string; icon: string; param: string }[] = [
     { label: 'JavaScript', icon: 'img/js-icon.svg', param: 'javascript' },
 ];
 
+// ─── Latest release ───────────────────────────────────────────────────────────
+
+// Bump on each major, alongside the `RELEASES` array in whats-new.tsx. Links
+// straight at the release notes rather than the /whats-new index so the pill
+// lands on the actual content in one click.
+const LATEST_VERSION = 'v8.0';
+const LATEST_RELEASE_NOTES = '/docs/releases/whats-new/whats-new-v8';
+
+function HeroRelease() {
+    return (
+        <Link to={LATEST_RELEASE_NOTES} className="hero-release">
+            <span className="hero-release-chip">{LATEST_VERSION}</span>
+            <span>What's new</span>
+            <span className="hero-release-arrow" aria-hidden="true">
+                →
+            </span>
+        </Link>
+    );
+}
+
 // ─── Social proof stats ───────────────────────────────────────────────────────
 
 const STATS: { value: string; label: string; href?: string }[] = [
     {
         value: '3.3k+',
         label: 'GitHub stars',
-        href: 'https://github.com/mathuo/dockview',
+        href: 'https://github.com/dockview/dockview',
     },
     {
         value: '540k+',
@@ -144,6 +164,7 @@ function Hero() {
                         mobile ready. Zero dependencies.
                     </p>
                     <div className="hero-actions">
+                        <HeroRelease />
                         <div className="hero-fw-btns">
                             {FRAMEWORK_LINKS.map((fw) => (
                                 <Link

@@ -597,6 +597,11 @@ export interface IPinnedTabsHost {
     readonly options: DockviewComponentOptions;
     readonly onDidAddGroup: Event<DockviewGroupPanel>;
     readonly onDidRemoveGroup: Event<DockviewGroupPanel>;
+    /** Fires after `updateOptions`; the service re-applies the pinned-tabs
+     *  presentation (mode / sticky) to every existing group so a runtime
+     *  `pinnedTabs` change takes effect. New groups pick it up in
+     *  `onDidAddGroup`; this retrofits the ones that already exist. */
+    readonly onDidOptionsChange: Event<void>;
     /** Fires after a panel's pinned flag is mutated via the gated
      *  `setPanelPinned`; the service's sole trigger to re-order the strip. */
     readonly onDidPanelPinnedChange: Event<DockviewPanelPinnedChangeEvent>;

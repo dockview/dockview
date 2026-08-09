@@ -759,7 +759,6 @@ export class TabsContainer
             }
         }
 
-        // Track which groups have already been rendered.
         const renderedGroups = new Set<string>();
 
         for (const tab of this.tabs.tabs.filter((tab) =>

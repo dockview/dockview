@@ -2938,8 +2938,6 @@ describe('gridview', () => {
     });
 
     test('registerPanel is called after doAddGroup - panel api events work immediately', () => {
-        // This test verifies the fix for the timing issue where registerPanel
-        // was called before doAddGroup, causing "Cannot read properties of undefined" errors
         const gridview = new GridviewComponent(container, {
             proportionalLayout: false,
             orientation: Orientation.VERTICAL,
@@ -2955,23 +2953,20 @@ describe('gridview', () => {
 
         gridview.layout(800, 400);
 
-        // Add first panel
         const panel1 = gridview.addPanel({
             id: 'panel_1',
             component: 'default',
         });
 
-        // Verify the panel API is immediately accessible and functional
         expect(panel1.api).toBeDefined();
         expect(panel1.api.onDidFocusChange).toBeDefined();
 
-        // Subscribe to focus events to verify event subscription works
         let focusEventCount = 0;
         const disposable = panel1.api.onDidFocusChange((event) => {
             focusEventCount++;
         });
 
-        // This should not throw an error - before the fix, this would throw:
+        // adding a second panel must not throw
         // "Cannot read properties of undefined (reading 'onDidFocusChange')"
         const panel2 = gridview.addPanel({
             id: 'panel_2',
@@ -2979,22 +2974,18 @@ describe('gridview', () => {
             position: { referencePanel: panel1.id, direction: 'right' },
         });
 
-        // Verify both panels have working APIs
         expect(panel1.api).toBeDefined();
         expect(panel2.api).toBeDefined();
         expect(panel1.api.onDidFocusChange).toBeDefined();
         expect(panel2.api.onDidFocusChange).toBeDefined();
 
-        // Verify that the API is functional by checking properties
         expect(panel1.api.isVisible).toBeTruthy();
         expect(panel2.api.isVisible).toBeTruthy();
 
-        // Verify we can subscribe to events on the second panel too
         const disposable2 = panel2.api.onDidFocusChange((event) => {
             focusEventCount++;
         });
 
-        // Clean up
         disposable.dispose();
         disposable2.dispose();
 
@@ -3166,7 +3157,6 @@ describe('gridview', () => {
 
         panel1.api._onDidChangeFocus.fire({ isFocused: false });
 
-        // no change - panel2 remains active
         expect(panel2.api.isActive).toBeTruthy();
         expect(panel1.api.isActive).toBeFalsy();
     });
@@ -3194,7 +3184,6 @@ describe('gridview', () => {
             reference: 'panel1',
         });
 
-        // all three panels still present after the move
         expect(gridview.size).toBe(3);
         expect(gridview.getPanel('panel1')).toBeTruthy();
         expect(gridview.getPanel('panel2')).toBeTruthy();
@@ -3241,7 +3230,6 @@ describe('gridview', () => {
             })
         ).toThrow('center not supported as an option');
 
-        // Both panels survive the rejected move.
         expect(gridview.size).toBe(2);
         expect(gridview.getPanel('panel1')).toBeTruthy();
         expect(gridview.getPanel('panel2')).toBeTruthy();

@@ -128,7 +128,6 @@ describe('multi-row tabs seam', () => {
         cut.setForcedOverflow(a.group, (id) => id === 'b');
         expect(dropdown()).not.toBeNull();
 
-        // Clearing the forcing removes it again.
         cut.setForcedOverflow(a.group, () => false);
         expect(dropdown()).toBeNull();
 

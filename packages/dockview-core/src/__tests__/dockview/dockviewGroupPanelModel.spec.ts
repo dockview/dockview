@@ -2075,12 +2075,10 @@ describe('dockviewGroupPanelModel', () => {
             const json = groupview.model.toJSON();
             expect(json.tabGroups!).toHaveLength(2);
 
-            // Dissolve existing groups
             groupview.model.dissolveTabGroup(tg1.id);
             groupview.model.dissolveTabGroup(tg2.id);
             expect(groupview.model.getTabGroups()).toHaveLength(0);
 
-            // Restore from JSON
             groupview.model.restoreTabGroups(json.tabGroups!);
             const restored = groupview.model.getTabGroups();
             expect(restored).toHaveLength(2);

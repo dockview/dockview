@@ -3,11 +3,21 @@ import { ReactPart, ReactPortalStore } from '../react';
 import {
     IContextMenuItemRenderer,
     IContextMenuItemComponentProps,
+    IChipContextMenuItemComponentProps,
 } from 'dockview';
+
+/**
+ * The same renderer serves both the tab context menu (props carry a `panel`)
+ * and the tab group chip context menu (props carry a `tabGroup`), so it accepts
+ * either prop shape.
+ */
+type ContextMenuItemProps =
+    | IContextMenuItemComponentProps
+    | IChipContextMenuItemComponentProps;
 
 export class ReactContextMenuItemPart implements IContextMenuItemRenderer {
     private readonly _element: HTMLElement;
-    private part?: ReactPart<IContextMenuItemComponentProps>;
+    private part?: ReactPart<ContextMenuItemProps>;
 
     get element(): HTMLElement {
         return this._element;
@@ -15,7 +25,7 @@ export class ReactContextMenuItemPart implements IContextMenuItemRenderer {
 
     constructor(
         public readonly id: string,
-        private readonly component: React.FunctionComponent<IContextMenuItemComponentProps>,
+        private readonly component: React.FunctionComponent<ContextMenuItemProps>,
         private readonly reactPortalStore: ReactPortalStore
     ) {
         this._element = document.createElement('div');
@@ -24,7 +34,7 @@ export class ReactContextMenuItemPart implements IContextMenuItemRenderer {
         this._element.style.width = '100%';
     }
 
-    public init(props: IContextMenuItemComponentProps): void {
+    public init(props: ContextMenuItemProps): void {
         this.part = new ReactPart(
             this._element,
             this.reactPortalStore,

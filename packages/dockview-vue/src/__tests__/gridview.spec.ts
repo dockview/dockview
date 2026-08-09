@@ -78,7 +78,6 @@ describe('GridviewVue Component', () => {
                 ),
         });
 
-        // Update proportional layout
         api.updateOptions({ proportionalLayout: true });
 
         // Test passes if no errors are thrown
@@ -108,7 +107,6 @@ describe('GridviewVue Component', () => {
                 ),
         });
 
-        // Add a panel
         api.addPanel({
             id: 'grid-panel-1',
             component: 'test-component',
@@ -118,7 +116,6 @@ describe('GridviewVue Component', () => {
         expect(api.panels[0].id).toBe('grid-panel-1');
         expect(initSpy).toHaveBeenCalled();
 
-        // Remove the panel
         api.removePanel(api.panels[0]);
         expect(api.panels).toHaveLength(0);
 
@@ -204,7 +201,7 @@ describe('VueGridviewPanelView', () => {
     });
 });
 
-// Regression coverage for https://github.com/mathuo/dockview/issues/1301
+// Regression coverage for https://github.com/dockview/dockview/issues/1301
 describe('GridviewVue components prop resolves without registration', () => {
     let wrapper: ReturnType<typeof mount>;
 

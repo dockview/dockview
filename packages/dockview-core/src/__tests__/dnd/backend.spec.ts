@@ -1,11 +1,6 @@
 import { fireEvent } from '@testing-library/dom';
 import { html5Backend } from '../../dnd/backend';
 
-/**
- * The HTML5 backend's `createDragSource` replaced the abstract
- * `DragHandler` class. These tests carry forward the behaviors that the
- * old `abstractDragHandler.spec.ts` covered.
- */
 describe('Html5DragSource (html5Backend.createDragSource)', () => {
     const noopGetData = () => ({ dispose: () => undefined });
 
@@ -188,7 +183,6 @@ describe('Html5DragSource (html5Backend.createDragSource)', () => {
             getData: noopGetData,
         });
 
-        // No-op methods must exist and not throw.
         expect(() => source.setTouchOnly(true)).not.toThrow();
         expect(() => source.setTouchOnly(false)).not.toThrow();
         expect(() => source.cancelPending()).not.toThrow();

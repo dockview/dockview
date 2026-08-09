@@ -43,7 +43,6 @@ describe('MruTracker', () => {
         mru.attach('g1', ['a', 'b']);
         mru.attach('g2', ['c', 'd']);
 
-        // Panel 'a' moves into g2 and is activated there.
         mru.activate('g2', 'a');
 
         expect(mru.order('g1')).toEqual(['b']);
@@ -74,7 +73,7 @@ describe('MruTracker', () => {
         const mru = new MruTracker();
         mru.attach('g', ['a', 'b', 'c']);
         mru.activate('g', 'c'); // -> [c, a, b]
-        mru.attach('g', ['a', 'b', 'c', 'd']); // re-attach with a new panel 'd'
+        mru.attach('g', ['a', 'b', 'c', 'd']);
         expect(mru.order('g')).toEqual(['c', 'a', 'b', 'd']);
     });
 });

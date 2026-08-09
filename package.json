@@ -1,14 +1,14 @@
 {
     "name": "dockview-monorepo-root",
     "private": true,
-    "description": "Monorepo for https://github.com/mathuo/dockview",
-    "homepage": "https://github.com/mathuo/dockview#readme",
+    "description": "Monorepo for https://github.com/dockview/dockview",
+    "homepage": "https://github.com/dockview/dockview#readme",
     "bugs": {
-        "url": "https://github.com/mathuo/dockview/issues"
+        "url": "https://github.com/dockview/dockview/issues"
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/mathuo/dockview.git"
+        "url": "git+https://github.com/dockview/dockview.git"
     },
     "license": "MIT",
     "author": "https://github.com/mathuo",

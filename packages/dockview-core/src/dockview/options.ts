@@ -166,9 +166,28 @@ export interface IContextMenuItemComponentProps {
     componentProps?: object;
 }
 
+/**
+ * Props passed to a `component` menu item rendered in the tab group chip
+ * context menu. Mirrors {@link IContextMenuItemComponentProps} but carries the
+ * `tabGroup` the chip represents in place of a single `panel`: a chip spans
+ * several panels, so there is no one panel to hand over.
+ */
+export interface IChipContextMenuItemComponentProps {
+    tabGroup: ITabGroup;
+    group: DockviewGroupPanel;
+    api: DockviewApi;
+    /** Call to close the context menu */
+    close: () => void;
+    componentProps?: object;
+}
+
 export interface IContextMenuItemRenderer extends IDisposable {
     readonly element: HTMLElement;
-    init(props: IContextMenuItemComponentProps): void;
+    init(
+        props:
+            | IContextMenuItemComponentProps
+            | IChipContextMenuItemComponentProps
+    ): void;
 }
 
 export interface CreateContextMenuItemComponentOptions {
@@ -258,19 +277,6 @@ export interface SmartGuidesOptions {
 }
 
 /**
- * Per-row content preview for the advanced overflow dropdown. The substrate
- * cannot snapshot arbitrary panel content, so the app supplies the preview.
- * Reserved for `AdvancedOverflowModule`; ignored until that module is present.
- */
-export type OverflowThumbnailRenderer = (
-    panel: IDockviewPanel
-) =>
-    | HTMLElement
-    | { element: HTMLElement; dispose?: () => void }
-    | { src: string }
-    | undefined;
-
-/**
  * The CSS class the `MultiRowTabsModule` toggles on a group's tab list
  * (`.dv-tabs-container`) to switch it into wrap layout. Shared here so core
  * (the reorder controller's wrap detection + the SCSS rules) and the module
@@ -339,11 +345,6 @@ export interface DockviewOverflowOptions {
      * `AdvancedOverflowModule`; ignored until present. Default: false.
      */
     mru?: boolean;
-    /**
-     * Per-row content preview in the dropdown. Reserved for
-     * `AdvancedOverflowModule`; ignored until present.
-     */
-    thumbnails?: boolean | OverflowThumbnailRenderer;
 }
 
 export interface DockviewOptions {
@@ -446,7 +447,7 @@ export interface DockviewOptions {
      * The single-row strip + chevron dropdown is the default and is free. The
      * `'wrap'` mode (tabs wrap onto multiple rows and the header grows) requires
      * the `MultiRowTabsModule`; without that module `'wrap'` is ignored and the
-     * dropdown is used. The `search`/`mru`/`thumbnails` fields enrich the
+     * dropdown is used. The `search`/`mru` fields enrich the
      * dropdown and require the `AdvancedOverflowModule`; they are ignored when
      * that module is absent.
      *
@@ -659,7 +660,6 @@ export interface PinnedTabsOptions {
     /**
      * `'inline'` (default) keeps pinned tabs first within the existing strip;
      * `'separate-row'` renders them on their own VS-Code-style row.
-     * (Phase 1 implements `'inline'` only.)
      */
     mode?: 'inline' | 'separate-row';
     /**

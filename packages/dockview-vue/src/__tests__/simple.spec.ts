@@ -1,12 +1,10 @@
 import { describe, test, expect } from 'vitest';
-// Import core functionality that we know works
 import * as core from 'dockview';
 import * as splitviewView from '../splitview/view';
 import * as gridviewView from '../gridview/view';
 import * as paneviewView from '../paneview/view';
 import * as utils from '../utils';
 
-// Simple unit tests that verify basic functionality without complex Vue component testing
 describe('Vue Components Basic Tests', () => {
     test('should be able to import core dockview functionality', () => {
         expect(core.createDockview).toBeDefined();
@@ -29,7 +27,6 @@ describe('Vue Components Basic Tests', () => {
     });
 });
 
-// Test view classes - basic import test
 describe('Vue View Classes', () => {
     test('Vue view classes should be importable', () => {
         expect(splitviewView).toBeDefined();
@@ -38,7 +35,6 @@ describe('Vue View Classes', () => {
     });
 });
 
-// Test utility functions
 describe('Utility Functions', () => {
     test('should export utility functions', () => {
         expect(utils.findComponent).toBeDefined();
@@ -65,7 +61,6 @@ describe('Utility Functions', () => {
     });
 });
 
-// Test that the package builds correctly
 describe('Package Structure', () => {
     test('package should build without errors', () => {
         // If we get this far, the package structure is correct

@@ -189,5 +189,51 @@
             border-bottom-left-radius: var(--dv-border-radius);
             border-bottom-right-radius: var(--dv-border-radius);
         }
+
+        // Docked (pinned) auto-hide edge group — a "tool window": title bar on
+        // top, content in the middle, tab strip at the bottom (the header is
+        // moved to the bottom, so the group is laid out `column-reverse`). The
+        // group is already a rounded, overflow-hidden card, but the shared rules
+        // above round the WRONG edges for this flipped layout: the tab strip
+        // rounds its top (now interior) corners and the content-container rounds
+        // its bottom (now interior) corners, carving frame-coloured notches
+        // mid-card. Re-cap the card for the flipped order: title bar rounds the
+        // top, tab strip rounds the bottom, content stays flush between them.
+        &.dv-edge-tool-window {
+            .dv-edge-peek-header {
+                border-top-left-radius: var(--dv-border-radius);
+                border-top-right-radius: var(--dv-border-radius);
+            }
+
+            .dv-content-container {
+                border-radius: 0;
+            }
+
+            .dv-tabs-and-actions-container {
+                border-top-left-radius: 0;
+                border-top-right-radius: 0;
+                border-bottom-left-radius: var(--dv-border-radius);
+                border-bottom-right-radius: var(--dv-border-radius);
+            }
+        }
+    }
+
+    // Auto-hide edge group "peek": a floating tool-window preview mounted in the
+    // overlay root (a sibling title bar over a clipped content backdrop). Round
+    // it into a card matching the spaced aesthetic — the title bar caps the top,
+    // the content backdrop fills the rounded bottom.
+    .dv-edge-peek {
+        border-bottom-left-radius: var(--dv-border-radius);
+        border-bottom-right-radius: var(--dv-border-radius);
+    }
+
+    .dv-edge-peek-clip {
+        border-bottom-left-radius: var(--dv-border-radius);
+        border-bottom-right-radius: var(--dv-border-radius);
+    }
+
+    .dv-edge-peek-header {
+        border-top-left-radius: var(--dv-border-radius);
+        border-top-right-radius: var(--dv-border-radius);
     }
 }

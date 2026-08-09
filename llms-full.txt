@@ -335,7 +335,7 @@ Custom themes can be created using CSS custom properties (CSS variables).
 - API Reference: https://dockview.dev/docs/api/dockview/overview
 - Licensing: https://dockview.dev/docs/overview/licence
 - Live Demo: https://dockview.dev/demo
-- GitHub: https://github.com/mathuo/dockview
+- GitHub: https://github.com/dockview/dockview
 - npm: https://www.npmjs.com/package/dockview-react
 - Blog / Release Notes: https://dockview.dev/blog
 - License: MIT (core); commercial for Dockview Enterprise

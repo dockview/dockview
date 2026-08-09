@@ -107,11 +107,9 @@ describe('DockviewAngularComponent', () => {
     });
 
     it('forwards every PROPERTY_KEYS_DOCKVIEW input to dockview-core on update', () => {
-        // Regression for the missing-input gap: scrollbars, disableTabsOverflowList,
-        // theme, defaultRenderer, defaultHeaderPosition, disableDnd, dndStrategy,
-        // dndEdges, and noPanelsOverlay used to have no @Input() declared, so
-        // PROPERTY_KEYS_DOCKVIEW.forEach found `undefined` for them and they
-        // were silently unsettable from Angular templates.
+        // Every PROPERTY_KEYS_DOCKVIEW entry needs an @Input() declared, or
+        // PROPERTY_KEYS_DOCKVIEW.forEach reads `undefined` for it and it stays
+        // silently unsettable from Angular templates.
         component.ngOnInit();
         const api = component.getDockviewApi()!;
         const updateOptionsSpy = jest.spyOn(api, 'updateOptions');

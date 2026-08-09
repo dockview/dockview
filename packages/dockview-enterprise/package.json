@@ -1,63 +1,63 @@
 {
-    "name": "dockview-enterprise",
-    "version": "7.0.4",
-    "description": "Enterprise feature modules and licensing for dockview",
-    "keywords": [
-        "dockview",
-        "layout",
-        "layout manager",
-        "docking",
-        "enterprise"
-    ],
-    "homepage": "https://github.com/mathuo/dockview",
-    "bugs": {
-        "url": "https://github.com/mathuo/dockview/issues"
+  "name": "dockview-enterprise",
+  "version": "8.0.0",
+  "description": "Enterprise feature modules and licensing for dockview",
+  "keywords": [
+    "dockview",
+    "layout",
+    "layout manager",
+    "docking",
+    "enterprise"
+  ],
+  "homepage": "https://github.com/dockview/dockview",
+  "bugs": {
+    "url": "https://github.com/dockview/dockview/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dockview/dockview.git",
+    "directory": "packages/dockview-enterprise"
+  },
+  "license": "SEE LICENSE IN LICENCE.md",
+  "author": "https://github.com/mathuo",
+  "main": "./dist/package/main.cjs.js",
+  "module": "./dist/package/main.esm.mjs",
+  "types": "./dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/cjs/index.d.ts",
+      "import": "./dist/package/main.esm.mjs",
+      "require": "./dist/package/main.cjs.js"
     },
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/mathuo/dockview.git",
-        "directory": "packages/dockview-enterprise"
-    },
-    "license": "SEE LICENSE IN LICENCE.md",
-    "author": "https://github.com/mathuo",
-    "main": "./dist/package/main.cjs.js",
-    "module": "./dist/package/main.esm.mjs",
-    "types": "./dist/cjs/index.d.ts",
-    "exports": {
-        ".": {
-            "types": "./dist/cjs/index.d.ts",
-            "import": "./dist/package/main.esm.mjs",
-            "require": "./dist/package/main.cjs.js"
-        },
-        "./dist/styles/*": "./dist/styles/*",
-        "./dist/*": "./dist/*",
-        "./package.json": "./package.json"
-    },
-    "sideEffects": true,
-    "files": [
-        "dist/package",
-        "dist/cjs/**/*.d.ts",
-        "dist/styles",
-        "dist/*.js",
-        "README.md",
-        "LICENCE.md"
-    ],
-    "scripts": {
-        "build:bundle": "rolldown -c rolldown.config.mjs",
-        "build:cjs": "tsc --build ./tsconfig.json --verbose --extendedDiagnostics",
-        "build:css": "node scripts/copy-css.js",
-        "build": "npm run build:cjs && npm run build:css",
-        "clean": "rimraf dist/ .build/ .rollup.cache/",
-        "rebuild": "npm run clean && npm run build && npm run build:bundle",
-        "types:check": "attw --pack . --ignore-rules false-cjs",
-        "test": "jest --selectProjects dockview-enterprise",
-        "test:cov": "jest --selectProjects dockview-enterprise --coverage",
-        "lint": "biome lint src",
-        "lint:fix": "biome lint --write src",
-        "format": "biome format --write src",
-        "format:check": "biome format src"
-    },
-    "dependencies": {
-        "dockview": "^7.0.4"
-    }
+    "./dist/styles/*": "./dist/styles/*",
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
+  },
+  "sideEffects": true,
+  "files": [
+    "dist/package",
+    "dist/cjs/**/*.d.ts",
+    "dist/styles",
+    "dist/*.js",
+    "README.md",
+    "LICENCE.md"
+  ],
+  "scripts": {
+    "build:bundle": "rolldown -c rolldown.config.mjs",
+    "build:cjs": "tsc --build ./tsconfig.json --verbose --extendedDiagnostics",
+    "build:css": "node scripts/copy-css.js",
+    "build": "npm run build:cjs && npm run build:css",
+    "clean": "rimraf dist/ .build/ .rollup.cache/",
+    "rebuild": "npm run clean && npm run build && npm run build:bundle",
+    "types:check": "attw --pack . --ignore-rules false-cjs",
+    "test": "jest --selectProjects dockview-enterprise",
+    "test:cov": "jest --selectProjects dockview-enterprise --coverage",
+    "lint": "biome lint src",
+    "lint:fix": "biome lint --write src",
+    "format": "biome format --write src",
+    "format:check": "biome format src"
+  },
+  "dependencies": {
+    "dockview": "^8.0.0"
+  }
 }

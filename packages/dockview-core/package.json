@@ -1,84 +1,84 @@
 {
-    "name": "dockview-core",
-    "version": "7.0.4",
-    "description": "Zero dependency layout manager supporting tabs, groups, grids and splitviews for vanilla TypeScript",
-    "keywords": [
-        "splitview",
-        "split-view",
-        "gridview",
-        "grid-view",
-        "dockview",
-        "dock-view",
-        "grid",
-        "tabs",
-        "layout",
-        "layout manager",
-        "dock layout",
-        "dock",
-        "docking",
-        "splitter",
-        "drag-and-drop",
-        "drag",
-        "drop",
-        "touch",
-        "mobile",
-        "typescript",
-        "zero-dependency",
-        "ide-layout",
-        "panel",
-        "resizable",
-        "floating",
-        "serialization",
-        "workbench",
-        "vanilla"
-    ],
-    "homepage": "https://github.com/mathuo/dockview",
-    "bugs": {
-        "url": "https://github.com/mathuo/dockview/issues"
+  "name": "dockview-core",
+  "version": "8.0.0",
+  "description": "Zero dependency layout manager supporting tabs, groups, grids and splitviews for vanilla TypeScript",
+  "keywords": [
+    "splitview",
+    "split-view",
+    "gridview",
+    "grid-view",
+    "dockview",
+    "dock-view",
+    "grid",
+    "tabs",
+    "layout",
+    "layout manager",
+    "dock layout",
+    "dock",
+    "docking",
+    "splitter",
+    "drag-and-drop",
+    "drag",
+    "drop",
+    "touch",
+    "mobile",
+    "typescript",
+    "zero-dependency",
+    "ide-layout",
+    "panel",
+    "resizable",
+    "floating",
+    "serialization",
+    "workbench",
+    "vanilla"
+  ],
+  "homepage": "https://github.com/dockview/dockview",
+  "bugs": {
+    "url": "https://github.com/dockview/dockview/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dockview/dockview.git",
+    "directory": "packages/dockview-core"
+  },
+  "license": "MIT",
+  "author": "https://github.com/mathuo",
+  "main": "./dist/package/main.cjs.js",
+  "module": "./dist/package/main.esm.mjs",
+  "types": "./dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/cjs/index.d.ts",
+      "import": "./dist/package/main.esm.mjs",
+      "require": "./dist/package/main.cjs.js"
     },
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/mathuo/dockview.git",
-        "directory": "packages/dockview-core"
-    },
-    "license": "MIT",
-    "author": "https://github.com/mathuo",
-    "main": "./dist/package/main.cjs.js",
-    "module": "./dist/package/main.esm.mjs",
-    "types": "./dist/cjs/index.d.ts",
-    "exports": {
-        ".": {
-            "types": "./dist/cjs/index.d.ts",
-            "import": "./dist/package/main.esm.mjs",
-            "require": "./dist/package/main.cjs.js"
-        },
-        "./dist/*": "./dist/*",
-        "./package.json": "./package.json"
-    },
-    "sideEffects": [
-        "**/*.css",
-        "**/*.scss"
-    ],
-    "files": [
-        "dist/package",
-        "dist/cjs/**/*.d.ts",
-        "dist/*.js",
-        "README.md",
-        "LICENCE.md"
-    ],
-    "scripts": {
-        "build:bundle": "rolldown -c rolldown.config.mjs",
-        "build:cjs": "tsc --build ./tsconfig.json --verbose --extendedDiagnostics",
-        "build:css": "node scripts/build-css.js",
-        "build": "npm run build:cjs && npm run build:css",
-        "clean": "rimraf dist/ .build/ .rollup.cache/",
-        "rebuild": "npm run clean && npm run build && npm run build:bundle",
-        "types:check": "attw --pack . --ignore-rules false-cjs",
-        "test": "jest --selectProjects dockview-core",
-        "test:cov": "jest --selectProjects dockview-core --coverage",
-        "lint": "biome lint src",
-        "lint:fix": "biome lint --write src",
-        "format": "biome format --write src",
-        "format:check": "biome format src"
-    }
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
+  },
+  "sideEffects": [
+    "**/*.css",
+    "**/*.scss"
+  ],
+  "files": [
+    "dist/package",
+    "dist/cjs/**/*.d.ts",
+    "dist/*.js",
+    "README.md",
+    "LICENCE.md"
+  ],
+  "scripts": {
+    "build:bundle": "rolldown -c rolldown.config.mjs",
+    "build:cjs": "tsc --build ./tsconfig.json --verbose --extendedDiagnostics",
+    "build:css": "node scripts/build-css.js",
+    "build": "npm run build:cjs && npm run build:css",
+    "clean": "rimraf dist/ .build/ .rollup.cache/",
+    "rebuild": "npm run clean && npm run build && npm run build:bundle",
+    "types:check": "attw --pack . --ignore-rules false-cjs",
+    "test": "jest --selectProjects dockview-core",
+    "test:cov": "jest --selectProjects dockview-core --coverage",
+    "lint": "biome lint src",
+    "lint:fix": "biome lint --write src",
+    "format": "biome format --write src",
+    "format:check": "biome format src"
+  }
 }

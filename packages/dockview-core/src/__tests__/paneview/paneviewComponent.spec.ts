@@ -222,11 +222,9 @@ describe('paneviewComponent', () => {
             })
         );
 
-        // give panel2 a specific expanded height
         panel2.api.setSize({ size: 150 });
         expect(panel2Dimensions?.height).toBe(150);
 
-        // collapse then re-expand it
         panel2.api.setExpanded(false);
         panel2.api.setExpanded(true);
 
