@@ -560,8 +560,9 @@ export class ShellManager implements IDisposable {
                 ) {
                     return;
                 }
-                this._currentWidth = width;
-                this._currentHeight = height;
+                // layout() records the size and short-circuits its own repeat
+                // calls; don't pre-write _current here or that early-out would
+                // wrongly skip this real resize.
                 this.layout(width, height);
             }),
             this._outerSplitview,
@@ -660,20 +661,35 @@ export class ShellManager implements IDisposable {
         return view;
     }
 
-    layout(width: number, height: number): void {
-        // Record the size we're laying out at so the shell's own
-        // ResizeObserver short-circuits the duplicate relayout when it later
-        // observes this same size. Without this, an app that drives layout()
-        // synchronously from its own ResizeObserver (to avoid the one-frame
-        // shear of the rAF-deferred observer) pays the full recursive layout
-        // twice per resize frame — once here, once from the observer on the
-        // next frame — because the observer's guard compares against these
-        // fields, which were previously written only by the observer itself.
-        // Rounding matches the observer's rounded comparison. (#1585)
-        this._currentWidth = Math.round(width);
-        this._currentHeight = Math.round(height);
+    /**
+     * Lay the shell out at the given size. Returns whether a layout actually
+     * ran.
+     *
+     * A repeat call at the same rounded size is a no-op (returns false) unless
+     * `forceResize` is set — the same "dimensions unchanged -> skip" contract
+     * the base gridview has always had (`BaseGrid.layout`), which the shell
+     * wrapper otherwise bypasses. So a redundant resize — an app driving
+     * layout() itself, the shell's own ResizeObserver re-reporting the same
+     * box, or any duplicate caller — costs nothing by construction instead of
+     * re-running the whole recursive layout. Structural re-flows that keep the
+     * outer size go through forceRelayout()/updateTheme(), which force.
+     * Rounding matches the observer's rounded comparison. (#1585)
+     */
+    layout(width: number, height: number, forceResize = false): boolean {
+        const w = Math.round(width);
+        const h = Math.round(height);
+        if (
+            !forceResize &&
+            w === this._currentWidth &&
+            h === this._currentHeight
+        ) {
+            return false;
+        }
+        this._currentWidth = w;
+        this._currentHeight = h;
         // Outer splitview is HORIZONTAL: layout(size=width, orthogonalSize=height)
         this._outerSplitview.layout(width, height);
+        return true;
     }
 
     /**
@@ -751,9 +767,11 @@ export class ShellManager implements IDisposable {
             );
         }
 
-        // Re-run layout with the current shell dimensions.
+        // Re-run layout with the current shell dimensions. Force it: the outer
+        // size is unchanged (so layout() would otherwise no-op), but edge
+        // margins/sizes just changed and must be re-applied.
         if (this._currentWidth > 0 && this._currentHeight > 0) {
-            this.layout(this._currentWidth, this._currentHeight);
+            this.layout(this._currentWidth, this._currentHeight, true);
         }
     }
 

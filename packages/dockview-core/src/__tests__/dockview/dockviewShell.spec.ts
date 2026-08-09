@@ -996,5 +996,27 @@ describe('ShellManager', () => {
 
             shell.dispose();
         });
+
+        test('a repeat layout() at the same size is a no-op by construction; forceResize overrides', () => {
+            const shell = makeVisibleShell();
+
+            // First layout at a size runs and reports it laid out.
+            expect(shell.layout(1000, 800)).toBe(true);
+
+            // A duplicate call at the same rounded size does nothing — the base
+            // gridview's "dimensions unchanged -> skip" contract, now honoured
+            // by the shell wrapper too. No caller-side guard required.
+            layoutGrid.mockClear();
+            expect(shell.layout(1000, 800)).toBe(false);
+            expect(shell.layout(1000.4, 799.8)).toBe(false); // rounds equal
+            expect(layoutGrid).not.toHaveBeenCalled();
+
+            // forceResize re-runs it (used by structural re-flows that keep the
+            // outer size, e.g. updateTheme).
+            expect(shell.layout(1000, 800, true)).toBe(true);
+            expect(layoutGrid).toHaveBeenCalled();
+
+            shell.dispose();
+        });
     });
 });

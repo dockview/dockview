@@ -144,6 +144,20 @@ function pageHarness(groups, tabs) {
         return performance.now() - t0;
     };
 
+    // #1585: repeated layout() at the SAME size. A resize observer (dockview's
+    // own, or the app's) commonly re-reports an unchanged box, and apps often
+    // call layout() defensively. The base gridview has always skipped an
+    // unchanged size, but the shell wrapper used to bypass that and re-run the
+    // whole recursive layout every time. This should now early-out to ~nothing.
+    window.__dupLayoutStorm = (iters) => {
+        const t0 = performance.now();
+        for (let i = 0; i < iters; i++) {
+            api.layout(1400, 900);
+        }
+        void host.offsetHeight;
+        return performance.now() - t0;
+    };
+
     // #1585: a layout() storm with NO explicit geometry read of its own. Models
     // an app animating a container's size (e.g. a sidebar) where the app itself
     // never reads layout back. Any *forced* synchronous Layout the trace records
@@ -248,6 +262,7 @@ async function traced(page, client, which, iters) {
         ({ which, iters }) => {
             if (which === 'resize') return window.__resizeStorm(iters);
             if (which === 'layout') return window.__layoutStorm(iters);
+            if (which === 'duplayout') return window.__dupLayoutStorm(iters);
             return window.__sashDrag(iters);
         },
         { which, iters }
@@ -266,7 +281,7 @@ async function benchBundle(bundlePath) {
         executablePath: process.env.DOCKVIEW_BENCH_CHROME || undefined,
         args: ['--no-sandbox'],
     });
-    const runs = { emit: [], layout: [], resize: [], drag: [] };
+    const runs = { emit: [], duplayout: [], layout: [], resize: [], drag: [] };
     try {
         for (let rep = 0; rep < REPS; rep++) {
             const page = await browser.newPage();
@@ -279,6 +294,9 @@ async function benchBundle(bundlePath) {
             await page.evaluate((n) => window.__resizeStorm(n), 300); // warmup
             runs.emit.push(
                 await page.evaluate((n) => window.__emitterBench(n), EMIT_FIRES)
+            );
+            runs.duplayout.push(
+                await traced(page, client, 'duplayout', RESIZE_ITERS)
             );
             runs.layout.push(await traced(page, client, 'layout', RESIZE_ITERS));
             runs.resize.push(await traced(page, client, 'resize', RESIZE_ITERS));
@@ -297,6 +315,7 @@ async function benchBundle(bundlePath) {
     };
     return {
         emit: summarize(runs.emit),
+        duplayout: summarize(runs.duplayout),
         layout: summarize(runs.layout),
         resize: summarize(runs.resize),
         drag: summarize(runs.drag),
@@ -317,6 +336,7 @@ function reportSingle(name, r) {
             `0 listeners ${ms(r.emit.zero)}  1 listener ${ms(r.emit.one)}  2 listeners ${ms(r.emit.two)}`
     );
     for (const [wl, label] of [
+        ['duplayout', `duplicate layout() same size (${RESIZE_ITERS} calls) [#1585]`],
         ['layout', `layout() storm, no self-read (${RESIZE_ITERS} calls) [#1585]`],
         ['resize', `window-resize (${RESIZE_ITERS} relayouts)`],
         ['drag', `sash drag (${DRAG_ITERS} moves)`],
@@ -349,6 +369,7 @@ function reportAB(a, b) {
         );
     }
     for (const [wl, label] of [
+        ['duplayout', `DUPLICATE LAYOUT() same size (${RESIZE_ITERS} calls) [#1585]`],
         ['layout', `LAYOUT() STORM, no self-read (${RESIZE_ITERS} calls) [#1585]`],
         ['resize', `WINDOW-RESIZE (${RESIZE_ITERS} relayouts)`],
         ['drag', `SASH DRAG (${DRAG_ITERS} moves)`],
@@ -375,6 +396,7 @@ function reportAB(a, b) {
 // checked-in-able artifact, not just console output.
 // ---------------------------------------------------------------------------
 const WORKLOADS = [
+    ['duplayout', `duplicate layout() at the same size (${RESIZE_ITERS} calls) — #1585`],
     ['layout', `layout() storm, no self-read (${RESIZE_ITERS} calls) — #1585`],
     ['resize', `window-resize (${RESIZE_ITERS} relayouts)`],
     ['drag', `sash drag (${DRAG_ITERS} moves)`],

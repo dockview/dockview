@@ -2917,7 +2917,11 @@ export class DockviewComponent
         forceResize?: boolean | undefined
     ): void {
         if (this._shellManager && !this._inShellLayout) {
-            this._shellManager.layout(width, height);
+            // A repeat call at the same size is a no-op; skip the post-layout
+            // work too, since nothing moved. (#1585)
+            if (!this._shellManager.layout(width, height, forceResize)) {
+                return;
+            }
         } else {
             super.layout(width, height, forceResize);
         }

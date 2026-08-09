@@ -7,6 +7,12 @@ headless Chromium and reports JS wall time alongside the real Chrome timeline
 categories (Layout / Recalc-Style / GC), so it captures actual reflow — not just
 JS/CPU.
 
+The **duplicate layout()** workload calls `api.layout()` repeatedly at the
+*same* size — what a resize observer re-reporting an unchanged box, or an app
+calling `layout()` defensively, produces. The base gridview always skipped an
+unchanged size, but the shell wrapper used to bypass that; on a fixed build this
+early-outs to ~nothing.
+
 The **layout() storm** models the [#1585](https://github.com/mathuo/dockview/issues/1585)
 scenario: an app animating a container's size, calling `api.layout()` many times
 without ever reading layout back itself. Any *forced* synchronous Layout the
