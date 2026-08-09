@@ -2744,6 +2744,12 @@ export class DockviewComponent
             floatingGridview
         );
 
+        // Position the overlay host now that a float exists: layout()'s sync is
+        // skipped while there are no floating groups (#1585), so the 0 -> 1
+        // transition must sync explicitly or the first float renders against a
+        // stale host box (only observable when edge groups inset the grid).
+        this._syncFloatingOverlayHost();
+
         // Surface the start + end of a move drag so the Smart Guides module can
         // (re)build then tear down its per-drag guides. Start (re)sets a clean
         // slate even if a prior drag aborted without an end (redock long-press);
@@ -2924,16 +2930,54 @@ export class DockviewComponent
     }
 
     private _syncFloatingOverlayHost(): void {
-        if (!this._floatingOverlayHost || !this._shellManager) {
+        const host = this._floatingOverlayHost;
+        if (!host || !this._shellManager) {
             return;
         }
-        const shellRect = this._shellManager.element.getBoundingClientRect();
-        const gridRect = this.element.getBoundingClientRect();
-        const host = this._floatingOverlayHost;
-        host.style.left = `${gridRect.left - shellRect.left}px`;
-        host.style.top = `${gridRect.top - shellRect.top}px`;
-        host.style.width = `${gridRect.width}px`;
-        host.style.height = `${gridRect.height}px`;
+        // With no floating groups the overlay host is empty, so its position
+        // and size are unobservable — skip the work entirely. This alone spares
+        // apps that never float a group; `_doAddFloatingGroup` calls this
+        // directly on the 0 -> 1 transition so the host is still positioned
+        // before the first float renders. (#1585)
+        if (
+            !this._moduleRegistry?.services.floatingGroupService?.floatingGroups
+                .length
+        ) {
+            return;
+        }
+
+        // Mirror the grid's box within the shell. The grid's *size* is already
+        // known in JS (dockview just laid the gridview out to it), so read it
+        // from state rather than measuring. The grid's *offset* within the
+        // shell is 0 unless edge groups inset it — the overwhelmingly common
+        // "floating groups, no edge groups" case needs no DOM read at all.
+        //
+        // This is the crux of #1585: the previous unconditional
+        // getBoundingClientRect pair forced a synchronous reflow of the whole
+        // (freshly-dirtied) dockview DOM on every layout() — several times per
+        // frame during an animated container resize. Writes alone don't force a
+        // reflow; the browser batches them into its own end-of-frame layout.
+        const width = this.gridview.width;
+        const height = this.gridview.height;
+        let left = 0;
+        let top = 0;
+
+        if (this._shellManager.hasAnyEdgeGroup()) {
+            // Edge groups inset the grid by an amount that folds in splitview
+            // margins; measuring keeps the host pixel-exact (floats are clamped
+            // to it). One reflow, but edge-group + high-frequency-resize is a
+            // rare combination and correctness wins here.
+            const shellRect =
+                this._shellManager.element.getBoundingClientRect();
+            const gridRect = this.element.getBoundingClientRect();
+            left = gridRect.left - shellRect.left;
+            top = gridRect.top - shellRect.top;
+        }
+
+        host.style.left = `${left}px`;
+        host.style.top = `${top}px`;
+        host.style.width = `${width}px`;
+        host.style.height = `${height}px`;
     }
 
     private _layoutFromShell(width: number, height: number): void {

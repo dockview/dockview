@@ -5344,6 +5344,92 @@ describe('dockviewComponent', () => {
         expect(dockview.element.contains(overlay)).toBe(false);
     });
 
+    describe('floating overlay host sync (#1585)', () => {
+        function makeDockview(): {
+            dockview: DockviewComponent;
+            container: HTMLElement;
+        } {
+            const container = document.createElement('div');
+            const dockview = new DockviewComponent(container, {
+                createComponent(options) {
+                    if (options.name === 'default') {
+                        return new PanelContentPartTest(
+                            options.id,
+                            options.name
+                        );
+                    }
+                    throw new Error('unsupported');
+                },
+            });
+            return { dockview, container };
+        }
+
+        test('layout() does not measure the shell when there are no floating groups', () => {
+            const { dockview } = makeDockview();
+            dockview.layout(1000, 500);
+            dockview.addPanel({ id: 'panel_1', component: 'default' });
+
+            const shellEl = (dockview as any)._shellManager
+                .element as HTMLElement;
+            const spy = jest.spyOn(shellEl, 'getBoundingClientRect');
+
+            dockview.layout(800, 600);
+
+            // The whole point of #1585: with no floats the overlay host is
+            // empty, so layout() must not force a reflow to position it.
+            expect(spy).not.toHaveBeenCalled();
+
+            spy.mockRestore();
+            dockview.dispose();
+        });
+
+        test('adding a floating group syncs the host immediately (0 -> 1 transition)', () => {
+            const { dockview, container } = makeDockview();
+            dockview.layout(1000, 500);
+            dockview.addPanel({
+                id: 'panel_1',
+                component: 'default',
+                floating: true,
+            });
+
+            const host = container.querySelector(
+                '.dv-floating-overlay-host'
+            ) as HTMLElement;
+
+            // Synced by _doAddFloatingGroup itself — no further layout() needed.
+            expect(host.style.width).toBe('1000px');
+            expect(host.style.height).toBe('500px');
+
+            dockview.dispose();
+        });
+
+        test('host mirrors the grid box from layout state, without measuring (no edge groups)', () => {
+            const { dockview, container } = makeDockview();
+            dockview.layout(1000, 500);
+            dockview.addPanel({
+                id: 'panel_1',
+                component: 'default',
+                floating: true,
+            });
+
+            const host = container.querySelector(
+                '.dv-floating-overlay-host'
+            ) as HTMLElement;
+
+            dockview.layout(800, 600);
+
+            // Derived from gridview.width/height (JS state), not
+            // getBoundingClientRect — which returns 0 under jsdom and would
+            // leave the host sized "0px" if the old measured path were used.
+            expect(host.style.left).toBe('0px');
+            expect(host.style.top).toBe('0px');
+            expect(host.style.width).toBe('800px');
+            expect(host.style.height).toBe('600px');
+
+            dockview.dispose();
+        });
+    });
+
     test('that external dnd events do not trigger the top-level center dnd target unless empty', () => {
         const container = document.createElement('div');
 

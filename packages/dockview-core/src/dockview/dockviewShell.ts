@@ -661,6 +661,17 @@ export class ShellManager implements IDisposable {
     }
 
     layout(width: number, height: number): void {
+        // Record the size we're laying out at so the shell's own
+        // ResizeObserver short-circuits the duplicate relayout when it later
+        // observes this same size. Without this, an app that drives layout()
+        // synchronously from its own ResizeObserver (to avoid the one-frame
+        // shear of the rAF-deferred observer) pays the full recursive layout
+        // twice per resize frame — once here, once from the observer on the
+        // next frame — because the observer's guard compares against these
+        // fields, which were previously written only by the observer itself.
+        // Rounding matches the observer's rounded comparison. (#1585)
+        this._currentWidth = Math.round(width);
+        this._currentHeight = Math.round(height);
         // Outer splitview is HORIZONTAL: layout(size=width, orthogonalSize=height)
         this._outerSplitview.layout(width, height);
     }
@@ -787,6 +798,17 @@ export class ShellManager implements IDisposable {
 
         // Recalculate gap adjustments for remaining views.
         this.updateTheme(this._gap, this._defaultCollapsedSize);
+    }
+
+    /** True when any edge group exists in any position. Lets the host skip a
+     *  getBoundingClientRect pair on the common no-edge-group layout. */
+    hasAnyEdgeGroup(): boolean {
+        return (
+            this._topView !== undefined ||
+            this._bottomView !== undefined ||
+            this._leftView !== undefined ||
+            this._rightView !== undefined
+        );
     }
 
     hasEdgeGroup(position: EdgeGroupPosition): boolean {

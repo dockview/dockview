@@ -22,11 +22,12 @@
  *   DOCKVIEW_BENCH_GROUPS   dockview groups           (default 24)
  *   DOCKVIEW_BENCH_TABS     tabbed panels per group   (default 3)
  *   DOCKVIEW_BENCH_REPS     repetitions, median taken (default 5)
+ *   DOCKVIEW_BENCH_OUT      write a Markdown report to this path (repo-relative)
  *
  * See ./README.md for interpretation notes.
  */
 import { chromium } from '@playwright/test';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 
@@ -143,6 +144,25 @@ function pageHarness(groups, tabs) {
         return performance.now() - t0;
     };
 
+    // #1585: a layout() storm with NO explicit geometry read of its own. Models
+    // an app animating a container's size (e.g. a sidebar) where the app itself
+    // never reads layout back. Any *forced* synchronous Layout the trace records
+    // here therefore comes purely from dockview reading geometry back mid-layout
+    // — the `_syncFloatingOverlayHost` getBoundingClientRect pair. With the
+    // #1585 fix in place and no floating groups present, this should force
+    // ~zero synchronous layout (the browser batches the writes into one natural
+    // end-of-frame layout instead of ~one forced reflow per call).
+    window.__layoutStorm = (iters) => {
+        const t0 = performance.now();
+        for (let i = 0; i < iters; i++) {
+            api.layout(1200 + ((i * 37) % 700), 800 + ((i * 53) % 400));
+        }
+        // A single read at the very end flushes the last frame's writes so wall
+        // time includes one honest layout, not zero.
+        void host.offsetHeight;
+        return performance.now() - t0;
+    };
+
     // Sash drag: dispatch a real pointer drag on a top-level group boundary.
     window.__sashDrag = (iters) => {
         const sash = host.querySelector('.dv-sash-container > .dv-sash');
@@ -225,10 +245,11 @@ async function traced(page, client, which, iters) {
         transferMode: 'ReportEvents',
     });
     const wallMs = await page.evaluate(
-        ({ which, iters }) =>
-            which === 'resize'
-                ? window.__resizeStorm(iters)
-                : window.__sashDrag(iters),
+        ({ which, iters }) => {
+            if (which === 'resize') return window.__resizeStorm(iters);
+            if (which === 'layout') return window.__layoutStorm(iters);
+            return window.__sashDrag(iters);
+        },
         { which, iters }
     );
     await new Promise((res) => {
@@ -245,7 +266,7 @@ async function benchBundle(bundlePath) {
         executablePath: process.env.DOCKVIEW_BENCH_CHROME || undefined,
         args: ['--no-sandbox'],
     });
-    const runs = { emit: [], resize: [], drag: [] };
+    const runs = { emit: [], layout: [], resize: [], drag: [] };
     try {
         for (let rep = 0; rep < REPS; rep++) {
             const page = await browser.newPage();
@@ -259,6 +280,7 @@ async function benchBundle(bundlePath) {
             runs.emit.push(
                 await page.evaluate((n) => window.__emitterBench(n), EMIT_FIRES)
             );
+            runs.layout.push(await traced(page, client, 'layout', RESIZE_ITERS));
             runs.resize.push(await traced(page, client, 'resize', RESIZE_ITERS));
             runs.drag.push(await traced(page, client, 'drag', DRAG_ITERS));
             await client.detach();
@@ -275,6 +297,7 @@ async function benchBundle(bundlePath) {
     };
     return {
         emit: summarize(runs.emit),
+        layout: summarize(runs.layout),
         resize: summarize(runs.resize),
         drag: summarize(runs.drag),
     };
@@ -294,6 +317,7 @@ function reportSingle(name, r) {
             `0 listeners ${ms(r.emit.zero)}  1 listener ${ms(r.emit.one)}  2 listeners ${ms(r.emit.two)}`
     );
     for (const [wl, label] of [
+        ['layout', `layout() storm, no self-read (${RESIZE_ITERS} calls) [#1585]`],
         ['resize', `window-resize (${RESIZE_ITERS} relayouts)`],
         ['drag', `sash drag (${DRAG_ITERS} moves)`],
     ]) {
@@ -325,6 +349,7 @@ function reportAB(a, b) {
         );
     }
     for (const [wl, label] of [
+        ['layout', `LAYOUT() STORM, no self-read (${RESIZE_ITERS} calls) [#1585]`],
         ['resize', `WINDOW-RESIZE (${RESIZE_ITERS} relayouts)`],
         ['drag', `SASH DRAG (${DRAG_ITERS} moves)`],
     ]) {
@@ -344,6 +369,71 @@ function reportAB(a, b) {
     );
 }
 
+// ---------------------------------------------------------------------------
+// Markdown report file (DOCKVIEW_BENCH_OUT=path). Single-bundle writes absolute
+// numbers; two-bundle writes the A/B table. Makes `yarn bench` produce a
+// checked-in-able artifact, not just console output.
+// ---------------------------------------------------------------------------
+const WORKLOADS = [
+    ['layout', `layout() storm, no self-read (${RESIZE_ITERS} calls) — #1585`],
+    ['resize', `window-resize (${RESIZE_ITERS} relayouts)`],
+    ['drag', `sash drag (${DRAG_ITERS} moves)`],
+];
+
+function reportMarkdown(bundles, results) {
+    const n1 = (x) => x.toFixed(1);
+    const lines = [];
+    lines.push('# dockview-core performance report');
+    lines.push('');
+    lines.push(
+        `Workbench: **${GROUPS} groups / ${GROUPS * TABS} panels**, median of ${REPS} reps. ` +
+            'Timeline totals captured over CDP tracing (Chrome DevTools categories).'
+    );
+    lines.push('');
+    lines.push(
+        '`wall` = JS wall time incl. any forced reflow; `layout`/`recalc`/`gc` = ' +
+            'Chrome timeline totals (ms) for Layout / UpdateLayoutTree+RecalculateStyles / GC.'
+    );
+    lines.push('');
+
+    if (results.length === 1) {
+        const r = results[0];
+        lines.push(`Bundle: \`${bundles[0]}\``);
+        lines.push('');
+        lines.push(
+            `**Emitter.fire** (${EMIT_FIRES.toLocaleString()} fires): ` +
+                `0 listeners ${n1(r.emit.zero)}ms · 1 listener ${n1(r.emit.one)}ms · 2 listeners ${n1(r.emit.two)}ms`
+        );
+        lines.push('');
+        lines.push('| workload | wall | layout | recalc | gc |');
+        lines.push('| --- | ---: | ---: | ---: | ---: |');
+        for (const [wl, label] of WORKLOADS) {
+            const m = r[wl];
+            lines.push(
+                `| ${label} | ${n1(m.wallMs)} | ${n1(m.layoutMs)} | ${n1(m.recalcMs)} | ${n1(m.gcMs)} |`
+            );
+        }
+    } else {
+        const [a, b] = results;
+        lines.push(`base: \`${bundles[0]}\` · branch: \`${bundles[1]}\``);
+        lines.push('');
+        for (const [wl, label] of WORKLOADS) {
+            lines.push(`### ${label}`);
+            lines.push('');
+            lines.push('| metric | base | branch | change |');
+            lines.push('| --- | ---: | ---: | ---: |');
+            for (const k of ['wallMs', 'layoutMs', 'recalcMs', 'gcMs']) {
+                lines.push(
+                    `| ${k.replace('Ms', '')} | ${n1(a[wl][k])}ms | ${n1(b[wl][k])}ms | ${delta(a[wl][k], b[wl][k]).trim()} |`
+                );
+            }
+            lines.push('');
+        }
+    }
+    lines.push('');
+    return lines.join('\n');
+}
+
 async function main() {
     const args = process.argv.slice(2);
     const bundles = args.length ? args : [DEFAULT_BUNDLE];
@@ -357,14 +447,23 @@ async function main() {
         }
     }
 
+    let results;
     if (bundles.length === 1) {
-        reportSingle(bundles[0], await benchBundle(bundles[0]));
+        results = [await benchBundle(bundles[0])];
+        reportSingle(bundles[0], results[0]);
     } else {
-        const [a, b] = [
+        results = [
             await benchBundle(bundles[0]),
             await benchBundle(bundles[1]),
         ];
-        reportAB(a, b);
+        reportAB(results[0], results[1]);
+    }
+
+    const outPath = process.env.DOCKVIEW_BENCH_OUT;
+    if (outPath) {
+        const resolved = resolve(REPO_ROOT, outPath);
+        writeFileSync(resolved, reportMarkdown(bundles, results));
+        console.log(`\nreport written: ${resolved}`);
     }
 }
 

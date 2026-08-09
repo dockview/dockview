@@ -911,4 +911,90 @@ describe('ShellManager', () => {
             shell.dispose();
         });
     });
+
+    describe('layout() primes the resize-observer guard (#1585)', () => {
+        let observerCallbacks: Array<(entries: any[]) => void>;
+        let originalResizeObserver: typeof window.ResizeObserver;
+
+        beforeEach(() => {
+            observerCallbacks = [];
+            originalResizeObserver = window.ResizeObserver;
+            (window as any).ResizeObserver = class {
+                constructor(cb: (entries: any[]) => void) {
+                    observerCallbacks.push(cb);
+                }
+                observe(): void {
+                    /* noop */
+                }
+                unobserve(): void {
+                    /* noop */
+                }
+                disconnect(): void {
+                    /* noop */
+                }
+            };
+            jest.spyOn(window, 'requestAnimationFrame').mockImplementation(
+                (cb) => {
+                    (cb as FrameRequestCallback)(0);
+                    return 1;
+                }
+            );
+        });
+
+        afterEach(() => {
+            window.ResizeObserver = originalResizeObserver;
+            jest.restoreAllMocks();
+        });
+
+        function fireResize(width: number, height: number): void {
+            for (const cb of observerCallbacks) {
+                cb([{ contentRect: { width, height } }]);
+            }
+        }
+
+        function makeVisibleShell(): ShellManager {
+            const shell = new ShellManager(
+                container,
+                dockviewElement,
+                layoutGrid
+            );
+            Object.defineProperty(shell.element, 'offsetParent', {
+                configurable: true,
+                get: () => document.body,
+            });
+            return shell;
+        }
+
+        test('a direct layout() suppresses the observer duplicate at that same size', () => {
+            const shell = makeVisibleShell();
+            fireResize(1000, 800);
+            expect(layoutGrid).toHaveBeenCalled();
+
+            // An app drives a new size synchronously from its own
+            // ResizeObserver, ahead of the shell's rAF-deferred observer.
+            layoutGrid.mockClear();
+            shell.layout(1200, 900);
+            expect(layoutGrid).toHaveBeenCalled();
+
+            // The shell's observer then reports the same new size: it must
+            // short-circuit rather than lay out a second time.
+            layoutGrid.mockClear();
+            fireResize(1200, 900);
+            expect(layoutGrid).not.toHaveBeenCalled();
+
+            shell.dispose();
+        });
+
+        test('the observer still lays out when the size genuinely changes', () => {
+            const shell = makeVisibleShell();
+            fireResize(1000, 800);
+            shell.layout(1200, 900);
+
+            layoutGrid.mockClear();
+            fireResize(1300, 950);
+            expect(layoutGrid).toHaveBeenCalled();
+
+            shell.dispose();
+        });
+    });
 });
