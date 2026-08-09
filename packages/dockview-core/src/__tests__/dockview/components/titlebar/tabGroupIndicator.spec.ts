@@ -651,3 +651,87 @@ describe('indicator type identity', () => {
         wrap.dispose();
     });
 });
+
+describe('_positionUnderlinesSync read/write batching (#1585)', () => {
+    // The single-bar path measures every group first, then writes every
+    // underline — so writing one group's underline can never force a reflow for
+    // the next group's measurement. This guards that invariant: no geometry
+    // read (getBoundingClientRect) may happen after the first style write
+    // (modelled by the applyShape call, which begins the write pass).
+    test('all geometry reads happen before the first underline write', () => {
+        const events: string[] = [];
+
+        const makeTab = (left: number) => {
+            const el = document.createElement('div');
+            el.getBoundingClientRect = () => {
+                events.push('read');
+                return {
+                    top: 0,
+                    bottom: 30,
+                    left,
+                    right: left + 50,
+                    width: 50,
+                    height: 30,
+                    x: left,
+                    y: 0,
+                    toJSON: () => ({}),
+                } as DOMRect;
+            };
+            return { value: { element: el } };
+        };
+
+        // Two groups, each with an active tab, so both take the drawn-bar path
+        // (which calls applyShape) rather than the hide/straight-line branch.
+        const tabMap = new Map<string, any>([
+            ['a1', makeTab(0)],
+            ['a2', makeTab(60)],
+            ['b1', makeTab(120)],
+            ['b2', makeTab(180)],
+        ]);
+
+        const tgA = new TabGroup('tg-a', { label: 'A', color: 'blue' });
+        tgA.addPanel('a1');
+        tgA.addPanel('a2');
+        const tgB = new TabGroup('tg-b', { label: 'B', color: 'red' });
+        tgB.addPanel('b1');
+        tgB.addPanel('b2');
+
+        const tabsList = document.createElement('div'); // not wrapped
+        const ctx = createContext({
+            tabsList,
+            getTabGroups: () => [tgA, tgB],
+            getTabMap: () => tabMap as any,
+            getActivePanelId: () => 'a1',
+            getHeaderPosition: () => 'top',
+        });
+
+        const indicator = new WrapTabGroupIndicator(ctx);
+        indicator.syncUnderlineElements(new Set(['tg-a', 'tg-b']));
+
+        // The write pass is fronted by applyShape; record when it starts.
+        jest.spyOn(indicator as any, 'applyShape').mockImplementation(function (
+            this: any,
+            ...args: any[]
+        ) {
+            events.push('write');
+            return WrapTabGroupIndicator.prototype['applyShape'].apply(
+                indicator,
+                args as any
+            );
+        });
+
+        (indicator as any)._positionUnderlinesSync();
+
+        const firstWrite = events.indexOf('write');
+        const lastRead = events.lastIndexOf('read');
+
+        // both passes actually ran
+        expect(firstWrite).toBeGreaterThan(-1);
+        expect(lastRead).toBeGreaterThan(-1);
+        // every read precedes the first write (no interleave across groups)
+        expect(lastRead).toBeLessThan(firstWrite);
+
+        jest.restoreAllMocks();
+        indicator.dispose();
+    });
+});
