@@ -50,6 +50,11 @@ function createMocks(options?: {
         onDidChangeEnd: emitters.overlayChangeEnd.event,
         bringToFront: jest.fn(),
         setBounds: jest.fn(),
+        measureBoxes: jest.fn(() => ({
+            container: { left: 0, top: 0, width: 0, height: 0 } as DOMRect,
+            overlay: { left: 0, top: 0, width: 0, height: 0 } as DOMRect,
+        })),
+        applyConstraint: jest.fn(),
         toJSON: jest.fn(
             () => options?.toJSON ?? { left: 0, top: 0, width: 0, height: 0 }
         ),
@@ -343,14 +348,30 @@ describe('FloatingGroupService', () => {
             service.add(group, overlay, gridview);
             service.add(second.group, second.overlay, second.gridview);
 
-            overlay.setBounds.mockClear();
-            second.overlay.setBounds.mockClear();
+            const order: string[] = [];
+            for (const o of [overlay, second.overlay]) {
+                o.measureBoxes.mockClear();
+                o.applyConstraint.mockClear();
+                o.measureBoxes.mockImplementation(() => {
+                    order.push('measure');
+                    return {
+                        container: { left: 0, top: 0, width: 0, height: 0 },
+                        overlay: { left: 0, top: 0, width: 0, height: 0 },
+                    };
+                });
+                o.applyConstraint.mockImplementation(() => order.push('apply'));
+            }
 
             service.constrainBounds();
 
-            expect(overlay.setBounds).toHaveBeenCalledTimes(1);
-            expect(overlay.setBounds).toHaveBeenCalledWith();
-            expect(second.overlay.setBounds).toHaveBeenCalledTimes(1);
+            // Each overlay is measured once and constrained once...
+            expect(overlay.measureBoxes).toHaveBeenCalledTimes(1);
+            expect(overlay.applyConstraint).toHaveBeenCalledTimes(1);
+            expect(second.overlay.measureBoxes).toHaveBeenCalledTimes(1);
+            expect(second.overlay.applyConstraint).toHaveBeenCalledTimes(1);
+            // ...and — the point of the two-pass — every measure (read) happens
+            // before every apply (write), so the batch costs one reflow, not N.
+            expect(order).toEqual(['measure', 'measure', 'apply', 'apply']);
         });
     });
 
