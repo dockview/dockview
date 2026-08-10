@@ -912,7 +912,7 @@ describe('ShellManager', () => {
         });
     });
 
-    describe('layout() primes the resize-observer guard (#1585)', () => {
+    describe('layout() primes the resize-observer guard', () => {
         let observerCallbacks: Array<(entries: any[]) => void>;
         let originalResizeObserver: typeof window.ResizeObserver;
 

@@ -71,7 +71,7 @@ describe('overlayRenderContainer', () => {
         expect(panelContentEl.parentElement?.parentElement).toBeUndefined();
     });
 
-    test('updateAllPositions batches every panel into a single rAF (#1585 audit)', () => {
+    test('updateAllPositions batches every panel into a single rAF', () => {
         const cut = new OverlayRenderContainer(
             parentContainer,
             fromPartial<DockviewComponent>({})
@@ -105,8 +105,8 @@ describe('overlayRenderContainer', () => {
         cut.updateAllPositions();
 
         // One rAF for the whole batch (read-all-then-write-all), not one per
-        // panel — the old code scheduled a resize() rAF each, so panel N's
-        // getBoundingClientRect reflowed against panel N-1's style writes.
+        // panel — so no panel's getBoundingClientRect reflows against another
+        // panel's style writes.
         expect(rafSpy).toHaveBeenCalledTimes(1);
 
         rafSpy.mockRestore();

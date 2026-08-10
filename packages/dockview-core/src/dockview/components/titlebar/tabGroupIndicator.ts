@@ -279,10 +279,9 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
         // wrapped or not), so branching here rather than inside the loop lets
         // the common single-bar path below run as a clean two-pass.
         if (wrapped) {
-            // Same measure-then-write split as the single-bar path: bucket every
-            // group's tabs into line-runs first (the only reads), then draw. The
-            // old per-group loop drew one group's SVG/markers and then measured
-            // the next group's tabs, forcing a reflow per group.
+            // Measure every group's line-runs first (the only reads), then draw,
+            // so drawing one group can't force a reflow for the next group's
+            // measurement.
             const wrappedPlacements: WrappedPlacement[] = [];
             for (const tg of tabGroups) {
                 const underline = this._underlines.get(tg.id);
@@ -358,12 +357,10 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
         }
 
         // Common single-bar path. Split into a measure pass (reads only) and a
-        // write pass (writes only): the old single loop wrote one group's
-        // `underline.style.*` and then measured the next group's tabs with
-        // getBoundingClientRect, forcing a synchronous reflow *per group, every
-        // frame* of the ~250ms rAF burst that runs on every tab drag / reorder /
-        // collapse (and on every scroll/overflow restyle). Measuring everything
-        // first collapses that to at most one reflow for the whole pass. (#1585)
+        // write pass (writes only) so writing one group's `underline.style.*`
+        // can't force a reflow for the next group's getBoundingClientRect. This
+        // runs every frame of the ~250ms rAF burst on any tab drag / reorder /
+        // collapse and on every scroll/overflow restyle.
 
         // ---- Pass 1: measure ----
         const placements: UnderlinePlacement[] = [];

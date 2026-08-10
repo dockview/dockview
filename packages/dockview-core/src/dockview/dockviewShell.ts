@@ -668,18 +668,15 @@ export class ShellManager implements IDisposable {
     }
 
     /**
-     * Lay the shell out at the given size. Returns whether a layout actually
-     * ran.
+     * Lay the shell out at the given size, returning whether a layout ran.
      *
      * A repeat call at the same rounded size is a no-op (returns false) unless
-     * `forceResize` is set — the same "dimensions unchanged -> skip" contract
-     * the base gridview has always had (`BaseGrid.layout`), which the shell
-     * wrapper otherwise bypasses. So a redundant resize — an app driving
-     * layout() itself, the shell's own ResizeObserver re-reporting the same
-     * box, or any duplicate caller — costs nothing by construction instead of
-     * re-running the whole recursive layout. Structural re-flows that keep the
-     * outer size go through forceRelayout()/updateTheme(), which force.
-     * Rounding matches the observer's rounded comparison. (#1585)
+     * `forceResize` is set — the shell honouring the gridview's
+     * "dimensions unchanged -> skip" contract (`BaseGrid.layout`) that it would
+     * otherwise bypass, so a redundant resize (an app driving layout(), the
+     * ResizeObserver re-reporting the same box, any duplicate caller) costs
+     * nothing. Structural re-flows that keep the outer size force via
+     * forceRelayout()/updateTheme(). Rounding matches the observer's comparison.
      */
     layout(width: number, height: number, forceResize = false): boolean {
         const w = Math.round(width);
@@ -841,7 +838,7 @@ export class ShellManager implements IDisposable {
      * middle column, `top` from the middle column's position for the center.
      * Both come from splitview state (the same offsets it wrote to the DOM), so
      * the floating-overlay host can mirror the grid box without a
-     * getBoundingClientRect. (#1585)
+     * getBoundingClientRect.
      */
     getGridOffset(): { left: number; top: number } {
         return {

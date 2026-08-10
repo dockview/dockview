@@ -41,7 +41,7 @@ export interface TabAnimationState {
      *  (the 1-D transforms no-op, only the indicator pseudo-element is drawn),
      *  so the rects are stable — caching them avoids a getBoundingClientRect
      *  per tab on every pointermove, which otherwise reflows against the
-     *  previous move's indicator write. (#1585 audit) */
+     *  previous move's indicator write. */
     wrappedEntries?: WrappedTabEntry[];
 }
 
@@ -981,7 +981,7 @@ export class TabReorderController extends CompositeDisposable {
     private _wrappedDragEntries(): WrappedTabEntry[] {
         // Snapshotted once per drag: tabs don't move during a wrap-mode reorder,
         // so re-measuring them every pointermove only forces a reflow against
-        // the previous move's indicator write. (#1585 audit)
+        // the previous move's indicator write.
         const cached = this._animState?.wrappedEntries;
         if (cached) {
             return cached;

@@ -447,7 +447,7 @@ class EdgeGroupController extends CompositeDisposable {
             // overlay slides via transform), so its rect is invariant across the
             // slide's rAF loop. Callers in that loop pass it in once to avoid a
             // getBoundingClientRect — interleaved with the transform write — on
-            // every frame. (#1585 audit)
+            // every frame.
             this.host.repositionPanelOverlay(
                 this._peek.panel,
                 true,
@@ -482,7 +482,7 @@ class EdgeGroupController extends CompositeDisposable {
 
         // The clip frame is stationary during the slide; measure it once instead
         // of every frame (the per-frame read reflowed against the transform
-        // write below). (#1585 audit)
+        // write below).
         const clipRect = this._peek?.clip.getBoundingClientRect();
 
         const step = (now: number): void => {

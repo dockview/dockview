@@ -652,7 +652,7 @@ describe('indicator type identity', () => {
     });
 });
 
-describe('_positionUnderlinesSync read/write batching (#1585)', () => {
+describe('_positionUnderlinesSync read/write batching', () => {
     // The single-bar path measures every group first, then writes every
     // underline — so writing one group's underline can never force a reflow for
     // the next group's measurement. This guards that invariant: no geometry

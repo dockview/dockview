@@ -116,13 +116,10 @@ export class OverlayRenderContainer extends CompositeDisposable {
             return;
         }
 
-        // Reposition every overlay panel in one rAF as a strict two-pass:
-        // read every reference box first (warming the PositionCache), then apply
-        // every panel's styles. Because the writes come after all reads — and
-        // each apply's getPosition then hits the warm cache — the whole batch
-        // costs a single reflow instead of one per panel (the old code scheduled
-        // a separate rAF per panel, so each panel's read reflowed against the
-        // previous panel's write).
+        // Reposition every overlay panel in one rAF as a two-pass: read every
+        // reference box first (warming the PositionCache), then apply every
+        // panel's styles. The writes come after all reads and each apply's
+        // getPosition hits the warm cache, so the batch costs a single reflow.
         this._batchUpdatePending = true;
         requestAnimationFrame(() => {
             this._batchUpdatePending = false;

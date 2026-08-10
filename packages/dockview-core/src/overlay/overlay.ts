@@ -232,11 +232,8 @@ export class Overlay extends CompositeDisposable {
     }
 
     /**
-     * Read the overlay's own box and its container's box. Kept as one call so a
-     * batched caller (FloatingGroupService.constrainBounds) can measure every
-     * floating overlay up front — all reads before any clamp writes — instead of
-     * measuring-then-writing per overlay, which forces a reflow per float on
-     * every layout(). (#1585 audit)
+     * Read the overlay's own box and its container's box, so a batched caller
+     * can measure every floating overlay before writing any clamp.
      */
     measureBoxes(): { container: DOMRect; overlay: DOMRect } {
         return {

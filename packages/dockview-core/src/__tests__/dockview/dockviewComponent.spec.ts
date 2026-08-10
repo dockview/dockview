@@ -5344,7 +5344,7 @@ describe('dockviewComponent', () => {
         expect(dockview.element.contains(overlay)).toBe(false);
     });
 
-    describe('floating overlay host sync (#1585)', () => {
+    describe('floating overlay host sync', () => {
         function makeDockview(): {
             dockview: DockviewComponent;
             container: HTMLElement;
@@ -5375,7 +5375,7 @@ describe('dockviewComponent', () => {
 
             dockview.layout(800, 600);
 
-            // The whole point of #1585: with no floats the overlay host is
+            // The point: with no floats the overlay host is
             // empty, so layout() must not force a reflow to position it.
             expect(spy).not.toHaveBeenCalled();
 
@@ -5459,8 +5459,8 @@ describe('dockviewComponent', () => {
             dockview.layout(800, 600);
 
             // Derived from gridview.width/height (JS state), not
-            // getBoundingClientRect — which returns 0 under jsdom and would
-            // leave the host sized "0px" if the old measured path were used.
+            // getBoundingClientRect — which returns 0 under jsdom, so a measured
+            // path would leave the host sized "0px".
             expect(host.style.left).toBe('0px');
             expect(host.style.top).toBe('0px');
             expect(host.style.width).toBe('800px');

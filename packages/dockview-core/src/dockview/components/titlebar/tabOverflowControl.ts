@@ -22,7 +22,7 @@ export function createDropdownElementHandle(): DropdownElement {
             // Idempotent: the overflow count is unchanged by scrolling (only by
             // resize / add / remove), so skip rewriting identical text — an
             // unconditional write dirties layout and forces the next stage's
-            // geometry read (pinned-sticky / underlines) to reflow. (#1585 audit)
+            // geometry read (pinned-sticky / underlines) to reflow.
             const next = `${params.tabs}`;
             if (text.textContent !== next) {
                 text.textContent = next;
