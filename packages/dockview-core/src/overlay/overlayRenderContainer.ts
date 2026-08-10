@@ -78,12 +78,21 @@ export class OverlayRenderContainer extends CompositeDisposable {
              *  the peek's reveal window. Preserved across internal resizes. */
             forceVisible?: boolean;
             clip?: DOMRect;
+            /** The reference (in-grid) element this overlay mirrors. Lets
+             *  updateAllPositions warm the PositionCache for every panel in one
+             *  read pass before any writes. */
+            referenceElement?: HTMLElement;
+            /** The write half of a reposition (reads boxes via PositionCache,
+             *  then applies styles). Separated from scheduling so the batch path
+             *  can run all reads before all writes. */
+            applyPosition?: () => void;
         }
     > = {};
 
     private _disposed = false;
     private readonly positionCache = new PositionCache();
     private readonly pendingUpdates = new Set<string>();
+    private _batchUpdatePending = false;
 
     constructor(
         readonly element: HTMLElement,
@@ -103,17 +112,43 @@ export class OverlayRenderContainer extends CompositeDisposable {
     }
 
     updateAllPositions(): void {
-        if (this._disposed) {
+        if (this._disposed || this._batchUpdatePending) {
             return;
         }
 
-        this.positionCache.invalidate();
-
-        for (const entry of Object.values(this.map)) {
-            if (entry.panel.api.isVisible && entry.resize) {
-                entry.resize();
+        // Reposition every overlay panel in one rAF as a two-pass: read every
+        // reference box first (warming the PositionCache), then apply every
+        // panel's styles. The writes come after all reads and each apply's
+        // getPosition hits the warm cache, so the batch costs a single reflow.
+        this._batchUpdatePending = true;
+        requestAnimationFrame(() => {
+            this._batchUpdatePending = false;
+            if (this.isDisposed) {
+                return;
             }
-        }
+
+            this.positionCache.invalidate();
+
+            const entries = Object.values(this.map).filter(
+                (entry) =>
+                    entry.panel.api.isVisible &&
+                    entry.applyPosition &&
+                    entry.referenceElement
+            );
+
+            // Read pass: warm the cache for all reference boxes + the container
+            // root, with no interleaved writes.
+            for (const entry of entries) {
+                this.positionCache.getPosition(entry.referenceElement!);
+            }
+            this.positionCache.getPosition(this.element);
+
+            // Write pass: each applyPosition reads from the warm cache (hit) and
+            // writes — no forced reflow between panels.
+            for (const entry of entries) {
+                entry.applyPosition!();
+            }
+        });
     }
 
     /**
@@ -193,19 +228,13 @@ export class OverlayRenderContainer extends CompositeDisposable {
             this.element.appendChild(focusContainer);
         }
 
-        const resize = () => {
-            const panelId = panel.api.id;
-
-            if (this.pendingUpdates.has(panelId)) {
-                return; // Update already scheduled
-            }
-
-            this.pendingUpdates.add(panelId);
-
-            requestAnimationFrame(() => {
-                this.pendingUpdates.delete(panelId);
-
-                const entry = this.map[panelId];
+        // The write half, factored out of the rAF so the batch path
+        // (updateAllPositions) can run every panel's reads before any panel's
+        // writes. Reads go through positionCache, so a preceding batched read
+        // pass turns these into cache hits (no per-panel forced reflow).
+        const applyPosition = () => {
+            {
+                const entry = this.map[panel.api.id];
                 if (this.isDisposed || !entry) {
                     return;
                 }
@@ -292,6 +321,21 @@ export class OverlayRenderContainer extends CompositeDisposable {
                     'dv-render-overlay-float',
                     panel.group.api.location.type === 'floating'
                 );
+            }
+        };
+
+        const resize = () => {
+            const panelId = panel.api.id;
+
+            if (this.pendingUpdates.has(panelId)) {
+                return; // Update already scheduled
+            }
+
+            this.pendingUpdates.add(panelId);
+
+            requestAnimationFrame(() => {
+                this.pendingUpdates.delete(panelId);
+                applyPosition();
             });
         };
 
@@ -431,6 +475,8 @@ export class OverlayRenderContainer extends CompositeDisposable {
         this.map[panel.api.id].disposable.dispose();
         this.map[panel.api.id].disposable = disposable;
         this.map[panel.api.id].resize = resize;
+        this.map[panel.api.id].referenceElement = referenceContainer.element;
+        this.map[panel.api.id].applyPosition = applyPosition;
 
         return focusContainer;
     }

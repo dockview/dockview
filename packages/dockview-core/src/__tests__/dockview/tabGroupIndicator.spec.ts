@@ -63,7 +63,16 @@ describe('WrapTabGroupIndicator header-position geometry', () => {
             /* containerCrossSize */ CROSS_SIZE,
             ACTIVE_ID,
             containerRect,
-            /* isVertical */ direction === 'vertical'
+            /* isVertical */ direction === 'vertical',
+            // applyShape now takes the active tab's rect pre-measured by the
+            // caller (the measure pass of _positionUnderlinesSync) rather than
+            // reading it back itself.
+            mockGetBoundingClientRect({
+                left: 50,
+                top: 50,
+                width: 30,
+                height: 30,
+            })
         );
 
         return underline.querySelector('path')?.getAttribute('d') ?? '';

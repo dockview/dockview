@@ -1,5 +1,9 @@
 import { getPanelData, PanelTransfer } from '../../../dnd/dataTransfer';
-import { toggleClass } from '../../../dom';
+import {
+    prefersReducedMotion,
+    resolveCssDurationMs,
+    toggleClass,
+} from '../../../dom';
 import { CompositeDisposable, IValueDisposable } from '../../../lifecycle';
 import { DockviewComponent } from '../../dockviewComponent';
 import { DockviewGroupPanel } from '../../dockviewGroupPanel';
@@ -32,6 +36,13 @@ export interface TabAnimationState {
     sourceGapWidth: number;
     /** Left edge of the tabs container at drag start */
     containerLeft: number;
+    /** Wrap-mode drop candidates (each non-source tab's index + rect),
+     *  snapshotted once per drag. In wrap mode no tab moves during the drag
+     *  (the 1-D transforms no-op, only the indicator pseudo-element is drawn),
+     *  so the rects are stable — caching them avoids a getBoundingClientRect
+     *  per tab on every pointermove, which otherwise reflows against the
+     *  previous move's indicator write. */
+    wrappedEntries?: WrappedTabEntry[];
 }
 
 /**
@@ -80,8 +91,32 @@ export class TabReorderController extends CompositeDisposable {
         HTMLElement,
         () => void
     >();
+    /**
+     * In-flight Web Animations API gap-close animations, keyed by element. The
+     * gap between reordering tabs is animated shut with `element.animate()`
+     * instead of a CSS transition watched by a `transitionend` listener + a
+     * `setTimeout` fallback; a re-open, another close, or a reset cancels the
+     * running animation cleanly via `_cancelMarginAnimation`.
+     */
+    private readonly _marginAnimations = new Map<
+        HTMLElement,
+        { animation: Animation; cleanup: () => void }
+    >();
     private _pendingCollapse = false;
     private _flipTransitionCleanup: (() => void) | null = null;
+    /**
+     * In-flight Web Animations API FLIP slide. The reorder FLIP plays each
+     * moved tab from its previous position to its new one with
+     * `element.animate()` instead of clearing an inline transform and watching
+     * for `transitionend` (fragile: the event can be missed, and a `setTimeout`
+     * guess was needed). A new reorder or a reset cancels it via
+     * `_cancelFlipAnimation`; `cleanup` drops the shifting markers and settles
+     * the underlines once every tab's slide finishes.
+     */
+    private _flipAnimations: {
+        animations: Animation[];
+        cleanup: () => void;
+    } | null = null;
     private _voidContainer: HTMLElement | null = null;
     private _extendedDropZone: HTMLElement | null = null;
     private _pointerInsideTabsList = false;
@@ -144,6 +179,7 @@ export class TabReorderController extends CompositeDisposable {
         this.addDisposables({
             dispose: () => {
                 this._flipTransitionCleanup?.();
+                this._cancelFlipAnimation();
             },
         });
     }
@@ -943,6 +979,14 @@ export class TabReorderController extends CompositeDisposable {
      * so their own positions don't bias the hit-test.
      */
     private _wrappedDragEntries(): WrappedTabEntry[] {
+        // Snapshotted once per drag: tabs don't move during a wrap-mode reorder,
+        // so re-measuring them every pointermove only forces a reflow against
+        // the previous move's indicator write.
+        const cached = this._animState?.wrappedEntries;
+        if (cached) {
+            return cached;
+        }
+
         const sourceId = this._animState?.sourceTabId;
         const sourceGroupIds = this._animState?.sourceGroupPanelIds;
         const entries: WrappedTabEntry[] = [];
@@ -958,6 +1002,10 @@ export class TabReorderController extends CompositeDisposable {
                 index: i,
                 rect: tab.element.getBoundingClientRect(),
             });
+        }
+
+        if (this._animState) {
+            this._animState.wrappedEntries = entries;
         }
         return entries;
     }
@@ -1251,22 +1299,39 @@ export class TabReorderController extends CompositeDisposable {
     }
 
     /** Clear an element's gap margin, animating it back to zero unless
-     *  transitions are skipped. */
+     *  transitions are skipped. The animated path uses the Web Animations API
+     *  (`element.animate()`), whose `finished` promise runs the cleanup and
+     *  which cancels deterministically — replacing the former CSS transition
+     *  watched by a `transitionend` listener plus a `setTimeout` fallback. */
     private _clearMargin(el: HTMLElement, skipTransition: boolean): void {
         const cls = this._shiftingClass(el);
 
-        // Remove any previous pending listener for this element
-        const prev = this._pendingMarginCleanups.get(el);
-        if (prev) {
-            prev();
-        }
+        // Tear down any prior in-flight work for this element (a fallback
+        // transitionend cleanup, then any scripted animation).
+        this._pendingMarginCleanups.get(el)?.();
+        this._cancelMarginAnimation(el);
 
-        if (skipTransition || !el.style.marginLeft) {
+        const startMargin = el.style.marginLeft;
+
+        // Nothing to animate (already at rest), or the caller asked for an
+        // instant apply, or reduced motion is preferred: clear immediately.
+        if (
+            skipTransition ||
+            !startMargin ||
+            prefersReducedMotion(el.ownerDocument)
+        ) {
             el.style.removeProperty('margin-left');
             toggleClass(el, cls, false);
-        } else {
+            return;
+        }
+
+        toggleClass(el, cls, true);
+
+        // Environments without the Web Animations API (jsdom under test, very
+        // old browsers): fall back to the CSS transition + transitionend +
+        // setTimeout cleanup.
+        if (typeof el.animate !== 'function') {
             el.style.marginLeft = '0px';
-            toggleClass(el, cls, true);
             const onEnd = () => {
                 el.style.removeProperty('margin-left');
                 toggleClass(el, cls, false);
@@ -1274,22 +1339,79 @@ export class TabReorderController extends CompositeDisposable {
                 clearTimeout(fallbackTimer);
                 this._pendingMarginCleanups.delete(el);
             };
-            // Fallback in case transitionend never fires
-            // (e.g. element removed from DOM mid-transition)
             const fallbackTimer = setTimeout(onEnd, 300);
             this._pendingMarginCleanups.set(el, onEnd);
             el.addEventListener('transitionend', onEnd);
+            return;
         }
+
+        // Rest at margin 0 (base), and play the gap → 0 close as a scripted
+        // animation over it. `fill: 'none'` leaks no inline geometry; the
+        // inline transition-suppression is removed by the cleanup.
+        const duration = resolveCssDurationMs(
+            el,
+            '--dv-transition-duration',
+            200
+        );
+        el.style.transition = 'none';
+        el.style.removeProperty('margin-left');
+
+        const animation = el.animate(
+            [{ marginLeft: startMargin }, { marginLeft: '0px' }],
+            { duration, easing: 'ease-out', fill: 'none' }
+        );
+
+        let settled = false;
+        const cleanup = () => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            el.style.removeProperty('transition');
+            el.style.removeProperty('margin-left');
+            toggleClass(el, cls, false);
+            if (this._marginAnimations.get(el)?.animation === animation) {
+                this._marginAnimations.delete(el);
+            }
+        };
+
+        this._marginAnimations.set(el, { animation, cleanup });
+
+        animation.finished.then(cleanup).catch(() => {
+            // `finished` rejects on cancellation; `_cancelMarginAnimation` runs
+            // the cleanup itself, so there is nothing to do here.
+        });
+    }
+
+    /** Cancel an in-flight gap-close animation for an element, if any, leaving
+     *  it at its resting (zero-gap) state. Idempotent. */
+    private _cancelMarginAnimation(el: HTMLElement): void {
+        const entry = this._marginAnimations.get(el);
+        if (!entry) {
+            return;
+        }
+        this._marginAnimations.delete(el);
+        entry.cleanup();
+        entry.animation.cancel();
     }
 
     resetTabTransforms(): void {
         this.clearWrapDropIndicator();
 
-        // Cancel any pending margin transitionend listeners
+        // Cancel any in-flight scripted FLIP slide before clearing transforms.
+        this._cancelFlipAnimation();
+
+        // Cancel any pending margin transitionend listeners (fallback path)
+        // and any in-flight scripted gap-close animations.
         for (const [, cleanup] of this._pendingMarginCleanups) {
             cleanup();
         }
         this._pendingMarginCleanups.clear();
+        // Each cancel deletes only its own key, so iterating the map's keys
+        // directly (no snapshot copy) is safe.
+        for (const el of this._marginAnimations.keys()) {
+            this._cancelMarginAnimation(el);
+        }
 
         for (const tab of this._tabs) {
             tab.value.element.style.removeProperty('margin-left');
@@ -1456,7 +1578,111 @@ export class TabReorderController extends CompositeDisposable {
             return;
         }
 
-        this._scheduleFlipReset();
+        // `_applyFlipTransform` has pinned each moving tab at its previous
+        // position via an inline `transform` (the FLIP "Invert"). Collect them.
+        const animating = this._tabs
+            .map((t) => t.value.element)
+            .filter((el) => el.style.transform);
+        if (animating.length === 0) {
+            return;
+        }
+
+        const sample = animating[0];
+
+        // Reduced motion: snap to the final positions with no slide.
+        if (prefersReducedMotion(sample.ownerDocument)) {
+            for (const el of animating) {
+                el.style.removeProperty('transform');
+                toggleClass(el, 'dv-tab--shifting', false);
+            }
+            this._tabGroupManager.positionUnderlines();
+            return;
+        }
+
+        // Environments without the Web Animations API (jsdom under test, very
+        // old browsers): keep the original next-frame transform clear + CSS
+        // transition watched by a `transitionend` listener.
+        if (typeof sample.animate !== 'function') {
+            this._scheduleFlipReset();
+            return;
+        }
+
+        this._runFlipWaapi(animating);
+    }
+
+    /**
+     * Play the FLIP slide with the Web Animations API: each tab animates from
+     * its inverted (previous) position back to `transform: none` (its new slot).
+     * The underlines follow via their own tracking poll, and the shifting
+     * markers drop once every tab's slide finishes — no `transitionend`
+     * listener, no `setTimeout` fallback.
+     */
+    private _runFlipWaapi(animating: HTMLElement[]): void {
+        // Supersede any FLIP still playing from a previous reorder.
+        this._cancelFlipAnimation();
+
+        // Underlines follow the slide (their own 250ms position poll, which is
+        // independent of how the tabs are animated).
+        this._tabGroupManager.trackUnderlines();
+
+        const duration = resolveCssDurationMs(
+            animating[0],
+            '--dv-transition-duration',
+            200
+        );
+
+        const animations: Animation[] = [];
+        for (const el of animating) {
+            const fromTransform = el.style.transform;
+            // Rest at the final position (base `none`) and play the invert →
+            // none slide over it; `fill: 'none'` leaks no inline transform.
+            el.style.transition = 'none';
+            el.style.removeProperty('transform');
+            animations.push(
+                el.animate(
+                    [{ transform: fromTransform }, { transform: 'none' }],
+                    { duration, easing: 'ease-out', fill: 'none' }
+                )
+            );
+        }
+
+        let settled = false;
+        const cleanup = () => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            for (const el of animating) {
+                el.style.removeProperty('transition');
+                toggleClass(el, 'dv-tab--shifting', false);
+            }
+            this._tabGroupManager.positionUnderlines();
+            if (this._flipAnimations?.animations === animations) {
+                this._flipAnimations = null;
+            }
+        };
+
+        this._flipAnimations = { animations, cleanup };
+
+        // `allSettled` so a single cancelled tab (its `finished` rejects)
+        // doesn't abort the wait for the rest.
+        Promise.allSettled(animations.map((a) => a.finished)).then(cleanup);
+    }
+
+    /**
+     * Cancel an in-flight FLIP slide, if any, leaving every tab at its final
+     * (settled) position with the shifting markers removed. Idempotent.
+     */
+    private _cancelFlipAnimation(): void {
+        const entry = this._flipAnimations;
+        if (!entry) {
+            return;
+        }
+        this._flipAnimations = null;
+        entry.cleanup();
+        for (const animation of entry.animations) {
+            animation.cancel();
+        }
     }
 
     /**

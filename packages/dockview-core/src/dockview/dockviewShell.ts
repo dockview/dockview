@@ -442,6 +442,12 @@ class MiddleColumnView implements IView, IDisposable {
         return 0;
     }
 
+    /** The center view's top offset within this column (its inset below any top
+     *  edge group + gap), read from splitview state — no DOM measurement. */
+    getCenterOffset(): number {
+        return this._splitview.getViewOffset(this._centerIndex);
+    }
+
     getViewCachedVisibleSize(position: 'top' | 'bottom'): number | undefined {
         const index = position === 'top' ? this._topIndex : this._bottomIndex;
         if (index !== undefined) {
@@ -560,8 +566,9 @@ export class ShellManager implements IDisposable {
                 ) {
                     return;
                 }
-                this._currentWidth = width;
-                this._currentHeight = height;
+                // layout() records the size and short-circuits its own repeat
+                // calls; don't pre-write _current here or that early-out would
+                // wrongly skip this real resize.
                 this.layout(width, height);
             }),
             this._outerSplitview,
@@ -660,9 +667,32 @@ export class ShellManager implements IDisposable {
         return view;
     }
 
-    layout(width: number, height: number): void {
+    /**
+     * Lay the shell out at the given size, returning whether a layout ran.
+     *
+     * A repeat call at the same rounded size is a no-op (returns false) unless
+     * `forceResize` is set — the shell honouring the gridview's
+     * "dimensions unchanged -> skip" contract (`BaseGrid.layout`) that it would
+     * otherwise bypass, so a redundant resize (an app driving layout(), the
+     * ResizeObserver re-reporting the same box, any duplicate caller) costs
+     * nothing. Structural re-flows that keep the outer size force via
+     * forceRelayout()/updateTheme(). Rounding matches the observer's comparison.
+     */
+    layout(width: number, height: number, forceResize = false): boolean {
+        const w = Math.round(width);
+        const h = Math.round(height);
+        if (
+            !forceResize &&
+            w === this._currentWidth &&
+            h === this._currentHeight
+        ) {
+            return false;
+        }
+        this._currentWidth = w;
+        this._currentHeight = h;
         // Outer splitview is HORIZONTAL: layout(size=width, orthogonalSize=height)
         this._outerSplitview.layout(width, height);
+        return true;
     }
 
     /**
@@ -740,9 +770,11 @@ export class ShellManager implements IDisposable {
             );
         }
 
-        // Re-run layout with the current shell dimensions.
+        // Re-run layout with the current shell dimensions. Force it: the outer
+        // size is unchanged (so layout() would otherwise no-op), but edge
+        // margins/sizes just changed and must be re-applied.
         if (this._currentWidth > 0 && this._currentHeight > 0) {
-            this.layout(this._currentWidth, this._currentHeight);
+            this.layout(this._currentWidth, this._currentHeight, true);
         }
     }
 
@@ -787,6 +819,32 @@ export class ShellManager implements IDisposable {
 
         // Recalculate gap adjustments for remaining views.
         this.updateTheme(this._gap, this._defaultCollapsedSize);
+    }
+
+    /** True when any edge group exists in any position. Lets the host skip a
+     *  getBoundingClientRect pair on the common no-edge-group layout. */
+    hasAnyEdgeGroup(): boolean {
+        return (
+            this._topView !== undefined ||
+            this._bottomView !== undefined ||
+            this._leftView !== undefined ||
+            this._rightView !== undefined
+        );
+    }
+
+    /**
+     * The center (dockview grid) slot's offset within the shell, i.e. how far
+     * edge groups inset it: `left` from the outer splitview's position for the
+     * middle column, `top` from the middle column's position for the center.
+     * Both come from splitview state (the same offsets it wrote to the DOM), so
+     * the floating-overlay host can mirror the grid box without a
+     * getBoundingClientRect.
+     */
+    getGridOffset(): { left: number; top: number } {
+        return {
+            left: this._outerSplitview.getViewOffset(this._middleIndex),
+            top: this._middleColumn.getCenterOffset(),
+        };
     }
 
     hasEdgeGroup(position: EdgeGroupPosition): boolean {

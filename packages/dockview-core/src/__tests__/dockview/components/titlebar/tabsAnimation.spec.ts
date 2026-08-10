@@ -110,6 +110,50 @@ function mockTabRect(
     );
 }
 
+interface MockAnimation {
+    finished: Promise<void>;
+    cancel: jest.Mock;
+    resolveFinished: () => void;
+}
+
+/** Stub `HTMLElement.prototype.animate` (absent in jsdom) so the Web Animations
+ *  API paths run; returns the created animations + a restore(). */
+function installAnimateMock(): {
+    animations: MockAnimation[];
+    restore: () => void;
+} {
+    const proto = HTMLElement.prototype as unknown as {
+        animate?: (...args: unknown[]) => Animation;
+    };
+    const original = proto.animate;
+    const animations: MockAnimation[] = [];
+    proto.animate = function (): Animation {
+        let resolveFinished!: () => void;
+        let rejectFinished!: (reason?: unknown) => void;
+        const finished = new Promise<void>((resolve, reject) => {
+            resolveFinished = resolve;
+            rejectFinished = reject;
+        });
+        finished.catch(() => {});
+        const anim: MockAnimation = {
+            finished,
+            cancel: jest.fn(() => rejectFinished(new Error('AbortError'))),
+            resolveFinished,
+        };
+        animations.push(anim);
+        return anim as unknown as Animation;
+    };
+    return {
+        animations,
+        restore: () => {
+            proto.animate = original;
+        },
+    };
+}
+
+const flushMicrotasks = () =>
+    new Promise<void>((resolve) => setTimeout(resolve, 0));
+
 describe('tabs - animation', () => {
     let rAFCallbacks: FrameRequestCallback[];
 
@@ -480,6 +524,144 @@ describe('tabs - animation', () => {
 
             // No rAF should be queued
             expect(rAFCallbacks).toHaveLength(0);
+        });
+
+        describe('Web Animations API path', () => {
+            const flush = flushMicrotasks;
+
+            function threeTabsMovedFlip() {
+                const { tabs } = createTabs({ tabAnimation: 'smooth' });
+                tabs.openPanel(createMockPanel('panel-a'), 0);
+                tabs.openPanel(createMockPanel('panel-b'), 1);
+                tabs.openPanel(createMockPanel('panel-c'), 2);
+                const elements = getTabElements(tabs);
+
+                const firstPositions = new Map<string, DOMRect>();
+                firstPositions.set('panel-a', makeDOMRect(0, 0, 80, 30));
+                firstPositions.set('panel-b', makeDOMRect(80, 0, 80, 30));
+                firstPositions.set('panel-c', makeDOMRect(160, 0, 80, 30));
+                // A moved 0→160; B and C each shift by +80.
+                mockTabRect(elements[0], { left: 160, width: 80 });
+                mockTabRect(elements[1], { left: 0, width: 80 });
+                mockTabRect(elements[2], { left: 80, width: 80 });
+
+                return { tabs, elements, firstPositions };
+            }
+
+            test('drives element.animate per moved tab and rests each at its final position', () => {
+                const mock = installAnimateMock();
+                try {
+                    const { tabs, elements, firstPositions } =
+                        threeTabsMovedFlip();
+
+                    (tabs as any).runFlipAnimation(firstPositions, 'panel-a');
+
+                    // One scripted slide per moved tab (B, C); the source (A)
+                    // does not move.
+                    expect(mock.animations).toHaveLength(2);
+                    // Base rests at the final position (inline transform
+                    // cleared), CSS transition suppressed while it plays, and
+                    // the shifting marker held for the slide.
+                    expect(elements[1].style.transform).toBe('');
+                    expect(elements[2].style.transform).toBe('');
+                    expect(elements[1].style.transition).toBe('none');
+                    expect(
+                        elements[1].classList.contains('dv-tab--shifting')
+                    ).toBe(true);
+                    // No next-frame transform-clear is scheduled (that's the
+                    // fallback path).
+                    expect(rAFCallbacks).toHaveLength(0);
+                } finally {
+                    mock.restore();
+                }
+            });
+
+            test('drops the shifting markers and clears suppression once every slide finishes', async () => {
+                const mock = installAnimateMock();
+                try {
+                    const { tabs, elements, firstPositions } =
+                        threeTabsMovedFlip();
+
+                    (tabs as any).runFlipAnimation(firstPositions, 'panel-a');
+                    expect(mock.animations).toHaveLength(2);
+
+                    // Only one finished so far → still shifting.
+                    mock.animations[0].resolveFinished();
+                    await flush();
+                    expect(
+                        elements[1].classList.contains('dv-tab--shifting')
+                    ).toBe(true);
+
+                    // All finished → markers dropped, suppression cleared.
+                    mock.animations[1].resolveFinished();
+                    await flush();
+                    expect(elements[1].style.transition).toBe('');
+                    expect(elements[2].style.transition).toBe('');
+                    expect(
+                        elements[1].classList.contains('dv-tab--shifting')
+                    ).toBe(false);
+                    expect(
+                        elements[2].classList.contains('dv-tab--shifting')
+                    ).toBe(false);
+                } finally {
+                    mock.restore();
+                }
+            });
+
+            test('resetTabTransforms cancels an in-flight FLIP slide', () => {
+                const mock = installAnimateMock();
+                try {
+                    const { tabs, elements, firstPositions } =
+                        threeTabsMovedFlip();
+
+                    (tabs as any).runFlipAnimation(firstPositions, 'panel-a');
+                    expect(mock.animations).toHaveLength(2);
+
+                    (tabs as any).resetTabTransforms();
+
+                    for (const anim of mock.animations) {
+                        expect(anim.cancel).toHaveBeenCalledTimes(1);
+                    }
+                    expect(
+                        elements[1].classList.contains('dv-tab--shifting')
+                    ).toBe(false);
+                    expect(
+                        elements[2].classList.contains('dv-tab--shifting')
+                    ).toBe(false);
+                } finally {
+                    mock.restore();
+                }
+            });
+
+            test('reduced motion snaps to final positions with no scripted slide', () => {
+                const win = document.defaultView as Window & {
+                    matchMedia?: (q: string) => MediaQueryList;
+                };
+                const originalMatchMedia = win.matchMedia;
+                win.matchMedia = ((query: string) =>
+                    ({
+                        matches: true,
+                        media: query,
+                    }) as MediaQueryList) as typeof win.matchMedia;
+                const mock = installAnimateMock();
+                try {
+                    const { tabs, elements, firstPositions } =
+                        threeTabsMovedFlip();
+
+                    (tabs as any).runFlipAnimation(firstPositions, 'panel-a');
+
+                    // No scripted slide; the moved tabs snap to their final slot
+                    // (inline transform cleared) with the shifting marker dropped.
+                    expect(mock.animations).toHaveLength(0);
+                    expect(elements[1].style.transform).toBe('');
+                    expect(
+                        elements[1].classList.contains('dv-tab--shifting')
+                    ).toBe(false);
+                } finally {
+                    mock.restore();
+                    win.matchMedia = originalMatchMedia;
+                }
+            });
         });
     });
 
@@ -865,6 +1047,145 @@ describe('tabs - animation', () => {
             // Insertion index should be snapped outside the Monitoring group
             // (to lastIdx + 1 = 4, i.e. after the group)
             expect(getAnimState(tabs).currentInsertionIndex).toBe(4);
+        });
+    });
+
+    describe('gap-close animation (Web Animations API)', () => {
+        const flush = flushMicrotasks;
+
+        function setup() {
+            const { tabs } = createTabs({ tabAnimation: 'smooth' });
+            tabs.openPanel(createMockPanel('panel-a'), 0);
+            const el = getTabElements(tabs)[0];
+            const reorder = (tabs as any)._reorder;
+            return { el, reorder };
+        }
+
+        test('the animated gap-close drives element.animate, rests at 0 and suppresses the transition', async () => {
+            const mock = installAnimateMock();
+            try {
+                const { el, reorder } = setup();
+
+                // Simulate an open gap, then close it via the animated path.
+                el.style.marginLeft = '80px';
+                reorder._clearMargin(el, false);
+
+                expect(mock.animations).toHaveLength(1);
+                // Base rests at 0 (no leaked inline margin), CSS transition
+                // suppressed inline while the scripted animation plays, and the
+                // shifting marker held for its duration.
+                expect(el.style.marginLeft).toBe('');
+                expect(el.style.transition).toBe('none');
+                expect(el.classList.contains('dv-tab--shifting')).toBe(true);
+
+                // On finish the suppression + shifting marker are cleared.
+                mock.animations[0].resolveFinished();
+                await flush();
+                expect(el.style.transition).toBe('');
+                expect(el.classList.contains('dv-tab--shifting')).toBe(false);
+            } finally {
+                mock.restore();
+            }
+        });
+
+        test('an instant close (skipTransition) applies immediately with no animation', () => {
+            const mock = installAnimateMock();
+            try {
+                const { el, reorder } = setup();
+
+                el.style.marginLeft = '80px';
+                reorder._clearMargin(el, true);
+
+                expect(mock.animations).toHaveLength(0);
+                expect(el.style.marginLeft).toBe('');
+                expect(el.classList.contains('dv-tab--shifting')).toBe(false);
+            } finally {
+                mock.restore();
+            }
+        });
+
+        test('a following instant close cancels an in-flight gap-close animation', () => {
+            const mock = installAnimateMock();
+            try {
+                const { el, reorder } = setup();
+
+                el.style.marginLeft = '80px';
+                reorder._clearMargin(el, false);
+                expect(mock.animations).toHaveLength(1);
+
+                // A re-open + instant close must cancel the running animation.
+                el.style.marginLeft = '80px';
+                reorder._clearMargin(el, true);
+
+                expect(mock.animations[0].cancel).toHaveBeenCalledTimes(1);
+                expect(el.style.transition).toBe('');
+                expect(el.classList.contains('dv-tab--shifting')).toBe(false);
+            } finally {
+                mock.restore();
+            }
+        });
+
+        test('resetTabTransforms cancels an in-flight gap-close animation', () => {
+            const mock = installAnimateMock();
+            try {
+                const { el, reorder } = setup();
+
+                el.style.marginLeft = '80px';
+                reorder._clearMargin(el, false);
+                expect(mock.animations).toHaveLength(1);
+
+                reorder.resetTabTransforms();
+
+                expect(mock.animations[0].cancel).toHaveBeenCalledTimes(1);
+                expect(el.style.transition).toBe('');
+                expect(el.classList.contains('dv-tab--shifting')).toBe(false);
+            } finally {
+                mock.restore();
+            }
+        });
+
+        test('reduced motion clears the gap instantly with no scripted animation', () => {
+            const win = document.defaultView as Window & {
+                matchMedia?: (q: string) => MediaQueryList;
+            };
+            const originalMatchMedia = win.matchMedia;
+            win.matchMedia = ((query: string) =>
+                ({
+                    matches: true,
+                    media: query,
+                }) as MediaQueryList) as typeof win.matchMedia;
+            const mock = installAnimateMock();
+            try {
+                const { el, reorder } = setup();
+
+                el.style.marginLeft = '80px';
+                reorder._clearMargin(el, false);
+
+                expect(mock.animations).toHaveLength(0);
+                expect(el.style.marginLeft).toBe('');
+                expect(el.classList.contains('dv-tab--shifting')).toBe(false);
+            } finally {
+                mock.restore();
+                win.matchMedia = originalMatchMedia;
+            }
+        });
+
+        test('wrapped drag entries are snapshotted once per drag', () => {
+            const { tabs } = createTabs({ tabAnimation: 'smooth' });
+            tabs.openPanel(createMockPanel('panel-a'), 0);
+            tabs.openPanel(createMockPanel('panel-b'), 1);
+            const reorder = (tabs as any)._reorder;
+
+            reorder._animState = {
+                sourceTabId: 'panel-a',
+                sourceGroupPanelIds: undefined,
+            };
+
+            const first = reorder._wrappedDragEntries();
+            const second = reorder._wrappedDragEntries();
+            // The second call returns the cached snapshot rather than
+            // re-measuring, so it is the very same array instance.
+            expect(second).toBe(first);
         });
     });
 

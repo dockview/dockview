@@ -160,6 +160,28 @@ describe('dockviewComponent', () => {
         );
     });
 
+    test('a repeat layout() at the same size skips the post-layout sync', () => {
+        // The shell wrapper reports "dimensions unchanged -> skip"; layout()
+        // honours it by returning early, so the overlay-host sync (and the
+        // floating-group constrain) that follow are not re-run for nothing.
+        const syncSpy = jest.spyOn(dockview as any, '_syncFloatingOverlayHost');
+
+        dockview.layout(1000, 500);
+        expect(syncSpy).toHaveBeenCalled();
+
+        // A duplicate call at the same rounded size is a no-op -> early return
+        // before the sync.
+        syncSpy.mockClear();
+        dockview.layout(1000, 500);
+        expect(syncSpy).not.toHaveBeenCalled();
+
+        // A genuinely different size proceeds and syncs again.
+        dockview.layout(1200, 600);
+        expect(syncSpy).toHaveBeenCalled();
+
+        syncSpy.mockRestore();
+    });
+
     describe('disableDnd option integration', () => {
         test('that updateOptions with disableDnd updates all tabs and void containers', () => {
             dockview = new DockviewComponent(container, {
@@ -5342,6 +5364,132 @@ describe('dockviewComponent', () => {
         // `contain: layout` and forms a stacking context that would trap
         // floating z-indexes below shell-level render overlays.
         expect(dockview.element.contains(overlay)).toBe(false);
+    });
+
+    describe('floating overlay host sync', () => {
+        function makeDockview(): {
+            dockview: DockviewComponent;
+            container: HTMLElement;
+        } {
+            const container = document.createElement('div');
+            const dockview = new DockviewComponent(container, {
+                createComponent(options) {
+                    if (options.name === 'default') {
+                        return new PanelContentPartTest(
+                            options.id,
+                            options.name
+                        );
+                    }
+                    throw new Error('unsupported');
+                },
+            });
+            return { dockview, container };
+        }
+
+        test('layout() does not measure the shell when there are no floating groups', () => {
+            const { dockview } = makeDockview();
+            dockview.layout(1000, 500);
+            dockview.addPanel({ id: 'panel_1', component: 'default' });
+
+            const shellEl = (dockview as any)._shellManager
+                .element as HTMLElement;
+            const spy = jest.spyOn(shellEl, 'getBoundingClientRect');
+
+            dockview.layout(800, 600);
+
+            // The point: with no floats the overlay host is
+            // empty, so layout() must not force a reflow to position it.
+            expect(spy).not.toHaveBeenCalled();
+
+            spy.mockRestore();
+            dockview.dispose();
+        });
+
+        test('the host is sized before the first overlay clamps against it (0 -> 1)', () => {
+            const { dockview } = makeDockview();
+            dockview.layout(1000, 500);
+
+            const host = (dockview as any)._floatingOverlayHost as HTMLElement;
+
+            // The Overlay constructor clamps its bounds by reading the host's
+            // getBoundingClientRect. Capture the host's inline size at that
+            // first read: the sync must already have run, or the first float
+            // clamps against a never-synced (unsized) host.
+            let widthAtFirstClamp: string | undefined;
+            jest.spyOn(host, 'getBoundingClientRect').mockImplementation(() => {
+                if (widthAtFirstClamp === undefined) {
+                    widthAtFirstClamp = host.style.width;
+                }
+                return {
+                    x: 0,
+                    y: 0,
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    width: 0,
+                    height: 0,
+                    toJSON: () => ({}),
+                } as DOMRect;
+            });
+
+            dockview.addPanel({
+                id: 'panel_1',
+                component: 'default',
+                floating: true,
+            });
+
+            expect(widthAtFirstClamp).toBe('1000px');
+
+            jest.restoreAllMocks();
+            dockview.dispose();
+        });
+
+        test('adding a floating group syncs the host immediately (0 -> 1 transition)', () => {
+            const { dockview, container } = makeDockview();
+            dockview.layout(1000, 500);
+            dockview.addPanel({
+                id: 'panel_1',
+                component: 'default',
+                floating: true,
+            });
+
+            const host = container.querySelector(
+                '.dv-floating-overlay-host'
+            ) as HTMLElement;
+
+            // Synced by _doAddFloatingGroup itself — no further layout() needed.
+            expect(host.style.width).toBe('1000px');
+            expect(host.style.height).toBe('500px');
+
+            dockview.dispose();
+        });
+
+        test('host mirrors the grid box from layout state, without measuring (no edge groups)', () => {
+            const { dockview, container } = makeDockview();
+            dockview.layout(1000, 500);
+            dockview.addPanel({
+                id: 'panel_1',
+                component: 'default',
+                floating: true,
+            });
+
+            const host = container.querySelector(
+                '.dv-floating-overlay-host'
+            ) as HTMLElement;
+
+            dockview.layout(800, 600);
+
+            // Derived from gridview.width/height (JS state), not
+            // getBoundingClientRect — which returns 0 under jsdom, so a measured
+            // path would leave the host sized "0px".
+            expect(host.style.left).toBe('0px');
+            expect(host.style.top).toBe('0px');
+            expect(host.style.width).toBe('800px');
+            expect(host.style.height).toBe('600px');
+
+            dockview.dispose();
+        });
     });
 
     test('that external dnd events do not trigger the top-level center dnd target unless empty', () => {

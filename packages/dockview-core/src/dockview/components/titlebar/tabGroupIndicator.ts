@@ -54,6 +54,43 @@ export interface ITabGroupIndicator {
 }
 
 /**
+ * A single group's fully-measured underline placement, produced by the measure
+ * pass of `_positionUnderlinesSync` and consumed by its write pass. Keeping the
+ * geometry here lets every read happen before any style write, so writing one
+ * group's underline never forces a reflow for the next group's measurement.
+ */
+type UnderlinePlacement =
+    | { underline: HTMLElement; kind: 'hide' }
+    | { underline: HTMLElement; kind: 'nolast'; startEdge: number }
+    | {
+          underline: HTMLElement;
+          kind: 'bar';
+          tg: ITabGroup;
+          startEdge: number;
+          span: number;
+          /** Pre-measured active-tab rect for `applyShape` (undefined when the
+           *  group has no active tab), so the shape pass stays read-free. */
+          activeRect: DOMRect | undefined;
+      };
+
+/**
+ * A single group's measured wrapped-underline placement, produced by the
+ * measure pass of the multi-row path and drawn by its write pass — the same
+ * read-before-write batching as {@link UnderlinePlacement}, for the wrap model.
+ */
+type WrappedPlacement =
+    | { underline: HTMLElement; groupId: string; kind: 'hide' }
+    | { underline: HTMLElement; groupId: string; kind: 'hide-clear' }
+    | {
+          underline: HTMLElement;
+          tg: ITabGroup;
+          kind: 'draw';
+          color: string;
+          runs: WrappedRun[];
+          firstRun: WrappedRun | undefined;
+      };
+
+/**
  * Shared positioning logic for tab group indicators.
  * Subclasses implement `applyShape` to control the visual output.
  */
@@ -195,6 +232,10 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
      * Apply the visual shape to the underline element.
      * Called once per tab group per frame with the computed geometry.
      */
+    /** Whether {@link applyShape} uses the active tab's rect. When false the
+     *  measure pass skips measuring it (one getBoundingClientRect per group). */
+    protected abstract readonly _needsActiveRect: boolean;
+
     protected abstract applyShape(
         underline: HTMLElement,
         tg: ITabGroup,
@@ -203,7 +244,11 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
         containerCrossSize: number,
         activePanelId: string | undefined,
         containerRect: DOMRect,
-        isVertical: boolean
+        isVertical: boolean,
+        /** Pre-measured in the caller's measure pass so applyShape never reads
+         *  geometry back (which would reflow mid-write). Undefined = no active
+         *  tab in this group (or the indicator doesn't use it). */
+        activeRect: DOMRect | undefined
     ): void;
 
     private _positionUnderlinesSync(): void {
@@ -229,6 +274,96 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
         const activePanelId = this._ctx.getActivePanelId();
         const tabMap = this._ctx.getTabMap();
 
+        // Multi-line wrap is a separate per-line drawing model; keep its
+        // existing per-group path. It is loop-invariant (the whole strip is
+        // wrapped or not), so branching here rather than inside the loop lets
+        // the common single-bar path below run as a clean two-pass.
+        if (wrapped) {
+            // Measure every group's line-runs first (the only reads), then draw,
+            // so drawing one group can't force a reflow for the next group's
+            // measurement.
+            const wrappedPlacements: WrappedPlacement[] = [];
+            for (const tg of tabGroups) {
+                const underline = this._underlines.get(tg.id);
+                if (!underline) {
+                    continue;
+                }
+                if (tg.panelIds.length === 0) {
+                    wrappedPlacements.push({
+                        underline,
+                        groupId: tg.id,
+                        kind: 'hide',
+                    });
+                    continue;
+                }
+                const color = resolveTabGroupAccent(
+                    tg.color,
+                    this._ctx.getColorPalette()
+                );
+                if (color === undefined) {
+                    wrappedPlacements.push({
+                        underline,
+                        groupId: tg.id,
+                        kind: 'hide-clear',
+                    });
+                    continue;
+                }
+                const { runs, firstRun } = this._computeWrappedRuns(
+                    tg,
+                    containerRect,
+                    tabMap,
+                    isVertical
+                );
+                if (runs.length === 0) {
+                    wrappedPlacements.push({
+                        underline,
+                        groupId: tg.id,
+                        kind: 'hide-clear',
+                    });
+                    continue;
+                }
+                wrappedPlacements.push({
+                    underline,
+                    tg,
+                    kind: 'draw',
+                    color,
+                    runs,
+                    firstRun,
+                });
+            }
+
+            for (const wp of wrappedPlacements) {
+                if (wp.kind === 'hide') {
+                    wp.underline.style.display = 'none';
+                    continue;
+                }
+                if (wp.kind === 'hide-clear') {
+                    wp.underline.style.display = 'none';
+                    this._clearContinuationMarkers(wp.groupId);
+                    continue;
+                }
+                wp.underline.style.display = '';
+                this._drawWrappedUnderline(
+                    wp.underline,
+                    wp.tg,
+                    wp.color,
+                    wp.runs,
+                    wp.firstRun,
+                    containerRect,
+                    isVertical
+                );
+            }
+            return;
+        }
+
+        // Common single-bar path. Split into a measure pass (reads only) and a
+        // write pass (writes only) so writing one group's `underline.style.*`
+        // can't force a reflow for the next group's getBoundingClientRect. This
+        // runs every frame of the ~250ms rAF burst on any tab drag / reorder /
+        // collapse and on every scroll/overflow restyle.
+
+        // ---- Pass 1: measure ----
+        const placements: UnderlinePlacement[] = [];
         for (const tg of tabGroups) {
             const underline = this._underlines.get(tg.id);
             if (!underline) {
@@ -237,29 +372,18 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
 
             const panelIds = tg.panelIds;
             if (panelIds.length === 0) {
-                underline.style.display = 'none';
-                continue;
-            }
-
-            underline.style.display = '';
-
-            if (wrapped) {
-                this._positionWrappedUnderline(
-                    underline,
-                    tg,
-                    containerRect,
-                    tabMap,
-                    isVertical
-                );
+                placements.push({ underline, kind: 'hide' });
                 continue;
             }
 
             const chipEl = this._ctx.getChipElement(tg.id);
+            // Measured once and reused for both the start edge and the
+            // animation chip-centre below, so no element is read twice.
+            const chipRect = chipEl?.getBoundingClientRect();
 
             // In vertical mode, compute top/bottom edges; in horizontal, left/right.
             let startEdge: number;
-            if (chipEl) {
-                const chipRect = chipEl.getBoundingClientRect();
+            if (chipEl && chipRect) {
                 const chipStyle = getComputedStyle(chipEl);
                 const leadingMargin = isVertical
                     ? Number.parseFloat(chipStyle.marginTop) || 0
@@ -286,17 +410,7 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
             const lastTabEntry = tabMap.get(lastPanelId);
 
             if (!lastTabEntry) {
-                if (isVertical) {
-                    underline.style.top = `${startEdge}px`;
-                    underline.style.height = '0px';
-                    underline.style.left = '';
-                    underline.style.width = '';
-                } else {
-                    underline.style.left = `${startEdge}px`;
-                    underline.style.width = '0px';
-                    underline.style.top = '';
-                    underline.style.height = '';
-                }
+                placements.push({ underline, kind: 'nolast', startEdge });
                 continue;
             }
 
@@ -310,15 +424,14 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
             // During collapse or expand: converge both edges toward chip center
             const isAnimating =
                 tg.collapsed ||
-                tg.panelIds.some((pid) => {
+                panelIds.some((pid) => {
                     const te = tabMap.get(pid);
                     return te?.value.element.classList.contains(
                         'dv-tab--group-expanding'
                     );
                 });
 
-            if (isAnimating && chipEl) {
-                const chipRect = chipEl.getBoundingClientRect();
+            if (isAnimating && chipEl && chipRect) {
                 const chipCenter = isVertical
                     ? chipRect.top + chipRect.height / 2 - containerRect.top
                     : chipRect.left + chipRect.width / 2 - containerRect.left;
@@ -326,7 +439,7 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
                 // Sum of current visible tab sizes (shrinking or growing)
                 let currentTabSize = 0;
                 let fullTabSize = 0;
-                for (const pid of tg.panelIds) {
+                for (const pid of panelIds) {
                     const te = tabMap.get(pid);
                     if (!te) continue;
                     const el = te.value.element;
@@ -351,6 +464,57 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
                 span = Math.max(0, endEdge - startEdge);
             }
 
+            // Pre-measure the active tab's rect here (in the read pass) so
+            // applyShape — which draws the wrap-around bump over it — never
+            // reads geometry back during the write pass. Skipped for indicators
+            // whose applyShape ignores it (e.g. the flat `none` bar), so those
+            // strips don't pay a getBoundingClientRect per group per frame.
+            let activeRect: DOMRect | undefined;
+            if (
+                this._needsActiveRect &&
+                activePanelId &&
+                panelIds.includes(activePanelId)
+            ) {
+                const activeEntry = tabMap.get(activePanelId);
+                activeRect = activeEntry?.value.element.getBoundingClientRect();
+            }
+
+            placements.push({
+                underline,
+                kind: 'bar',
+                tg,
+                startEdge,
+                span,
+                activeRect,
+            });
+        }
+
+        // ---- Pass 2: write ----
+        for (const placement of placements) {
+            const { underline } = placement;
+            if (placement.kind === 'hide') {
+                underline.style.display = 'none';
+                continue;
+            }
+
+            underline.style.display = '';
+
+            if (placement.kind === 'nolast') {
+                if (isVertical) {
+                    underline.style.top = `${placement.startEdge}px`;
+                    underline.style.height = '0px';
+                    underline.style.left = '';
+                    underline.style.width = '';
+                } else {
+                    underline.style.left = `${placement.startEdge}px`;
+                    underline.style.width = '0px';
+                    underline.style.top = '';
+                    underline.style.height = '';
+                }
+                continue;
+            }
+
+            const { startEdge, span } = placement;
             if (isVertical) {
                 underline.style.top = `${startEdge}px`;
                 underline.style.height = `${Math.max(0, span)}px`;
@@ -369,57 +533,39 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
 
             this.applyShape(
                 underline,
-                tg,
+                placement.tg,
                 startEdge,
                 span,
                 containerCrossSize,
                 activePanelId,
                 containerRect,
-                isVertical
+                isVertical,
+                placement.activeRect
             );
         }
     }
 
     /**
-     * Position a group's underline across a multi-line (wrapped) tab strip. The
-     * single-bar model can't span lines, so the element is sized to cover the
-     * group's line span and an SVG draws one straight segment per line-run of
-     * the group's tabs: a horizontal segment per row (horizontal header) or a
-     * vertical segment per column (vertical header). Tabs are bucketed into
-     * runs by their cross-axis offset: `top` for rows, `left` for columns.
-     * (The active-tab wrap-around bump is omitted in wrap; the per-line lines
-     * still convey membership.)
+     * Draw a group's underline across a multi-line (wrapped) tab strip from its
+     * already-measured line-runs (write-only; the caller's measure pass called
+     * {@link _computeWrappedRuns}). The single-bar model can't span lines, so
+     * the element is sized to cover the group's line span and an SVG draws one
+     * straight segment per line-run: a horizontal segment per row (horizontal
+     * header) or a vertical segment per column (vertical header). `runs` are
+     * bucketed by cross-axis offset (`top` for rows, `left` for columns). (The
+     * active-tab wrap-around bump is omitted in wrap; the per-line lines still
+     * convey membership.)
      */
-    private _positionWrappedUnderline(
+    private _drawWrappedUnderline(
         underline: HTMLElement,
         tg: ITabGroup,
+        color: string,
+        runs: WrappedRun[],
+        firstRun: WrappedRun | undefined,
         containerRect: DOMRect,
-        tabMap: Map<string, IValueDisposable<Tab>>,
         isVertical: boolean
     ): void {
         const t = 2; // line thickness
-        const color = resolveTabGroupAccent(
-            tg.color,
-            this._ctx.getColorPalette()
-        );
-        if (color === undefined) {
-            underline.style.display = 'none';
-            this._clearContinuationMarkers(tg.id);
-            return;
-        }
-
-        const { runs, firstRun } = this._computeWrappedRuns(
-            tg,
-            containerRect,
-            tabMap,
-            isVertical
-        );
-
-        if (runs.length === 0) {
-            underline.style.display = 'none';
-            this._clearContinuationMarkers(tg.id);
-            return;
-        }
 
         this._positionContinuationMarkers(
             tg.id,
@@ -565,7 +711,7 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
      * instead of losing its colour after the first.
      *
      * `runs` are the group's line-runs (container-relative geometry) as
-     * bucketed by {@link _positionWrappedUnderline}; `firstRun` is the run that
+     * bucketed by {@link _computeWrappedRuns}; `firstRun` is the run that
      * holds the chip and is skipped. The pip sits at each continuation run's
      * main-axis start (top of a column, left of a row), centred on the cross
      * axis.
@@ -636,6 +782,9 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
  * Chrome-style wrap-around indicator using SVG paths.
  */
 export class WrapTabGroupIndicator extends BaseTabGroupIndicator {
+    // Draws a wrap-around bump over the active tab, so it needs its rect.
+    protected readonly _needsActiveRect = true;
+
     private _applyStraightLine(
         svg: SVGSVGElement,
         path: SVGPathElement,
@@ -676,9 +825,10 @@ export class WrapTabGroupIndicator extends BaseTabGroupIndicator {
         groupStart: number,
         groupSpan: number,
         containerCrossSize: number,
-        activePanelId: string | undefined,
+        _activePanelId: string | undefined,
         containerRect: DOMRect,
-        isVertical: boolean
+        isVertical: boolean,
+        activeRect: DOMRect | undefined
     ): void {
         const t = 2; // line thickness in px
         const crossSize = containerCrossSize;
@@ -693,12 +843,6 @@ export class WrapTabGroupIndicator extends BaseTabGroupIndicator {
             return;
         }
         underline.style.display = '';
-
-        // Find the active tab within this group
-        let activeTabEntry: IValueDisposable<Tab> | undefined;
-        if (activePanelId && tg.panelIds.includes(activePanelId)) {
-            activeTabEntry = this._ctx.getTabMap().get(activePanelId);
-        }
 
         // Ensure SVG + path child exists (created once, reused)
         const { svg, path } = this.ensureSvgPath(underline);
@@ -733,7 +877,7 @@ export class WrapTabGroupIndicator extends BaseTabGroupIndicator {
             far = isBottomHeader ? crossSize - inset : inset;
         }
 
-        if (!activeTabEntry) {
+        if (!activeRect) {
             this._applyStraightLine(
                 svg,
                 path,
@@ -745,8 +889,6 @@ export class WrapTabGroupIndicator extends BaseTabGroupIndicator {
             );
             return;
         }
-
-        const activeRect = activeTabEntry.value.element.getBoundingClientRect();
 
         // Compute active tab start/end relative to the group start
         let aStart: number;
@@ -842,6 +984,9 @@ export class WrapTabGroupIndicator extends BaseTabGroupIndicator {
  * group width, with no wrap-around.
  */
 export class NoneTabGroupIndicator extends BaseTabGroupIndicator {
+    // A flat continuous bar — no active-tab bump, so the active rect is unused.
+    protected readonly _needsActiveRect = false;
+
     protected applyShape(
         underline: HTMLElement,
         tg: ITabGroup,
@@ -850,7 +995,8 @@ export class NoneTabGroupIndicator extends BaseTabGroupIndicator {
         _containerCrossSize: number,
         _activePanelId: string | undefined,
         _containerRect: DOMRect,
-        isVertical: boolean
+        isVertical: boolean,
+        _activeRect: DOMRect | undefined
     ): void {
         const t = 2; // line thickness in px
         const color = resolveTabGroupAccent(

@@ -71,6 +71,47 @@ describe('overlayRenderContainer', () => {
         expect(panelContentEl.parentElement?.parentElement).toBeUndefined();
     });
 
+    test('updateAllPositions batches every panel into a single rAF', () => {
+        const cut = new OverlayRenderContainer(
+            parentContainer,
+            fromPartial<DockviewComponent>({})
+        );
+
+        const makePanel = (id: string) =>
+            fromPartial<IDockviewPanel>({
+                api: {
+                    id,
+                    onDidVisibilityChange: new Emitter<any>().event,
+                    onDidDimensionsChange: new Emitter<any>().event,
+                    onDidLocationChange: new Emitter<any>().event,
+                    isVisible: true,
+                    location: { type: 'grid' },
+                },
+                view: { content: { element: document.createElement('div') } },
+                group: { api: { location: { type: 'grid' } } },
+            });
+
+        for (const id of ['a', 'b', 'c']) {
+            cut.attach({
+                panel: makePanel(id),
+                referenceContainer: {
+                    element: document.createElement('div'),
+                    dropTarget: fromPartial<Droptarget>({}),
+                },
+            });
+        }
+
+        const rafSpy = jest.spyOn(window, 'requestAnimationFrame');
+        cut.updateAllPositions();
+
+        // One rAF for the whole batch (read-all-then-write-all), not one per
+        // panel — so no panel's getBoundingClientRect reflows against another
+        // panel's style writes.
+        expect(rafSpy).toHaveBeenCalledTimes(1);
+
+        rafSpy.mockRestore();
+    });
+
     test('add a view that is not currently in the DOM', async () => {
         const cut = new OverlayRenderContainer(
             parentContainer,

@@ -179,8 +179,17 @@ export class FloatingGroupService implements IFloatingGroupService {
     }
 
     constrainBounds(): void {
-        for (const floating of this._floatingGroups) {
-            floating.overlay.setBounds();
+        if (this._floatingGroups.length === 0) {
+            return;
+        }
+        // Measure every overlay (and its container) before applying any clamp,
+        // so the batch costs one reflow rather than one per float.
+        const measured = this._floatingGroups.map((floating) => ({
+            floating,
+            boxes: floating.overlay.measureBoxes(),
+        }));
+        for (const { floating, boxes } of measured) {
+            floating.overlay.applyConstraint(boxes.container, boxes.overlay);
         }
     }
 

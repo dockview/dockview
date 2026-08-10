@@ -6,9 +6,11 @@ import {
     isChildEntirelyVisibleWithinParent,
     isInDocument,
     onDidWindowMoveEnd,
+    parseCssTimeMs,
     prefersReducedMotion,
     quasiDefaultPrevented,
     quasiPreventDefault,
+    resolveCssDurationMs,
     resolveOpaqueBackground,
 } from '../dom';
 
@@ -379,6 +381,51 @@ describe('prefersReducedMotion', () => {
     test('false when matchMedia is unavailable', () => {
         delete (win as { matchMedia?: unknown }).matchMedia;
         expect(prefersReducedMotion(document)).toBe(false);
+    });
+});
+
+describe('parseCssTimeMs', () => {
+    test.each([
+        ['200ms', 200],
+        ['0.2s', 200],
+        ['1s', 1000],
+        ['0', 0],
+        ['  150ms  ', 150],
+        ['.5s', 500],
+    ])('parses %p as %p ms', (value, expected) => {
+        expect(parseCssTimeMs(value, 999)).toBe(expected);
+    });
+
+    test.each([
+        '',
+        '   ',
+        'abc',
+        '10',
+        '10px',
+        'fast',
+    ])('falls back for the unparseable value %p', (value) => {
+        expect(parseCssTimeMs(value, 42)).toBe(42);
+    });
+});
+
+describe('resolveCssDurationMs', () => {
+    test('reads a CSS time custom property from computed style', () => {
+        const el = document.createElement('div');
+        el.style.setProperty('--dv-transition-duration', '0.3s');
+        document.body.appendChild(el);
+        expect(resolveCssDurationMs(el, '--dv-transition-duration', 200)).toBe(
+            300
+        );
+        el.remove();
+    });
+
+    test('falls back when the property is absent', () => {
+        const el = document.createElement('div');
+        document.body.appendChild(el);
+        expect(resolveCssDurationMs(el, '--dv-transition-duration', 175)).toBe(
+            175
+        );
+        el.remove();
     });
 });
 

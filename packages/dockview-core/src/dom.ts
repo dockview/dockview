@@ -573,6 +573,51 @@ export function prefersReducedMotion(doc: Document = document): boolean {
     return !!mq?.matches;
 }
 
+/** Parse a CSS `<time>` value (e.g. `"200ms"`, `"0.2s"`, `"0"`) into
+ *  milliseconds. Returns `fallbackMs` for an empty or unparseable value so a
+ *  scripted animation can mirror a themed CSS transition without hardcoding a
+ *  duration. */
+export function parseCssTimeMs(value: string, fallbackMs: number): number {
+    const trimmed = value.trim();
+    if (trimmed === '') {
+        return fallbackMs;
+    }
+    // Number is either digits with an optional fraction, or a bare fraction
+    // (`.5`). The alternation keeps each digit run owned by exactly one branch,
+    // avoiding the catastrophic backtracking of `\d*\.?\d+`.
+    const match = /^(-?(?:\d+(?:\.\d+)?|\.\d+))(ms|s)?$/.exec(trimmed);
+    if (!match) {
+        return fallbackMs;
+    }
+    const amount = Number.parseFloat(match[1]);
+    if (!Number.isFinite(amount)) {
+        return fallbackMs;
+    }
+    // A unitless value is only valid CSS when it is zero.
+    if (match[2] === undefined) {
+        return amount === 0 ? 0 : fallbackMs;
+    }
+    return match[2] === 's' ? amount * 1000 : amount;
+}
+
+/** Read a CSS `<time>` custom property (e.g. `--dv-transition-duration`) from
+ *  `element`'s resolved style and return it in milliseconds, falling back to
+ *  `fallbackMs` when the property is absent, unparseable, or the element has no
+ *  associated window (e.g. detached documents in tests). Lets a scripted
+ *  animation inherit the theme's timing instead of duplicating it in JS. */
+export function resolveCssDurationMs(
+    element: HTMLElement,
+    property: string,
+    fallbackMs: number
+): number {
+    const win = element.ownerDocument?.defaultView;
+    if (!win) {
+        return fallbackMs;
+    }
+    const raw = win.getComputedStyle(element).getPropertyValue(property);
+    return parseCssTimeMs(raw, fallbackMs);
+}
+
 /** The first opaque computed background colour walking up from `element` (the
  *  element itself, then its ancestors). Use to give a floating/overlapping
  *  surface a non-see-through backdrop derived from the live DOM. Returns `''`

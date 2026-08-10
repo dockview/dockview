@@ -911,4 +911,153 @@ describe('ShellManager', () => {
             shell.dispose();
         });
     });
+
+    describe('layout() primes the resize-observer guard', () => {
+        let observerCallbacks: Array<(entries: any[]) => void>;
+        let originalResizeObserver: typeof window.ResizeObserver;
+
+        beforeEach(() => {
+            observerCallbacks = [];
+            originalResizeObserver = window.ResizeObserver;
+            (window as any).ResizeObserver = class {
+                constructor(cb: (entries: any[]) => void) {
+                    observerCallbacks.push(cb);
+                }
+                observe(): void {
+                    /* noop */
+                }
+                unobserve(): void {
+                    /* noop */
+                }
+                disconnect(): void {
+                    /* noop */
+                }
+            };
+            jest.spyOn(window, 'requestAnimationFrame').mockImplementation(
+                (cb) => {
+                    (cb as FrameRequestCallback)(0);
+                    return 1;
+                }
+            );
+        });
+
+        afterEach(() => {
+            window.ResizeObserver = originalResizeObserver;
+            jest.restoreAllMocks();
+        });
+
+        function fireResize(width: number, height: number): void {
+            for (const cb of observerCallbacks) {
+                cb([{ contentRect: { width, height } }]);
+            }
+        }
+
+        function makeVisibleShell(): ShellManager {
+            const shell = new ShellManager(
+                container,
+                dockviewElement,
+                layoutGrid
+            );
+            Object.defineProperty(shell.element, 'offsetParent', {
+                configurable: true,
+                get: () => document.body,
+            });
+            return shell;
+        }
+
+        test('a direct layout() suppresses the observer duplicate at that same size', () => {
+            const shell = makeVisibleShell();
+            fireResize(1000, 800);
+            expect(layoutGrid).toHaveBeenCalled();
+
+            // An app drives a new size synchronously from its own
+            // ResizeObserver, ahead of the shell's rAF-deferred observer.
+            layoutGrid.mockClear();
+            shell.layout(1200, 900);
+            expect(layoutGrid).toHaveBeenCalled();
+
+            // The shell's observer then reports the same new size: it must
+            // short-circuit rather than lay out a second time.
+            layoutGrid.mockClear();
+            fireResize(1200, 900);
+            expect(layoutGrid).not.toHaveBeenCalled();
+
+            shell.dispose();
+        });
+
+        test('the observer still lays out when the size genuinely changes', () => {
+            const shell = makeVisibleShell();
+            fireResize(1000, 800);
+            shell.layout(1200, 900);
+
+            layoutGrid.mockClear();
+            fireResize(1300, 950);
+            expect(layoutGrid).toHaveBeenCalled();
+
+            shell.dispose();
+        });
+
+        test('getGridOffset reports the edge-group inset from splitview state (no measurement)', () => {
+            const shell = new ShellManager(
+                container,
+                dockviewElement,
+                layoutGrid,
+                0 // gap 0 so the offset equals the edge size exactly
+            );
+            shell.layout(1000, 800);
+
+            // No edge groups → grid fills the shell.
+            expect(shell.getGridOffset()).toEqual({ left: 0, top: 0 });
+
+            // A 250px left edge insets the grid by 250 on x; a 120px top edge by
+            // 120 on y. addEdgeView re-lays out at the current size, so the
+            // splitview has recomputed offsets by the time we read them.
+            shell.addEdgeView(
+                'left',
+                { id: 'left', initialSize: 250 },
+                makeGroup()
+            );
+            shell.addEdgeView(
+                'top',
+                { id: 'top', initialSize: 120 },
+                makeGroup()
+            );
+
+            expect(shell.getGridOffset()).toEqual({ left: 250, top: 120 });
+
+            // getGridOffset reads live splitview state, not a cache: a change to
+            // an edge's size — a collapse, or a collapsed edge's tab strip
+            // resizing from overflow / a tab-height change (which fires
+            // EdgeGroupView.onDidChange -> splitview relayout) — is reflected on
+            // the next read. The relayout that moves the grid also re-runs
+            // _syncFloatingOverlayHost, so the host follows.
+            shell.setEdgeGroupCollapsed('left', true);
+            expect(shell.getGridOffset().left).toBe(35); // default collapsedSize
+            expect(shell.getGridOffset().top).toBe(120); // top edge unchanged
+
+            shell.dispose();
+        });
+
+        test('a repeat layout() at the same size is a no-op by construction; forceResize overrides', () => {
+            const shell = makeVisibleShell();
+
+            // First layout at a size runs and reports it laid out.
+            expect(shell.layout(1000, 800)).toBe(true);
+
+            // A duplicate call at the same rounded size does nothing — the base
+            // gridview's "dimensions unchanged -> skip" contract, now honoured
+            // by the shell wrapper too. No caller-side guard required.
+            layoutGrid.mockClear();
+            expect(shell.layout(1000, 800)).toBe(false);
+            expect(shell.layout(1000.4, 799.8)).toBe(false); // rounds equal
+            expect(layoutGrid).not.toHaveBeenCalled();
+
+            // forceResize re-runs it (used by structural re-flows that keep the
+            // outer size, e.g. updateTheme).
+            expect(shell.layout(1000, 800, true)).toBe(true);
+            expect(layoutGrid).toHaveBeenCalled();
+
+            shell.dispose();
+        });
+    });
 });

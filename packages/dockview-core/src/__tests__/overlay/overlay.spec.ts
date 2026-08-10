@@ -314,6 +314,107 @@ describe('overlay', () => {
         cut.dispose();
     });
 
+    test('measureBoxes reads the boxes and applyConstraint clamps, top left', () => {
+        const container = document.createElement('div');
+        const content = document.createElement('div');
+        document.body.appendChild(container);
+        container.appendChild(content);
+
+        const cut = new Overlay({
+            height: 100,
+            width: 100,
+            left: 0,
+            top: 0,
+            container,
+            content,
+        });
+
+        const element: HTMLElement = container.querySelector(
+            '.dv-resize-container'
+        )!;
+
+        // overlay sits beyond the container's right/bottom edge, so the batched
+        // read-then-write clamps it back inside on the top/left axes.
+        jest.spyOn(element, 'getBoundingClientRect').mockImplementation(() =>
+            mockGetBoundingClientRect({
+                left: 300,
+                top: 400,
+                width: 40,
+                height: 50,
+            })
+        );
+        jest.spyOn(container, 'getBoundingClientRect').mockImplementation(() =>
+            mockGetBoundingClientRect({
+                left: 0,
+                top: 0,
+                width: 100,
+                height: 100,
+            })
+        );
+
+        const { container: containerRect, overlay: overlayRect } =
+            cut.measureBoxes();
+        expect(containerRect.width).toBe(100);
+        expect(overlayRect.width).toBe(40);
+
+        cut.applyConstraint(containerRect, overlayRect);
+
+        // clamped to the maximum in-bounds offset: 100 - height/width
+        expect(element.style.top).toBe('50px');
+        expect(element.style.left).toBe('60px');
+
+        cut.dispose();
+    });
+
+    test('measureBoxes + applyConstraint clamp, bottom right', () => {
+        const container = document.createElement('div');
+        const content = document.createElement('div');
+        document.body.appendChild(container);
+        container.appendChild(content);
+
+        const cut = new Overlay({
+            height: 100,
+            width: 100,
+            right: 0,
+            bottom: 0,
+            container,
+            content,
+        });
+
+        const element: HTMLElement = container.querySelector(
+            '.dv-resize-container'
+        )!;
+
+        jest.spyOn(element, 'getBoundingClientRect').mockImplementation(() =>
+            mockGetBoundingClientRect({
+                left: -50,
+                top: -50,
+                width: 40,
+                height: 50,
+            })
+        );
+        jest.spyOn(container, 'getBoundingClientRect').mockImplementation(() =>
+            mockGetBoundingClientRect({
+                left: 0,
+                top: 0,
+                width: 100,
+                height: 100,
+            })
+        );
+
+        const { container: containerRect, overlay: overlayRect } =
+            cut.measureBoxes();
+        cut.applyConstraint(containerRect, overlayRect);
+
+        // the bottom/right alignment writes the clamped bottom/right offsets
+        expect(element.style.bottom).toBe('50px');
+        expect(element.style.right).toBe('60px');
+        expect(element.style.top).toBe('auto');
+        expect(element.style.left).toBe('auto');
+
+        cut.dispose();
+    });
+
     test('that the resize handles are added', () => {
         const container = document.createElement('div');
         const content = document.createElement('div');

@@ -2699,6 +2699,13 @@ export class DockviewComponent
                 ? new FloatingTitleBar(this, anchorGroup)
                 : undefined;
 
+        // Position/size the overlay host now, before the Overlay constructor
+        // clamps its bounds against it. layout()'s sync is skipped while there
+        // are no floating groups, and this group isn't registered yet,
+        // so force the sync — otherwise the first float clamps against a
+        // never-synced host (wrong box, e.g. under edge-group inset).
+        this._syncFloatingOverlayHost(true);
+
         const overlay = new Overlay({
             container: this._floatingOverlayHost ?? this.gridview.element,
             content: floatingGridview.element,
@@ -2911,7 +2918,11 @@ export class DockviewComponent
         forceResize?: boolean | undefined
     ): void {
         if (this._shellManager && !this._inShellLayout) {
-            this._shellManager.layout(width, height);
+            // A repeat call at the same size is a no-op; skip the post-layout
+            // work too, since nothing moved.
+            if (!this._shellManager.layout(width, height, forceResize)) {
+                return;
+            }
         } else {
             super.layout(width, height, forceResize);
         }
@@ -2923,17 +2934,38 @@ export class DockviewComponent
         this._moduleRegistry?.services.floatingGroupService?.constrainBounds();
     }
 
-    private _syncFloatingOverlayHost(): void {
-        if (!this._floatingOverlayHost || !this._shellManager) {
+    private _syncFloatingOverlayHost(force = false): void {
+        const host = this._floatingOverlayHost;
+        if (!host || !this._shellManager) {
             return;
         }
-        const shellRect = this._shellManager.element.getBoundingClientRect();
-        const gridRect = this.element.getBoundingClientRect();
-        const host = this._floatingOverlayHost;
-        host.style.left = `${gridRect.left - shellRect.left}px`;
-        host.style.top = `${gridRect.top - shellRect.top}px`;
-        host.style.width = `${gridRect.width}px`;
-        host.style.height = `${gridRect.height}px`;
+        // With no floating groups the host is empty, so its geometry is
+        // unobservable — skip it. `force` (from `_doAddFloatingGroup` while
+        // adding the first float, before it is registered) positions the host
+        // before the new Overlay clamps its bounds against it.
+        if (
+            !force &&
+            !this._moduleRegistry?.services.floatingGroupService?.floatingGroups
+                .length
+        ) {
+            return;
+        }
+
+        // Mirror the grid's box within the shell without measuring: its size is
+        // the gridview's known dimensions, and its offset is 0 unless edge
+        // groups inset it — in which case the inset comes from the shell's
+        // splitview state, not getBoundingClientRect. Writes alone don't force a
+        // reflow.
+        const width = this.gridview.width;
+        const height = this.gridview.height;
+        const { left, top } = this._shellManager.hasAnyEdgeGroup()
+            ? this._shellManager.getGridOffset()
+            : { left: 0, top: 0 };
+
+        host.style.left = `${left}px`;
+        host.style.top = `${top}px`;
+        host.style.width = `${width}px`;
+        host.style.height = `${height}px`;
     }
 
     private _layoutFromShell(width: number, height: number): void {

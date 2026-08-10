@@ -227,9 +227,27 @@ export class Overlay extends CompositeDisposable {
             this.horiziontalAlignment = 'right';
         }
 
-        const containerRect = this.options.container.getBoundingClientRect();
-        const overlayRect = this._element.getBoundingClientRect();
+        const { container, overlay } = this.measureBoxes();
+        this.applyConstraint(container, overlay);
+    }
 
+    /**
+     * Read the overlay's own box and its container's box, so a batched caller
+     * can measure every floating overlay before writing any clamp.
+     */
+    measureBoxes(): { container: DOMRect; overlay: DOMRect } {
+        return {
+            container: this.options.container.getBoundingClientRect(),
+            overlay: this._element.getBoundingClientRect(),
+        };
+    }
+
+    /**
+     * Clamp the overlay within its container and write the result. Pure writes
+     * given pre-measured boxes (no geometry reads), so it can run in a batched
+     * write pass after all overlays have been measured.
+     */
+    applyConstraint(containerRect: DOMRect, overlayRect: DOMRect): void {
         // region: ensure bounds within allowable limits
 
         // a minimum width of minimumViewportWidth must be inside the viewport

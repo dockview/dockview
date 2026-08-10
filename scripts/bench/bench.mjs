@@ -22,11 +22,12 @@
  *   DOCKVIEW_BENCH_GROUPS   dockview groups           (default 24)
  *   DOCKVIEW_BENCH_TABS     tabbed panels per group   (default 3)
  *   DOCKVIEW_BENCH_REPS     repetitions, median taken (default 5)
+ *   DOCKVIEW_BENCH_OUT      write a Markdown report to this path (repo-relative)
  *
  * See ./README.md for interpretation notes.
  */
 import { chromium } from '@playwright/test';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 
@@ -143,6 +144,68 @@ function pageHarness(groups, tabs) {
         return performance.now() - t0;
     };
 
+    // #1585: repeated layout() at the SAME size. A resize observer (dockview's
+    // own, or the app's) commonly re-reports an unchanged box, and apps often
+    // call layout() defensively. The base gridview has always skipped an
+    // unchanged size, but the shell wrapper used to bypass that and re-run the
+    // whole recursive layout every time. This should now early-out to ~nothing.
+    window.__dupLayoutStorm = (iters) => {
+        const t0 = performance.now();
+        for (let i = 0; i < iters; i++) {
+            api.layout(1400, 900);
+        }
+        void host.offsetHeight;
+        return performance.now() - t0;
+    };
+
+    // #1585: a layout() storm with NO explicit geometry read of its own. Models
+    // an app animating a container's size (e.g. a sidebar) where the app itself
+    // never reads layout back. Any *forced* synchronous Layout the trace records
+    // here therefore comes purely from dockview reading geometry back mid-layout
+    // — the `_syncFloatingOverlayHost` getBoundingClientRect pair. With the
+    // #1585 fix in place and no floating groups present, this should force
+    // ~zero synchronous layout (the browser batches the writes into one natural
+    // end-of-frame layout instead of ~one forced reflow per call).
+    window.__layoutStorm = (iters) => {
+        const t0 = performance.now();
+        for (let i = 0; i < iters; i++) {
+            api.layout(1200 + ((i * 37) % 700), 800 + ((i * 53) % 400));
+        }
+        // A single read at the very end flushes the last frame's writes so wall
+        // time includes one honest layout, not zero.
+        void host.offsetHeight;
+        return performance.now() - t0;
+    };
+
+    // #1585 audit: N floating groups + a layout() storm. Every layout() runs
+    // FloatingGroupService.constrainBounds, which clamps each floating overlay.
+    // Before the two-pass fix each float measured (getBoundingClientRect) after
+    // the previous float's write, so N floats meant N forced reflows per layout;
+    // after, all overlays are measured up front then clamped — one reflow. Floats
+    // are added lazily on first call so the earlier (no-float) workloads are
+    // unaffected; no trailing self-read, so any forced Layout the trace records
+    // comes from constrainBounds itself.
+    let floatsAdded = false;
+    window.__floatConstrainStorm = (iters) => {
+        if (!floatsAdded) {
+            for (let i = 0; i < 8; i++) {
+                api.addPanel({
+                    id: `float_${i}`,
+                    component: 'default',
+                    floating: true,
+                });
+            }
+            floatsAdded = true;
+            api.layout(1600, 1000);
+        }
+        const t0 = performance.now();
+        for (let i = 0; i < iters; i++) {
+            api.layout(1200 + ((i * 37) % 700), 800 + ((i * 53) % 400));
+        }
+        void host.offsetHeight;
+        return performance.now() - t0;
+    };
+
     // Sash drag: dispatch a real pointer drag on a top-level group boundary.
     window.__sashDrag = (iters) => {
         const sash = host.querySelector('.dv-sash-container > .dv-sash');
@@ -211,10 +274,27 @@ function parseTrace(events) {
     };
 }
 
+// Total bytes attributed to a CDP HeapProfiler sampling profile (sum of every
+// node's selfSize). This counts *allocations* over the run — the deterministic
+// proxy for GC pressure — regardless of whether they were later collected, so
+// it captures transient per-frame garbage (e.g. arrays rebuilt each frame) that
+// a heap-size delta would miss because it's already been GC'd.
+function sumAlloc(node) {
+    let total = node.selfSize || 0;
+    for (const child of node.children || []) {
+        total += sumAlloc(child);
+    }
+    return total;
+}
+
 async function traced(page, client, which, iters) {
     const events = [];
     const onData = (p) => events.push(...p.value);
     client.on('Tracing.dataCollected', onData);
+    // Allocation sampling runs alongside the timeline trace (separate CDP
+    // domain). A small interval samples finely enough to compare workloads.
+    await client.send('HeapProfiler.enable');
+    await client.send('HeapProfiler.startSampling', { samplingInterval: 4096 });
     await client.send('Tracing.start', {
         traceConfig: {
             includedCategories: [
@@ -225,10 +305,14 @@ async function traced(page, client, which, iters) {
         transferMode: 'ReportEvents',
     });
     const wallMs = await page.evaluate(
-        ({ which, iters }) =>
-            which === 'resize'
-                ? window.__resizeStorm(iters)
-                : window.__sashDrag(iters),
+        ({ which, iters }) => {
+            if (which === 'resize') return window.__resizeStorm(iters);
+            if (which === 'layout') return window.__layoutStorm(iters);
+            if (which === 'duplayout') return window.__dupLayoutStorm(iters);
+            if (which === 'constrain')
+                return window.__floatConstrainStorm(iters);
+            return window.__sashDrag(iters);
+        },
         { which, iters }
     );
     await new Promise((res) => {
@@ -236,7 +320,10 @@ async function traced(page, client, which, iters) {
         client.send('Tracing.end');
     });
     client.off('Tracing.dataCollected', onData);
-    return { wallMs, ...parseTrace(events) };
+    const { profile } = await client.send('HeapProfiler.stopSampling');
+    await client.send('HeapProfiler.disable');
+    const allocKB = sumAlloc(profile.head) / 1024;
+    return { wallMs, ...parseTrace(events), allocKB };
 }
 
 async function benchBundle(bundlePath) {
@@ -245,7 +332,14 @@ async function benchBundle(bundlePath) {
         executablePath: process.env.DOCKVIEW_BENCH_CHROME || undefined,
         args: ['--no-sandbox'],
     });
-    const runs = { emit: [], resize: [], drag: [] };
+    const runs = {
+        emit: [],
+        duplayout: [],
+        layout: [],
+        resize: [],
+        drag: [],
+        constrain: [],
+    };
     try {
         for (let rep = 0; rep < REPS; rep++) {
             const page = await browser.newPage();
@@ -259,8 +353,17 @@ async function benchBundle(bundlePath) {
             runs.emit.push(
                 await page.evaluate((n) => window.__emitterBench(n), EMIT_FIRES)
             );
+            runs.duplayout.push(
+                await traced(page, client, 'duplayout', RESIZE_ITERS)
+            );
+            runs.layout.push(await traced(page, client, 'layout', RESIZE_ITERS));
             runs.resize.push(await traced(page, client, 'resize', RESIZE_ITERS));
             runs.drag.push(await traced(page, client, 'drag', DRAG_ITERS));
+            // Runs last: it adds floating groups, which would change the earlier
+            // no-float workloads.
+            runs.constrain.push(
+                await traced(page, client, 'constrain', RESIZE_ITERS)
+            );
             await client.detach();
             await page.close();
         }
@@ -275,12 +378,18 @@ async function benchBundle(bundlePath) {
     };
     return {
         emit: summarize(runs.emit),
+        duplayout: summarize(runs.duplayout),
+        layout: summarize(runs.layout),
         resize: summarize(runs.resize),
         drag: summarize(runs.drag),
+        constrain: summarize(runs.constrain),
     };
 }
 
 const ms = (n) => `${n.toFixed(1)}ms`.padStart(11);
+const kb = (n) => `${n.toFixed(0)}KB`.padStart(11);
+// Unit-aware cell for the A/B table (allocKB is bytes, the rest are ms).
+const cell = (k, n) => (k === 'allocKB' ? kb(n) : ms(n));
 const delta = (base, next) => {
     if (base === 0) return 'n/a'.padStart(9);
     const sign = base >= next ? '-' : '+';
@@ -294,12 +403,15 @@ function reportSingle(name, r) {
             `0 listeners ${ms(r.emit.zero)}  1 listener ${ms(r.emit.one)}  2 listeners ${ms(r.emit.two)}`
     );
     for (const [wl, label] of [
+        ['duplayout', `duplicate layout() same size (${RESIZE_ITERS} calls) [#1585]`],
+        ['layout', `layout() storm, no self-read (${RESIZE_ITERS} calls) [#1585]`],
         ['resize', `window-resize (${RESIZE_ITERS} relayouts)`],
         ['drag', `sash drag (${DRAG_ITERS} moves)`],
+        ['constrain', `8 floats + layout() storm (${RESIZE_ITERS}) [#1585 audit]`],
     ]) {
         const m = r[wl];
         console.log(
-            `${label}: wall ${ms(m.wallMs)}  layout ${ms(m.layoutMs)}  recalc ${ms(m.recalcMs)}  gc ${ms(m.gcMs)}`
+            `${label}: wall ${ms(m.wallMs)}  layout ${ms(m.layoutMs)}  recalc ${ms(m.recalcMs)}  gc ${ms(m.gcMs)}  alloc ${kb(m.allocKB)}`
         );
     }
 }
@@ -325,16 +437,19 @@ function reportAB(a, b) {
         );
     }
     for (const [wl, label] of [
+        ['duplayout', `DUPLICATE LAYOUT() same size (${RESIZE_ITERS} calls) [#1585]`],
+        ['layout', `LAYOUT() STORM, no self-read (${RESIZE_ITERS} calls) [#1585]`],
         ['resize', `WINDOW-RESIZE (${RESIZE_ITERS} relayouts)`],
         ['drag', `SASH DRAG (${DRAG_ITERS} moves)`],
+        ['constrain', `8 FLOATS + LAYOUT() STORM (${RESIZE_ITERS}) [#1585 audit]`],
     ]) {
         console.log(`\n${label}\n  metric        base       branch     change`);
-        for (const k of ['wallMs', 'layoutMs', 'recalcMs', 'gcMs']) {
+        for (const k of ['wallMs', 'layoutMs', 'recalcMs', 'gcMs', 'allocKB']) {
             console.log(
                 '  ' +
                     k.padEnd(12) +
-                    ms(a[wl][k]) +
-                    ms(b[wl][k]) +
+                    cell(k, a[wl][k]) +
+                    cell(k, b[wl][k]) +
                     delta(a[wl][k], b[wl][k])
             );
         }
@@ -342,6 +457,75 @@ function reportAB(a, b) {
     console.log(
         '\nwall = JS time incl. forced reflow; layout/recalc/gc = Chrome timeline totals.'
     );
+}
+
+// ---------------------------------------------------------------------------
+// Markdown report file (DOCKVIEW_BENCH_OUT=path). Single-bundle writes absolute
+// numbers; two-bundle writes the A/B table. Makes `yarn bench` produce a
+// checked-in-able artifact, not just console output.
+// ---------------------------------------------------------------------------
+const WORKLOADS = [
+    ['duplayout', `duplicate layout() at the same size (${RESIZE_ITERS} calls) — #1585`],
+    ['layout', `layout() storm, no self-read (${RESIZE_ITERS} calls) — #1585`],
+    ['resize', `window-resize (${RESIZE_ITERS} relayouts)`],
+    ['drag', `sash drag (${DRAG_ITERS} moves)`],
+    ['constrain', `8 floats + layout() storm (${RESIZE_ITERS}) — #1585 audit`],
+];
+
+function reportMarkdown(bundles, results) {
+    const n1 = (x) => x.toFixed(1);
+    const lines = [];
+    lines.push('# dockview-core performance report');
+    lines.push('');
+    lines.push(
+        `Workbench: **${GROUPS} groups / ${GROUPS * TABS} panels**, median of ${REPS} reps. ` +
+            'Timeline totals captured over CDP tracing (Chrome DevTools categories).'
+    );
+    lines.push('');
+    lines.push(
+        '`wall` = JS wall time incl. any forced reflow; `layout`/`recalc`/`gc` = ' +
+            'Chrome timeline totals (ms) for Layout / UpdateLayoutTree+RecalculateStyles / GC.'
+    );
+    lines.push('');
+
+    if (results.length === 1) {
+        const r = results[0];
+        lines.push(`Bundle: \`${bundles[0]}\``);
+        lines.push('');
+        lines.push(
+            `**Emitter.fire** (${EMIT_FIRES.toLocaleString()} fires): ` +
+                `0 listeners ${n1(r.emit.zero)}ms · 1 listener ${n1(r.emit.one)}ms · 2 listeners ${n1(r.emit.two)}ms`
+        );
+        lines.push('');
+        lines.push('| workload | wall | layout | recalc | gc | alloc |');
+        lines.push('| --- | ---: | ---: | ---: | ---: | ---: |');
+        for (const [wl, label] of WORKLOADS) {
+            const m = r[wl];
+            lines.push(
+                `| ${label} | ${n1(m.wallMs)}ms | ${n1(m.layoutMs)}ms | ${n1(m.recalcMs)}ms | ${n1(m.gcMs)}ms | ${m.allocKB.toFixed(0)}KB |`
+            );
+        }
+    } else {
+        const [a, b] = results;
+        lines.push(`base: \`${bundles[0]}\` · branch: \`${bundles[1]}\``);
+        lines.push('');
+        for (const [wl, label] of WORKLOADS) {
+            lines.push(`### ${label}`);
+            lines.push('');
+            lines.push('| metric | base | branch | change |');
+            lines.push('| --- | ---: | ---: | ---: |');
+            for (const k of ['wallMs', 'layoutMs', 'recalcMs', 'gcMs', 'allocKB']) {
+                const unit = k === 'allocKB' ? 'KB' : 'ms';
+                const digits = k === 'allocKB' ? 0 : 1;
+                lines.push(
+                    `| ${k.replace('Ms', '').replace('allocKB', 'alloc')} | ${a[wl][k].toFixed(digits)}${unit} | ${b[wl][k].toFixed(digits)}${unit} | ${delta(a[wl][k], b[wl][k]).trim()} |`
+                );
+            }
+            lines.push('');
+        }
+    }
+    lines.push('');
+    return lines.join('\n');
 }
 
 async function main() {
@@ -357,14 +541,23 @@ async function main() {
         }
     }
 
+    let results;
     if (bundles.length === 1) {
-        reportSingle(bundles[0], await benchBundle(bundles[0]));
+        results = [await benchBundle(bundles[0])];
+        reportSingle(bundles[0], results[0]);
     } else {
-        const [a, b] = [
+        results = [
             await benchBundle(bundles[0]),
             await benchBundle(bundles[1]),
         ];
-        reportAB(a, b);
+        reportAB(results[0], results[1]);
+    }
+
+    const outPath = process.env.DOCKVIEW_BENCH_OUT;
+    if (outPath) {
+        const resolved = resolve(REPO_ROOT, outPath);
+        writeFileSync(resolved, reportMarkdown(bundles, results));
+        console.log(`\nreport written: ${resolved}`);
     }
 }
 
