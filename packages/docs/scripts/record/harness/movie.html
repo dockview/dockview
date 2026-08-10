@@ -1,0 +1,981 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Dockview — moneyshot stage</title>
+        <link
+            rel="stylesheet"
+            href="/packages/dockview-core/dist/styles/dockview.css"
+        />
+        <style>
+            /*
+             * Cinematic "moneyshot" stage for the marketing reel (driven by
+             * scripts/record/storyboards.mjs). Dockview mounts FULL-VIEWPORT so
+             * its own chrome fills the frame; branding (captions, end-card,
+             * dual-monitor bezels) is layered as absolute overlays that never
+             * nest/resize the dock. Trading widgets are premium but muted so the
+             * docking motion — not the contents — is the star.
+             */
+            :root {
+                color-scheme: dark;
+                --ink: #dfe7f5;
+                --dim: #8ea2c4;
+                --up: #34d399;
+                --down: #f87171;
+                --accent: #6f9bff;
+            }
+            html,
+            body {
+                margin: 0;
+                height: 100%;
+                width: 100%;
+                overflow: hidden;
+                background: radial-gradient(
+                        1400px 800px at 50% -10%,
+                        rgba(52, 78, 140, 0.16),
+                        transparent 60%
+                    ),
+                    linear-gradient(160deg, #090c14 0%, #06080f 60%, #05070d 100%);
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
+                    Roboto, sans-serif;
+            }
+            /* Full-bleed wrapper — carries the zoom / dual-monitor transforms
+               so their maths stay in viewport space. */
+            #dockwrap {
+                position: absolute;
+                inset: 0;
+            }
+            /* The dockview sits INSIDE a modern render frame (inset + rounded +
+               shadow) so the tab header never touches the viewport edge and the
+               whole thing reads as a polished app window. */
+            #dock {
+                position: absolute;
+                inset: 2.6%;
+                border-radius: 14px;
+                overflow: hidden;
+                box-shadow: 0 40px 120px rgba(0, 0, 0, 0.55),
+                    0 0 0 1px rgba(255, 255, 255, 0.08);
+            }
+            #dock .dv-groupview,
+            #dock .dv-tabs-and-actions-container,
+            #dock .dv-tab,
+            #dock .dv-content-container,
+            #dock .dv-resize-container,
+            #dock .panel {
+                transition: background-color 700ms ease, color 700ms ease,
+                    border-color 700ms ease;
+            }
+            /* Floating groups get a richer shadow so a lift reads as depth. */
+            #dock .dv-resize-container {
+                box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6),
+                    0 4px 14px rgba(0, 0, 0, 0.5);
+            }
+            /* Highlight ring on the panel being manipulated. */
+            #dock .dv-groupview.movie-highlight {
+                outline: 2px solid var(--accent);
+                outline-offset: -2px;
+                box-shadow: 0 0 0 2px rgba(111, 155, 255, 0.35),
+                    0 0 40px rgba(111, 155, 255, 0.25);
+            }
+
+            /* ---- panel content (muted, premium) ---- */
+            .panel {
+                height: 100%;
+                box-sizing: border-box;
+                overflow: hidden;
+                color: var(--ink);
+                font-size: 12px;
+                position: relative;
+                animation: panelIn 420ms ease both;
+            }
+            @keyframes panelIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(6px) scale(0.995);
+                }
+                to {
+                    opacity: 1;
+                    transform: none;
+                }
+            }
+            .panel canvas {
+                display: block;
+                width: 100%;
+                height: 100%;
+            }
+            .pad {
+                padding: 10px 12px;
+                height: 100%;
+                box-sizing: border-box;
+            }
+            .muted {
+                color: var(--dim);
+            }
+            .up {
+                color: var(--up);
+            }
+            .down {
+                color: var(--down);
+            }
+            .mono {
+                font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            }
+            .row {
+                display: flex;
+                justify-content: space-between;
+                padding: 3px 0;
+            }
+            table.grid {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 11.5px;
+            }
+            table.grid th {
+                text-align: left;
+                color: var(--dim);
+                font-weight: 500;
+                padding: 3px 8px;
+                position: sticky;
+                top: 0;
+            }
+            table.grid td {
+                padding: 3px 8px;
+                border-top: 1px solid rgba(255, 255, 255, 0.04);
+            }
+            /* Branded empty-group watermark */
+            .movie-watermark {
+                position: absolute;
+                inset: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                user-select: none;
+            }
+            .movie-watermark .mw-mark {
+                font-size: 26px;
+                font-weight: 700;
+                letter-spacing: -0.02em;
+                color: rgba(255, 255, 255, 0.16);
+            }
+            .movie-watermark .mw-sub {
+                font-size: 12px;
+                color: var(--dim);
+                opacity: 0.7;
+            }
+
+            /* ---- caption overlay ---- */
+            #caption {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 8%;
+                text-align: center;
+                pointer-events: none;
+                z-index: 40;
+                opacity: 0;
+                transition: opacity 380ms ease, transform 380ms ease;
+                transform: translateY(10px);
+            }
+            #caption.show {
+                opacity: 1;
+                transform: none;
+            }
+            #caption .word {
+                display: inline-block;
+                font-size: 40px;
+                font-weight: 650;
+                letter-spacing: -0.02em;
+                color: #fff;
+                text-shadow: 0 2px 20px rgba(0, 0, 0, 0.7);
+            }
+            #caption .sub {
+                margin-top: 6px;
+                font-size: 15px;
+                color: var(--dim);
+            }
+
+            /* ---- feature checklist (zoomed "within a group" segment) ---- */
+            #featurelist {
+                position: absolute;
+                left: 5%;
+                top: 50%;
+                transform: translateY(-50%) translateX(-16px);
+                z-index: 42;
+                pointer-events: none;
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+                padding: 30px 34px;
+                border-radius: 16px;
+                background: linear-gradient(
+                    100deg,
+                    rgba(5, 7, 13, 0.9),
+                    rgba(5, 7, 13, 0.66)
+                );
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+                opacity: 0;
+                transition: opacity 400ms ease, transform 400ms ease;
+            }
+            #featurelist.show {
+                opacity: 1;
+                transform: translateY(-50%);
+            }
+            #featurelist::before {
+                content: 'Within a group';
+                font-size: 13px;
+                font-weight: 500;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--accent);
+                margin-bottom: 4px;
+            }
+            #featurelist .fl-item {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                font-size: 22px;
+                font-weight: 550;
+                color: rgba(255, 255, 255, 0.32);
+                transition: color 300ms ease, transform 300ms ease;
+            }
+            #featurelist .fl-item.done {
+                color: rgba(255, 255, 255, 0.6);
+            }
+            #featurelist .fl-item.active {
+                color: #fff;
+                transform: translateX(4px);
+            }
+            #featurelist .fl-dot {
+                width: 20px;
+                height: 20px;
+                border-radius: 50%;
+                border: 2px solid rgba(255, 255, 255, 0.25);
+                flex: none;
+                position: relative;
+                transition: border-color 300ms ease, background 300ms ease;
+            }
+            #featurelist .fl-item.active .fl-dot {
+                border-color: var(--accent);
+                box-shadow: 0 0 16px rgba(111, 155, 255, 0.5);
+            }
+            #featurelist .fl-item.done .fl-dot {
+                background: var(--accent);
+                border-color: var(--accent);
+            }
+            #featurelist .fl-item.done .fl-dot::after {
+                content: '';
+                position: absolute;
+                left: 5px;
+                top: 2px;
+                width: 5px;
+                height: 9px;
+                border: solid #0b0e14;
+                border-width: 0 2px 2px 0;
+                transform: rotate(45deg);
+            }
+
+            /* Wrapper carries the transform for the dual-monitor "shrink into
+               screen 1" move + the zoom-to-group focus. */
+            #dockwrap {
+                /* Gentle, slightly slow ease with a soft landing — reads as a
+                   deliberate camera move rather than a snap. */
+                transition: transform 1050ms cubic-bezier(0.32, 0.04, 0.15, 1);
+                transform-origin: 0 0;
+            }
+            /* Solo mode — fade every group except the focused one (+ sashes) so
+               only a single group is visible during the "within a group" beat. */
+            #dock .dv-groupview {
+                transition: opacity 380ms ease, background-color 700ms ease,
+                    color 700ms ease, border-color 700ms ease;
+            }
+            /* Solid dark fill so the faded (hidden) groups read as clean black
+               rather than revealing the layout structure behind them. */
+            #dockwrap.movie-solo {
+                background: #05070d;
+            }
+            #dockwrap.movie-solo #dock {
+                box-shadow: none;
+            }
+            #dockwrap.movie-solo .dv-groupview {
+                opacity: 0;
+            }
+            #dockwrap.movie-solo .dv-groupview.movie-solo-target {
+                opacity: 1;
+                border-radius: 12px;
+                overflow: hidden;
+                box-shadow: 0 40px 120px rgba(0, 0, 0, 0.7),
+                    0 0 0 1.5px rgba(255, 255, 255, 0.14);
+            }
+            #dockwrap.movie-solo .dv-sash {
+                opacity: 0;
+            }
+
+            /* ---- dual-monitor overlay (popout beat) ---- */
+            #dualmon {
+                position: absolute;
+                inset: 0;
+                z-index: 30;
+                display: none;
+                pointer-events: none;
+                /* Transparent so the workspace (transformed into Monitor 1)
+                   shows through; the body black fills the rest. */
+                background: transparent;
+                opacity: 0;
+                transition: opacity 500ms ease;
+            }
+            #dualmon.show {
+                display: flex;
+                opacity: 1;
+                align-items: center;
+                justify-content: center;
+                gap: 5%;
+                padding: 6%;
+                box-sizing: border-box;
+            }
+            #dualmon .screen {
+                position: relative;
+                flex: 1;
+                max-width: 46%;
+                aspect-ratio: 16/9;
+                border-radius: 12px;
+                border: 2px solid rgba(255, 255, 255, 0.14);
+                background: transparent;
+                box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+            }
+            #dualmon .screen::after {
+                content: attr(data-label);
+                position: absolute;
+                bottom: -26px;
+                left: 0;
+                right: 0;
+                text-align: center;
+                font-size: 12px;
+                color: var(--dim);
+            }
+            #dualmon .win-card {
+                position: absolute;
+                inset: 8% 8% 8% 8%;
+                border-radius: 8px;
+                overflow: hidden;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                background: #0d1220;
+                box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+                display: flex;
+                flex-direction: column;
+                opacity: 0;
+                transform: translateX(-140%) scale(0.9);
+                transition: transform 700ms cubic-bezier(0.4, 0, 0.2, 1),
+                    opacity 400ms ease;
+            }
+            #dualmon .win-card.in {
+                opacity: 1;
+                transform: none;
+            }
+            #dualmon .win-bar {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                height: 30px;
+                flex: none;
+                padding: 0 10px;
+                background: linear-gradient(180deg, #232a38, #1b212d);
+            }
+            #dualmon .win-bar .dots {
+                display: flex;
+                gap: 6px;
+            }
+            #dualmon .win-bar .dots i {
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                background: #465;
+                display: inline-block;
+            }
+            #dualmon .win-bar .win-title {
+                font-size: 12px;
+                color: var(--dim);
+            }
+            #dualmon .win-body {
+                flex: 1;
+                min-height: 0;
+                position: relative;
+            }
+
+            /* ---- end card ---- */
+            #endcard {
+                position: absolute;
+                inset: 0;
+                z-index: 50;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 14px;
+                background: radial-gradient(
+                        1200px 700px at 50% 40%,
+                        rgba(20, 30, 55, 0.9),
+                        rgba(5, 7, 13, 0.98) 70%
+                    );
+                opacity: 0;
+                transition: opacity 600ms ease;
+                pointer-events: none;
+            }
+            #endcard.show {
+                opacity: 1;
+            }
+            #endcard .wordmark {
+                font-size: 56px;
+                font-weight: 700;
+                letter-spacing: -0.03em;
+                color: #fff;
+            }
+            #endcard .tagline {
+                font-size: 20px;
+                color: var(--dim);
+            }
+            #endcard .url {
+                margin-top: 10px;
+                font-size: 16px;
+                color: var(--accent);
+                letter-spacing: 0.02em;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="dockwrap"><div id="dock"></div></div>
+        <div id="caption"><span class="word"></span><div class="sub"></div></div>
+        <div id="featurelist"></div>
+        <div id="dualmon"></div>
+        <div id="endcard">
+            <div class="wordmark">dockview</div>
+            <div class="tagline"></div>
+            <div class="url">dockview.dev</div>
+        </div>
+
+        <script src="/packages/dockview/dist/dockview.js"></script>
+        <script src="/packages/dockview-enterprise/dist/dockview-enterprise.js"></script>
+        <script src="./movieWidgets.js"></script>
+        <script>
+            (function () {
+                const lib = window['dockview'];
+                window['dockview-enterprise'].LicenseManager.setLicenseKey(
+                    '[KeyId:DOCKVIEW-DOCS]_[Company:Dockview]_[Plan:team]_[AppName:Dockview_Docs]_[Email:enterprise@dockview.dev]_[ValidFrom:01_Jan_2025]_[ValidUntil:01_Jan_2099]__aaa294ecec1eed47'
+                );
+
+                const THEMES = {
+                    abyss: lib.themeAbyss,
+                    dark: lib.themeDark,
+                    dracula: lib.themeDracula,
+                    light: lib.themeLight,
+                    visualStudio: lib.themeVisualStudio,
+                    nord: lib.themeNord,
+                };
+
+                const component = new lib.DockviewComponent(
+                    document.getElementById('dock'),
+                    {
+                        theme: THEMES.abyss,
+                        disableAutoResizing: false,
+                        // Feature toggles — dormant until exercised by the
+                        // storyboard, so they don't affect earlier beats.
+                        pinnedTabs: { enabled: true, mode: 'inline' },
+                        autoHideEdgeGroups: true,
+                        tabGroupAccent: 'palette',
+                        // Branded empty-group watermark.
+                        createWatermarkComponent: () => {
+                            const el = document.createElement('div');
+                            el.className = 'movie-watermark';
+                            el.innerHTML =
+                                '<div class="mw-mark">dockview</div>' +
+                                '<div class="mw-sub">Drop a panel here</div>';
+                            return { element: el, init() {} };
+                        },
+                        // Right-click a tab → a menu of real dockview actions.
+                        // "Float" is the one the reel drives; the rest advertise
+                        // the capability set.
+                        getTabContextMenuItems: (params) => [
+                            {
+                                label: 'Float',
+                                action: () =>
+                                    params.api.addFloatingGroup(params.group, {
+                                        x: 540,
+                                        y: 170,
+                                        width: 380,
+                                        height: 430,
+                                    }),
+                            },
+                            {
+                                label: 'Pop out to new window',
+                                action: () => {},
+                            },
+                            {
+                                label: 'Maximise group',
+                                action: () => params.group.api.maximize(),
+                            },
+                            {
+                                label: 'Add to tab group',
+                                action: () => {
+                                    const m = window.__movie;
+                                    if (m && m._tg)
+                                        params.api.addPanelToTabGroup({
+                                            groupId: m._tgGroupId,
+                                            tabGroupId: m._tg.id,
+                                            panelId: params.panel.id,
+                                        });
+                                },
+                            },
+                            'separator',
+                            'close',
+                        ],
+                        // Right-click a tab-group CHIP → rename / recolour.
+                        getTabGroupChipContextMenuItems: (params) => [
+                            'rename',
+                            'separator',
+                            {
+                                label: 'Ungroup',
+                                action: () => {},
+                            },
+                        ],
+                        createComponent: (options) => {
+                            const element = document.createElement('div');
+                            element.className = 'panel';
+                            let widget = null;
+                            return {
+                                element,
+                                init(p) {
+                                    const kind =
+                                        (p.params && p.params.kind) || 'text';
+                                    widget = window.MovieWidgets.mount(
+                                        element,
+                                        kind,
+                                        p.api.title
+                                    );
+                                },
+                                dispose() {
+                                    widget && widget.stop && widget.stop();
+                                },
+                            };
+                        },
+                    }
+                );
+                const api = component.api;
+                const dock = document.getElementById('dock');
+                const relayout = () =>
+                    component.layout(dock.clientWidth, dock.clientHeight);
+                relayout();
+                new ResizeObserver(relayout).observe(dock);
+
+                // ---- movie control surface (called by the storyboard) ----
+                const panels = {};
+                const add = (id, title, kind, position) => {
+                    const p = api.addPanel({
+                        id,
+                        title,
+                        component: 'default',
+                        params: { kind },
+                        position,
+                    });
+                    panels[id] = p;
+                    return p;
+                };
+
+                const captionEl = document.getElementById('caption');
+                const setTheme = (name) => {
+                    if (THEMES[name]) component.updateOptions({ theme: THEMES[name] });
+                };
+
+                window.__movie = {
+                    api,
+                    component,
+                    panels,
+                    add,
+                    caption(word, sub) {
+                        captionEl.querySelector('.word').textContent = word || '';
+                        captionEl.querySelector('.sub').textContent = sub || '';
+                        captionEl.classList.toggle('show', !!word);
+                    },
+                    theme: setTheme,
+                    highlight(id) {
+                        document
+                            .querySelectorAll('.movie-highlight')
+                            .forEach((e) => e.classList.remove('movie-highlight'));
+                        if (id && panels[id]) {
+                            const el = panels[id].group.element;
+                            el.classList.add('movie-highlight');
+                        }
+                    },
+                    // Show two "monitors": shrink the live workspace into the
+                    // left screen; the right screen is where a popped-out group
+                    // will land (via popout()).
+                    dualMonitor(show) {
+                        const dm = document.getElementById('dualmon');
+                        const dockEl = document.getElementById('dockwrap');
+                        if (!show) {
+                            dm.classList.remove('show');
+                            dm.innerHTML = '';
+                            dockEl.style.transform = '';
+                            return;
+                        }
+                        dm.innerHTML =
+                            '<div class="screen" id="mon1" data-label="Monitor 1"></div>' +
+                            '<div class="screen" id="mon2" data-label="Monitor 2"></div>';
+                        dm.classList.add('show');
+                        requestAnimationFrame(() => {
+                            const r = document
+                                .getElementById('mon1')
+                                .getBoundingClientRect();
+                            const vw = window.innerWidth,
+                                vh = window.innerHeight;
+                            const s = Math.min(r.width / vw, r.height / vh);
+                            const tx = r.left + (r.width - vw * s) / 2;
+                            const ty = r.top + (r.height - vh * s) / 2;
+                            dockEl.style.transform =
+                                'translate(' +
+                                tx +
+                                'px,' +
+                                ty +
+                                'px) scale(' +
+                                s +
+                                ')';
+                        });
+                    },
+                    // Slide a popped-out window (a live widget) into monitor 2.
+                    popout(kind, title) {
+                        const mon2 = document.getElementById('mon2');
+                        if (!mon2) return;
+                        const card = document.createElement('div');
+                        card.className = 'win-card';
+                        card.innerHTML =
+                            '<div class="win-bar"><span class="dots"><i></i><i></i><i></i></span>' +
+                            '<span class="win-title">' +
+                            (title || '') +
+                            '</span></div><div class="win-body"></div>';
+                        mon2.appendChild(card);
+                        window.MovieWidgets.mount(
+                            card.querySelector('.win-body'),
+                            kind,
+                            title
+                        );
+                        requestAnimationFrame(() =>
+                            requestAnimationFrame(() => card.classList.add('in'))
+                        );
+                    },
+                    endcard(show, tagline) {
+                        const ec = document.getElementById('endcard');
+                        if (tagline)
+                            ec.querySelector('.tagline').textContent = tagline;
+                        ec.classList.toggle('show', !!show);
+                    },
+                    maximize(id) {
+                        const p = panels[id];
+                        if (p) {
+                            p.group.api.maximize();
+                            this._max = p;
+                        }
+                    },
+                    exitMax() {
+                        if (this._max) {
+                            this._max.group.api.exitMaximized();
+                            this._max = null;
+                        }
+                    },
+                    exitMaxGroup(id) {
+                        if (panels[id]) panels[id].group.api.exitMaximized();
+                    },
+                    float(id, box) {
+                        const p = panels[id];
+                        if (p) api.addFloatingGroup(p.group, box);
+                    },
+                    // Dock a (floating) panel back into the grid beside another
+                    // panel's group — reliable, unlike a pointer drop.
+                    dock(id, refId, position) {
+                        const p = panels[id];
+                        const ref = panels[refId];
+                        if (p && ref)
+                            p.api.moveTo({ group: ref.group, position });
+                    },
+                    // Split a panel WITHIN a float (or any group) beside a
+                    // reference panel — uses moveTo so it lands in that group's
+                    // own gridview (addPanel+direction would just add a tab).
+                    splitInto(id, refId, position) {
+                        const p = panels[id];
+                        const ref = panels[refId];
+                        if (p && ref)
+                            p.api.moveTo({ group: ref.group, position });
+                    },
+                    // Tab-group chip: colour + label a set of tabs in one group.
+                    tabGroup(hostId, label, color, memberIds) {
+                        const host = panels[hostId];
+                        if (!host) return;
+                        const groupId = host.group.id;
+                        const tg = api.createTabGroup({ groupId, label, color });
+                        (memberIds || []).forEach((pid, i) =>
+                            api.addPanelToTabGroup({
+                                groupId,
+                                tabGroupId: tg.id,
+                                panelId: pid,
+                                index: i,
+                            })
+                        );
+                        // Remember it so the chip can be toggled / renamed / grown.
+                        this._tg = tg;
+                        this._tgGroupId = groupId;
+                    },
+                    tabGroupToggle() {
+                        if (this._tg) this._tg.toggle();
+                    },
+                    tabGroupRename(label) {
+                        if (this._tg) this._tg.setLabel(label);
+                    },
+                    tabGroupAdd(panelId) {
+                        if (this._tg)
+                            api.addPanelToTabGroup({
+                                groupId: this._tgGroupId,
+                                tabGroupId: this._tg.id,
+                                panelId,
+                            });
+                    },
+                    pin(id, val) {
+                        panels[id] && panels[id].api.setPinned(val !== false);
+                    },
+                    activate(id) {
+                        panels[id] && panels[id].api.setActive();
+                    },
+                    // Multi-row wrapping tabs (global; toggle per beat).
+                    wrap(on) {
+                        component.updateOptions({
+                            overflow: on ? { mode: 'wrap' } : undefined,
+                        });
+                    },
+                    headerPos(id, position) {
+                        panels[id] &&
+                            panels[id].group.api.setHeaderPosition(position);
+                    },
+                    // Dock a tool window to a container edge, with panels.
+                    // getEdgeGroupPanel (not getEdgeGroup, which is the API)
+                    // returns the group panel to use as a reference.
+                    addEdge(position, opts, specs) {
+                        component.addEdgeGroup(position, opts);
+                        const grp = component.getEdgeGroupPanel(position);
+                        (specs || []).forEach((s) => {
+                            const p = api.addPanel({
+                                id: s.id,
+                                title: s.title,
+                                component: 'default',
+                                params: { kind: s.kind },
+                                position: { referenceGroup: grp },
+                            });
+                            panels[s.id] = p;
+                        });
+                    },
+                    // A persistent empty group (shows the branded watermark).
+                    addEmpty(refId, direction) {
+                        const ref = panels[refId];
+                        api.addGroup({
+                            direction,
+                            referencePanel: ref ? ref.id : undefined,
+                        });
+                    },
+                    // Build a floating window that is itself a full dockview:
+                    // three panels split inside its own gridview (+ sashes).
+                    nestedFloat() {
+                        const f = api.addPanel({
+                            id: 'nf1',
+                            title: 'Analysis',
+                            component: 'default',
+                            params: { kind: 'chart' },
+                            floating: { width: 640, height: 460, x: 520, y: 150 },
+                        });
+                        panels.nf1 = f;
+                        const f2 = api.addPanel({
+                            id: 'nf2',
+                            title: 'Depth',
+                            component: 'default',
+                            params: { kind: 'depth' },
+                            position: { referenceGroup: f.group, direction: 'within' },
+                        });
+                        panels.nf2 = f2;
+                        f2.api.moveTo({ group: f.group, position: 'right' });
+                        const f3 = api.addPanel({
+                            id: 'nf3',
+                            title: 'Tape',
+                            component: 'default',
+                            params: { kind: 'tape' },
+                            position: { referenceGroup: f.group, direction: 'within' },
+                        });
+                        panels.nf3 = f3;
+                        f3.api.moveTo({ group: f.group, position: 'bottom' });
+                    },
+                    closeTabs(ids) {
+                        (ids || []).forEach((id) => {
+                            if (panels[id]) {
+                                try {
+                                    panels[id].api.close();
+                                } catch (e) {}
+                                delete panels[id];
+                            }
+                        });
+                    },
+                    closeNested() {
+                        ['nf1', 'nf2', 'nf3'].forEach((id) => {
+                            if (panels[id]) {
+                                try {
+                                    panels[id].api.close();
+                                } catch (e) {}
+                                delete panels[id];
+                            }
+                        });
+                    },
+                    // Zoom the whole layout so one group fills ~`fill` of the
+                    // frame — a cinematic focus on a single group.
+                    zoomTo(id, fill, xbias) {
+                        const p = panels[id];
+                        if (!p) return;
+                        fill = fill || 0.7;
+                        const r = p.group.element.getBoundingClientRect();
+                        const vw = window.innerWidth,
+                            vh = window.innerHeight;
+                        const s = Math.min(
+                            (vw * fill) / r.width,
+                            (vh * fill) / r.height
+                        );
+                        const gcx = r.x + r.width / 2,
+                            gcy = r.y + r.height / 2;
+                        // xbias shifts the group right of centre so a checklist
+                        // can sit on the left.
+                        const targetX = vw * (0.5 + (xbias || 0));
+                        document.getElementById('dockwrap').style.transform =
+                            'translate(' +
+                            (targetX - gcx * s) +
+                            'px,' +
+                            (vh / 2 - gcy * s) +
+                            'px) scale(' +
+                            s +
+                            ')';
+                    },
+                    zoomReset() {
+                        document.getElementById('dockwrap').style.transform = '';
+                    },
+                    // Camera push-in on any element/region (keeps surrounding
+                    // context — just magnifies + centres — to guide the eye).
+                    cameraTo(selector, fill, biasX, biasY) {
+                        const wrap = document.getElementById('dockwrap');
+                        const el = selector
+                            ? document.querySelector(selector)
+                            : null;
+                        if (!el) {
+                            wrap.style.transform = '';
+                            return;
+                        }
+                        const r = el.getBoundingClientRect();
+                        const vw = window.innerWidth,
+                            vh = window.innerHeight;
+                        fill = fill || 0.8;
+                        const s = Math.min(
+                            (vw * fill) / r.width,
+                            (vh * fill) / r.height
+                        );
+                        const cx = r.x + r.width / 2,
+                            cy = r.y + r.height / 2;
+                        const tX = vw * (0.5 + (biasX || 0));
+                        const tY = vh * (0.5 + (biasY || 0));
+                        wrap.style.transform =
+                            'translate(' +
+                            (tX - cx * s) +
+                            'px,' +
+                            (tY - cy * s) +
+                            'px) scale(' +
+                            s +
+                            ')';
+                    },
+                    cameraReset() {
+                        document.getElementById('dockwrap').style.transform = '';
+                    },
+                    // Show ONLY one group (fade the rest) — clean single-group
+                    // focus that keeps the group's natural width (so wrap works).
+                    soloGroup(id) {
+                        const p = panels[id];
+                        if (!p) return;
+                        const dockEl = document.getElementById('dockwrap');
+                        document
+                            .querySelectorAll('.movie-solo-target')
+                            .forEach((e) => e.classList.remove('movie-solo-target'));
+                        p.group.element.classList.add('movie-solo-target');
+                        dockEl.classList.add('movie-solo');
+                    },
+                    unsolo() {
+                        const dockEl = document.getElementById('dockwrap');
+                        dockEl.classList.remove('movie-solo');
+                        document
+                            .querySelectorAll('.movie-solo-target')
+                            .forEach((e) => e.classList.remove('movie-solo-target'));
+                    },
+                    featureList(items) {
+                        const el = document.getElementById('featurelist');
+                        el.innerHTML = (items || [])
+                            .map(
+                                (t) =>
+                                    '<div class="fl-item"><span class="fl-dot"></span><span class="fl-label">' +
+                                    t +
+                                    '</span></div>'
+                            )
+                            .join('');
+                        el.classList.add('show');
+                    },
+                    featureMark(i) {
+                        document
+                            .querySelectorAll('#featurelist .fl-item')
+                            .forEach((it, idx) => {
+                                it.classList.toggle('done', idx < i);
+                                it.classList.toggle('active', idx === i);
+                            });
+                    },
+                    featureHide() {
+                        document
+                            .getElementById('featurelist')
+                            .classList.remove('show');
+                    },
+                    // Add extra tabs to an existing panel's group.
+                    addTabs(hostId, specs) {
+                        const host = panels[hostId];
+                        if (!host) return;
+                        (specs || []).forEach((s) => {
+                            const p = api.addPanel({
+                                id: s.id,
+                                title: s.title,
+                                component: 'default',
+                                params: { kind: s.kind || 'terminal' },
+                                position: {
+                                    referenceGroup: host.group,
+                                    direction: 'within',
+                                },
+                            });
+                            panels[s.id] = p;
+                        });
+                    },
+                    autoHideEdge(position) {
+                        component.autoHideEdgeGroup(position);
+                    },
+                    peekEdge(position, on) {
+                        component.peekEdgeGroup(position, on !== false);
+                    },
+                    pinEdge(position) {
+                        component.pinEdgeGroup(position);
+                    },
+                    // Empty a group → its (custom) watermark shows.
+                    emptyGroup(id) {
+                        const p = panels[id];
+                        if (p) [...p.group.panels].forEach((x) => x.api.close());
+                    },
+                };
+
+                // Signal readiness.
+                window.__movieReady = true;
+            })();
+        </script>
+    </body>
+</html>
