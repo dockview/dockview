@@ -441,12 +441,17 @@ class EdgeGroupController extends CompositeDisposable {
     /** Re-anchor the peeked `always` panel's render overlay over the (current)
      *  content box, force-showing it and clipping it to the reveal window. No-op
      *  for `onlyWhenVisible` (whose content rides inside the reparented box). */
-    private _syncOverlay(): void {
+    private _syncOverlay(clipRect?: DOMRect): void {
         if (this._peek) {
+            // The clip frame is fixed for the duration of a peek (only the child
+            // overlay slides via transform), so its rect is invariant across the
+            // slide's rAF loop. Callers in that loop pass it in once to avoid a
+            // getBoundingClientRect — interleaved with the transform write — on
+            // every frame. (#1585 audit)
             this.host.repositionPanelOverlay(
                 this._peek.panel,
                 true,
-                this._peek.clip.getBoundingClientRect()
+                clipRect ?? this._peek.clip.getBoundingClientRect()
             );
         }
     }
@@ -475,6 +480,11 @@ class EdgeGroupController extends CompositeDisposable {
         const duration = 150;
         const start = win.performance.now();
 
+        // The clip frame is stationary during the slide; measure it once instead
+        // of every frame (the per-frame read reflowed against the transform
+        // write below). (#1585 audit)
+        const clipRect = this._peek?.clip.getBoundingClientRect();
+
         const step = (now: number): void => {
             if (this._peek?.overlay !== overlay) {
                 return; // closed mid-animation
@@ -484,7 +494,7 @@ class EdgeGroupController extends CompositeDisposable {
             const remaining = (1 - eased) * 100 * sign;
             overlay.style.transform =
                 t >= 1 ? '' : `translate${axis}(${remaining}%)`;
-            this._syncOverlay();
+            this._syncOverlay(clipRect);
             if (t < 1) {
                 win.requestAnimationFrame(step);
             }
