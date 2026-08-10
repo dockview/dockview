@@ -5383,6 +5383,46 @@ describe('dockviewComponent', () => {
             dockview.dispose();
         });
 
+        test('the host is sized before the first overlay clamps against it (0 -> 1)', () => {
+            const { dockview } = makeDockview();
+            dockview.layout(1000, 500);
+
+            const host = (dockview as any)._floatingOverlayHost as HTMLElement;
+
+            // The Overlay constructor clamps its bounds by reading the host's
+            // getBoundingClientRect. Capture the host's inline size at that
+            // first read: the sync must already have run, or the first float
+            // clamps against a never-synced (unsized) host.
+            let widthAtFirstClamp: string | undefined;
+            jest.spyOn(host, 'getBoundingClientRect').mockImplementation(() => {
+                if (widthAtFirstClamp === undefined) {
+                    widthAtFirstClamp = host.style.width;
+                }
+                return {
+                    x: 0,
+                    y: 0,
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    width: 0,
+                    height: 0,
+                    toJSON: () => ({}),
+                } as DOMRect;
+            });
+
+            dockview.addPanel({
+                id: 'panel_1',
+                component: 'default',
+                floating: true,
+            });
+
+            expect(widthAtFirstClamp).toBe('1000px');
+
+            jest.restoreAllMocks();
+            dockview.dispose();
+        });
+
         test('adding a floating group syncs the host immediately (0 -> 1 transition)', () => {
             const { dockview, container } = makeDockview();
             dockview.layout(1000, 500);

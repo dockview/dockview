@@ -2699,6 +2699,13 @@ export class DockviewComponent
                 ? new FloatingTitleBar(this, anchorGroup)
                 : undefined;
 
+        // Position/size the overlay host now, before the Overlay constructor
+        // clamps its bounds against it. layout()'s sync is skipped while there
+        // are no floating groups (#1585), and this group isn't registered yet,
+        // so force the sync — otherwise the first float clamps against a
+        // never-synced host (wrong box, e.g. under edge-group inset).
+        this._syncFloatingOverlayHost(true);
+
         const overlay = new Overlay({
             container: this._floatingOverlayHost ?? this.gridview.element,
             content: floatingGridview.element,
@@ -2743,12 +2750,6 @@ export class DockviewComponent
             overlay,
             floatingGridview
         );
-
-        // Position the overlay host now that a float exists: layout()'s sync is
-        // skipped while there are no floating groups (#1585), so the 0 -> 1
-        // transition must sync explicitly or the first float renders against a
-        // stale host box (only observable when edge groups inset the grid).
-        this._syncFloatingOverlayHost();
 
         // Surface the start + end of a move drag so the Smart Guides module can
         // (re)build then tear down its per-drag guides. Start (re)sets a clean
@@ -2933,17 +2934,20 @@ export class DockviewComponent
         this._moduleRegistry?.services.floatingGroupService?.constrainBounds();
     }
 
-    private _syncFloatingOverlayHost(): void {
+    private _syncFloatingOverlayHost(force = false): void {
         const host = this._floatingOverlayHost;
         if (!host || !this._shellManager) {
             return;
         }
         // With no floating groups the overlay host is empty, so its position
         // and size are unobservable — skip the work entirely. This alone spares
-        // apps that never float a group; `_doAddFloatingGroup` calls this
-        // directly on the 0 -> 1 transition so the host is still positioned
-        // before the first float renders. (#1585)
+        // apps that never float a group. `force` is passed from
+        // `_doAddFloatingGroup` while adding the first float (before it is
+        // registered): the host must be positioned *before* the new Overlay
+        // constructor clamps its bounds against it, or the first float lands
+        // against a never-synced host. (#1585)
         if (
+            !force &&
             !this._moduleRegistry?.services.floatingGroupService?.floatingGroups
                 .length
         ) {

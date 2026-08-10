@@ -232,6 +232,10 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
      * Apply the visual shape to the underline element.
      * Called once per tab group per frame with the computed geometry.
      */
+    /** Whether {@link applyShape} uses the active tab's rect. When false the
+     *  measure pass skips measuring it (one getBoundingClientRect per group). */
+    protected abstract readonly _needsActiveRect: boolean;
+
     protected abstract applyShape(
         underline: HTMLElement,
         tg: ITabGroup,
@@ -243,7 +247,7 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
         isVertical: boolean,
         /** Pre-measured in the caller's measure pass so applyShape never reads
          *  geometry back (which would reflow mid-write). Undefined = no active
-         *  tab in this group. */
+         *  tab in this group (or the indicator doesn't use it). */
         activeRect: DOMRect | undefined
     ): void;
 
@@ -465,9 +469,15 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
 
             // Pre-measure the active tab's rect here (in the read pass) so
             // applyShape — which draws the wrap-around bump over it — never
-            // reads geometry back during the write pass.
+            // reads geometry back during the write pass. Skipped for indicators
+            // whose applyShape ignores it (e.g. the flat `none` bar), so those
+            // strips don't pay a getBoundingClientRect per group per frame.
             let activeRect: DOMRect | undefined;
-            if (activePanelId && panelIds.includes(activePanelId)) {
+            if (
+                this._needsActiveRect &&
+                activePanelId &&
+                panelIds.includes(activePanelId)
+            ) {
                 const activeEntry = tabMap.get(activePanelId);
                 activeRect = activeEntry?.value.element.getBoundingClientRect();
             }
@@ -775,6 +785,9 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
  * Chrome-style wrap-around indicator using SVG paths.
  */
 export class WrapTabGroupIndicator extends BaseTabGroupIndicator {
+    // Draws a wrap-around bump over the active tab, so it needs its rect.
+    protected readonly _needsActiveRect = true;
+
     private _applyStraightLine(
         svg: SVGSVGElement,
         path: SVGPathElement,
@@ -974,6 +987,9 @@ export class WrapTabGroupIndicator extends BaseTabGroupIndicator {
  * group width, with no wrap-around.
  */
 export class NoneTabGroupIndicator extends BaseTabGroupIndicator {
+    // A flat continuous bar — no active-tab bump, so the active rect is unused.
+    protected readonly _needsActiveRect = false;
+
     protected applyShape(
         underline: HTMLElement,
         tg: ITabGroup,
