@@ -11,13 +11,18 @@
  * the `playwright` browser API that ships with the repo's `@playwright/test`
  * devDependency (no new dependency) plus the system `ffmpeg` binary.
  *
- * Usage (dev server must be running: `yarn start`):
- *   yarn record-clips                      # all scenes
+ * Usage:
+ *   yarn record-clips                      # all catalogue scenes
  *   yarn record-clips --scene demo-tour    # one scene
  *   yarn record-clips --scene demo-tour --crop --keep-webm
- *   yarn record-clips --url /demo?variant=desktop --scene demo-tour
  *
- * See ./README.md for the full flag list and how to add a scene.
+ * Prompt-driven (the headline path — describe it, get a film):
+ *   yarn record-clips --prompt "floating panels, theming and pop-out windows"
+ *   yarn record-clips --features float,theming,popout --name my-clip
+ *   yarn record-clips --prompt "a full tour of everything"
+ *   yarn record-clips --list-features
+ *
+ * See ./README.md for the full flag list and how to add a scene / feature.
  */
 
 import { chromium } from '@playwright/test';
@@ -28,12 +33,18 @@ import {
     existsSync,
     renameSync,
     readFileSync,
+    readdirSync,
 } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scenes } from './scenes.mjs';
 import { storyboards } from './storyboards.mjs';
+import {
+    composeStoryboard,
+    selectBeats,
+    formatFeatureList,
+} from './promptCompose.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -97,6 +108,38 @@ function parseSize(s) {
 // ---------------------------------------------------------------------------
 
 function selectScenes() {
+    // Prompt / feature mode: synthesise a single scene whose storyboard is
+    // composed from the prompt. This is the headline path — "describe it, get a
+    // film". It always runs against the full-screen movie harness at 1080p.
+    if (args.prompt || args.features) {
+        const opts = {
+            prompt: typeof args.prompt === 'string' ? args.prompt : undefined,
+            features: typeof args.features === 'string' ? args.features : undefined,
+            headline: typeof args.headline === 'string' ? args.headline : undefined,
+            subhead: typeof args.subhead === 'string' ? args.subhead : undefined,
+            tagline: typeof args.tagline === 'string' ? args.tagline : undefined,
+            eyebrow: typeof args.eyebrow === 'string' ? args.eyebrow : undefined,
+        };
+        const { matched, unmatched } = selectBeats(opts);
+        if (unmatched) {
+            console.log(
+                `  (no feature keywords matched the prompt — using a default reel: ${matched.join(', ')})`
+            );
+        } else {
+            console.log(`  features: ${matched.join(', ')}`);
+        }
+        return [
+            {
+                id: typeof args.name === 'string' ? args.name : 'prompt',
+                url: 'harness://movie.html',
+                size: '1920x1080',
+                storyboardFn: composeStoryboard(opts),
+                settle: 300,
+                tail: 400,
+            },
+        ];
+    }
+
     const wanted = args.scene ? String(args.scene) : 'all';
     let list = wanted === 'all' ? scenes : scenes.filter((s) => s.id === wanted);
     if (list.length === 0) {
@@ -403,6 +446,14 @@ async function recordScene(browser, scene, harnessBase) {
     await context.addInitScript(CURSOR_INIT_SCRIPT);
 
     const page = await context.newPage();
+    // Surface in-page errors — a thrown storyboard/beat step otherwise fails
+    // silently and just leaves the film short (e.g. a missing end card).
+    page.on('pageerror', (err) => console.error(`  ⚠ page error: ${err.message}`));
+    page.on('console', (msg) => {
+        // Skip benign resource 404s (e.g. favicon) — only surface real errors.
+        if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text()))
+            console.error(`  ⚠ console error: ${msg.text()}`);
+    });
     // Video recording begins with the page; remember wall-clock zero so we can
     // trim the dead "loading" head (Docusaurus compiles a route on first hit).
     const videoT0 = Date.now();
@@ -412,7 +463,7 @@ async function recordScene(browser, scene, harnessBase) {
 
     const director = makeDirector(page, size);
 
-    if (scene.storyboard) {
+    if (scene.storyboard || scene.storyboardFn) {
         // Cinematic movie scene: the storyboard builds the layout itself, so
         // wait for the movie harness to signal readiness (no dockview yet).
         await page.waitForFunction(() => window.__movieReady, {
@@ -421,7 +472,7 @@ async function recordScene(browser, scene, harnessBase) {
         await page.waitForTimeout(scene.settle ?? 300);
         const headSeconds = Math.max(0, (Date.now() - videoT0) / 1000 - LEAD_IN);
 
-        const fn = storyboards[scene.storyboard];
+        const fn = scene.storyboardFn || storyboards[scene.storyboard];
         if (!fn) throw new Error(`Unknown storyboard "${scene.storyboard}"`);
         await fn({
             page,
@@ -578,6 +629,37 @@ function startStaticServer(root) {
     });
 }
 
+// Resolve a Chromium executable. Playwright's bundled browser is pinned to the
+// installed @playwright/test version; when the environment ships a different
+// build (common on CI images / sandboxes) `chromium.launch()` fails. Prefer an
+// explicit override, else pick the newest `chromium-*` under the Playwright
+// browsers dir, else fall back to Playwright's own resolution.
+function resolveChromeExecutable() {
+    const override =
+        (typeof args.chrome === 'string' && args.chrome) ||
+        process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ||
+        process.env.CHROME_BIN;
+    if (override) {
+        if (!existsSync(override)) {
+            console.error(`\n✗ --chrome path does not exist: ${override}\n`);
+            process.exit(1);
+        }
+        return override;
+    }
+    const browsersDir = process.env.PLAYWRIGHT_BROWSERS_PATH;
+    if (browsersDir && existsSync(browsersDir)) {
+        // Newest chromium-<rev> wins (highest revision number).
+        const candidates = readdirSync(browsersDir)
+            .filter((d) => /^chromium-\d+$/.test(d))
+            .sort((a, b) => Number(b.split('-')[1]) - Number(a.split('-')[1]));
+        for (const dir of candidates) {
+            const exe = path.join(browsersDir, dir, 'chrome-linux', 'chrome');
+            if (existsSync(exe)) return exe;
+        }
+    }
+    return undefined; // let Playwright resolve its own bundled browser
+}
+
 function assertBundlesBuilt() {
     const missing = HARNESS_BUNDLES.filter(
         (f) => !existsSync(path.join(REPO_ROOT, f))
@@ -609,6 +691,10 @@ async function assertServerUp() {
 }
 
 async function main() {
+    if (args['list-features']) {
+        console.log('\n' + formatFeatureList());
+        return;
+    }
     const list = selectScenes();
     const needsHarness = list.some(isHarnessScene);
     const needsDocsServer = list.some((s) => !isHarnessScene(s));
@@ -621,7 +707,12 @@ async function main() {
     mkdirSync(OUT_DIR, { recursive: true });
 
     const harness = needsHarness ? await startStaticServer(REPO_ROOT) : null;
-    const browser = await chromium.launch({ headless: !HEADED });
+    const executablePath = resolveChromeExecutable();
+    if (executablePath) console.log(`  chromium: ${executablePath}`);
+    const browser = await chromium.launch({
+        headless: !HEADED,
+        executablePath,
+    });
     const made = [];
     try {
         for (const scene of list) {

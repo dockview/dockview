@@ -8,6 +8,35 @@ It drives a real Chromium (via the `playwright` API that ships with the repo's
 `@playwright/test` devDependency — no extra npm dependency) and transcodes the
 result with the system `ffmpeg`.
 
+## Describe it, get a film (prompt-driven)
+
+The fastest path: describe the features you want and the recorder assembles a
+cinematic reel on the cinematic movie stage (1080p) — an intro title card, the
+requested feature beats in a sensible order, and a branded end card.
+
+```bash
+# from packages/docs
+yarn record-clips --prompt "floating panels, then pop out to a second monitor, and theming"
+yarn record-clips --features float,theming,popout --name my-clip
+yarn record-clips --prompt "a full tour of everything"
+yarn record-clips --list-features
+```
+
+- `--prompt "…"` matches your words against each feature's aliases (see
+  `beats.mjs`) and includes every feature it finds; nothing matched falls back to
+  a short default reel.
+- `--features a,b,c` selects features explicitly by id (bypasses matching).
+- `--name <id>` sets the output filename (`<id>.mp4`); defaults to `prompt`.
+- `--headline / --subhead / --tagline / --eyebrow` override the title/end-card copy.
+- Prompt clips need only the built bundles (no docs dev server).
+
+Each feature is a self-contained **beat** in `beats.mjs` — it builds whatever it
+needs, demonstrates one capability with an eased cursor + caption, and tidies up,
+so any subset strung together still flows. `promptCompose.mjs` does the matching
+and wraps the beats with the title / end cards. To add a capability, append a beat
+to `beats.mjs` (give it `aliases` for prompt matching); it is instantly available
+to `--prompt`, `--features` and the `everything` tour.
+
 ## Prerequisites
 
 - **ffmpeg** on your `PATH` (`ffmpeg -version`).
@@ -63,8 +92,13 @@ Clips land in `scripts/record/out/` (git-ignored) as `<scene-id>.mp4`.
 
 | Flag          | Default                 | Meaning                                          |
 | ------------- | ----------------------- | ------------------------------------------------ |
+| `--prompt`    | –                       | Compose a reel from a plain-English description.  |
+| `--features`  | –                       | Compose a reel from explicit feature ids.        |
+| `--name`      | `prompt`                | Output filename for a prompt/feature reel.       |
+| `--list-features` | –                   | Print the feature catalogue and exit.            |
 | `--scene`     | `all`                   | Scene id (see `scenes.mjs`) or `all`.            |
 | `--url`       | –                       | Override the scene URL (single-scene only).      |
+| `--chrome`    | auto                    | Path to a Chromium binary (else auto-detected).  |
 | `--theme`     | scene's theme           | Theme for `/demo`-style pages (`?theme=`).       |
 | `--size`      | `1280x720`              | Viewport / video size, `WxH`.                    |
 | `--speed`     | `1.5`                   | Cursor speed multiplier (higher = faster travel).|

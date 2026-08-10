@@ -415,11 +415,9 @@
                 align-items: center;
                 justify-content: center;
                 gap: 14px;
-                background: radial-gradient(
-                        1200px 700px at 50% 40%,
-                        rgba(20, 30, 55, 0.9),
-                        rgba(5, 7, 13, 0.98) 70%
-                    );
+                /* Solid base so the workspace never ghosts through; the tinted
+                   radial only lifts the centre. */
+                background: #05070d;
                 opacity: 0;
                 transition: opacity 600ms ease;
                 pointer-events: none;
@@ -427,21 +425,152 @@
             #endcard.show {
                 opacity: 1;
             }
+            #endcard::before {
+                content: '';
+                position: absolute;
+                inset: 0;
+                background: radial-gradient(
+                    1200px 720px at 50% 42%,
+                    rgba(28, 42, 78, 0.55),
+                    transparent 68%
+                );
+            }
+            #endcard > * {
+                position: relative;
+            }
+            /* Wordmark rises + fades in when the card shows. */
             #endcard .wordmark {
-                font-size: 56px;
+                font-size: 60px;
                 font-weight: 700;
                 letter-spacing: -0.03em;
                 color: #fff;
+                opacity: 0;
+                transform: translateY(14px);
+                transition: opacity 620ms ease 120ms,
+                    transform 620ms cubic-bezier(0.16, 1, 0.3, 1) 120ms;
             }
             #endcard .tagline {
-                font-size: 20px;
-                color: var(--dim);
+                font-size: 21px;
+                color: var(--ink);
+                opacity: 0;
+                transform: translateY(12px);
+                transition: opacity 620ms ease 260ms,
+                    transform 620ms cubic-bezier(0.16, 1, 0.3, 1) 260ms;
             }
             #endcard .url {
                 margin-top: 10px;
                 font-size: 16px;
                 color: var(--accent);
-                letter-spacing: 0.02em;
+                letter-spacing: 0.04em;
+                opacity: 0;
+                transform: translateY(10px);
+                transition: opacity 620ms ease 400ms,
+                    transform 620ms cubic-bezier(0.16, 1, 0.3, 1) 400ms;
+            }
+            #endcard.show .wordmark,
+            #endcard.show .tagline,
+            #endcard.show .url {
+                opacity: 1;
+                transform: none;
+            }
+            /* Thin accent underline that wipes in beneath the wordmark. */
+            #endcard .rule {
+                width: 0;
+                height: 2px;
+                margin-top: 2px;
+                background: linear-gradient(
+                    90deg,
+                    transparent,
+                    var(--accent),
+                    transparent
+                );
+                opacity: 0;
+                transition: width 700ms cubic-bezier(0.16, 1, 0.3, 1) 340ms,
+                    opacity 500ms ease 340ms;
+            }
+            #endcard.show .rule {
+                width: 220px;
+                opacity: 0.9;
+            }
+
+            /* ---- intro title card ---- */
+            #titlecard {
+                position: absolute;
+                inset: 0;
+                z-index: 48;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 16px;
+                background: #05070d;
+                opacity: 0;
+                transition: opacity 620ms ease;
+                pointer-events: none;
+            }
+            #titlecard::before {
+                content: '';
+                position: absolute;
+                inset: 0;
+                background: radial-gradient(
+                    1300px 780px at 50% 44%,
+                    rgba(28, 42, 78, 0.6),
+                    transparent 66%
+                );
+            }
+            #titlecard > * {
+                position: relative;
+            }
+            #titlecard.show {
+                opacity: 1;
+            }
+            #titlecard .eyebrow {
+                font-size: 14px;
+                font-weight: 600;
+                letter-spacing: 0.22em;
+                text-transform: uppercase;
+                color: var(--accent);
+                opacity: 0;
+                transform: translateY(10px);
+                transition: opacity 560ms ease 100ms,
+                    transform 560ms cubic-bezier(0.16, 1, 0.3, 1) 100ms;
+            }
+            #titlecard .headline {
+                font-size: 54px;
+                font-weight: 700;
+                letter-spacing: -0.03em;
+                color: #fff;
+                text-align: center;
+                max-width: 74%;
+                line-height: 1.08;
+                opacity: 0;
+                transform: translateY(16px);
+                transition: opacity 640ms ease 220ms,
+                    transform 640ms cubic-bezier(0.16, 1, 0.3, 1) 220ms;
+            }
+            #titlecard .subhead {
+                font-size: 19px;
+                color: var(--dim);
+                text-align: center;
+                max-width: 60%;
+                opacity: 0;
+                transform: translateY(12px);
+                transition: opacity 640ms ease 360ms,
+                    transform 640ms cubic-bezier(0.16, 1, 0.3, 1) 360ms;
+            }
+            #titlecard.show .eyebrow,
+            #titlecard.show .headline,
+            #titlecard.show .subhead {
+                opacity: 1;
+                transform: none;
+            }
+
+            /* Hide the synthetic cursor over full-screen cards (title / end /
+               caption-only reveals) — a stray arrow on a hero frame looks
+               unfinished. Overrides the cursor's inline opacity. */
+            body.movie-hide-cursor #__dv_synthetic_cursor__ {
+                opacity: 0 !important;
+                transition: opacity 220ms ease !important;
             }
         </style>
     </head>
@@ -450,8 +579,14 @@
         <div id="caption"><span class="word"></span><div class="sub"></div></div>
         <div id="featurelist"></div>
         <div id="dualmon"></div>
+        <div id="titlecard">
+            <div class="eyebrow"></div>
+            <div class="headline"></div>
+            <div class="subhead"></div>
+        </div>
         <div id="endcard">
             <div class="wordmark">dockview</div>
+            <div class="rule"></div>
             <div class="tagline"></div>
             <div class="url">dockview.dev</div>
         </div>
@@ -669,6 +804,31 @@
                         if (tagline)
                             ec.querySelector('.tagline').textContent = tagline;
                         ec.classList.toggle('show', !!show);
+                        // No stray cursor on the hero out-frame.
+                        this.cursor(!show);
+                    },
+                    // Intro title card — a clean, branded open before the
+                    // workspace builds. eyebrow / headline / subhead.
+                    titlecard(show, headline, subhead, eyebrow) {
+                        const tc = document.getElementById('titlecard');
+                        if (eyebrow !== undefined)
+                            tc.querySelector('.eyebrow').textContent =
+                                eyebrow || '';
+                        if (headline !== undefined)
+                            tc.querySelector('.headline').textContent =
+                                headline || '';
+                        if (subhead !== undefined)
+                            tc.querySelector('.subhead').textContent =
+                                subhead || '';
+                        tc.classList.toggle('show', !!show);
+                        this.cursor(!show);
+                    },
+                    // Show / hide the synthetic cursor (over full-screen cards).
+                    cursor(show) {
+                        document.body.classList.toggle(
+                            'movie-hide-cursor',
+                            !show
+                        );
                     },
                     maximize(id) {
                         const p = panels[id];
