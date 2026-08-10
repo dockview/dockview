@@ -36,6 +36,13 @@ export interface TabAnimationState {
     sourceGapWidth: number;
     /** Left edge of the tabs container at drag start */
     containerLeft: number;
+    /** Wrap-mode drop candidates (each non-source tab's index + rect),
+     *  snapshotted once per drag. In wrap mode no tab moves during the drag
+     *  (the 1-D transforms no-op, only the indicator pseudo-element is drawn),
+     *  so the rects are stable — caching them avoids a getBoundingClientRect
+     *  per tab on every pointermove, which otherwise reflows against the
+     *  previous move's indicator write. (#1585 audit) */
+    wrappedEntries?: WrappedTabEntry[];
 }
 
 /**
@@ -972,6 +979,14 @@ export class TabReorderController extends CompositeDisposable {
      * so their own positions don't bias the hit-test.
      */
     private _wrappedDragEntries(): WrappedTabEntry[] {
+        // Snapshotted once per drag: tabs don't move during a wrap-mode reorder,
+        // so re-measuring them every pointermove only forces a reflow against
+        // the previous move's indicator write. (#1585 audit)
+        const cached = this._animState?.wrappedEntries;
+        if (cached) {
+            return cached;
+        }
+
         const sourceId = this._animState?.sourceTabId;
         const sourceGroupIds = this._animState?.sourceGroupPanelIds;
         const entries: WrappedTabEntry[] = [];
@@ -987,6 +1002,10 @@ export class TabReorderController extends CompositeDisposable {
                 index: i,
                 rect: tab.element.getBoundingClientRect(),
             });
+        }
+
+        if (this._animState) {
+            this._animState.wrappedEntries = entries;
         }
         return entries;
     }
