@@ -734,4 +734,77 @@ describe('_positionUnderlinesSync read/write batching (#1585)', () => {
         jest.restoreAllMocks();
         indicator.dispose();
     });
+
+    test('wrapped (multi-row): all reads happen before the first draw', () => {
+        const events: string[] = [];
+
+        const makeTab = (top: number, left: number) => {
+            const el = document.createElement('div');
+            el.getBoundingClientRect = () => {
+                events.push('read');
+                return {
+                    top,
+                    bottom: top + 26,
+                    left,
+                    right: left + 50,
+                    width: 50,
+                    height: 26,
+                    x: left,
+                    y: top,
+                    toJSON: () => ({}),
+                } as DOMRect;
+            };
+            return { value: { element: el } };
+        };
+
+        // Two groups, each spanning two rows, so each produces runs to draw.
+        const tabMap = new Map<string, any>([
+            ['a1', makeTab(0, 0)],
+            ['a2', makeTab(30, 0)],
+            ['b1', makeTab(0, 60)],
+            ['b2', makeTab(30, 60)],
+        ]);
+
+        const tgA = new TabGroup('tg-a', { label: 'A', color: 'blue' });
+        tgA.addPanel('a1');
+        tgA.addPanel('a2');
+        const tgB = new TabGroup('tg-b', { label: 'B', color: 'red' });
+        tgB.addPanel('b1');
+        tgB.addPanel('b2');
+
+        const tabsList = document.createElement('div');
+        tabsList.classList.add('dv-tabs-container--wrap');
+        const ctx = createContext({
+            tabsList,
+            getTabGroups: () => [tgA, tgB],
+            getTabMap: () => tabMap as any,
+            getActivePanelId: () => undefined,
+            getHeaderPosition: () => 'top',
+        });
+
+        const indicator = new WrapTabGroupIndicator(ctx);
+        indicator.syncUnderlineElements(new Set(['tg-a', 'tg-b']));
+
+        // The write pass is fronted by _drawWrappedUnderline.
+        jest.spyOn(
+            indicator as any,
+            '_drawWrappedUnderline'
+        ).mockImplementation(function (this: any, ...args: any[]) {
+            events.push('write');
+            return (WrapTabGroupIndicator.prototype as any)[
+                '_drawWrappedUnderline'
+            ].apply(indicator, args);
+        });
+
+        (indicator as any)._positionUnderlinesSync();
+
+        const firstWrite = events.indexOf('write');
+        const lastRead = events.lastIndexOf('read');
+        expect(firstWrite).toBeGreaterThan(-1);
+        expect(lastRead).toBeGreaterThan(-1);
+        expect(lastRead).toBeLessThan(firstWrite);
+
+        jest.restoreAllMocks();
+        indicator.dispose();
+    });
 });

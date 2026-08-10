@@ -74,6 +74,23 @@ type UnderlinePlacement =
       };
 
 /**
+ * A single group's measured wrapped-underline placement, produced by the
+ * measure pass of the multi-row path and drawn by its write pass — the same
+ * read-before-write batching as {@link UnderlinePlacement}, for the wrap model.
+ */
+type WrappedPlacement =
+    | { underline: HTMLElement; groupId: string; kind: 'hide' }
+    | { underline: HTMLElement; groupId: string; kind: 'hide-clear' }
+    | {
+          underline: HTMLElement;
+          tg: ITabGroup;
+          kind: 'draw';
+          color: string;
+          runs: WrappedRun[];
+          firstRun: WrappedRun | undefined;
+      };
+
+/**
  * Shared positioning logic for tab group indicators.
  * Subclasses implement `applyShape` to control the visual output.
  */
@@ -258,21 +275,78 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
         // wrapped or not), so branching here rather than inside the loop lets
         // the common single-bar path below run as a clean two-pass.
         if (wrapped) {
+            // Same measure-then-write split as the single-bar path: bucket every
+            // group's tabs into line-runs first (the only reads), then draw. The
+            // old per-group loop drew one group's SVG/markers and then measured
+            // the next group's tabs, forcing a reflow per group.
+            const wrappedPlacements: WrappedPlacement[] = [];
             for (const tg of tabGroups) {
                 const underline = this._underlines.get(tg.id);
                 if (!underline) {
                     continue;
                 }
                 if (tg.panelIds.length === 0) {
-                    underline.style.display = 'none';
+                    wrappedPlacements.push({
+                        underline,
+                        groupId: tg.id,
+                        kind: 'hide',
+                    });
                     continue;
                 }
-                underline.style.display = '';
-                this._positionWrappedUnderline(
-                    underline,
+                const color = resolveTabGroupAccent(
+                    tg.color,
+                    this._ctx.getColorPalette()
+                );
+                if (color === undefined) {
+                    wrappedPlacements.push({
+                        underline,
+                        groupId: tg.id,
+                        kind: 'hide-clear',
+                    });
+                    continue;
+                }
+                const { runs, firstRun } = this._computeWrappedRuns(
                     tg,
                     containerRect,
                     tabMap,
+                    isVertical
+                );
+                if (runs.length === 0) {
+                    wrappedPlacements.push({
+                        underline,
+                        groupId: tg.id,
+                        kind: 'hide-clear',
+                    });
+                    continue;
+                }
+                wrappedPlacements.push({
+                    underline,
+                    tg,
+                    kind: 'draw',
+                    color,
+                    runs,
+                    firstRun,
+                });
+            }
+
+            for (const wp of wrappedPlacements) {
+                if (wp.kind === 'hide') {
+                    wp.underline.style.display = 'none';
+                    continue;
+                }
+                if (wp.kind === 'hide-clear') {
+                    wp.underline.style.display = 'none';
+                    this._clearContinuationMarkers(wp.groupId);
+                    continue;
+                }
+                wp.underline.style.display = '';
+                this._drawWrappedUnderline(
+                    wp.underline,
+                    wp.tg,
+                    wp.color,
+                    wp.runs,
+                    wp.firstRun,
+                    containerRect,
                     isVertical
                 );
             }
@@ -465,45 +539,26 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
     }
 
     /**
-     * Position a group's underline across a multi-line (wrapped) tab strip. The
-     * single-bar model can't span lines, so the element is sized to cover the
-     * group's line span and an SVG draws one straight segment per line-run of
-     * the group's tabs: a horizontal segment per row (horizontal header) or a
-     * vertical segment per column (vertical header). Tabs are bucketed into
-     * runs by their cross-axis offset: `top` for rows, `left` for columns.
-     * (The active-tab wrap-around bump is omitted in wrap; the per-line lines
-     * still convey membership.)
+     * Draw a group's underline across a multi-line (wrapped) tab strip from its
+     * already-measured line-runs (write-only; the caller's measure pass called
+     * {@link _computeWrappedRuns}). The single-bar model can't span lines, so
+     * the element is sized to cover the group's line span and an SVG draws one
+     * straight segment per line-run: a horizontal segment per row (horizontal
+     * header) or a vertical segment per column (vertical header). `runs` are
+     * bucketed by cross-axis offset (`top` for rows, `left` for columns). (The
+     * active-tab wrap-around bump is omitted in wrap; the per-line lines still
+     * convey membership.)
      */
-    private _positionWrappedUnderline(
+    private _drawWrappedUnderline(
         underline: HTMLElement,
         tg: ITabGroup,
+        color: string,
+        runs: WrappedRun[],
+        firstRun: WrappedRun | undefined,
         containerRect: DOMRect,
-        tabMap: Map<string, IValueDisposable<Tab>>,
         isVertical: boolean
     ): void {
         const t = 2; // line thickness
-        const color = resolveTabGroupAccent(
-            tg.color,
-            this._ctx.getColorPalette()
-        );
-        if (color === undefined) {
-            underline.style.display = 'none';
-            this._clearContinuationMarkers(tg.id);
-            return;
-        }
-
-        const { runs, firstRun } = this._computeWrappedRuns(
-            tg,
-            containerRect,
-            tabMap,
-            isVertical
-        );
-
-        if (runs.length === 0) {
-            underline.style.display = 'none';
-            this._clearContinuationMarkers(tg.id);
-            return;
-        }
 
         this._positionContinuationMarkers(
             tg.id,
@@ -649,7 +704,7 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
      * instead of losing its colour after the first.
      *
      * `runs` are the group's line-runs (container-relative geometry) as
-     * bucketed by {@link _positionWrappedUnderline}; `firstRun` is the run that
+     * bucketed by {@link _computeWrappedRuns}; `firstRun` is the run that
      * holds the chip and is skipped. The pip sits at each continuation run's
      * main-axis start (top of a column, left of a row), centred on the cross
      * axis.
