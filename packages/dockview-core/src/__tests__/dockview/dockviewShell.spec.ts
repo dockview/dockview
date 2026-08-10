@@ -997,6 +997,37 @@ describe('ShellManager', () => {
             shell.dispose();
         });
 
+        test('getGridOffset reports the edge-group inset from splitview state (no measurement)', () => {
+            const shell = new ShellManager(
+                container,
+                dockviewElement,
+                layoutGrid,
+                0 // gap 0 so the offset equals the edge size exactly
+            );
+            shell.layout(1000, 800);
+
+            // No edge groups → grid fills the shell.
+            expect(shell.getGridOffset()).toEqual({ left: 0, top: 0 });
+
+            // A 250px left edge insets the grid by 250 on x; a 120px top edge by
+            // 120 on y. addEdgeView re-lays out at the current size, so the
+            // splitview has recomputed offsets by the time we read them.
+            shell.addEdgeView(
+                'left',
+                { id: 'left', initialSize: 250 },
+                makeGroup()
+            );
+            shell.addEdgeView(
+                'top',
+                { id: 'top', initialSize: 120 },
+                makeGroup()
+            );
+
+            expect(shell.getGridOffset()).toEqual({ left: 250, top: 120 });
+
+            shell.dispose();
+        });
+
         test('a repeat layout() at the same size is a no-op by construction; forceResize overrides', () => {
             const shell = makeVisibleShell();
 

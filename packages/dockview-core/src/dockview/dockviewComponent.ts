@@ -2963,20 +2963,15 @@ export class DockviewComponent
         // reflow; the browser batches them into its own end-of-frame layout.
         const width = this.gridview.width;
         const height = this.gridview.height;
-        let left = 0;
-        let top = 0;
 
-        if (this._shellManager.hasAnyEdgeGroup()) {
-            // Edge groups inset the grid by an amount that folds in splitview
-            // margins; measuring keeps the host pixel-exact (floats are clamped
-            // to it). One reflow, but edge-group + high-frequency-resize is a
-            // rare combination and correctness wins here.
-            const shellRect =
-                this._shellManager.element.getBoundingClientRect();
-            const gridRect = this.element.getBoundingClientRect();
-            left = gridRect.left - shellRect.left;
-            top = gridRect.top - shellRect.top;
-        }
+        // The grid's offset within the shell is 0 unless edge groups inset it.
+        // When they do, read that inset from the shell's splitview state (the
+        // offsets it already computed for the layout) rather than measuring it
+        // back with getBoundingClientRect — so this stays read-free even with
+        // edge groups + floating groups during an animated resize. (#1585)
+        const { left, top } = this._shellManager.hasAnyEdgeGroup()
+            ? this._shellManager.getGridOffset()
+            : { left: 0, top: 0 };
 
         host.style.left = `${left}px`;
         host.style.top = `${top}px`;

@@ -442,6 +442,12 @@ class MiddleColumnView implements IView, IDisposable {
         return 0;
     }
 
+    /** The center view's top offset within this column (its inset below any top
+     *  edge group + gap), read from splitview state — no DOM measurement. */
+    getCenterOffset(): number {
+        return this._splitview.getViewOffset(this._centerIndex);
+    }
+
     getViewCachedVisibleSize(position: 'top' | 'bottom'): number | undefined {
         const index = position === 'top' ? this._topIndex : this._bottomIndex;
         if (index !== undefined) {
@@ -827,6 +833,21 @@ export class ShellManager implements IDisposable {
             this._leftView !== undefined ||
             this._rightView !== undefined
         );
+    }
+
+    /**
+     * The center (dockview grid) slot's offset within the shell, i.e. how far
+     * edge groups inset it: `left` from the outer splitview's position for the
+     * middle column, `top` from the middle column's position for the center.
+     * Both come from splitview state (the same offsets it wrote to the DOM), so
+     * the floating-overlay host can mirror the grid box without a
+     * getBoundingClientRect. (#1585)
+     */
+    getGridOffset(): { left: number; top: number } {
+        return {
+            left: this._outerSplitview.getViewOffset(this._middleIndex),
+            top: this._middleColumn.getCenterOffset(),
+        };
     }
 
     hasEdgeGroup(position: EdgeGroupPosition): boolean {

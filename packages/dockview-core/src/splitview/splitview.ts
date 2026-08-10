@@ -121,6 +121,10 @@ export class Splitview {
     private _size = 0;
     private _orthogonalSize = 0;
     private _contentSize = 0;
+    // Primary-axis offset of each view as written to the DOM by layoutViews,
+    // exposed via getViewOffset() so callers (e.g. the shell computing the grid
+    // slot's inset) can read a view's position from state instead of measuring.
+    private readonly _viewOffsets: number[] = [];
     private _proportions: (number | undefined)[] | undefined = undefined;
     private readonly proportionalLayout: boolean;
     private _startSnappingEnabled = true;
@@ -333,6 +337,20 @@ export class Splitview {
         }
 
         return this.viewItems[index].size;
+    }
+
+    /**
+     * The primary-axis offset (left for horizontal, top for vertical) of the
+     * view at `index`, as last written to the DOM by layoutViews. Lets callers
+     * read a view's position from state instead of forcing a layout with
+     * getBoundingClientRect. Returns 0 for an out-of-range index or before the
+     * first layout.
+     */
+    getViewOffset(index: number): number {
+        if (index < 0 || index >= this.viewItems.length) {
+            return 0;
+        }
+        return this._viewOffsets[index] ?? 0;
     }
 
     resizeView(index: number, size: number): void {
@@ -850,6 +868,7 @@ export class Splitview {
             }
         }
         this._contentSize = contentSize;
+        this._viewOffsets.length = this.viewItems.length;
 
         this.updateSashEnablement();
 
@@ -890,6 +909,8 @@ export class Splitview {
                     : viewLeftOffsets[i - 1] +
                       (visiblePanelsBeforeThisView / sashCount) *
                           marginReducedSize;
+
+            this._viewOffsets[i] = offset;
 
             if (i < this.viewItems.length - 1) {
                 const newSize = view.visible
