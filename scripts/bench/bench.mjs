@@ -177,6 +177,35 @@ function pageHarness(groups, tabs) {
         return performance.now() - t0;
     };
 
+    // #1585 audit: N floating groups + a layout() storm. Every layout() runs
+    // FloatingGroupService.constrainBounds, which clamps each floating overlay.
+    // Before the two-pass fix each float measured (getBoundingClientRect) after
+    // the previous float's write, so N floats meant N forced reflows per layout;
+    // after, all overlays are measured up front then clamped — one reflow. Floats
+    // are added lazily on first call so the earlier (no-float) workloads are
+    // unaffected; no trailing self-read, so any forced Layout the trace records
+    // comes from constrainBounds itself.
+    let floatsAdded = false;
+    window.__floatConstrainStorm = (iters) => {
+        if (!floatsAdded) {
+            for (let i = 0; i < 8; i++) {
+                api.addPanel({
+                    id: `float_${i}`,
+                    component: 'default',
+                    floating: true,
+                });
+            }
+            floatsAdded = true;
+            api.layout(1600, 1000);
+        }
+        const t0 = performance.now();
+        for (let i = 0; i < iters; i++) {
+            api.layout(1200 + ((i * 37) % 700), 800 + ((i * 53) % 400));
+        }
+        void host.offsetHeight;
+        return performance.now() - t0;
+    };
+
     // Sash drag: dispatch a real pointer drag on a top-level group boundary.
     window.__sashDrag = (iters) => {
         const sash = host.querySelector('.dv-sash-container > .dv-sash');
@@ -263,6 +292,8 @@ async function traced(page, client, which, iters) {
             if (which === 'resize') return window.__resizeStorm(iters);
             if (which === 'layout') return window.__layoutStorm(iters);
             if (which === 'duplayout') return window.__dupLayoutStorm(iters);
+            if (which === 'constrain')
+                return window.__floatConstrainStorm(iters);
             return window.__sashDrag(iters);
         },
         { which, iters }
@@ -281,7 +312,14 @@ async function benchBundle(bundlePath) {
         executablePath: process.env.DOCKVIEW_BENCH_CHROME || undefined,
         args: ['--no-sandbox'],
     });
-    const runs = { emit: [], duplayout: [], layout: [], resize: [], drag: [] };
+    const runs = {
+        emit: [],
+        duplayout: [],
+        layout: [],
+        resize: [],
+        drag: [],
+        constrain: [],
+    };
     try {
         for (let rep = 0; rep < REPS; rep++) {
             const page = await browser.newPage();
@@ -301,6 +339,11 @@ async function benchBundle(bundlePath) {
             runs.layout.push(await traced(page, client, 'layout', RESIZE_ITERS));
             runs.resize.push(await traced(page, client, 'resize', RESIZE_ITERS));
             runs.drag.push(await traced(page, client, 'drag', DRAG_ITERS));
+            // Runs last: it adds floating groups, which would change the earlier
+            // no-float workloads.
+            runs.constrain.push(
+                await traced(page, client, 'constrain', RESIZE_ITERS)
+            );
             await client.detach();
             await page.close();
         }
@@ -319,6 +362,7 @@ async function benchBundle(bundlePath) {
         layout: summarize(runs.layout),
         resize: summarize(runs.resize),
         drag: summarize(runs.drag),
+        constrain: summarize(runs.constrain),
     };
 }
 
@@ -340,6 +384,7 @@ function reportSingle(name, r) {
         ['layout', `layout() storm, no self-read (${RESIZE_ITERS} calls) [#1585]`],
         ['resize', `window-resize (${RESIZE_ITERS} relayouts)`],
         ['drag', `sash drag (${DRAG_ITERS} moves)`],
+        ['constrain', `8 floats + layout() storm (${RESIZE_ITERS}) [#1585 audit]`],
     ]) {
         const m = r[wl];
         console.log(
@@ -373,6 +418,7 @@ function reportAB(a, b) {
         ['layout', `LAYOUT() STORM, no self-read (${RESIZE_ITERS} calls) [#1585]`],
         ['resize', `WINDOW-RESIZE (${RESIZE_ITERS} relayouts)`],
         ['drag', `SASH DRAG (${DRAG_ITERS} moves)`],
+        ['constrain', `8 FLOATS + LAYOUT() STORM (${RESIZE_ITERS}) [#1585 audit]`],
     ]) {
         console.log(`\n${label}\n  metric        base       branch     change`);
         for (const k of ['wallMs', 'layoutMs', 'recalcMs', 'gcMs']) {
@@ -400,6 +446,7 @@ const WORKLOADS = [
     ['layout', `layout() storm, no self-read (${RESIZE_ITERS} calls) — #1585`],
     ['resize', `window-resize (${RESIZE_ITERS} relayouts)`],
     ['drag', `sash drag (${DRAG_ITERS} moves)`],
+    ['constrain', `8 floats + layout() storm (${RESIZE_ITERS}) — #1585 audit`],
 ];
 
 function reportMarkdown(bundles, results) {
