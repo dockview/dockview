@@ -26,15 +26,15 @@ export class BranchNode extends CompositeDisposable implements IView {
     public readonly children: Node[] = [];
 
     /**
-     * `minimumSize`/`maximumSize`/`priority` are aggregates over all children
-     * and were previously recomputed (with array allocations) on every getter
-     * access. They are read repeatedly per frame inside `Splitview.resize` /
-     * `layoutViews` and, because a grid is splitviews-of-splitviews, that made a
-     * sash drag O(children²) with per-read allocation. These values only change
-     * on a structural mutation, a visibility toggle, or a child's own
-     * constraints changing (which surfaces as the child's `onDidChange`) — none
-     * of which fire during a plain sash drag — so we cache them and invalidate
-     * on exactly those signals. `undefined` means "dirty; recompute on read".
+     * `minimumSize`/`maximumSize`/`priority` are aggregates over all children,
+     * read repeatedly per frame inside `Splitview.resize` / `layoutViews`.
+     * Because a grid is splitviews-of-splitviews, recomputing them on every
+     * getter access (with array allocations) would make a sash drag O(children²)
+     * with per-read allocation. These values only change on a structural
+     * mutation, a visibility toggle, or a child's own constraints changing (which
+     * surfaces as the child's `onDidChange`) — none of which fire during a plain
+     * sash drag — so we cache them and invalidate on exactly those signals.
+     * `undefined` means "dirty; recompute on read".
      */
     private _cachedMinimumSize: number | undefined;
     private _cachedMaximumSize: number | undefined;

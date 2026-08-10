@@ -1098,12 +1098,11 @@ export class Splitview {
                 pushToEnd(downIndexes, i);
             }
         }
-        //
-        // `upItems`/`upSizes`/`downItems`/`downSizes` used to be materialised as
-        // four parallel arrays here (via `.map`) on every call — i.e. on every
-        // pointermove of a sash drag and every resize frame. They're only read
-        // by the two delta loops below, so we index `viewItems`/`sizes` through
-        // `upIndexes`/`downIndexes` inline instead and drop the four allocations.
+        // The delta loops below index `viewItems`/`sizes` through
+        // `upIndexes`/`downIndexes` inline rather than materialising
+        // `upItems`/`upSizes`/`downItems`/`downSizes` as four parallel arrays —
+        // this runs on every sash-drag pointermove and resize frame, so it avoids
+        // four allocations per call.
         const minDeltaUp = upIndexes.reduce(
             (_, i) => _ + this.viewItems[i].minimumSize - sizes[i],
             0

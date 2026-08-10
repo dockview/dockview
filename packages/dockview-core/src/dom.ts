@@ -485,11 +485,10 @@ export function onDidWindowMoveEnd(window: Window): Emitter<void> {
 
     checkMovement();
 
-    // The rAF loop above polls `screenX`/`screenY` every frame and was
-    // previously only stopped when `window.closed` flipped true. Disposing the
-    // returned emitter (e.g. re-docking a popout whose window is reused, or
-    // tearing down the component) left the poll running forever. Stop it — and
-    // the pending debounce — when the emitter is disposed.
+    // The rAF loop above polls `screenX`/`screenY` every frame. Stop it — and
+    // the pending debounce — when the emitter is disposed, so re-docking a
+    // popout whose window is reused (or tearing down the component) doesn't
+    // leave the poll running forever.
     const disposeEmitter = emitter.dispose.bind(emitter);
     emitter.dispose = () => {
         if (!stopped) {
