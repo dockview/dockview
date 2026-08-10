@@ -639,7 +639,10 @@ describe('tabs - animation', () => {
                 };
                 const originalMatchMedia = win.matchMedia;
                 win.matchMedia = ((query: string) =>
-                    ({ matches: true, media: query }) as MediaQueryList) as typeof win.matchMedia;
+                    ({
+                        matches: true,
+                        media: query,
+                    }) as MediaQueryList) as typeof win.matchMedia;
                 const mock = installAnimateMock();
                 try {
                     const { tabs, elements, firstPositions } =
@@ -1147,7 +1150,10 @@ describe('tabs - animation', () => {
             };
             const originalMatchMedia = win.matchMedia;
             win.matchMedia = ((query: string) =>
-                ({ matches: true, media: query }) as MediaQueryList) as typeof win.matchMedia;
+                ({
+                    matches: true,
+                    media: query,
+                }) as MediaQueryList) as typeof win.matchMedia;
             const mock = installAnimateMock();
             try {
                 const { el, reorder } = setup();

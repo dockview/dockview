@@ -884,7 +884,9 @@ describe('TabGroupManager', () => {
             const el = tabs[0].value.element;
             expect(el.style.transition).toBe('');
             expect(el.style.height).toBe('');
-            expect(el.classList.contains('dv-tab--group-expanding')).toBe(false);
+            expect(el.classList.contains('dv-tab--group-expanding')).toBe(
+                false
+            );
         });
 
         test('cancelling a collapse directly leaves the collapsed resting state', () => {

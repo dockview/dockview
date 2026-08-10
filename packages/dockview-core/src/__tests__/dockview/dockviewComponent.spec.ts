@@ -164,10 +164,7 @@ describe('dockviewComponent', () => {
         // The shell wrapper reports "dimensions unchanged -> skip"; layout()
         // honours it by returning early, so the overlay-host sync (and the
         // floating-group constrain) that follow are not re-run for nothing.
-        const syncSpy = jest.spyOn(
-            dockview as any,
-            '_syncFloatingOverlayHost'
-        );
+        const syncSpy = jest.spyOn(dockview as any, '_syncFloatingOverlayHost');
 
         dockview.layout(1000, 500);
         expect(syncSpy).toHaveBeenCalled();
