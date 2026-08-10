@@ -808,3 +808,232 @@ describe('_positionUnderlinesSync read/write batching', () => {
         indicator.dispose();
     });
 });
+
+describe('single-bar placement (measure/write two-pass)', () => {
+    const rect = (
+        left: number,
+        top: number,
+        width: number,
+        height: number
+    ): DOMRect =>
+        ({
+            x: left,
+            y: top,
+            left,
+            top,
+            width,
+            height,
+            right: left + width,
+            bottom: top + height,
+            toJSON: () => ({}),
+        }) as DOMRect;
+
+    const makeTab = (r: DOMRect) => {
+        const el = document.createElement('div');
+        el.getBoundingClientRect = () => r;
+        return { value: { element: el } };
+    };
+
+    function setup(opts: {
+        tabGroups: TabGroup[];
+        tabMap: Map<string, any>;
+        direction?: 'horizontal' | 'vertical';
+        activePanelId?: string;
+        getChipElement?: (id: string) => HTMLElement | undefined;
+    }): WrapTabGroupIndicator {
+        const tabsList = document.createElement('div');
+        // No wrap class → single-bar (not the per-line wrapped model).
+        tabsList.getBoundingClientRect = () => rect(0, 0, 400, 30);
+        const vertical = opts.direction === 'vertical';
+        const ctx = createContext({
+            tabsList,
+            getTabGroups: () => opts.tabGroups,
+            getTabMap: () => opts.tabMap as any,
+            getActivePanelId: () => opts.activePanelId,
+            getDirection: () => opts.direction ?? 'horizontal',
+            getHeaderPosition: () => (vertical ? 'left' : 'top'),
+            getChipElement: opts.getChipElement ?? (() => undefined),
+        });
+        const indicator = new WrapTabGroupIndicator(ctx);
+        indicator.syncUnderlineElements(
+            new Set(opts.tabGroups.map((tg) => tg.id))
+        );
+        return indicator;
+    }
+
+    test('horizontal bar spans the first tab start to the last tab end', () => {
+        const tabMap = new Map<string, any>([
+            ['a', makeTab(rect(10, 0, 50, 30))],
+            ['b', makeTab(rect(60, 0, 50, 30))],
+        ]);
+        const tg = new TabGroup('tg-1', { label: 'g', color: 'blue' });
+        tg.addPanel('a');
+        tg.addPanel('b');
+
+        const indicator = setup({
+            tabGroups: [tg],
+            tabMap,
+            activePanelId: 'a',
+        });
+        (indicator as any)._positionUnderlinesSync();
+
+        const underline = indicator.getUnderline('tg-1')!;
+        expect(underline.style.display).toBe('');
+        expect(underline.style.left).toBe('10px');
+        expect(underline.style.width).toBe('100px');
+
+        indicator.dispose();
+    });
+
+    test('vertical bar sizes the block axis', () => {
+        const tabMap = new Map<string, any>([
+            ['a', makeTab(rect(0, 10, 50, 26))],
+            ['b', makeTab(rect(0, 40, 50, 26))],
+        ]);
+        const tg = new TabGroup('tg-1', { label: 'g', color: 'green' });
+        tg.addPanel('a');
+        tg.addPanel('b');
+
+        const indicator = setup({
+            tabGroups: [tg],
+            tabMap,
+            direction: 'vertical',
+            activePanelId: 'b',
+        });
+        (indicator as any)._positionUnderlinesSync();
+
+        const underline = indicator.getUnderline('tg-1')!;
+        expect(underline.style.top).toBe('10px');
+        // last tab bottom 66 − start 10 = 56
+        expect(underline.style.height).toBe('56px');
+
+        indicator.dispose();
+    });
+
+    test('a group whose last tab is missing collapses to a zero-length bar (nolast)', () => {
+        const tabMap = new Map<string, any>([
+            ['a', makeTab(rect(20, 0, 50, 30))],
+        ]);
+        const tg = new TabGroup('tg-1', { label: 'g', color: 'blue' });
+        tg.addPanel('a');
+        tg.addPanel('missing');
+
+        const indicator = setup({ tabGroups: [tg], tabMap });
+        (indicator as any)._positionUnderlinesSync();
+
+        const underline = indicator.getUnderline('tg-1')!;
+        expect(underline.style.left).toBe('20px');
+        expect(underline.style.width).toBe('0px');
+
+        indicator.dispose();
+    });
+
+    test('vertical nolast writes the block-axis start with zero height', () => {
+        const tabMap = new Map<string, any>([
+            ['a', makeTab(rect(0, 15, 50, 26))],
+        ]);
+        const tg = new TabGroup('tg-1', { label: 'g', color: 'blue' });
+        tg.addPanel('a');
+        tg.addPanel('missing');
+
+        const indicator = setup({
+            tabGroups: [tg],
+            tabMap,
+            direction: 'vertical',
+        });
+        (indicator as any)._positionUnderlinesSync();
+
+        const underline = indicator.getUnderline('tg-1')!;
+        expect(underline.style.top).toBe('15px');
+        expect(underline.style.height).toBe('0px');
+
+        indicator.dispose();
+    });
+
+    test('an empty group hides its underline', () => {
+        const tg = new TabGroup('tg-1', { label: 'g', color: 'blue' });
+        const indicator = setup({ tabGroups: [tg], tabMap: new Map() });
+        (indicator as any)._positionUnderlinesSync();
+
+        expect(indicator.getUnderline('tg-1')!.style.display).toBe('none');
+        indicator.dispose();
+    });
+
+    test('a chip anchors the bar start and drives the collapse interpolation', () => {
+        const tabMap = new Map<string, any>([
+            ['a', makeTab(rect(30, 0, 50, 30))],
+            ['b', makeTab(rect(80, 0, 50, 30))],
+        ]);
+        const tg = new TabGroup('tg-1', { label: 'g', color: 'blue' });
+        tg.addPanel('a');
+        tg.addPanel('b');
+        tg.collapse(); // isAnimating → chip-centre interpolation path
+
+        const chip = document.createElement('div');
+        chip.getBoundingClientRect = () => rect(0, 0, 20, 30);
+
+        const indicator = setup({
+            tabGroups: [tg],
+            tabMap,
+            activePanelId: 'a',
+            getChipElement: () => chip,
+        });
+        // Exercises the chip start-edge and collapse-interpolation branches;
+        // the exact geometry depends on collapse progress, so just assert the
+        // pass completed and left the underline in place.
+        expect(() =>
+            (indicator as any)._positionUnderlinesSync()
+        ).not.toThrow();
+        expect(indicator.getUnderline('tg-1')).toBeTruthy();
+
+        indicator.dispose();
+    });
+});
+
+describe('WrapTabGroupIndicator hide/hide-clear branches', () => {
+    const WRAP_CLASS = 'dv-tabs-container--wrap';
+
+    function setup(tabGroups: TabGroup[], tabMap: Map<string, any>) {
+        const tabsList = document.createElement('div');
+        tabsList.classList.add(WRAP_CLASS);
+        const ctx = createContext({
+            tabsList,
+            getTabGroups: () => tabGroups,
+            getTabMap: () => tabMap as any,
+        });
+        const indicator = new WrapTabGroupIndicator(ctx);
+        indicator.syncUnderlineElements(new Set(tabGroups.map((tg) => tg.id)));
+        return indicator;
+    }
+
+    test('a wrapped group with no accent colour is hidden and cleared', () => {
+        // No colour → resolveTabGroupAccent returns undefined → hide-clear.
+        const tg = new TabGroup('tg-1', { label: 'g' });
+        tg.addPanel('a');
+        const indicator = setup([tg], new Map());
+        (indicator as any)._positionUnderlinesSync();
+
+        expect(indicator.getUnderline('tg-1')!.style.display).toBe('none');
+        indicator.dispose();
+    });
+
+    test('a wrapped group with no measurable runs is hidden and cleared', () => {
+        // Colour present but the tabs aren't in the map → zero runs → hide-clear.
+        const tg = new TabGroup('tg-1', { label: 'g', color: 'blue' });
+        tg.addPanel('a');
+        const indicator = setup([tg], new Map());
+        (indicator as any)._positionUnderlinesSync();
+
+        expect(indicator.getUnderline('tg-1')!.style.display).toBe('none');
+        indicator.dispose();
+    });
+
+    test('a wrapped group with no panels is hidden', () => {
+        const tg = new TabGroup('tg-1', { label: 'g', color: 'blue' });
+        const indicator = setup([tg], new Map());
+        (indicator as any)._positionUnderlinesSync();
+
+        expect(indicator.getUnderline('tg-1')!.style.display).toBe('none');
+        indicator.dispose();
+    });
+});

@@ -160,6 +160,31 @@ describe('dockviewComponent', () => {
         );
     });
 
+    test('a repeat layout() at the same size skips the post-layout sync', () => {
+        // The shell wrapper reports "dimensions unchanged -> skip"; layout()
+        // honours it by returning early, so the overlay-host sync (and the
+        // floating-group constrain) that follow are not re-run for nothing.
+        const syncSpy = jest.spyOn(
+            dockview as any,
+            '_syncFloatingOverlayHost'
+        );
+
+        dockview.layout(1000, 500);
+        expect(syncSpy).toHaveBeenCalled();
+
+        // A duplicate call at the same rounded size is a no-op -> early return
+        // before the sync.
+        syncSpy.mockClear();
+        dockview.layout(1000, 500);
+        expect(syncSpy).not.toHaveBeenCalled();
+
+        // A genuinely different size proceeds and syncs again.
+        dockview.layout(1200, 600);
+        expect(syncSpy).toHaveBeenCalled();
+
+        syncSpy.mockRestore();
+    });
+
     describe('disableDnd option integration', () => {
         test('that updateOptions with disableDnd updates all tabs and void containers', () => {
             dockview = new DockviewComponent(container, {

@@ -632,6 +632,33 @@ describe('tabs - animation', () => {
                     mock.restore();
                 }
             });
+
+            test('reduced motion snaps to final positions with no scripted slide', () => {
+                const win = document.defaultView as Window & {
+                    matchMedia?: (q: string) => MediaQueryList;
+                };
+                const originalMatchMedia = win.matchMedia;
+                win.matchMedia = ((query: string) =>
+                    ({ matches: true, media: query }) as MediaQueryList) as typeof win.matchMedia;
+                const mock = installAnimateMock();
+                try {
+                    const { tabs, elements, firstPositions } =
+                        threeTabsMovedFlip();
+
+                    (tabs as any).runFlipAnimation(firstPositions, 'panel-a');
+
+                    // No scripted slide; the moved tabs snap to their final slot
+                    // (inline transform cleared) with the shifting marker dropped.
+                    expect(mock.animations).toHaveLength(0);
+                    expect(elements[1].style.transform).toBe('');
+                    expect(
+                        elements[1].classList.contains('dv-tab--shifting')
+                    ).toBe(false);
+                } finally {
+                    mock.restore();
+                    win.matchMedia = originalMatchMedia;
+                }
+            });
         });
     });
 
@@ -1112,6 +1139,47 @@ describe('tabs - animation', () => {
             } finally {
                 mock.restore();
             }
+        });
+
+        test('reduced motion clears the gap instantly with no scripted animation', () => {
+            const win = document.defaultView as Window & {
+                matchMedia?: (q: string) => MediaQueryList;
+            };
+            const originalMatchMedia = win.matchMedia;
+            win.matchMedia = ((query: string) =>
+                ({ matches: true, media: query }) as MediaQueryList) as typeof win.matchMedia;
+            const mock = installAnimateMock();
+            try {
+                const { el, reorder } = setup();
+
+                el.style.marginLeft = '80px';
+                reorder._clearMargin(el, false);
+
+                expect(mock.animations).toHaveLength(0);
+                expect(el.style.marginLeft).toBe('');
+                expect(el.classList.contains('dv-tab--shifting')).toBe(false);
+            } finally {
+                mock.restore();
+                win.matchMedia = originalMatchMedia;
+            }
+        });
+
+        test('wrapped drag entries are snapshotted once per drag', () => {
+            const { tabs } = createTabs({ tabAnimation: 'smooth' });
+            tabs.openPanel(createMockPanel('panel-a'), 0);
+            tabs.openPanel(createMockPanel('panel-b'), 1);
+            const reorder = (tabs as any)._reorder;
+
+            reorder._animState = {
+                sourceTabId: 'panel-a',
+                sourceGroupPanelIds: undefined,
+            };
+
+            const first = reorder._wrappedDragEntries();
+            const second = reorder._wrappedDragEntries();
+            // The second call returns the cached snapshot rather than
+            // re-measuring, so it is the very same array instance.
+            expect(second).toBe(first);
         });
     });
 

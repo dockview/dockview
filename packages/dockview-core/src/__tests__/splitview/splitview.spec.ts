@@ -999,4 +999,28 @@ describe('splitview', () => {
             { left: '464px', top: '0px' },
         ]);
     });
+
+    test('getViewOffset reads each view offset from state, 0 out of range', () => {
+        const splitview = new Splitview(container, {
+            orientation: Orientation.HORIZONTAL,
+        });
+
+        // Two fixed 50px views: after layout the second one is offset by the
+        // first's size, written to _viewOffsets by layoutViews.
+        splitview.addView(new Testview(50, 50));
+        splitview.addView(new Testview(50, 50));
+
+        splitview.layout(300, 100);
+
+        // valid indices return the primary-axis offset from state (not 0 for
+        // the second view, so this is the real read path not the guard)
+        expect(splitview.getViewOffset(0)).toBe(0);
+        expect(splitview.getViewOffset(1)).toBe(50);
+
+        // out-of-range (and negative) indices hit the guard and return 0
+        expect(splitview.getViewOffset(-1)).toBe(0);
+        expect(splitview.getViewOffset(2)).toBe(0);
+
+        splitview.dispose();
+    });
 });

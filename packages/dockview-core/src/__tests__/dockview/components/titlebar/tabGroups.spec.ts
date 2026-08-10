@@ -819,6 +819,93 @@ describe('TabGroupManager', () => {
                 win.matchMedia = originalMatchMedia;
             }
         });
+
+        test('collapse and expand fall back to empty keyframe values when computed style is property-less', async () => {
+            const win = document.defaultView as Window & {
+                getComputedStyle: typeof window.getComputedStyle;
+            };
+            const original = win.getComputedStyle;
+            // A computed-style object with no geometry longhands: every
+            // `computed?.paddingTop ?? ''` resolves through its nullish fallback.
+            win.getComputedStyle = (() => ({
+                getPropertyValue: () => '',
+            })) as unknown as typeof window.getComputedStyle;
+
+            try {
+                const tabs = [createTab('p1')];
+                const tg = makeGroup('g1', ['p1']);
+                const { manager } = createManager({ tabs, tabGroups: [tg] });
+
+                manager.update();
+                tg.collapse();
+                manager.update();
+                expect(mock.animations).toHaveLength(1);
+                mock.animations[0].resolveFinished();
+                await flush();
+
+                tg.expand();
+                manager.update();
+                expect(mock.animations).toHaveLength(2);
+                mock.animations[1].resolveFinished();
+                await flush();
+
+                const el = tabs[0].value.element;
+                expect(el.style.transition).toBe('');
+                expect(el.classList.contains('dv-tab--group-expanding')).toBe(
+                    false
+                );
+            } finally {
+                win.getComputedStyle = original;
+            }
+        });
+
+        test('vertical orientation collapse and expand animate the block axis', async () => {
+            const tabs = [createTab('p1')];
+            const tg = makeGroup('g1', ['p1']);
+            const { manager } = createManager({
+                tabs,
+                tabGroups: [tg],
+                direction: 'vertical',
+            });
+
+            manager.update();
+            tg.collapse();
+            manager.update();
+            expect(mock.animations).toHaveLength(1);
+            mock.animations[0].resolveFinished();
+            await flush();
+
+            tg.expand();
+            manager.update();
+            expect(mock.animations).toHaveLength(2);
+            mock.animations[1].resolveFinished();
+            await flush();
+
+            const el = tabs[0].value.element;
+            expect(el.style.transition).toBe('');
+            expect(el.style.height).toBe('');
+            expect(el.classList.contains('dv-tab--group-expanding')).toBe(false);
+        });
+
+        test('cancelling a collapse directly leaves the collapsed resting state', () => {
+            const tabs = [createTab('p1')];
+            const tg = makeGroup('g1', ['p1']);
+            const { manager } = createManager({ tabs, tabGroups: [tg] });
+
+            manager.update();
+            tg.collapse();
+            manager.update();
+            expect(mock.animations).toHaveLength(1);
+
+            // Disposing while the collapse is in flight cancels it and leaves the
+            // tab in its collapsed resting state with the suppression removed.
+            manager.disposeAll();
+
+            const el = tabs[0].value.element;
+            expect(mock.animations[0].cancel).toHaveBeenCalledTimes(1);
+            expect(el.classList.contains('dv-tab--group-collapsed')).toBe(true);
+            expect(el.style.transition).toBe('');
+        });
     });
 
     describe('underline / indicator', () => {
