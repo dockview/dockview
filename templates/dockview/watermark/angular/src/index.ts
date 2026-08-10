@@ -6,21 +6,19 @@ import { BrowserModule } from '@angular/platform-browser';
 import { DockviewAngularModule, DockviewApi, DockviewReadyEvent, Orientation } from 'dockview-angular';
 import 'dockview-angular/dist/styles/dockview.css';
 
+let panelCount = 0;
+
 // Default panel component
 @Component({
     selector: 'default-panel',
-    template: `
-        <div style="height: 100%; padding: 20px;">
-            {{ title }}
-        </div>
-    `
+    template: `<div class="example-panel">{{ title }}</div>`
 })
 export class DefaultPanelComponent {
     @Input() api: any;
     @Input() params: any;
-    
+
     get title() {
-        return this.params?.title || this.api?.title || this.api?.id || 'Panel';
+        return this.api?.title || this.api?.id || 'Panel';
     }
 
     constructor() {}
@@ -30,15 +28,13 @@ export class DefaultPanelComponent {
 @Component({
     selector: 'watermark-panel',
     template: `
-        <div style="height: 100%; display: flex; justify-content: center; align-items: center; color: white;">
-            <div style="display: flex; flex-direction: column;">
-                <span>This is a custom watermark. You can change this content.</span>
-                <span>
-                    <button (click)="addPanel()" style="margin: 10px;">Add New Panel</button>
-                </span>
-                <span *ngIf="isGroup">
-                    <button (click)="closeGroup()" style="margin: 10px;">Close Group</button>
-                </span>
+        <div style="height: 100%; display: flex; justify-content: center; align-items: center;">
+            <div>
+                <p>This is a custom watermark. You can change this content.</p>
+                <div class="example-controls">
+                    <button (click)="addPanel()">Add New Panel</button>
+                    <button *ngIf="isGroup" (click)="closeGroup()">Close Group</button>
+                </div>
             </div>
         </div>
     `
@@ -54,8 +50,8 @@ export class WatermarkComponent {
     addPanel() {
         this.containerApi.addPanel({
             id: Date.now().toString(),
-            component: 'default',
-            params: { title: 'New Panel' }
+            title: `Panel ${++panelCount}`,
+            component: 'default'
         });
     }
 
@@ -64,21 +60,22 @@ export class WatermarkComponent {
     }
 }
 
-// Main app component  
+// Main app component
 @Component({
     selector: 'app-root',
     template: `
-        <div style="height: 100%; display: flex; flex-direction: column;">
-            <div>
-                <button (click)="addEmptyGroup()" style="margin: 10px;">Add Empty Group</button>
+        <div class="example-layout">
+            <div class="example-controls">
+                <button (click)="addEmptyGroup()">Add Empty Group</button>
             </div>
-            <dv-dockview
-                [components]="components"
-                [watermarkComponent]="watermarkComponent"
-                className="dockview-theme-abyss"
-                (ready)="onReady($event)"
-                style="flex: 1;">
-            </dv-dockview>
+            <div class="example-dock">
+                <dv-dockview
+                    [components]="components"
+                    [watermarkComponent]="watermarkComponent"
+                    className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
+                    (ready)="onReady($event)">
+                </dv-dockview>
+            </div>
         </div>
     `
 })

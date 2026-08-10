@@ -2,30 +2,40 @@
 
 > A zero dependency layout manager supporting tabs, groups, grids and splitviews for React, Vue, Angular, and JavaScript.
 
-Dockview is an open-source docking layout library that lets you build IDE-like and dashboard interfaces with resizable panels, draggable tabs, floating groups, and popout windows. It has zero runtime dependencies and works with React, Vue 3, Angular, and plain TypeScript.
+Dockview is an open-source docking layout library that lets you build IDE-like and dashboard interfaces with resizable panels, draggable tabs, floating groups, maximizable groups, and popout windows. It has zero runtime dependencies and works with React, Vue 3, Angular, and plain TypeScript.
 
 ## Key Features
 
 - Zero runtime dependencies
-- Drag and drop with customizable drop zones
+- Drag and drop with customizable drop zones and overlays
 - Floating/overlay groups
-- Edge groups (panels pinned to layout edges with collapse/expand)
-- Tab groups (visual tab organization with colored chips)
 - Popout windows (extracting panels to separate browser windows)
+- Maximize and restore groups
+- Edge groups (panels pinned to layout edges)
+- Tab groups (visual tab organization with colored chips)
+- Tab overflow menu and configurable header/tab positions
 - Full serialization and deserialization for state persistence
-- Theming system with CSS custom properties
+- Built-in themes plus CSS custom property theming
 - Splitview, gridview, paneview, and dockview layout strategies
-- Comprehensive programmatic API
+- Strict CSP support and accessibility (ARIA roles, keyboard navigation)
+- Comprehensive programmatic API and event surface
 - TypeScript-first with full type definitions
+
+## Editions
+
+- **Dockview** — MIT licensed, open source. Everything needed to build a complete docking layout.
+- **Dockview Enterprise** — commercial licence (`dockview-enterprise`, free 30-day trial). A drop-in superset adding smart guides, layout history (undo/redo), multi-row and pinned tabs, tab/chip context menus, advanced tab overflow, auto edge groups, and spatial keyboard docking. See https://dockview.dev/docs/overview/licence.
 
 ## Packages
 
 | Package | Framework | Install |
 |---|---|---|
+| dockview-core | JavaScript (core) | `npm install dockview-core` |
 | dockview | JavaScript | `npm install dockview` |
 | dockview-react | React | `npm install dockview-react` |
 | dockview-vue | Vue 3 | `npm install dockview-vue` |
 | dockview-angular | Angular | `npm install dockview-angular` |
+| dockview-enterprise | All (commercial) | `npm install dockview-enterprise` |
 
 ## Optional
 
@@ -33,10 +43,13 @@ Dockview is an open-source docking layout library that lets you build IDE-like a
 
 ## Links
 
-- Documentation: https://dockview.dev/docs/overview/getStarted/installation
+- Documentation: https://dockview.dev/docs/overview/introduction
+- Quickstart: https://dockview.dev/docs/overview/quickstart
+- Installation: https://dockview.dev/docs/overview/installation
 - API Reference: https://dockview.dev/docs/api/dockview/overview
+- Licensing: https://dockview.dev/docs/overview/licence
 - Live Demo: https://dockview.dev/demo
-- GitHub: https://github.com/mathuo/dockview
+- GitHub: https://github.com/dockview/dockview
 - npm: https://www.npmjs.com/package/dockview-react
 - Blog / Release Notes: https://dockview.dev/blog
-- License: MIT
+- License: MIT (core); commercial for Dockview Enterprise

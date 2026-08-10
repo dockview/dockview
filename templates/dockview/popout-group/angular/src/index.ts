@@ -9,6 +9,8 @@ import {
     OnInit,
     OnDestroy,
     ChangeDetectorRef,
+    ViewChild,
+    ElementRef,
 } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import {
@@ -25,37 +27,118 @@ import 'dockview-angular/dist/styles/dockview.css';
 const STORAGE_KEY = 'popout.layout';
 let panelCount = 0;
 
+const MENU_ITEMS = ['New tab', 'Duplicate panel', 'Rename panel', 'Close panel'];
+
+@Component({
+    selector: 'popover-menu',
+    template: `
+        <button
+            #button
+            (click)="toggle()"
+            style="position: relative; align-self: flex-start;">
+            {{ isOpen ? 'Hide menu' : 'Show menu' }}
+            <ul
+                *ngIf="isOpen"
+                style="position: absolute; top: calc(100% + 4px); left: 0; background: var(--dv-group-view-background-color); color: var(--dv-activegroup-visiblepanel-tab-color); border: 1px solid var(--dv-separator-border); border-radius: 4px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); list-style: none; padding: 4px 0; margin: 0; min-width: 160px; text-align: left; z-index: 1000;">
+                <li
+                    *ngFor="let item of menuItems"
+                    style="padding: 6px 16px; cursor: pointer;"
+                    (mouseenter)="setBackground($event, true)"
+                    (mouseleave)="setBackground($event, false)">
+                    {{ item }}
+                </li>
+            </ul>
+        </button>
+    `,
+})
+export class PopoverMenuComponent implements OnDestroy {
+    @Input() window?: Window;
+    @ViewChild('button') buttonRef?: ElementRef<HTMLButtonElement>;
+
+    isOpen = false;
+    menuItems = MENU_ITEMS;
+
+    private doc?: Document;
+    private handleClickOutside = (event: Event) => {
+        if (
+            this.buttonRef &&
+            !this.buttonRef.nativeElement.contains(event.target as Node)
+        ) {
+            this.close();
+        }
+    };
+
+    toggle() {
+        this.isOpen ? this.close() : this.open();
+    }
+
+    private open() {
+        this.isOpen = true;
+        this.doc = this.window?.document || document;
+        this.doc.addEventListener('mousedown', this.handleClickOutside);
+    }
+
+    private close() {
+        this.isOpen = false;
+        this.doc?.removeEventListener('mousedown', this.handleClickOutside);
+    }
+
+    setBackground(event: Event, hovered: boolean) {
+        (event.currentTarget as HTMLElement).style.background = hovered
+            ? 'var(--dv-activegroup-visiblepanel-tab-background-color)'
+            : 'transparent';
+    }
+
+    ngOnDestroy() {
+        this.close();
+    }
+}
+
 @Component({
     selector: 'default-panel',
     template: `
         <div
-            style="height: 100%; padding: 20px; background: var(--dv-group-view-background-color);">
-            <button (click)="logWindow()">Print</button>
-            <span style="margin-left: 8px;">{{ api?.title }}</span>
+            class="example-panel"
+            style="display: flex; flex-direction: column; gap: 8px;">
+            <div>{{ api?.title }}</div>
+            <popover-menu [window]="window"></popover-menu>
         </div>
     `,
 })
-export class DefaultPanelComponent {
+export class DefaultPanelComponent implements OnInit, OnDestroy {
     @Input() api!: DockviewPanelApi;
 
-    logWindow() {
-        console.log(this.api.getWindow());
+    window!: Window;
+    private disposable?: { dispose(): void };
+
+    constructor(private cd: ChangeDetectorRef) {}
+
+    ngOnInit() {
+        this.window = this.api.getWindow();
+        this.disposable = this.api.onDidLocationChange(() => {
+            this.window = this.api.getWindow();
+            this.cd.markForCheck();
+        });
+    }
+
+    ngOnDestroy() {
+        this.disposable?.dispose();
     }
 }
 
 @Component({
     selector: 'watermark-panel',
-    template: `<div style="color: white; padding: 8px;">watermark</div>`,
+    template: `<div style="padding: 8px;">Empty group</div>`,
 })
 export class WatermarkComponent {}
 
 @Component({
     selector: 'left-header-actions',
     template: `
-        <div style="height: 100%; color: white; padding: 0px 4px;">
+        <div style="height: 100%; padding: 0px 4px;">
             <div
                 (click)="addPanel()"
-                title="Add Panel"
+                title="Add panel"
                 style="display: flex; align-items: center; justify-content: center; width: 30px; height: 100%; cursor: pointer; font-size: 18px;">
                 <span class="material-symbols-outlined">add</span>
             </div>
@@ -80,10 +163,10 @@ export class LeftHeaderActionsComponent {
 @Component({
     selector: 'right-header-actions',
     template: `
-        <div style="height: 100%; color: white; padding: 0px 4px;">
+        <div style="height: 100%; padding: 0px 4px;">
             <div
                 (click)="toggle()"
-                [title]="popout ? 'Dock' : 'Popout'"
+                [title]="popout ? 'Return group to dock' : 'Open group in new window'"
                 style="display: flex; align-items: center; justify-content: center; width: 30px; height: 100%; cursor: pointer; font-size: 18px;">
                 <span class="material-symbols-outlined">
                     {{ popout ? 'jump_to_element' : 'back_to_tab' }}
@@ -129,19 +212,19 @@ export class RightHeaderActionsComponent implements OnInit, OnDestroy {
 @Component({
     selector: 'app-root',
     template: `
-        <div style="height: 100%; display: flex; flex-direction: column;">
-            <div style="height: 25px;">
+        <div class="example-layout">
+            <div class="example-controls">
                 <button (click)="save()">Save</button>
                 <button (click)="load()">Load</button>
                 <button (click)="clear()">Clear</button>
             </div>
-            <div style="flex-grow: 1;">
+            <div class="example-dock">
                 <dv-dockview
                     [components]="components"
                     [watermarkComponent]="watermarkComponent"
                     [leftHeaderActionsComponent]="leftHeaderActionsComponent"
                     [rightHeaderActionsComponent]="rightHeaderActionsComponent"
-                    className="dockview-theme-abyss"
+                    className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
                     (ready)="onReady($event)">
                 </dv-dockview>
             </div>
@@ -209,7 +292,21 @@ export class AppComponent {
                 this.api.clear();
             }
         }
-        this.api.addPanel({ id: 'panel_1', component: 'default' });
+        this.loadDefaultLayout();
+    }
+
+    private loadDefaultLayout() {
+        if (!this.api) {
+            return;
+        }
+        this.api.addPanel({ id: 'panel_1', component: 'default', title: 'Panel 1' });
+        this.api.addPanel({ id: 'panel_2', component: 'default', title: 'Panel 2' });
+        this.api.addPanel({
+            id: 'panel_3',
+            component: 'default',
+            title: 'Panel 3',
+            position: { direction: 'right' },
+        });
     }
 }
 
@@ -217,6 +314,7 @@ export class AppComponent {
     declarations: [
         AppComponent,
         DefaultPanelComponent,
+        PopoverMenuComponent,
         WatermarkComponent,
         LeftHeaderActionsComponent,
         RightHeaderActionsComponent,

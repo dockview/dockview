@@ -18,19 +18,23 @@ const components = {
         };
 
         return (
-            <div style={{ padding: '20px', color: 'white' }}>
-                <div>
-                    <span style={{ color: 'grey' }}>{'props.api.title='}</span>
+            <div className="example-panel">
+                <div style={{ marginBottom: '8px' }}>
+                    <span>Current title: </span>
                     <span>{`${props.api.title}`}</span>
                 </div>
-                <input value={title} onChange={onChange} />
-                <button onClick={onClick}>Change</button>
+                <div className="example-controls">
+                    <label>
+                        New title <input value={title} onChange={onChange} />
+                    </label>
+                    <button onClick={onClick}>Set title</button>
+                </div>
             </div>
         );
     },
 };
 
-export const App: React.FC = (props: { theme?: string }) => {
+export const App: React.FC<{ theme?: string }> = (props) => {
     const onReady = (event: DockviewReadyEvent) => {
         const panel = event.api.addPanel({
             id: 'panel_1',

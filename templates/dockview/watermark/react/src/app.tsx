@@ -8,18 +8,11 @@ import {
 } from 'dockview-react';
 import React from 'react';
 
+let panelCount = 0;
+
 const components = {
-    default: (props: IDockviewPanelProps<{ title: string }>) => {
-        return (
-            <div
-                style={{
-                    height: '100%',
-                    padding: '20px',
-                }}
-            >
-                {props.params.title}
-            </div>
-        );
+    default: (props: IDockviewPanelProps) => {
+        return <div className="example-panel">{props.api.title}</div>;
     },
 };
 
@@ -29,6 +22,7 @@ const Watermark = (props: IWatermarkPanelProps) => {
     const addPanel = () => {
         props.containerApi.addPanel({
             id: Date.now().toString(),
+            title: `Panel ${++panelCount}`,
             component: 'default',
         });
     };
@@ -40,23 +34,13 @@ const Watermark = (props: IWatermarkPanelProps) => {
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center',
-                color: 'white',
             }}
         >
-            <div
-                style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                }}
-            >
-                <span>
-                    This is a custom watermark. You can change this content.
-                </span>
-                <span>
+            <div>
+                <p>This is a custom watermark. You can change this content.</p>
+                <div className="example-controls">
                     <button onClick={addPanel}>Add New Panel</button>
-                </span>
-                {isGroup && (
-                    <span>
+                    {isGroup && (
                         <button
                             onClick={() => {
                                 props.group?.api.close();
@@ -64,8 +48,8 @@ const Watermark = (props: IWatermarkPanelProps) => {
                         >
                             Close Group
                         </button>
-                    </span>
-                )}
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -97,22 +81,18 @@ const DockviewWatermark = (props: { theme?: string }) => {
     };
 
     return (
-        <div
-            style={{
-                display: 'flex',
-                flexDirection: 'column',
-                height: '100%',
-            }}
-        >
-            <div>
+        <div className="example-layout">
+            <div className="example-controls">
                 <button onClick={onClick}>Add Empty Group</button>
             </div>
-            <DockviewReact
-                onReady={onReady}
-                components={components}
-                watermarkComponent={Watermark}
-                className={`${props.theme || 'dockview-theme-abyss'}`}
-            />
+            <div className="example-dock">
+                <DockviewReact
+                    onReady={onReady}
+                    components={components}
+                    watermarkComponent={Watermark}
+                    className={`${props.theme || 'dockview-theme-abyss'}`}
+                />
+            </div>
         </div>
     );
 };

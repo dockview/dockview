@@ -11,11 +11,7 @@ import React from 'react';
 
 const components = {
     default: (props: IDockviewPanelProps<{ title: string }>) => {
-        return (
-            <div style={{ padding: '20px' }}>
-                <div>{props.params.title}</div>
-            </div>
-        );
+        return <div className="example-panel">{props.params.title}</div>;
     },
 };
 
@@ -30,11 +26,14 @@ const DraggableElement = () => (
             }
         }}
         style={{
-            backgroundColor: 'orange',
-            padding: '0px 8px',
+            padding: '4px 12px',
             borderRadius: '4px',
-            width: '100px',
-            cursor: 'pointer',
+            cursor: 'grab',
+            userSelect: 'none',
+            color: 'var(--dv-activegroup-visiblepanel-tab-color)',
+            background:
+                'var(--dv-activegroup-visiblepanel-tab-background-color)',
+            border: '1px solid var(--dv-separator-border)',
         }}
         draggable={true}
     >
@@ -44,6 +43,9 @@ const DraggableElement = () => (
 
 const DndDockview = (props: { renderVisibleOnly: boolean; theme?: string }) => {
     const [api, setApi] = React.useState<DockviewApi>();
+    const [dropped, setDropped] = React.useState<
+        { type: string; data: string }[] | null
+    >(null);
 
     React.useEffect(() => {
         if (!api) {
@@ -121,7 +123,7 @@ const DndDockview = (props: { renderVisibleOnly: boolean; theme?: string }) => {
             }
         });
 
-        const disposable = api.onUnhandledDragOverEvent((event) => {
+        const disposable = api.onUnhandledDragOver((event) => {
             event.accept();
         });
 
@@ -149,49 +151,64 @@ const DndDockview = (props: { renderVisibleOnly: boolean; theme?: string }) => {
     const onDrop = (event: React.DragEvent) => {
         const dataTransfer = event.dataTransfer;
 
-        let text = 'The following dataTransfer data was found:\n';
-
+        const entries: { type: string; data: string }[] = [];
         for (let i = 0; i < dataTransfer.items.length; i++) {
             const item = dataTransfer.items[i];
-            const value = dataTransfer.getData(item.type);
-            text += `type=${item.type},data=${value}\n`;
+            entries.push({
+                type: item.type,
+                data: dataTransfer.getData(item.type),
+            });
         }
 
-        alert(text);
+        setDropped(entries);
     };
 
     return (
-        <div
-            style={{
-                display: 'flex',
-                flexDirection: 'column',
-                height: '100%',
-            }}
-        >
-            <div style={{ margin: '2px 0px' }}>
+        <div className="example-layout">
+            <div className="example-controls">
                 <DraggableElement />
                 <div
                     style={{
-                        padding: '0px 4px',
-                        backgroundColor: 'black',
-                        borderRadius: '2px',
-                        color: 'white',
+                        flex: 1,
+                        minWidth: 0,
+                        padding: '4px 12px',
+                        borderRadius: '4px',
+                        border: '1px dashed var(--dv-separator-border)',
+                        color: 'var(--dv-inactivegroup-visiblepanel-tab-color)',
                     }}
                     onDrop={onDrop}
                 >
                     Drop a tab or group here to inspect the attached metadata
                 </div>
             </div>
-            <DockviewReact
-                components={components}
-                onReady={onReady}
-                className={`${props.theme || 'dockview-theme-abyss'}`}
-                onDidDrop={onDidDrop}
-                dndEdges={{
-                    size: { value: 100, type: 'pixels' },
-                    activationSize: { value: 5, type: 'percentage' },
-                }}
-            />
+            {dropped && (
+                <div
+                    className="example-controls"
+                    style={{ display: 'block', fontSize: '12px' }}
+                >
+                    {dropped.length === 0 ? (
+                        <span>No dataTransfer data was found.</span>
+                    ) : (
+                        dropped.map((entry, index) => (
+                            <div key={index}>
+                                <code>{entry.type}</code>: {entry.data}
+                            </div>
+                        ))
+                    )}
+                </div>
+            )}
+            <div className="example-dock">
+                <DockviewReact
+                    components={components}
+                    onReady={onReady}
+                    className={`${props.theme || 'dockview-theme-abyss'}`}
+                    onDidDrop={onDidDrop}
+                    dndEdges={{
+                        size: { value: 100, type: 'pixels' },
+                        activationSize: { value: 5, type: 'percentage' },
+                    }}
+                />
+            </div>
         </div>
     );
 };

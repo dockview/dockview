@@ -3,54 +3,32 @@ import '@angular/compiler';
 import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
 import { Component, Type, NgModule, Input } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
-import { DockviewAngularModule, DockviewApi, DockviewReadyEvent, DockviewPanel } from 'dockview-angular';
+import { DockviewAngularModule, DockviewReadyEvent, DockviewPanel } from 'dockview-angular';
 import 'dockview-angular/dist/styles/dockview.css';
 
 // Default panel component
 @Component({
     selector: 'default-panel',
-    template: `
-        <div style="display: flex; justify-content: center; align-items: center; color: gray; height: 100%;">
-            <span>{{ title }}</span>
-        </div>
-    `
+    template: `<div class="example-panel">{{ api?.title }}</div>`
 })
 export class DefaultPanelComponent {
     @Input() api: any;
-    @Input() params: any;
-    
-    get title() {
-        return this.api?.title || 'Panel';
-    }
 }
 
 // Right header actions component
 @Component({
     selector: 'right-header-actions',
     template: `
-        <div class="dockview-groupcontrol-demo">
-            <span class="dockview-groupcontrol-demo-group-active" 
-                  [style.background]="isGroupActive ? 'green' : 'red'">
-                {{ isGroupActive ? 'Group Active' : 'Group Inactive' }}
+        <div style="height: 100%; display: flex; align-items: center; gap: 8px; padding: 0 8px; font-size: 12px; color: var(--dv-inactivegroup-visiblepanel-tab-color, #969696);">
+            <span
+                [attr.data-active]="isGroupActive"
+                style="padding: 1px 8px; border-radius: 10px; background-color: var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(128, 128, 128, 0.15)); transition: color 0.15s ease, box-shadow 0.15s ease;"
+                [style.color]="isGroupActive ? 'var(--dv-activegroup-visiblepanel-tab-color, #ffffff)' : 'var(--dv-inactivegroup-visiblepanel-tab-color, #969696)'"
+                [style.box-shadow]="isGroupActive ? 'inset 0 0 0 1px var(--dv-tab-active-border-color, #4daafc)' : 'none'">
+                {{ isGroupActive ? 'Group active' : 'Group inactive' }}
             </span>
         </div>
-    `,
-    styles: [`
-        .dockview-groupcontrol-demo {
-            height: 100%;
-            display: flex;
-            align-items: center;
-            color: white;
-            background-color: black;
-            padding: 0px 8px;
-            margin: 1px;
-            border: 1px dotted orange;
-        }
-        
-        .dockview-groupcontrol-demo-group-active {
-            padding: 0px 8px;
-        }
-    `]
+    `
 })
 export class RightHeaderActionsComponent {
     @Input() isGroupActive: boolean;
@@ -60,29 +38,10 @@ export class RightHeaderActionsComponent {
 @Component({
     selector: 'left-header-actions',
     template: `
-        <div class="dockview-groupcontrol-demo">
-            <span class="dockview-groupcontrol-demo-active-panel">
-                activePanel: {{ activePanel?.id || 'null' }}
-            </span>
+        <div style="height: 100%; display: flex; align-items: center; gap: 8px; padding: 0 8px; font-size: 12px; color: var(--dv-inactivegroup-visiblepanel-tab-color, #969696);">
+            <span style="padding: 0 4px; color: var(--dv-activegroup-visiblepanel-tab-color, #ffffff); font-variant-numeric: tabular-nums;">activePanel: {{ activePanel?.id || 'null' }}</span>
         </div>
-    `,
-    styles: [`
-        .dockview-groupcontrol-demo {
-            height: 100%;
-            display: flex;
-            align-items: center;
-            color: white;
-            background-color: black;
-            padding: 0px 8px;
-            margin: 1px;
-            border: 1px dotted orange;
-        }
-        
-        .dockview-groupcontrol-demo-active-panel {
-            color: yellow;
-            padding: 0px 8px;
-        }
-    `]
+    `
 })
 export class LeftHeaderActionsComponent {
     @Input() activePanel: DockviewPanel;
@@ -92,20 +51,8 @@ export class LeftHeaderActionsComponent {
 @Component({
     selector: 'prefix-header-actions',
     template: `
-        <div class="dockview-groupcontrol-demo">🌲</div>
-    `,
-    styles: [`
-        .dockview-groupcontrol-demo {
-            height: 100%;
-            display: flex;
-            align-items: center;
-            color: white;
-            background-color: black;
-            padding: 0px 8px;
-            margin: 1px;
-            border: 1px dotted orange;
-        }
-    `]
+        <div style="height: 100%; display: flex; align-items: center; gap: 8px; padding: 0 8px; font-size: 12px; color: var(--dv-inactivegroup-visiblepanel-tab-color, #969696);">🌲</div>
+    `
 })
 export class PrefixHeaderActionsComponent {
     @Input() activePanel: DockviewPanel;
@@ -115,15 +62,17 @@ export class PrefixHeaderActionsComponent {
 @Component({
     selector: 'app-root',
     template: `
-        <div style="height: 100%;">
-            <dv-dockview
-                [components]="components"
-                [prefixHeaderActionsComponent]="prefixHeaderActionsComponent"
-                [leftHeaderActionsComponent]="leftHeaderActionsComponent"
-                [rightHeaderActionsComponent]="rightHeaderActionsComponent"
-                className="dockview-theme-abyss"
-                (ready)="onReady($event)">
-            </dv-dockview>
+        <div class="example-layout">
+            <div class="example-dock">
+                <dv-dockview
+                    [components]="components"
+                    [prefixHeaderActionsComponent]="prefixHeaderActionsComponent"
+                    [leftHeaderActionsComponent]="leftHeaderActionsComponent"
+                    [rightHeaderActionsComponent]="rightHeaderActionsComponent"
+                    className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
+                    (ready)="onReady($event)">
+                </dv-dockview>
+            </div>
         </div>
     `
 })
@@ -169,7 +118,7 @@ export class AppComponent {
 // App module
 @NgModule({
     declarations: [
-        AppComponent, 
+        AppComponent,
         DefaultPanelComponent,
         RightHeaderActionsComponent,
         LeftHeaderActionsComponent,

@@ -38,18 +38,8 @@ const Icon = (props: {
 };
 
 const components = {
-    default: (props: IDockviewPanelProps<{ title: string }>) => {
-        return (
-            <div
-                style={{
-                    height: '100%',
-                    padding: '20px',
-                    background: 'var(--dv-group-view-background-color)',
-                }}
-            >
-                {props.params.title}
-            </div>
-        );
+    default: (props: IDockviewPanelProps) => {
+        return <div className="example-panel">{props.api.title}</div>;
     },
 };
 
@@ -57,32 +47,38 @@ function loadDefaultLayout(api: DockviewApi) {
     api.addPanel({
         id: 'panel_1',
         component: 'default',
+        title: 'Panel 1',
     });
 
     api.addPanel({
         id: 'panel_2',
         component: 'default',
+        title: 'Panel 2',
     });
 
     api.addPanel({
         id: 'panel_3',
         component: 'default',
+        title: 'Panel 3',
     });
 
     api.addPanel({
         id: 'panel_4',
         component: 'default',
+        title: 'Panel 4',
     });
 
     api.addPanel({
         id: 'panel_5',
         component: 'default',
+        title: 'Panel 5',
         position: { direction: 'right' },
     });
 
     api.addPanel({
         id: 'panel_6',
         component: 'default',
+        title: 'Panel 6',
     });
 }
 
@@ -160,14 +156,8 @@ export const App = (props: { theme?: string }) => {
     >(undefined);
 
     return (
-        <div
-            style={{
-                display: 'flex',
-                flexDirection: 'column',
-                height: '100%',
-            }}
-        >
-            <div style={{ height: '25px' }}>
+        <div className="example-layout">
+            <div className="example-controls">
                 <button
                     onClick={() => {
                         if (api) {
@@ -195,11 +185,7 @@ export const App = (props: { theme?: string }) => {
                     Clear
                 </button>
             </div>
-            <div
-                style={{
-                    flexGrow: 1,
-                }}
-            >
+            <div className="example-dock">
                 <DockviewReact
                     onReady={onReady}
                     components={components}
@@ -225,7 +211,7 @@ const LeftComponent = (props: IDockviewHeaderActionsProps) => {
         });
     };
     return (
-        <div style={{ height: '100%', color: 'white', padding: '0px 4px' }}>
+        <div style={{ height: '100%', padding: '0px 4px' }}>
             <Icon onClick={onClick} icon={'add'} />
         </div>
     );
@@ -255,7 +241,7 @@ const RightComponent = (props: IDockviewHeaderActionsProps) => {
     };
 
     return (
-        <div style={{ height: '100%', color: 'white', padding: '0px 4px' }}>
+        <div style={{ height: '100%', padding: '0px 4px' }}>
             <Icon
                 onClick={onClick}
                 icon={maximized ? 'jump_to_element' : 'back_to_tab'}
@@ -267,5 +253,5 @@ const RightComponent = (props: IDockviewHeaderActionsProps) => {
 export default App;
 
 const Watermark = () => {
-    return <div style={{ color: 'white', padding: '8px' }}>watermark</div>;
+    return <div className="example-panel">This group is empty.</div>;
 };

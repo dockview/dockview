@@ -7,6 +7,7 @@ import {
     IGroupHeaderProps,
     IHeaderActionsRenderer,
     themeAbyss,
+    themeLight,
 } from 'dockview';
 import './index.css';
 
@@ -19,15 +20,11 @@ class Panel implements IContentRenderer {
 
     constructor() {
         this._element = document.createElement('div');
-        this._element.style.display = 'flex';
-        this._element.style.justifyContent = 'center';
-        this._element.style.alignItems = 'center';
-        this._element.style.color = 'gray';
-        this._element.style.height = '100%';
+        this._element.className = 'example-panel';
     }
 
     init(parameters: GroupPanelPartInitParameters): void {
-        //
+        this._element.textContent = parameters.title;
     }
 }
 
@@ -74,17 +71,15 @@ class RightHeaderActions implements IHeaderActionsRenderer {
 
         this._element.appendChild(span);
 
-        const d1 = group.api.onDidActiveChange(() => {
-            span.style.background = group.api.isActive ? 'green' : 'red';
-            span.innerText = `${
-                group.api.isActive ? 'Group Active' : 'Group Inactive'
-            }`;
-        });
+        const render = (): void => {
+            const active = group.api.isActive;
+            span.setAttribute('data-active', `${active}`);
+            span.innerText = active ? 'Group active' : 'Group inactive';
+        };
 
-        span.style.background = group.api.isActive ? 'green' : 'red';
-        span.innerText = `${
-            group.api.isActive ? 'Group Active' : 'Group Inactive'
-        }`;
+        const d1 = group.api.onDidActiveChange(() => render());
+
+        render();
 
         this._disposables.push(() => d1.dispose());
     }
@@ -103,7 +98,6 @@ class LeftHeaderActions implements IHeaderActionsRenderer {
     }
 
     constructor(group: DockviewGroupPanel) {
-        console.log('group', group);
         this._element = document.createElement('div');
         this._element.className = 'dockview-groupcontrol-demo';
     }
@@ -117,11 +111,8 @@ class LeftHeaderActions implements IHeaderActionsRenderer {
         this._element.appendChild(span);
 
         const d1 = group.api.onDidActivePanelChange((event) => {
-            console.log('event', event);
             span.innerText = `activePanel: ${event.panel?.id || 'null'}`;
         });
-
-        console.log('group.activePanel', group.activePanel);
 
         span.innerText = `activePanel: ${group.activePanel?.id || 'null'}`;
 
@@ -134,7 +125,7 @@ class LeftHeaderActions implements IHeaderActionsRenderer {
 }
 
 const api = createDockview(document.getElementById('app'), {
-    theme: themeAbyss,
+    theme: (window as any).__dockviewColorMode === 'light' ? themeLight : themeAbyss,
     createComponent: (options): IContentRenderer => {
         switch (options.name) {
             case 'default':

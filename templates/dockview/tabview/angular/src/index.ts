@@ -16,11 +16,7 @@ import 'dockview-angular/dist/styles/dockview.css';
 
 @Component({
     selector: 'default-panel',
-    template: `
-        <div style="height: 100%; color: white; padding: 8px;">
-            {{ api?.title }}
-        </div>
-    `,
+    template: `<div class="example-panel">{{ api?.title }}</div>`,
 })
 export class DefaultPanelComponent {
     @Input() api!: DockviewPanelApi;
@@ -29,16 +25,16 @@ export class DefaultPanelComponent {
 @Component({
     selector: 'app-root',
     template: `
-        <div style="height: 100%; display: flex; flex-direction: column;">
-            <div style="padding: 4px 8px;">
+        <div class="example-layout">
+            <div class="example-controls">
                 <button (click)="toggle()">tabAnimation: {{ tabAnimation }}</button>
             </div>
-            <div style="flex-grow: 1;">
+            <div class="example-dock">
                 <dv-dockview
                     [components]="components"
                     [theme]="theme"
                     [disableFloatingGroups]="true"
-                    className="dockview-theme-abyss"
+                    className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
                     (ready)="onReady($event)">
                 </dv-dockview>
             </div>

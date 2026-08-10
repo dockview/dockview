@@ -31,10 +31,7 @@ const Panel = defineComponent({
         };
     },
 
-    template: `
-      <div style="height:100%;padding:20px;">
-        <span style="color:white;">{{ title }}</span>
-      </div>`,
+    template: `<div class="example-panel">{{ title }}</div>`,
 });
 
 const App = defineComponent({
@@ -48,10 +45,12 @@ const App = defineComponent({
             event.api.addPanel({
                 id: 'panel_1',
                 component: 'default',
+                title: 'Panel 1',
             });
             event.api.addPanel({
                 id: 'panel_2',
                 component: 'default',
+                title: 'Panel 2',
                 position: {
                     direction: 'right',
                     referencePanel: 'panel_1',
@@ -60,6 +59,7 @@ const App = defineComponent({
             event.api.addPanel({
                 id: 'panel_3',
                 component: 'default',
+                title: 'Panel 3',
                 position: {
                     direction: 'below',
                     referencePanel: 'panel_1',
@@ -68,20 +68,22 @@ const App = defineComponent({
             event.api.addPanel({
                 id: 'panel_4',
                 component: 'default',
+                title: 'Panel 4',
             });
             event.api.addPanel({
                 id: 'panel_5',
                 component: 'default',
+                title: 'Panel 5',
             });
         },
     },
     template: `
       <dockview-vue
         style="width:100%;height:100%"
-        class="dockview-theme-abyss"
+        className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
         @ready="onReady"
-        :locked=true
-      </dockview-vue>`,
+        :locked="true"
+      ></dockview-vue>`,
 });
 
 const app = createApp(App);

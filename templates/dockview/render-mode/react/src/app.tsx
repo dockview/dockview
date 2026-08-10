@@ -39,7 +39,7 @@ const components = {
         const [mode, setMode] = useRenderer(props.api);
 
         return (
-            <div style={{ height: '100%', overflow: 'auto', color: 'white' }}>
+            <div style={{ height: '100%', overflow: 'auto' }}>
                 <div
                     style={{
                         height: '1000px',
@@ -130,26 +130,29 @@ const DockviewDemo = (props: { theme?: string }) => {
     };
 
     return (
-        <div
-            style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
-        >
-            <div>
+        <div className="example-layout">
+            <div className="example-controls">
                 <button onClick={onSave}>Save</button>
                 <button onClick={onLoad}>Load</button>
-                <input
-                    onChange={(event) => setValue(event.target.value)}
-                    type="range"
-                    min="1"
-                    max="100"
-                    value={value}
-                />
+                <label>
+                    Container size ({value}%)
+                    <input
+                        onChange={(event) => setValue(event.target.value)}
+                        type="range"
+                        min="1"
+                        max="100"
+                        value={value}
+                    />
+                </label>
             </div>
-            <div style={{ height: `${value}%`, width: `${value}%` }}>
-                <DockviewReact
-                    components={components}
-                    onReady={onReady}
-                    className={props.theme || 'dockview-theme-abyss'}
-                />
+            <div className="example-dock">
+                <div style={{ height: `${value}%`, width: `${value}%` }}>
+                    <DockviewReact
+                        components={components}
+                        onReady={onReady}
+                        className={props.theme || 'dockview-theme-abyss'}
+                    />
+                </div>
             </div>
         </div>
     );

@@ -46,9 +46,14 @@ const Panel = defineComponent({
         };
     },
     template: `
-    <div style="height:100%;color:white;">
-      <div>{{title}}</div>
-      <button @click="onToggleRenderMode">{{renderer}}</button>
+    <div style="height:100%;overflow:auto;">
+      <div style="height:1000px;padding:20px;overflow:auto;">
+        <div>{{title}}</div>
+        <div>
+          {{renderer}}
+          <button @click="onToggleRenderMode">Toggle render mode</button>
+        </div>
+      </div>
     </div>`,
 });
 
@@ -90,9 +95,9 @@ const App = defineComponent({
     template: `
       <dockview-vue
         style="width:100%;height:100%"
-        class="dockview-theme-abyss"
+        className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
         @ready="onReady"
-      </dockview-vue>`,
+      ></dockview-vue>`,
 });
 
 const app = createApp(App);

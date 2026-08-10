@@ -31,9 +31,7 @@ const Panel = defineComponent({
         };
     },
     template: `
-    <div style="height:100%;padding:20px;color:white;">
-      <div>{{title}}</div>
-    </div>`,
+    <div class="example-panel">{{title}}</div>`,
 });
 
 const App = defineComponent({
@@ -90,10 +88,10 @@ const App = defineComponent({
     template: `
       <dockview-vue
         style="width:100%;height:100%"
-        class="dockview-theme-abyss"
+        className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
         @ready="onReady"
         :disableFloatingGroups=true
-      </dockview-vue>`,
+      ></dockview-vue>`,
 });
 
 const app = createApp(App);

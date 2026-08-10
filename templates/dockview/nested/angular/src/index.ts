@@ -14,15 +14,11 @@ import 'dockview-angular/dist/styles/dockview.css';
 @Component({
     selector: 'default-panel',
     template: `
-        <div
-            style="height: 100%; padding: 20px; background: var(--dv-group-view-background-color);">
-            {{ params?.title }}
-        </div>
+        <div class="example-panel">{{ api?.title }}</div>
     `,
 })
 export class DefaultPanelComponent {
     @Input() api!: DockviewPanelApi;
-    @Input() params!: { title: string };
 }
 
 @Component({
@@ -47,17 +43,17 @@ export class InnerDockviewComponent {
         api.addPanel({
             id: 'inner_panel_1',
             component: 'default',
-            params: { title: 'Inner 1' },
+            title: 'Inner 1',
         });
         api.addPanel({
             id: 'inner_panel_2',
             component: 'default',
-            params: { title: 'Inner 2' },
+            title: 'Inner 2',
         });
         api.addPanel({
             id: 'inner_panel_3',
             component: 'default',
-            params: { title: 'Inner 3' },
+            title: 'Inner 3',
         });
     }
 }
@@ -65,12 +61,14 @@ export class InnerDockviewComponent {
 @Component({
     selector: 'app-root',
     template: `
-        <div style="height: 100%;">
-            <dv-dockview
-                [components]="components"
-                className="dockview-theme-abyss"
-                (ready)="onReady($event)">
-            </dv-dockview>
+        <div class="example-layout">
+            <div class="example-dock">
+                <dv-dockview
+                    [components]="components"
+                    className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
+                    (ready)="onReady($event)">
+                </dv-dockview>
+            </div>
         </div>
     `,
 })
@@ -85,17 +83,17 @@ export class AppComponent {
         api.addPanel({
             id: 'panel_1',
             component: 'default',
-            params: { title: 'Panel 1' },
+            title: 'Panel 1',
         });
         api.addPanel({
             id: 'panel_2',
             component: 'default',
-            params: { title: 'Panel 2' },
+            title: 'Panel 2',
         });
         api.addPanel({
             id: 'panel_3',
             component: 'innerDockview',
-            params: { title: 'Inner Dock' },
+            title: 'Nested layout',
             position: { referencePanel: 'panel_2', direction: 'right' },
         });
     }

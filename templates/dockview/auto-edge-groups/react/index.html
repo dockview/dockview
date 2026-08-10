@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Dockview | auto-edge-groups react</title>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link
+            rel="icon"
+            type="image/svg+xml"
+            href="/img/brand/dockview-favicon.svg"
+            data-rh="true"
+        />
+        <link
+            rel="stylesheet"
+            href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+        />
+        <script>
+            // Resolve the colour mode the docs page passes in via the host
+            // <iframe data-color-mode="…"> (same-origin, read through
+            // window.frameElement). `data-color-mode` on <html> drives the
+            // example chrome CSS below; the globals let each example pick a
+            // light/dark dockview theme (see the framework entrypoints). Defaults
+            // to dark to match the site's flagship look when opened standalone.
+            //
+            // Because an attribute change (unlike src) doesn't reload the frame,
+            // an observer re-themes the mounted dock live on a light/dark toggle,
+            // with no reload flash.
+            (function () {
+                function resolveMode() {
+                    try {
+                        var fe = window.frameElement;
+                        if (fe) {
+                            var v = fe.getAttribute('data-color-mode');
+                            if (v === 'light' || v === 'dark') {
+                                return v;
+                            }
+                        }
+                    } catch (e) {
+                        /* cross-origin (shouldn't happen for same-origin docs) */
+                    }
+                    return new URLSearchParams(window.location.search).get(
+                        'colorMode'
+                    ) === 'light'
+                        ? 'light'
+                        : 'dark';
+                }
+
+                function themeClassFor(mode) {
+                    return mode === 'light'
+                        ? 'dockview-theme-light'
+                        : 'dockview-theme-abyss';
+                }
+
+                function apply(mode) {
+                    document.documentElement.setAttribute(
+                        'data-color-mode',
+                        mode
+                    );
+                    window.__dockviewColorMode = mode;
+                    window.__dockviewThemeClass = themeClassFor(mode);
+                }
+
+                function swapMounted(mode) {
+                    var cls = themeClassFor(mode);
+                    var nodes = document.querySelectorAll(
+                        '[class*="dockview-theme-"]'
+                    );
+                    for (var i = 0; i < nodes.length; i++) {
+                        var el = nodes[i];
+                        var stale = [];
+                        el.classList.forEach(function (c) {
+                            if (c.indexOf('dockview-theme-') === 0) {
+                                stale.push(c);
+                            }
+                        });
+                        for (var j = 0; j < stale.length; j++) {
+                            el.classList.remove(stale[j]);
+                        }
+                        el.classList.add(cls);
+                    }
+                }
+
+                apply(resolveMode());
+
+                try {
+                    var fe = window.frameElement;
+                    if (fe && typeof MutationObserver !== 'undefined') {
+                        new MutationObserver(function () {
+                            var mode = resolveMode();
+                            if (mode === window.__dockviewColorMode) {
+                                return;
+                            }
+                            var reduce =
+                                window.matchMedia &&
+                                window.matchMedia(
+                                    '(prefers-reduced-motion: reduce)'
+                                ).matches;
+                            if (reduce) {
+                                apply(mode);
+                                swapMounted(mode);
+                                return;
+                            }
+                            // Enable transitions for the frame before the values
+                            // change so chrome + dock crossfade rather than pop.
+                            var root = document.documentElement;
+                            root.classList.add('dv-theme-animating');
+                            requestAnimationFrame(function () {
+                                apply(mode);
+                                swapMounted(mode);
+                            });
+                            window.setTimeout(function () {
+                                root.classList.remove('dv-theme-animating');
+                            }, 400);
+                        }).observe(fe, {
+                            attributes: true,
+                            attributeFilter: ['data-color-mode'],
+                        });
+                    }
+                } catch (e) {
+                    /* no live updates if the host frame isn't reachable */
+                }
+            })();
+        </script>
+        <style media="only screen">
+            html,
+            body,
+            #root {
+                height: 100%;
+                width: 100%;
+                margin: 0;
+                box-sizing: border-box;
+                -webkit-overflow-scrolling: touch;
+                font-family: ui-sans-serif, system-ui, -apple-system,
+                    BlinkMacSystemFont, Segoe UI, Roboto;
+            }
+
+            #header {
+              height: 30px;
+              display: flex;
+              justify-content: flex-end;
+              align-items: center;
+              gap: 2px;
+            }
+
+            .header-btn {
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              width: 28px;
+              height: 28px;
+              border-radius: 6px;
+              color: #57606a;
+              text-decoration: none;
+              transition: background-color 0.12s ease, color 0.12s ease;
+            }
+
+            .header-btn:hover {
+              background-color: rgba(0, 0, 0, 0.06);
+              color: #1f2328;
+            }
+
+            .header-btn:focus-visible {
+              outline: 2px solid #1d4ed8;
+              outline-offset: 1px;
+            }
+
+            .header-btn svg {
+              width: 16px;
+              height: 16px;
+              fill: currentColor;
+            }
+
+            #app {
+              height: calc(100% - 30px);
+            }
+
+            /*
+             * Example control buttons. dockview renders no native <button>
+             * elements, so this styles only the example's own controls and
+             * never leaks into dockview's chrome.
+             */
+            #app button {
+              font: inherit;
+              font-size: 13px;
+              line-height: 1.4;
+              padding: 3px 10px;
+              border: 1px solid #d0d7de;
+              border-radius: 6px;
+              background-color: #f6f8fa;
+              color: #24292f;
+              cursor: pointer;
+              transition: background-color 0.12s ease, border-color 0.12s ease;
+            }
+
+            #app button:hover:not(:disabled) {
+              background-color: #eef1f4;
+              border-color: #c2c9d1;
+            }
+
+            #app button:active:not(:disabled) {
+              background-color: #e5e9ed;
+            }
+
+            #app button:disabled {
+              opacity: 0.5;
+              cursor: default;
+            }
+
+            /* Text-like inputs — checkbox / radio / range keep native controls
+               (just brand-tinted below). */
+            #app input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']) {
+              font: inherit;
+              font-size: 13px;
+              padding: 3px 8px;
+              border: 1px solid #d0d7de;
+              border-radius: 6px;
+              background-color: #ffffff;
+              color: #24292f;
+              transition: border-color 0.12s ease, box-shadow 0.12s ease;
+            }
+
+            #app input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']):hover {
+              border-color: #c2c9d1;
+            }
+
+            #app input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']):focus {
+              outline: none;
+              border-color: #1d4ed8;
+              box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.15);
+            }
+
+            #app input:disabled {
+              opacity: 0.5;
+              cursor: default;
+            }
+
+            #app input[type='checkbox'],
+            #app input[type='radio'],
+            #app input[type='range'] {
+              accent-color: #1d4ed8;
+            }
+
+            /*
+             * Shared example scaffolding. Adopt in an example with:
+             *   <div class="example-layout">
+             *     <div class="example-controls"> …controls… </div>
+             *     <div class="example-dock"> <Dockview/> </div>
+             *   </div>
+             */
+            .example-layout {
+              display: flex;
+              flex-direction: column;
+              height: 100%;
+            }
+
+            .example-controls {
+              display: flex;
+              align-items: center;
+              flex-wrap: wrap;
+              gap: 8px;
+              padding: 6px 8px;
+              border-bottom: 1px solid #e5e7eb;
+            }
+
+            .example-controls label {
+              display: inline-flex;
+              align-items: center;
+              gap: 6px;
+              font-size: 13px;
+              color: #57606a;
+            }
+
+            .example-dock {
+              flex: 1 1 auto;
+              min-height: 0;
+            }
+
+            /*
+             * Panel body content. Never sets a text color — it inherits the
+             * dockview theme's foreground so it stays readable on any theme.
+             */
+            .example-panel {
+              height: 100%;
+              box-sizing: border-box;
+              padding: 20px;
+            }
+
+            app-root {
+              display: block;
+              height: 100%;
+            }
+
+            html {
+                position: absolute;
+                top: 0;
+                left: 0;
+                padding: 0;
+                overflow: auto;
+            }
+
+            body {
+                padding: 8px;
+                overflow: auto;
+            }
+
+            /* Branded loading splash shown until the example mounts. The mark
+               uses one constant-colour palette that reads on light and dark
+               surfaces alike, so a single animated SVG covers both. */
+            #loading-spinner {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 120px;
+                height: 120px;
+                pointer-events: none;
+            }
+
+            /*
+             * Dark-mode chrome. The rules above are the light defaults; these
+             * override the example's own controls (never dockview's) when the
+             * docs page is in dark mode, so the chrome matches the dark dock
+             * instead of sitting light over it.
+             */
+            html[data-color-mode='dark'],
+            html[data-color-mode='dark'] body {
+                background-color: #1e1e1e;
+            }
+
+            html[data-color-mode='dark'] .header-btn {
+                color: #8b949e;
+            }
+
+            html[data-color-mode='dark'] .header-btn:hover {
+                background-color: rgba(255, 255, 255, 0.08);
+                color: #e6edf3;
+            }
+
+            html[data-color-mode='dark'] #app button {
+                background-color: #21262d;
+                color: #e6edf3;
+                border-color: #30363d;
+            }
+
+            html[data-color-mode='dark'] #app button:hover:not(:disabled) {
+                background-color: #30363d;
+                border-color: #444c56;
+            }
+
+            html[data-color-mode='dark'] #app button:active:not(:disabled) {
+                background-color: #282e33;
+            }
+
+            html[data-color-mode='dark']
+                #app
+                input:not(
+                    [type='checkbox'],
+                    [type='radio'],
+                    [type='range'],
+                    [type='color'],
+                    [type='file']
+                ) {
+                background-color: #0d1117;
+                color: #e6edf3;
+                border-color: #30363d;
+            }
+
+            html[data-color-mode='dark']
+                #app
+                input:not(
+                    [type='checkbox'],
+                    [type='radio'],
+                    [type='range'],
+                    [type='color'],
+                    [type='file']
+                ):hover {
+                border-color: #444c56;
+            }
+
+            html[data-color-mode='dark'] .example-controls {
+                border-bottom-color: #30363d;
+            }
+
+            html[data-color-mode='dark'] .example-controls label {
+                color: #8b949e;
+            }
+
+            /* Brief crossfade applied only while toggling light/dark (added and
+               removed by the observer above), so it never affects interaction. */
+            html.dv-theme-animating,
+            html.dv-theme-animating * {
+                transition: background-color 0.3s ease, color 0.3s ease,
+                    border-color 0.3s ease, outline-color 0.3s ease,
+                    fill 0.3s ease;
+            }
+        </style>
+        <script>
+            var defined_dockview_appLocation = './src';
+            var defined_dockview_boilerplatePath = '/example-runner/dockview-react-boilerplate/';
+            var defined_dockview_startFile = 'app/index.tsx';
+            var defined_dockview_systemJsMap = {"dockview-core":"https://cdn.jsdelivr.net/npm/dockview-core@8.0.0","dockview":"https://cdn.jsdelivr.net/npm/dockview@8.0.0","dockview-enterprise":"https://cdn.jsdelivr.net/npm/dockview-enterprise@8.0.0","dockview-react":"https://cdn.jsdelivr.net/npm/dockview-react@8.0.0"};
+        </script>
+        <script src="https://cdn.jsdelivr.net/npm/systemjs@0.21.6/dist/system.js"></script>
+        <script src="/example-runner/dockview-react-boilerplate/systemjs.config.js"></script>
+    </head>
+
+    <body>
+        <div id="root">
+          <div id="header">
+            <a class="header-btn" target="_blank" rel="noopener noreferrer" href="index.html" title="Open in full page" aria-label="Open example in full page">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+            </a>
+            <a class="header-btn" target="_blank" rel="noopener noreferrer" href="https://github.com/dockview/dockview/tree/master/packages/docs/templates/dockview/auto-edge-groups/react/src" title="View source on GitHub" aria-label="View source on GitHub">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+            </a>
+            <a class="header-btn" target="_blank" rel="noopener noreferrer" href="https://codesandbox.io/p/sandbox/github/dockview/dockview/tree/gh-pages/templates/dockview/auto-edge-groups/react" title="Edit in CodeSandbox" aria-label="Edit in CodeSandbox">
+              <svg viewBox="0 0 256 296" aria-hidden="true"><path d="M115.498 261.088v-106.61L23.814 101.73v60.773l41.996 24.393v45.9l49.688 28.292zm23.079.475l50.324-29.06v-46.71l42.234-24.688v-60.281l-92.558 53.502v107.237zm80.6-184.35l-49.324-28.48-42.06 24.284-42.093-24.302-49.328 28.487 91.418 52.83 91.386-52.82zM0 222.212V74.4L127.987 0 256 74.24v147.83l-128.014 73.978L0 222.212z"/></svg>
+            </a>
+          </div>
+          <div id="app"></div>
+        </div>
+        <script>
+            System.import(defined_dockview_startFile).catch(function(err) {
+                console.error('Failed to load example:', err);
+            });
+        </script>
+        <object
+            id="loading-spinner"
+            type="image/svg+xml"
+            data="/img/brand/dockview-loader-dock.svg"
+            role="status"
+            aria-label="Loading example"
+        ></object>
+        <script id="loading-script">
+            (function () {
+                const cleanupLoading = () => {
+                    if (document.querySelector('.dv-dockview')) {
+                        document.querySelector('#loading-spinner').remove();
+                        document.querySelector('#loading-script').remove();
+                    } else {
+                        requestAnimationFrame(() => cleanupLoading());
+                    }
+                };
+
+                cleanupLoading();
+            })();
+        </script>
+    </body>
+</html>

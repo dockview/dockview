@@ -7,6 +7,7 @@ import {
     PanelUpdateEvent,
     Parameters,
     themeAbyss,
+    themeLight,
 } from 'dockview';
 
 class Panel implements IContentRenderer {
@@ -24,15 +25,21 @@ class Panel implements IContentRenderer {
 
     constructor() {
         this._element = document.createElement('div');
-        this._element.style.color = 'white';
+        this._element.className = 'example-panel';
 
         this.e1 = document.createElement('div');
+        this.e1.style.marginBottom = '8px';
+
+        const controls = document.createElement('div');
+        controls.className = 'example-controls';
+
         this.e2 = document.createElement('button');
         this.e3 = document.createElement('span');
 
         this.e2.textContent = 'Start';
 
-        this.element.append(this.e1, this.e2, this.e3);
+        controls.append(this.e2, this.e3);
+        this.element.append(this.e1, controls);
     }
 
     init(parameters: GroupPanelPartInitParameters): void {
@@ -41,7 +48,9 @@ class Panel implements IContentRenderer {
         });
 
         this.e1.textContent = parameters.api.title;
-        this.e3.textContent = `value: ${parameters.params.myValue}`;
+        this.e3.textContent = `Last updated: ${new Date(
+            parameters.params.myValue
+        ).toLocaleTimeString()}`;
 
         this.e2.addEventListener('click', () => {
             if (this.interval) {
@@ -59,7 +68,9 @@ class Panel implements IContentRenderer {
     }
 
     update(event: PanelUpdateEvent<Parameters>): void {
-        this.e3.textContent = `value: ${event.params.myValue}`;
+        this.e3.textContent = `Last updated: ${new Date(
+            event.params.myValue
+        ).toLocaleTimeString()}`;
     }
 }
 
@@ -75,7 +86,6 @@ class CustomTab implements ITabRenderer {
 
     constructor() {
         this._element = document.createElement('div');
-        this._element.style.color = 'white';
 
         this.e1 = document.createElement('div');
         this.e2 = document.createElement('span');
@@ -84,21 +94,25 @@ class CustomTab implements ITabRenderer {
     }
 
     init(parameters: GroupPanelPartInitParameters): void {
-        parameters.api.onDidTitleChange((event) => {
-            this.e1.textContent = parameters.api.title;
+        parameters.api.onDidTitleChange(() => {
+            this.e1.textContent = `custom tab: ${parameters.api.title}`;
         });
 
-        this.e1.textContent = parameters.api.title;
-        this.e2.textContent = `value: ${parameters.params.myValue}`;
+        this.e1.textContent = `custom tab: ${parameters.api.title}`;
+        this.e2.textContent = `Last updated: ${new Date(
+            parameters.params.myValue
+        ).toLocaleTimeString()}`;
     }
 
     update(event: PanelUpdateEvent<Parameters>): void {
-        this.e2.textContent = `value: ${event.params.myValue}`;
+        this.e2.textContent = `Last updated: ${new Date(
+            event.params.myValue
+        ).toLocaleTimeString()}`;
     }
 }
 
 const api = createDockview(document.getElementById('app'), {
-    theme: themeAbyss,
+    theme: (window as any).__dockviewColorMode === 'light' ? themeLight : themeAbyss,
     createComponent: (options) => {
         switch (options.name) {
             case 'default':

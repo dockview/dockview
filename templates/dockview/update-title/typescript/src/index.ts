@@ -3,18 +3,16 @@ import {
     createDockview,
     GroupPanelPartInitParameters,
     IContentRenderer,
-    ITabRenderer,
-    PanelUpdateEvent,
-    Parameters,
     themeAbyss,
+    themeLight,
 } from 'dockview';
 
 class Panel implements IContentRenderer {
     private readonly _element: HTMLElement;
 
-    private readonly e1: HTMLElement;
-    private readonly e2: HTMLInputElement;
-    private readonly e3: HTMLElement;
+    private readonly _currentTitle: HTMLElement;
+    private readonly _input: HTMLInputElement;
+    private readonly _button: HTMLElement;
 
     get element(): HTMLElement {
         return this._element;
@@ -22,36 +20,50 @@ class Panel implements IContentRenderer {
 
     constructor() {
         this._element = document.createElement('div');
-        this._element.style.color = 'white';
-        this._element.style.padding = '20px';
+        this._element.className = 'example-panel';
 
-        this.e1 = document.createElement('div');
-        this.e2 = document.createElement('input');
-        this.e3 = document.createElement('button');
-        this.e3.textContent = 'Change';
+        const currentLine = document.createElement('div');
+        currentLine.style.marginBottom = '8px';
 
-        this.element.append(this.e1, this.e2, this.e3);
+        const currentLabel = document.createElement('span');
+        currentLabel.textContent = 'Current title: ';
+
+        this._currentTitle = document.createElement('span');
+
+        currentLine.append(currentLabel, this._currentTitle);
+
+        const controls = document.createElement('div');
+        controls.className = 'example-controls';
+
+        this._input = document.createElement('input');
+
+        const label = document.createElement('label');
+        label.append('New title ', this._input);
+
+        this._button = document.createElement('button');
+        this._button.textContent = 'Set title';
+
+        controls.append(label, this._button);
+
+        this._element.append(currentLine, controls);
     }
 
     init(parameters: GroupPanelPartInitParameters): void {
         parameters.api.onDidTitleChange((event) => {
-            this.e1.textContent = `props.api.title=${event.title}`;
+            this._currentTitle.textContent = event.title;
         });
 
-        this.e1.textContent = `props.api.title=${parameters.api.title}`;
+        this._currentTitle.textContent = parameters.api.title ?? '';
+        this._input.value = parameters.api.title ?? '';
 
-        this.e3.addEventListener('click', () => {
-            parameters.api.setTitle(this.e2.value);
+        this._button.addEventListener('click', () => {
+            parameters.api.setTitle(this._input.value);
         });
-    }
-
-    update(event: PanelUpdateEvent<Parameters>): void {
-        this.e3.textContent = `value: ${event.params.myValue}`;
     }
 }
 
 const api = createDockview(document.getElementById('app'), {
-    theme: themeAbyss,
+    theme: (window as any).__dockviewColorMode === 'light' ? themeLight : themeAbyss,
     createComponent: (options) => {
         switch (options.name) {
             case 'default':

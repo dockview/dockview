@@ -35,8 +35,7 @@
 
                 app: defined_dockview_appLocation,
 
-                '@angular/core':
-                    'npm:@angular/core@17.0.0/fesm2022/core.mjs',
+                '@angular/core': 'npm:@angular/core@17.0.0/fesm2022/core.mjs',
                 '@angular/core/primitives/signals':
                     'npm:@angular/core@17.0.0/fesm2022/primitives/signals.mjs',
                 '@angular/common':
@@ -52,8 +51,7 @@
                 '@angular/platform-browser-dynamic':
                     'npm:@angular/platform-browser-dynamic@17.0.0/fesm2022/platform-browser-dynamic.mjs',
                 rxjs: 'npm:rxjs@7.8.1/dist/bundles/rxjs.umd.min.js',
-                'rxjs/operators':
-                    'npm:rxjs@7.8.1/dist/bundles/rxjs.umd.min.js',
+                'rxjs/operators': 'npm:rxjs@7.8.1/dist/bundles/rxjs.umd.min.js',
                 'zone.js': 'npm:zone.js@0.14.3/fesm2015/zone.min.js',
             },
             defined_dockview_systemJsMap
@@ -63,8 +61,28 @@
             app: {
                 defaultExtension: 'ts',
             },
+            // dockview-core is resolved transitively via `dockview`;
+            // dockview-enterprise is imported directly for its named exports
+            // (e.g. `LicenseManager`). Both resolve to the rolldown
+            // `dist/package` bundle, which sets `__esModule` (via rolldown's
+            // `esModule: true`). SystemJS 0.21 only exposes named exports from a
+            // CJS module when that marker is present.
             'dockview-core': {
-                main: './dist/cjs/index.js',
+                main: './dist/package/main.cjs.js',
+                format: 'cjs',
+                defaultExtension: 'js',
+            },
+            'dockview-enterprise': {
+                main: './dist/package/main.cjs.js',
+                format: 'cjs',
+                defaultExtension: 'js',
+            },
+            // Point `dockview` at its rollup bundle via an explicit `main`, so
+            // SystemJS doesn't request the bare package directory, which 404s
+            // (previously a fatal EISDIR) in the dev server. The bundle requires
+            // only `dockview-core`, mapped above.
+            dockview: {
+                main: './dist/package/main.cjs.js',
                 format: 'cjs',
                 defaultExtension: 'js',
             },

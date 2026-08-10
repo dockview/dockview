@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkdockview_docs=globalThis.webpackChunkdockview_docs||[]).push([[8121],{8070(e){e.exports=JSON.parse('{"tags":[{"label":"enterprise","permalink":"/blog/tags/enterprise","count":1}]}')}}]);

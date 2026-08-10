@@ -39,8 +39,28 @@
             app: {
                 defaultExtension: 'ts',
             },
+            // dockview-core is resolved transitively via `dockview`;
+            // dockview-enterprise is imported directly for its named exports
+            // (e.g. `LicenseManager`). Both resolve to the rolldown
+            // `dist/package` bundle, which sets `__esModule` (via rolldown's
+            // `esModule: true`). SystemJS 0.21 only exposes named exports from a
+            // CJS module when that marker is present.
             'dockview-core': {
-                main: './dist/cjs/index.js',
+                main: './dist/package/main.cjs.js',
+                format: 'cjs',
+                defaultExtension: 'js',
+            },
+            'dockview-enterprise': {
+                main: './dist/package/main.cjs.js',
+                format: 'cjs',
+                defaultExtension: 'js',
+            },
+            // Examples import from `dockview` directly. Give it an explicit
+            // `main` (its rollup bundle) so SystemJS doesn't request the bare
+            // package directory, which 404s (previously a fatal EISDIR) in the
+            // dev server. The bundle requires only `dockview-core`, mapped above.
+            dockview: {
+                main: './dist/package/main.cjs.js',
                 format: 'cjs',
                 defaultExtension: 'js',
             },

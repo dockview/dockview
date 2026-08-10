@@ -48,16 +48,16 @@ const Panel = defineComponent({
     },
     template: `
     <div class="resize-panel">
-      <div style="height:25px;">{{title}}</div>
+      <div class="resize-title">{{title}}</div>
       <div class="resize-control">
         <span>Width:</span>
-        <input v-model="width" type="number" min="50" step="1"></input>
+        <input v-model.number="width" type="number" min="50" step="1"></input>
         <button @click="onResizeGroupWidth">Resize Group</button>
         <button @click="onResizePanelWidth">Resize Panel</button>
       </div>
       <div class="resize-control">
         <span>Height:</span>
-        <input v-model="height" type="number" min="50" step="1"></input>
+        <input v-model.number="height" type="number" min="50" step="1"></input>
         <button @click="onResizeGroupHeight">Resize Group</button>
         <button @click="onResizePanelHeight">Resize Panel</button>
       </div>
@@ -75,10 +75,12 @@ const App = defineComponent({
             event.api.addPanel({
                 id: 'panel_1',
                 component: 'default',
+                title: 'Panel 1',
             });
             event.api.addPanel({
                 id: 'panel_2',
                 component: 'default',
+                title: 'Panel 2',
                 position: {
                     direction: 'right',
                     referencePanel: 'panel_1',
@@ -87,6 +89,7 @@ const App = defineComponent({
             event.api.addPanel({
                 id: 'panel_3',
                 component: 'default',
+                title: 'Panel 3',
                 position: {
                     direction: 'below',
                     referencePanel: 'panel_1',
@@ -95,10 +98,12 @@ const App = defineComponent({
             event.api.addPanel({
                 id: 'panel_4',
                 component: 'default',
+                title: 'Panel 4',
             });
             event.api.addPanel({
                 id: 'panel_5',
                 component: 'default',
+                title: 'Panel 5',
             });
         },
     },
@@ -113,9 +118,9 @@ const App = defineComponent({
     template: `
       <dockview-vue
         style="width:100%;height:100%"
-        class="dockview-theme-abyss"
+        className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
         @ready="onReady"
-      </dockview-vue>`,
+      ></dockview-vue>`,
 });
 
 const app = createApp(App);

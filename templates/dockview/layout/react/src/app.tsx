@@ -7,18 +7,8 @@ import {
 import React from 'react';
 
 const components = {
-    default: (props: IDockviewPanelProps<{ title: string }>) => {
-        return (
-            <div
-                style={{
-                    height: '100%',
-                    padding: '20px',
-                    background: 'var(--dv-group-view-background-color)',
-                }}
-            >
-                {props.params.title}
-            </div>
-        );
+    default: (props: IDockviewPanelProps) => {
+        return <div className="example-panel">{props.api.title}</div>;
     },
 };
 
@@ -26,16 +16,19 @@ function loadDefaultLayout(api: DockviewApi) {
     api.addPanel({
         id: 'panel_1',
         component: 'default',
+        title: 'Panel 1',
     });
 
     api.addPanel({
         id: 'panel_2',
         component: 'default',
+        title: 'Panel 2',
     });
 
     api.addPanel({
         id: 'panel_3',
         component: 'default',
+        title: 'Panel 3',
     });
 }
 
@@ -90,22 +83,11 @@ export const DockviewPersistence = (props: { theme?: string }) => {
     }, [api]);
 
     return (
-        <div
-            style={{
-                display: 'flex',
-                flexDirection: 'column',
-                height: '100%',
-            }}
-        >
-            <div style={{ height: '25px' }}>
+        <div className="example-layout">
+            <div className="example-controls">
                 <button onClick={clearLayout}>Reset Layout</button>
             </div>
-            <div
-                style={{
-                    flexGrow: 1,
-                    overflow: 'hidden',
-                }}
-            >
+            <div className="example-dock">
                 <DockviewReact
                     onReady={onReady}
                     components={components}
@@ -120,5 +102,5 @@ export const DockviewPersistence = (props: { theme?: string }) => {
 export default DockviewPersistence;
 
 const Watermark = () => {
-    return <div style={{ color: 'white', padding: '8px' }}>watermark</div>;
+    return <div className="example-panel">This group is empty.</div>;
 };

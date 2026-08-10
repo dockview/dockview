@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkdockview_docs=globalThis.webpackChunkdockview_docs||[]).push([[8947],{6600(o){o.exports=JSON.parse('{"authors":[{"name":"mathuo","title":"Creator of Dockview","url":"https://github.com/mathuo","imageURL":"https://github.com/mathuo.png","key":"mathuo","page":null,"count":1}]}')}}]);

@@ -7,11 +7,15 @@ import {
     IDockviewPanelProps,
 } from 'dockview-vue';
 
+interface CustomParams {
+    myValue: number;
+}
+
 const Panel = defineComponent({
     name: 'Panel',
     props: {
         params: {
-            type: Object as PropType<IDockviewPanelProps>,
+            type: Object as PropType<IDockviewPanelProps<CustomParams>>,
             required: true,
         },
     },
@@ -19,7 +23,14 @@ const Panel = defineComponent({
         return {
             running: false,
             title: '',
+            myValue: this.params.params.myValue,
+            interval: undefined as ReturnType<typeof setInterval> | undefined,
         };
+    },
+    computed: {
+        lastUpdated(): string {
+            return new Date(this.myValue).toLocaleTimeString();
+        },
     },
     methods: {
         onClick() {
@@ -27,21 +38,22 @@ const Panel = defineComponent({
         },
     },
     watch: {
-        running(newValue, oldValue) {
+        params(newValue) {
+            this.myValue = newValue.params.myValue;
+        },
+        running(newValue) {
             if (!newValue) {
+                if (this.interval) {
+                    clearInterval(this.interval);
+                    this.interval = undefined;
+                }
                 return;
             }
 
-            console.log('interval');
-
-            const interval = setInterval(() => {
+            this.interval = setInterval(() => {
                 this.params.api.updateParameters({ myValue: Date.now() });
             }, 1000);
-            this.parmas.api.updateParameters({ myValue: Date.now() });
-
-            return () => {
-                clearInterval(interval);
-            };
+            this.params.api.updateParameters({ myValue: Date.now() });
         },
     },
     mounted() {
@@ -55,17 +67,14 @@ const Panel = defineComponent({
         };
     },
     template: `
-    <div style="height:100%;padding:20px;color:white;">
-      <div>{{title}}</div>
-      <button v-if="running" @click="onClick">Stop</button>
-      <button v-if="!running" @click="onClick">Start</button>
-      <span>{{title}}</span>
+    <div class="example-panel">
+      <div style="margin-bottom:8px;">{{title}}</div>
+      <div class="example-controls">
+        <button @click="onClick">{{ running ? 'Stop' : 'Start' }}</button>
+        <span>Last updated: {{ lastUpdated }}</span>
+      </div>
     </div>`,
 });
-
-interface CustomParams {
-    myValue: number;
-}
 
 const Tab = defineComponent({
     name: 'Tab',
@@ -81,35 +90,30 @@ const Tab = defineComponent({
             title: '',
         };
     },
-    methods: {
-        onClick() {
-            this.running = !this.running;
+    computed: {
+        lastUpdated(): string {
+            return new Date(this.myValue).toLocaleTimeString();
         },
     },
     watch: {
-        params(newValue, oldValue) {
-            this.myValue = newValue.myValue;
-        },
-        running(newValue, oldValue) {
-            if (!newValue) {
-                return;
-            }
-
-            const interval = setInterval(() => {
-                this.params.api.updateParameters({ myValue: Date.now() });
-            }, 1000);
-            this.params.api.updateParameters({ myValue: Date.now() });
-
-            return () => {
-                clearInterval(interval);
-            };
+        params(newValue) {
+            this.myValue = newValue.params.myValue;
         },
     },
+    mounted() {
+        const disposable = this.params.api.onDidTitleChange(() => {
+            this.title = this.params.api.title;
+        });
+        this.title = this.params.api.title;
 
+        return () => {
+            disposable.dispose();
+        };
+    },
     template: `
       <div>
         <div>custom tab: {{title}}</div>
-        <span>value: {{myValue}}</span>
+        <span>Last updated: {{ lastUpdated }}</span>
       </div>`,
 });
 
@@ -144,8 +148,9 @@ const App = defineComponent({
     template: `
       <dockview-vue
         style="width:100%;height:100%"
-        class="dockview-theme-abyss"
+        className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
         @ready="onReady"
+      >
       </dockview-vue>`,
 });
 

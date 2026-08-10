@@ -17,13 +17,23 @@ const Panel = defineComponent({
             required: true,
         },
     },
-    beforeMount() {
-        console.log('mounted');
+    data() {
+        return {
+            title: '',
+        };
+    },
+    mounted() {
+        const disposable = this.params.api.onDidTitleChange(() => {
+            this.title = this.params.api.title;
+        });
+        this.title = this.params.api.title;
+
+        return () => {
+            disposable.dispose();
+        };
     },
     template: `
-    <div style="height:100%;padding:20px;">
-      Hello World
-    </div>`,
+    <div class="example-panel">{{ title }}</div>`,
 });
 
 const WatermarkPanel = defineComponent({
@@ -49,18 +59,14 @@ const WatermarkPanel = defineComponent({
         },
     },
     template: `
-      <div style="height:100%;display:flex;justify-content:center;align-items:center;color:white;">
-        <div style="display:flex;flex-direction:column;">
-          <span>
-          This is a custom watermark. You can put whatever React component you want here
-          </span>
-          <span>
+      <div style="height:100%;display:flex;justify-content:center;align-items:center;">
+        <div>
+          <p>This is a custom watermark. You can change this content.</p>
+          <div class="example-controls">
             <button @click="onAddNewPanel">Add New Panel</button>
-          </span>
+            <button v-if="isGroup" @click="onCloseGroup">Close Group</button>
+          </div>
         </div>
-        <span v-if="isGroup">
-          <button @click="onCloseGroup">Close Group</button>
-        </span>
       </div>`,
 });
 
@@ -98,17 +104,18 @@ const App = defineComponent({
         },
     },
     template: `
-      <div style="display:flex;flex-direction:column;height:100%;">
-        <div>
+      <div class="example-layout">
+        <div class="example-controls">
           <button @click="onClick">Add Empty Group</button>
         </div>
-        <dockview-vue
-          style="width:100%;flex-grow:1"
-          class="dockview-theme-abyss"
-          @ready="onReady"
-          watermarkComponent="watermarkComponent"
-        >
-        </dockview-vue>
+        <div class="example-dock">
+          <dockview-vue
+            style="width:100%;height:100%"
+            className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
+            @ready="onReady"
+            watermarkComponent="watermarkComponent"
+          ></dockview-vue>
+        </div>
       </div>`,
 });
 

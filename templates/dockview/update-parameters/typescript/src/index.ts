@@ -7,14 +7,15 @@ import {
     PanelUpdateEvent,
     Parameters,
     themeAbyss,
+    themeLight,
 } from 'dockview';
 
 class Panel implements IContentRenderer {
     private readonly _element: HTMLElement;
 
-    private readonly e1: HTMLElement;
-    private readonly e2: HTMLElement;
-    private readonly e3: HTMLElement;
+    private readonly _title: HTMLElement;
+    private readonly _button: HTMLElement;
+    private readonly _status: HTMLElement;
 
     private interval: any;
 
@@ -24,50 +25,60 @@ class Panel implements IContentRenderer {
 
     constructor() {
         this._element = document.createElement('div');
-        this._element.style.color = 'white';
+        this._element.className = 'example-panel';
 
-        this.e1 = document.createElement('div');
-        this.e2 = document.createElement('button');
-        this.e3 = document.createElement('span');
+        this._title = document.createElement('div');
+        this._title.style.marginBottom = '8px';
 
-        this.e2.textContent = 'Start';
+        const controls = document.createElement('div');
+        controls.className = 'example-controls';
 
-        this.element.append(this.e1, this.e2, this.e3);
+        this._button = document.createElement('button');
+        this._button.textContent = 'Start';
+
+        this._status = document.createElement('span');
+
+        controls.append(this._button, this._status);
+        this._element.append(this._title, controls);
     }
 
     init(parameters: GroupPanelPartInitParameters): void {
         parameters.api.onDidTitleChange((event) => {
-            this.e1.textContent = event.title;
+            this._title.textContent = event.title;
         });
 
-        this.e1.textContent = parameters.api.title;
-        this.e3.textContent = `value: ${parameters.params.myValue}`;
+        this._title.textContent = parameters.api.title;
+        this._status.textContent = `Last updated: ${new Date(
+            parameters.params.myValue
+        ).toLocaleTimeString()}`;
 
-        this.e2.addEventListener('click', () => {
+        this._button.addEventListener('click', () => {
             if (this.interval) {
                 clearInterval(this.interval);
                 this.interval = undefined;
-                this.e2.textContent = 'Start';
+                this._button.textContent = 'Start';
             } else {
                 this.interval = setInterval(() => {
                     parameters.api.updateParameters({ myValue: Date.now() });
                 }, 1000);
                 parameters.api.updateParameters({ myValue: Date.now() });
-                this.e2.textContent = 'Stop';
+                this._button.textContent = 'Stop';
             }
         });
     }
 
     update(event: PanelUpdateEvent<Parameters>): void {
-        this.e3.textContent = `value: ${event.params.myValue}`;
+        this._status.textContent = `Last updated: ${new Date(
+            event.params.myValue
+        ).toLocaleTimeString()}`;
     }
 }
 
 class CustomTab implements ITabRenderer {
     private readonly _element: HTMLElement;
 
-    private readonly e1: HTMLElement;
-    private readonly e2: HTMLElement;
+    private readonly _title: HTMLElement;
+    private readonly _status: HTMLElement;
 
     get element(): HTMLElement {
         return this._element;
@@ -75,30 +86,33 @@ class CustomTab implements ITabRenderer {
 
     constructor() {
         this._element = document.createElement('div');
-        this._element.style.color = 'white';
 
-        this.e1 = document.createElement('div');
-        this.e2 = document.createElement('span');
+        this._title = document.createElement('div');
+        this._status = document.createElement('span');
 
-        this.element.append(this.e1, this.e2);
+        this._element.append(this._title, this._status);
     }
 
     init(parameters: GroupPanelPartInitParameters): void {
-        parameters.api.onDidTitleChange((event) => {
-            this.e1.textContent = parameters.api.title;
+        parameters.api.onDidTitleChange(() => {
+            this._title.textContent = `custom tab: ${parameters.api.title}`;
         });
 
-        this.e1.textContent = parameters.api.title;
-        this.e2.textContent = `value: ${parameters.params.myValue}`;
+        this._title.textContent = `custom tab: ${parameters.api.title}`;
+        this._status.textContent = `Last updated: ${new Date(
+            parameters.params.myValue
+        ).toLocaleTimeString()}`;
     }
 
     update(event: PanelUpdateEvent<Parameters>): void {
-        this.e2.textContent = `value: ${event.params.myValue}`;
+        this._status.textContent = `Last updated: ${new Date(
+            event.params.myValue
+        ).toLocaleTimeString()}`;
     }
 }
 
 const api = createDockview(document.getElementById('app'), {
-    theme: themeAbyss,
+    theme: (window as any).__dockviewColorMode === 'light' ? themeLight : themeAbyss,
     createComponent: (options) => {
         switch (options.name) {
             case 'default':

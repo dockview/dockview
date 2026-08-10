@@ -40,13 +40,15 @@ const Panel = defineComponent({
     },
 
     template: `
-    <div style="height:100%;padding:20px;">
-      <div>
-        <span style="color:grey;">props.api.title=</span>
-        <span style="color:white;">{{ title }}</span>
+    <div class="example-panel">
+      <div style="margin-bottom:8px">
+        <span>Current title: </span>
+        <span>{{ title }}</span>
       </div>
-      <input v-model="value"/>
-      <button @click="onChangeTitle">Change</button>
+      <div class="example-controls">
+        <label>New title <input v-model="value"/></label>
+        <button @click="onChangeTitle">Set title</button>
+      </div>
     </div>`,
 });
 
@@ -90,9 +92,9 @@ const App = defineComponent({
     template: `
       <dockview-vue
         style="width:100%;height:100%"
-        class="dockview-theme-abyss"
+        className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
         @ready="onReady"
-      </dockview-vue>`,
+      ></dockview-vue>`,
 });
 
 const app = createApp(App);

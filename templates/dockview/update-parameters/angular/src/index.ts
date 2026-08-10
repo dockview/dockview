@@ -24,10 +24,12 @@ interface CustomParams {
 @Component({
     selector: 'default-panel',
     template: `
-        <div style="padding: 20px; color: white;">
-            <div>{{ api?.title }}</div>
-            <button (click)="toggle()">{{ running ? 'Stop' : 'Start' }}</button>
-            <span>value: {{ params?.myValue }}</span>
+        <div class="example-panel">
+            <div style="margin-bottom: 8px;">{{ api?.title }}</div>
+            <div class="example-controls">
+                <button (click)="toggle()">{{ running ? 'Stop' : 'Start' }}</button>
+                <span>Last updated: {{ lastUpdated }}</span>
+            </div>
         </div>
     `,
 })
@@ -38,6 +40,10 @@ export class DefaultPanelComponent implements OnDestroy {
 
     running = false;
     private interval: ReturnType<typeof setInterval> | undefined;
+
+    get lastUpdated(): string {
+        return new Date(this.params?.myValue).toLocaleTimeString();
+    }
 
     toggle() {
         if (this.running) {
@@ -73,25 +79,31 @@ export class DefaultPanelComponent implements OnDestroy {
     template: `
         <div>
             <div>custom tab: {{ api?.title }}</div>
-            <span>value: {{ params?.myValue }}</span>
+            <span>Last updated: {{ lastUpdated }}</span>
         </div>
     `,
 })
 export class DefaultTabComponent {
     @Input() api!: DockviewPanelApi;
     @Input() params!: CustomParams;
+
+    get lastUpdated(): string {
+        return new Date(this.params?.myValue).toLocaleTimeString();
+    }
 }
 
 @Component({
     selector: 'app-root',
     template: `
-        <div style="height: 100%;">
-            <dv-dockview
-                [components]="components"
-                [tabComponents]="tabComponents"
-                className="dockview-theme-abyss"
-                (ready)="onReady($event)">
-            </dv-dockview>
+        <div class="example-layout">
+            <div class="example-dock">
+                <dv-dockview
+                    [components]="components"
+                    [tabComponents]="tabComponents"
+                    className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
+                    (ready)="onReady($event)">
+                </dv-dockview>
+            </div>
         </div>
     `,
 })

@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkdockview_docs=globalThis.webpackChunkdockview_docs||[]).push([[7472],{5513(e){e.exports=JSON.parse('{"title":"Recent posts","items":[{"title":"Dockview launches an enterprise version","permalink":"/blog/dockview-enterprise","unlisted":false,"date":"2026-08-07T00:00:00.000Z"}]}')}}]);

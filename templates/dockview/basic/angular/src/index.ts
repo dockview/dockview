@@ -9,30 +9,24 @@ import 'dockview-angular/dist/styles/dockview.css';
 // Default panel component
 @Component({
     selector: 'default-panel',
-    template: `<div>{{ title }}{{ params?.subtitle ? ' — ' + params.subtitle : '' }}</div>`
+    template: `<div class="example-panel">{{ api?.title }}</div>`
 })
 export class DefaultPanelComponent {
-    // `params` receives the object passed to `api.addPanel({ params: ... })`.
-    @Input() params: { subtitle?: string };
     @Input() api: any;
-
-    get title() {
-        return this.api?.title || this.api?.id || 'Panel';
-    }
-
-    constructor() {}
 }
 
-// Main app component  
+// Main app component
 @Component({
     selector: 'app-root',
     template: `
-        <div style="height: 100%;">
-            <dv-dockview
-                [components]="components"
-                className="dockview-theme-abyss"
-                (ready)="onReady($event)">
-            </dv-dockview>
+        <div class="example-layout">
+            <div class="example-dock">
+                <dv-dockview
+                    [components]="components"
+                    className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
+                    (ready)="onReady($event)">
+                </dv-dockview>
+            </div>
         </div>
     `
 })
@@ -51,12 +45,13 @@ export class AppComponent {
         api.addPanel({
             id: 'panel_1',
             component: 'default',
-            params: { subtitle: 'with params' },
+            title: 'Panel 1',
         });
 
         api.addPanel({
             id: 'panel_2',
             component: 'default',
+            title: 'Panel 2',
             position: {
                 direction: 'right',
                 referencePanel: 'panel_1',
@@ -66,6 +61,7 @@ export class AppComponent {
         api.addPanel({
             id: 'panel_3',
             component: 'default',
+            title: 'Panel 3',
             position: {
                 direction: 'below',
                 referencePanel: 'panel_1',
@@ -75,11 +71,13 @@ export class AppComponent {
         api.addPanel({
             id: 'panel_4',
             component: 'default',
+            title: 'Panel 4',
         });
 
         api.addPanel({
             id: 'panel_5',
             component: 'default',
+            title: 'Panel 5',
         });
     }
 }

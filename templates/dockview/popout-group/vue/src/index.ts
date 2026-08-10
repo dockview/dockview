@@ -66,7 +66,7 @@ const LeftAction = defineComponent({
         },
     },
     template: `
-      <div style="height:100%;color:white;padding:0px 4px;">
+      <div style="height:100%;padding:0px 4px;">
         <material-icon @click="onClick" icon="add"></material-icon>
       </div>`,
 });
@@ -111,7 +111,7 @@ const RightAction = defineComponent({
         };
     },
     template: `
-    <div style="height:100%;color:white;padding:0px 4px">
+    <div style="height:100%;padding:0px 4px">
       <material-icon v-if="isPopout" @click="onClick" icon="jump_to_element"></material-icon>
       <material-icon v-if="!isPopout" @click="onClick" icon="back_to_tab"></material-icon>
     </div>`,
@@ -141,7 +141,7 @@ const Panel = defineComponent({
         };
     },
     template: `
-      <div style="color:white;">
+      <div class="example-panel">
         <div>{{title}}</div>
       </div>`,
 });
@@ -206,22 +206,24 @@ const App = defineComponent({
         },
     },
     template: `
-    <div style="display:flex;flex-direction:column;height:100%;">
-      <div style="height:25px">
+    <div class="example-layout">
+      <div class="example-controls">
         <button @click="onAddFloatingGroup">Add Floating Group</button>
         <button @click="onToggleBounds">{{'Bounds: ' + bounds}}</button>
         <button @click="onToggleEnabled">{{'Disabled: ' + disableFloatingGroups}}</button>
       </div>
-      <dockview-vue
-        style="width:100%;flex-grow:1"
-        class="dockview-theme-abyss"
-        @ready="onReady"
-        :floatingGroupBounds="bounds"
-        leftHeaderActionsComponent="leftAction"
-        rightHeaderActionsComponent="rightAction"
-        prefixHeaderActionsComponent="prefixAction"
-        :disableFloatingGroups="disableFloatingGroups"
-      </dockview-vue>
+      <div class="example-dock">
+        <dockview-vue
+          style="width:100%;height:100%"
+          className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
+          @ready="onReady"
+          :floatingGroupBounds="bounds"
+          leftHeaderActionsComponent="leftAction"
+          rightHeaderActionsComponent="rightAction"
+          prefixHeaderActionsComponent="prefixAction"
+          :disableFloatingGroups="disableFloatingGroups"
+        ></dockview-vue>
+      </div>
     </div>`,
 });
 

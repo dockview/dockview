@@ -29,10 +29,7 @@ const Panel = defineComponent({
             disposable.dispose();
         };
     },
-    template: `
-  <div style="height:100%;padding:20px;color:white;">
-    <div>{{title}}</div>
-  </div>`,
+    template: `<div class="example-panel">{{ title }}</div>`,
 });
 
 const InnerDockview = defineComponent({
@@ -44,27 +41,30 @@ const InnerDockview = defineComponent({
     methods: {
         onReady(event: DockviewReadyEvent) {
             event.api.addPanel({
-                id: 'panel_1',
+                id: 'inner_panel_1',
                 component: 'default',
+                title: 'Inner 1',
             });
 
             event.api.addPanel({
-                id: 'panel_2',
+                id: 'inner_panel_2',
                 component: 'default',
+                title: 'Inner 2',
             });
 
             event.api.addPanel({
-                id: 'panel_3',
+                id: 'inner_panel_3',
                 component: 'default',
+                title: 'Inner 3',
             });
         },
     },
     template: `
     <dockview-vue
       style="width:100%;height:100%"
-      class="dockview-theme-abyss"
+      class="nested-dockview"
       @ready="onReady"
-    </dockview-vue>`,
+    ></dockview-vue>`,
 });
 
 const App = defineComponent({
@@ -79,16 +79,19 @@ const App = defineComponent({
             event.api.addPanel({
                 id: 'panel_1',
                 component: 'default',
+                title: 'Panel 1',
             });
 
             event.api.addPanel({
                 id: 'panel_2',
                 component: 'default',
+                title: 'Panel 2',
             });
 
             event.api.addPanel({
                 id: 'panel_3',
                 component: 'innerDockview',
+                title: 'Nested layout',
                 position: { referencePanel: 'panel_2', direction: 'right' },
             });
         },
@@ -96,9 +99,9 @@ const App = defineComponent({
     template: `
       <dockview-vue
         style="width:100%;height:100%"
-        class="dockview-theme-abyss"
+        className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
         @ready="onReady"
-      </dockview-vue>`,
+      ></dockview-vue>`,
 });
 
 const app = createApp(App);

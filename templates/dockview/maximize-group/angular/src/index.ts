@@ -23,34 +23,28 @@ import {
 import 'dockview-angular/dist/styles/dockview.css';
 
 const STORAGE_KEY = 'maximize.layout';
+let panelCount = 0;
 
 @Component({
     selector: 'default-panel',
-    template: `
-        <div
-            style="height: 100%; padding: 20px; background: var(--dv-group-view-background-color);">
-            {{ params?.title }}
-        </div>
-    `,
+    template: `<div class="example-panel">{{ api?.title }}</div>`,
 })
 export class DefaultPanelComponent {
     @Input() api!: DockviewPanelApi;
-    @Input() params!: { title: string };
 }
 
 @Component({
     selector: 'watermark-panel',
-    template: `<div style="color: white; padding: 8px;">watermark</div>`,
+    template: `<div class="example-panel">This group is empty.</div>`,
 })
 export class WatermarkComponent {}
 
 @Component({
     selector: 'left-header-actions',
     template: `
-        <div style="height: 100%; color: white; padding: 0px 4px;">
+        <div style="height: 100%; padding: 0px 4px;">
             <div
                 (click)="addPanel()"
-                title="Add Panel"
                 style="display: flex; align-items: center; justify-content: center; width: 30px; height: 100%; cursor: pointer; font-size: 18px;">
                 <span class="material-symbols-outlined">add</span>
             </div>
@@ -62,10 +56,10 @@ export class LeftHeaderActionsComponent {
     @Input() group!: DockviewGroupPanel;
 
     addPanel() {
-        const id = Date.now().toString();
+        const id = (++panelCount).toString();
         this.containerApi.addPanel({
             id,
-            title: `Tab ${id}`,
+            title: `Tab ${panelCount}`,
             component: 'default',
             position: { referenceGroup: this.group },
         });
@@ -75,7 +69,7 @@ export class LeftHeaderActionsComponent {
 @Component({
     selector: 'right-header-actions',
     template: `
-        <div style="height: 100%; color: white; padding: 0px 4px;">
+        <div style="height: 100%; padding: 0px 4px;">
             <div
                 (click)="toggle()"
                 [title]="maximized ? 'Exit maximize' : 'Maximize'"
@@ -120,19 +114,19 @@ export class RightHeaderActionsComponent implements OnInit, OnDestroy {
 @Component({
     selector: 'app-root',
     template: `
-        <div style="height: 100%; display: flex; flex-direction: column;">
-            <div style="height: 25px;">
+        <div class="example-layout">
+            <div class="example-controls">
                 <button (click)="save()">Save</button>
                 <button (click)="load()">Load</button>
                 <button (click)="clear()">Clear</button>
             </div>
-            <div style="flex-grow: 1;">
+            <div class="example-dock">
                 <dv-dockview
                     [components]="components"
                     [watermarkComponent]="watermarkComponent"
                     [leftHeaderActionsComponent]="leftHeaderActionsComponent"
                     [rightHeaderActionsComponent]="rightHeaderActionsComponent"
-                    className="dockview-theme-abyss"
+                    className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
                     (ready)="onReady($event)">
                 </dv-dockview>
             </div>
@@ -207,17 +201,17 @@ export class AppComponent {
         if (!this.api) {
             return;
         }
-        this.api.addPanel({ id: 'panel_1', component: 'default', params: { title: 'Panel 1' } });
-        this.api.addPanel({ id: 'panel_2', component: 'default', params: { title: 'Panel 2' } });
-        this.api.addPanel({ id: 'panel_3', component: 'default', params: { title: 'Panel 3' } });
-        this.api.addPanel({ id: 'panel_4', component: 'default', params: { title: 'Panel 4' } });
+        this.api.addPanel({ id: 'panel_1', component: 'default', title: 'Panel 1' });
+        this.api.addPanel({ id: 'panel_2', component: 'default', title: 'Panel 2' });
+        this.api.addPanel({ id: 'panel_3', component: 'default', title: 'Panel 3' });
+        this.api.addPanel({ id: 'panel_4', component: 'default', title: 'Panel 4' });
         this.api.addPanel({
             id: 'panel_5',
             component: 'default',
-            params: { title: 'Panel 5' },
+            title: 'Panel 5',
             position: { direction: 'right' },
         });
-        this.api.addPanel({ id: 'panel_6', component: 'default', params: { title: 'Panel 6' } });
+        this.api.addPanel({ id: 'panel_6', component: 'default', title: 'Panel 6' });
     }
 }
 

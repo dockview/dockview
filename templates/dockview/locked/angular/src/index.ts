@@ -6,6 +6,7 @@ import { BrowserModule } from '@angular/platform-browser';
 import {
     DockviewAngularModule,
     DockviewApi,
+    DockviewPanelApi,
     DockviewReadyEvent,
 } from 'dockview-angular';
 import 'dockview-angular/dist/styles/dockview.css';
@@ -13,25 +14,25 @@ import 'dockview-angular/dist/styles/dockview.css';
 @Component({
     selector: 'default-panel',
     template: `
-        <div style="height: 100%; padding: 10px;">
-            {{ api?.title }}
-        </div>
+        <div class="example-panel">{{ api?.title }}</div>
     `,
 })
 export class DefaultPanelComponent {
-    @Input() api: any;
+    @Input() api!: DockviewPanelApi;
 }
 
 @Component({
     selector: 'app-root',
     template: `
-        <div style="height: 100%;">
-            <dv-dockview
-                [components]="components"
-                [locked]="true"
-                className="dockview-theme-abyss"
-                (ready)="onReady($event)">
-            </dv-dockview>
+        <div class="example-layout">
+            <div class="example-dock">
+                <dv-dockview
+                    [components]="components"
+                    [locked]="true"
+                    className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
+                    (ready)="onReady($event)">
+                </dv-dockview>
+            </div>
         </div>
     `,
 })
@@ -43,19 +44,21 @@ export class AppComponent {
     onReady(event: DockviewReadyEvent) {
         const api: DockviewApi = event.api;
 
-        api.addPanel({ id: 'panel_1', component: 'default' });
+        api.addPanel({ id: 'panel_1', component: 'default', title: 'Panel 1' });
         api.addPanel({
             id: 'panel_2',
             component: 'default',
+            title: 'Panel 2',
             position: { direction: 'right', referencePanel: 'panel_1' },
         });
         api.addPanel({
             id: 'panel_3',
             component: 'default',
+            title: 'Panel 3',
             position: { direction: 'below', referencePanel: 'panel_1' },
         });
-        api.addPanel({ id: 'panel_4', component: 'default' });
-        api.addPanel({ id: 'panel_5', component: 'default' });
+        api.addPanel({ id: 'panel_4', component: 'default', title: 'Panel 4' });
+        api.addPanel({ id: 'panel_5', component: 'default', title: 'Panel 5' });
     }
 }
 

@@ -1,23 +1,24 @@
 .resize-panel {
     padding: 10px;
-    color: white;
+    height: 100%;
+}
+
+.resize-panel .resize-title {
+    margin-bottom: 8px;
 }
 
 .resize-panel .resize-control {
     display: flex;
-    height: 18px;
-    line-height: 18px;
+    align-items: center;
+    gap: 8px;
     font-size: 13px;
+    margin-bottom: 6px;
+}
 
-    span {
-        width: 60px;
-    }
+.resize-panel .resize-control span {
+    width: 60px;
+}
 
-    input {
-        width: 75px;
-    }
-
-    button {
-        width: 50px;
-    }
+.resize-panel .resize-control input {
+    width: 75px;
 }

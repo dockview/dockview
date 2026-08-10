@@ -14,22 +14,28 @@ interface CustomParams {
 @Component({
     selector: 'default-panel',
     template: `
-        <div style="height: 100%; padding: 20px; color: white;">
-            <div>{{ title }}</div>
-            <button (click)="toggleRunning()">{{ running ? 'Stop' : 'Start' }}</button>
-            <span>value: {{ params?.myValue }}</span>
+        <div class="example-panel">
+            <div style="margin-bottom: 8px;">{{ title }}</div>
+            <div class="example-controls">
+                <button (click)="toggleRunning()">{{ running ? 'Stop' : 'Start' }}</button>
+                <span>Last updated: {{ lastUpdated }}</span>
+            </div>
         </div>
     `
 })
 export class DefaultPanelComponent implements OnInit, OnDestroy {
     @Input() api: any;
     @Input() params: CustomParams;
-    
+
     running = false;
     private interval: any;
-    
+
     get title() {
         return this.api?.title || 'Panel';
+    }
+
+    get lastUpdated() {
+        return new Date(this.params?.myValue).toLocaleTimeString();
     }
 
     ngOnInit() {
@@ -74,16 +80,20 @@ export class DefaultPanelComponent implements OnInit, OnDestroy {
     template: `
         <div>
             <div>custom tab: {{ title }}</div>
-            <span>value: {{ params?.myValue }}</span>
+            <span>Last updated: {{ lastUpdated }}</span>
         </div>
     `
 })
 export class CustomTabComponent {
     @Input() api: any;
     @Input() params: CustomParams;
-    
+
     get title() {
         return this.api?.title || 'Tab';
+    }
+
+    get lastUpdated() {
+        return new Date(this.params?.myValue).toLocaleTimeString();
     }
 }
 
@@ -95,7 +105,7 @@ export class CustomTabComponent {
             <dv-dockview
                 [components]="components"
                 [tabComponents]="tabComponents"
-                className="dockview-theme-abyss"
+                className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
                 (ready)="onReady($event)">
             </dv-dockview>
         </div>

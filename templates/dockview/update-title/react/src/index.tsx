@@ -9,5 +9,5 @@ const rootElement = document.getElementById('app');
 if (rootElement) {
     const root = ReactDOMClient.createRoot(rootElement);
 
-    root.render(<App />);
+    root.render(<App theme={(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'} />);
 }

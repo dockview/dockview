@@ -1,3 +1,4 @@
+import { LicenseManager } from 'dockview-enterprise';
 import 'zone.js';
 import '@angular/compiler';
 import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
@@ -11,9 +12,14 @@ import {
 } from 'dockview-angular';
 import 'dockview-angular/dist/styles/dockview.css';
 
+// dockview.dev docs license key. Replace with your own key in production.
+LicenseManager.setLicenseKey(
+    '[KeyId:DOCKVIEW-DOCS]_[Company:Dockview]_[Plan:team]_[AppName:Dockview_Docs]_[Email:enterprise@dockview.dev]_[ValidFrom:01_Jan_2025]_[ValidUntil:01_Jan_2099]__aaa294ecec1eed47'
+);
+
 @Component({
     selector: 'default-panel',
-    template: `<div style="padding:8px;">{{ api?.title }}</div>`,
+    template: `<div class="example-panel">{{ api?.title }}</div>`,
 })
 export class DefaultPanelComponent {
     @Input() api: any;
@@ -44,14 +50,17 @@ export class FloatMenuItemComponent implements IContextMenuItemComponentProps {
 @Component({
     selector: 'app-root',
     template: `
-        <dv-dockview
-            style="width:100%;height:100%"
-            className="dockview-theme-abyss"
-            [components]="components"
-            [getTabContextMenuItems]="getTabContextMenuItems"
-            (ready)="onReady($event)"
-        >
-        </dv-dockview>
+        <div class="example-layout">
+            <div class="example-dock">
+                <dv-dockview
+                    className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
+                    [components]="components"
+                    [getTabContextMenuItems]="getTabContextMenuItems"
+                    (ready)="onReady($event)"
+                >
+                </dv-dockview>
+            </div>
+        </div>
     `,
 })
 export class AppComponent implements OnInit {
@@ -63,11 +72,20 @@ export class AppComponent implements OnInit {
         'close' as const,
         'closeOthers' as const,
         'closeAll' as const,
+        'closeLeft' as const,
+        'closeRight' as const,
+        'separator' as const,
+        'maximize' as const,
+        'popout' as const,
         'separator' as const,
         {
             label: 'Log panel id',
             action: () => console.log(params.panel.id),
         },
+        'separator' as const,
+        // A custom component item, shown here as an alternative to the
+        // built-in `'float'` shortcut.
+        { component: FloatMenuItemComponent },
     ];
 
     ngOnInit() {}

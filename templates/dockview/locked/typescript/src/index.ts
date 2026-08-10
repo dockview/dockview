@@ -3,16 +3,12 @@ import {
     createDockview,
     GroupPanelPartInitParameters,
     IContentRenderer,
-    ITabRenderer,
-    PanelUpdateEvent,
-    Parameters,
     themeAbyss,
+    themeLight,
 } from 'dockview';
 
 class Panel implements IContentRenderer {
     private readonly _element: HTMLElement;
-
-    private readonly e1: HTMLElement;
 
     get element(): HTMLElement {
         return this._element;
@@ -20,24 +16,20 @@ class Panel implements IContentRenderer {
 
     constructor() {
         this._element = document.createElement('div');
-        this._element.style.color = 'white';
-
-        this.e1 = document.createElement('div');
-
-        this.element.append(this.e1);
+        this._element.className = 'example-panel';
     }
 
     init(parameters: GroupPanelPartInitParameters): void {
-        parameters.api.onDidTitleChange((event) => {
-            this.e1.textContent = event.title;
-        });
+        this._element.textContent = parameters.api.title ?? '';
 
-        this.e1.textContent = parameters.api.title;
+        parameters.api.onDidTitleChange(() => {
+            this._element.textContent = parameters.api.title ?? '';
+        });
     }
 }
 
 const api = createDockview(document.getElementById('app'), {
-    theme: themeAbyss,
+    theme: (window as any).__dockviewColorMode === 'light' ? themeLight : themeAbyss,
     createComponent: (options) => {
         switch (options.name) {
             case 'default':
@@ -50,11 +42,13 @@ const api = createDockview(document.getElementById('app'), {
 api.addPanel({
     id: 'panel_1',
     component: 'default',
+    title: 'Panel 1',
 });
 
 api.addPanel({
     id: 'panel_2',
     component: 'default',
+    title: 'Panel 2',
     position: {
         direction: 'right',
         referencePanel: 'panel_1',
@@ -64,6 +58,7 @@ api.addPanel({
 api.addPanel({
     id: 'panel_3',
     component: 'default',
+    title: 'Panel 3',
     position: {
         direction: 'below',
         referencePanel: 'panel_1',
@@ -73,9 +68,11 @@ api.addPanel({
 api.addPanel({
     id: 'panel_4',
     component: 'default',
+    title: 'Panel 4',
 });
 
 api.addPanel({
     id: 'panel_5',
     component: 'default',
+    title: 'Panel 5',
 });

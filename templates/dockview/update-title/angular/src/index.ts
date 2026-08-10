@@ -22,13 +22,18 @@ import 'dockview-angular/dist/styles/dockview.css';
 @Component({
     selector: 'default-panel',
     template: `
-        <div style="padding: 20px; color: white;">
-            <div>
-                <span style="color: grey;">props.api.title=</span>
+        <div class="example-panel">
+            <div style="margin-bottom: 8px;">
+                <span>Current title: </span>
                 <span>{{ api?.title }}</span>
             </div>
-            <input [value]="title" (input)="title = $any($event.target).value" />
-            <button (click)="apply()">Change</button>
+            <div class="example-controls">
+                <label>
+                    New title
+                    <input [value]="title" (input)="title = $any($event.target).value" />
+                </label>
+                <button (click)="apply()">Set title</button>
+            </div>
         </div>
     `,
 })
@@ -62,12 +67,14 @@ export class DefaultPanelComponent implements OnInit, OnDestroy {
 @Component({
     selector: 'app-root',
     template: `
-        <div style="height: 100%;">
-            <dv-dockview
-                [components]="components"
-                className="dockview-theme-abyss"
-                (ready)="onReady($event)">
-            </dv-dockview>
+        <div class="example-layout">
+            <div class="example-dock">
+                <dv-dockview
+                    [components]="components"
+                    className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
+                    (ready)="onReady($event)">
+                </dv-dockview>
+            </div>
         </div>
     `,
 })

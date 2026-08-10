@@ -6,7 +6,9 @@ import {
     IDockviewHeaderActionsProps,
     IDockviewPanelProps,
 } from 'dockview-vue';
-import './app.css';
+
+const demoContainerStyle =
+    'height:100%;display:flex;align-items:center;gap:8px;padding:0 8px;font-size:12px;color:var(--dv-inactivegroup-visiblepanel-tab-color, #969696);';
 
 const LeftAction = defineComponent({
     name: 'LeftAction',
@@ -16,26 +18,10 @@ const LeftAction = defineComponent({
             required: true,
         },
     },
-    data() {
-        return {
-            activePanel: null,
-        };
-    },
-    mounted() {
-        const disposable = this.params.api.onDidActivePanelChange((event) => {
-            this.activePanel = event.panel.id;
-        });
-
-        this.activePanel = this.params.group.activePanel.id;
-
-        return () => {
-            disposable.dispose();
-        };
-    },
     template: `
-      <div class="dockview-groupcontrol-demo">
-        <span class="dockview-groupcontrol-demo-active-panel">
-          "Active Panel " {{ activePanel }}
+      <div style="${demoContainerStyle}">
+        <span style="padding:0 4px;color:var(--dv-activegroup-visiblepanel-tab-color, #ffffff);font-variant-numeric:tabular-nums;">
+          activePanel: {{ params.activePanel ? params.activePanel.id : 'null' }}
         </span>
       </div>`,
 });
@@ -48,31 +34,33 @@ const RightAction = defineComponent({
             required: true,
         },
     },
-    data() {
-        return {
-            isGroupActive: false,
-        };
-    },
-    mounted() {
-        const disposable = this.params.api.onDidActiveChange((event) => {
-            this.isGroupActive = event.isActive;
-        });
+    computed: {
+        pillStyle(): Record<string, string> {
+            const style: Record<string, string> = {
+                padding: '1px 8px',
+                borderRadius: '10px',
+                backgroundColor:
+                    'var(--dv-activegroup-hiddenpanel-tab-background-color, rgba(128, 128, 128, 0.15))',
+                color: 'var(--dv-inactivegroup-visiblepanel-tab-color, #969696)',
+                transition: 'color 0.15s ease, box-shadow 0.15s ease',
+            };
 
-        this.isActive = this.api.isActive;
+            if (this.params.isGroupActive) {
+                style.color =
+                    'var(--dv-activegroup-visiblepanel-tab-color, #ffffff)';
+                style.boxShadow =
+                    'inset 0 0 0 1px var(--dv-tab-active-border-color, #4daafc)';
+            }
 
-        return () => {
-            disposable.dispose();
-        };
+            return style;
+        },
     },
     template: `
-    <div class="dockview-groupcontrol-demo">
-      <span v-if="isGroupActive" style="color:green;" class="dockview-groupcontrol-demo-active-panel">
-        Group Active
-      </span>
-      <span v-if="!isGroupActive" style="color:red;" class="dockview-groupcontrol-demo-active-panel">
-        Group Inactive
-      </span>
-    </div>`,
+      <div style="${demoContainerStyle}">
+        <span :style="pillStyle" :data-active="params.isGroupActive">
+          {{ params.isGroupActive ? 'Group active' : 'Group inactive' }}
+        </span>
+      </div>`,
 });
 
 const PrefixAction = defineComponent({
@@ -83,7 +71,7 @@ const PrefixAction = defineComponent({
             required: true,
         },
     },
-    template: `<div class="dockview-groupcontrol-demo">🌲</div>`,
+    template: `<div style="${demoContainerStyle}">🌲</div>`,
 });
 
 const Panel = defineComponent({
@@ -99,7 +87,6 @@ const Panel = defineComponent({
             title: '',
         };
     },
-
     mounted() {
         const disposable = this.params.api.onDidTitleChange(() => {
             this.title = this.params.api.title;
@@ -111,9 +98,7 @@ const Panel = defineComponent({
         };
     },
     template: `
-      <div style="color:white;">
-        <div>{{title}}</div>
-      </div>`,
+      <div class="example-panel">{{title}}</div>`,
 });
 
 const App = defineComponent({
@@ -155,11 +140,12 @@ const App = defineComponent({
     template: `
       <dockview-vue
         style="width:100%;height:100%"
-        class="dockview-theme-abyss"
+        className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
         @ready="onReady"
         leftHeaderActionsComponent="leftAction"
         rightHeaderActionsComponent="rightAction"
         prefixHeaderActionsComponent="prefixAction"
+      >
       </dockview-vue>`,
 });
 

@@ -31,29 +31,13 @@ const components = {
     default: (props: IDockviewPanelProps<{ title: string }>) => {
         const _window = usePanelWindowObject(props.api);
 
-        const [reset, setReset] = React.useState<boolean>(false);
-
         return (
             <div
-                style={{
-                    height: '100%',
-                    padding: '20px',
-                    background: 'var(--dv-group-view-background-color)',
-                }}
+                className="example-panel"
+                style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
             >
-                <button
-                    onClick={() => {
-                        console.log(_window);
-                        setReset(true);
-                        setTimeout(() => {
-                            setReset(false);
-                        }, 2000);
-                    }}
-                >
-                    Print
-                </button>
-                {!reset && <PopoverMenu window={_window} />}
-                {props.api.title}
+                <div>{props.api.title}</div>
+                <PopoverMenu window={_window} />
             </div>
         );
     },
@@ -63,33 +47,21 @@ function loadDefaultLayout(api: DockviewApi) {
     api.addPanel({
         id: 'panel_1',
         component: 'default',
+        title: 'Panel 1',
     });
 
-    // api.addPanel({
-    //     id: 'panel_2',
-    //     component: 'default',
-    // });
+    api.addPanel({
+        id: 'panel_2',
+        component: 'default',
+        title: 'Panel 2',
+    });
 
-    // api.addPanel({
-    //     id: 'panel_3',
-    //     component: 'default',
-    // });
-
-    // api.addPanel({
-    //     id: 'panel_4',
-    //     component: 'default',
-    // });
-
-    // api.addPanel({
-    //     id: 'panel_5',
-    //     component: 'default',
-    //     position: { direction: 'right' },
-    // });
-
-    // api.addPanel({
-    //     id: 'panel_6',
-    //     component: 'default',
-    // });
+    api.addPanel({
+        id: 'panel_3',
+        component: 'default',
+        title: 'Panel 3',
+        position: { direction: 'right' },
+    });
 }
 
 let panelCount = 0;
@@ -166,14 +138,8 @@ export const App = (props: { theme?: string }) => {
     >(undefined);
 
     return (
-        <div
-            style={{
-                display: 'flex',
-                flexDirection: 'column',
-                height: '100%',
-            }}
-        >
-            <div style={{ height: '25px' }}>
+        <div className="example-layout">
+            <div className="example-controls">
                 <button
                     onClick={() => {
                         if (api) {
@@ -201,11 +167,7 @@ export const App = (props: { theme?: string }) => {
                     Clear
                 </button>
             </div>
-            <div
-                style={{
-                    flexGrow: 1,
-                }}
-            >
+            <div className="example-dock">
                 <DockviewReact
                     onReady={onReady}
                     components={components}
@@ -231,8 +193,8 @@ const LeftComponent = (props: IDockviewHeaderActionsProps) => {
         });
     };
     return (
-        <div style={{ height: '100%', color: 'white', padding: '0px 4px' }}>
-            <Icon onClick={onClick} icon={'add'} />
+        <div style={{ height: '100%', padding: '0px 4px' }}>
+            <Icon onClick={onClick} icon={'add'} title="Add panel" />
         </div>
     );
 };
@@ -264,10 +226,11 @@ const RightComponent = (props: IDockviewHeaderActionsProps) => {
     };
 
     return (
-        <div style={{ height: '100%', color: 'white', padding: '0px 4px' }}>
+        <div style={{ height: '100%', padding: '0px 4px' }}>
             <Icon
                 onClick={onClick}
                 icon={popout ? 'jump_to_element' : 'back_to_tab'}
+                title={popout ? 'Return group to dock' : 'Open group in new window'}
             />
         </div>
     );
@@ -276,5 +239,5 @@ const RightComponent = (props: IDockviewHeaderActionsProps) => {
 export default App;
 
 const Watermark = () => {
-    return <div style={{ color: 'white', padding: '8px' }}>watermark</div>;
+    return <div style={{ padding: '8px' }}>Empty group</div>;
 };

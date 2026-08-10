@@ -7,8 +7,11 @@ import {
     IDockviewGroupPanel,
     IWatermarkRenderer,
     themeAbyss,
+    themeLight,
     WatermarkRendererInitParameters,
 } from 'dockview';
+
+let panelCount = 0;
 
 class Panel implements IContentRenderer {
     private readonly _element: HTMLElement;
@@ -19,11 +22,15 @@ class Panel implements IContentRenderer {
 
     constructor() {
         this._element = document.createElement('div');
-        this._element.style.color = 'white';
+        this._element.className = 'example-panel';
     }
 
     init(parameters: GroupPanelPartInitParameters): void {
-        this._element.textContent = 'Hello World';
+        this._element.textContent = parameters.api.title ?? '';
+
+        parameters.api.onDidTitleChange(() => {
+            this._element.textContent = parameters.api.title ?? '';
+        });
     }
 }
 
@@ -40,7 +47,6 @@ class Watermark implements IWatermarkRenderer {
         element.style.display = 'flex';
         element.style.justifyContent = 'center';
         element.style.alignItems = 'center';
-        element.style.color = 'white';
 
         this._element = element;
     }
@@ -51,12 +57,13 @@ class Watermark implements IWatermarkRenderer {
 
     private build(api: DockviewApi, group?: IDockviewGroupPanel): void {
         const container = document.createElement('div');
-        container.style.display = 'flex';
-        container.style.flexDirection = 'column';
 
-        const text = document.createElement('span');
+        const text = document.createElement('p');
         text.textContent =
             'This is a custom watermark. You can change this content.';
+
+        const controls = document.createElement('div');
+        controls.className = 'example-controls';
 
         const button = document.createElement('button');
         button.textContent = 'Add New Panel';
@@ -64,49 +71,49 @@ class Watermark implements IWatermarkRenderer {
             api.addPanel({
                 id: Date.now().toString(),
                 component: 'default',
+                title: `Panel ${++panelCount}`,
             });
         });
 
-        const button2 = document.createElement('button');
-        button2.textContent = 'Close Group';
-        button2.addEventListener('click', () => {
-            api.addPanel({
-                id: Date.now().toString(),
-                component: 'default',
-            });
-        });
-
-        container.append(text, button, button2);
-        this.element.append(container);
-
-        api.onDidLayoutChange(() => {
-            button2.style.display = api.groups.length > 0 ? '' : 'none';
-        });
-
-        button2.addEventListener('click', () => {
+        const closeButton = document.createElement('button');
+        closeButton.textContent = 'Close Group';
+        closeButton.addEventListener('click', () => {
             group?.api.close();
         });
+
+        controls.append(button, closeButton);
+        container.append(text, controls);
+        this.element.append(container);
+
+        const updateVisibility = () => {
+            closeButton.style.display = api.groups.length > 0 ? '' : 'none';
+        };
+
+        updateVisibility();
+        api.onDidLayoutChange(updateVisibility);
     }
 }
 
 const root = document.createElement('div');
-root.style.display = 'flex';
-root.style.flexDirection = 'column';
-root.style.height = '100%';
+root.className = 'example-layout';
+
+const controls = document.createElement('div');
+controls.className = 'example-controls';
 
 const button = document.createElement('button');
 button.textContent = 'Add Empty Group';
+controls.append(button);
 
 const container = document.createElement('div');
-container.style.flexGrow = '1';
+container.className = 'example-dock';
 
-root.append(button, container);
+root.append(controls, container);
 
 const app = document.getElementById('app');
 app.append(root);
 
 const api = createDockview(container, {
-    theme: themeAbyss,
+    theme: (window as any).__dockviewColorMode === 'light' ? themeLight : themeAbyss,
     createComponent: (options) => {
         switch (options.name) {
             case 'default':

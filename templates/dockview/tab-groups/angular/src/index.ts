@@ -1,3 +1,4 @@
+import { LicenseManager } from 'dockview-enterprise';
 import 'zone.js';
 import '@angular/compiler';
 import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
@@ -5,14 +6,33 @@ import { Component, Type, NgModule, Input } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import {
     DockviewAngularModule,
+    DockviewApi,
+    DockviewHeaderPosition,
     DockviewReadyEvent,
+    GetTabContextMenuItemsParams,
+    GetTabGroupChipContextMenuItemsParams,
+    BuiltInChipContextMenuItem,
+    ContextMenuItemConfig,
+    DEFAULT_TAB_GROUP_COLORS,
     themeAbyss,
 } from 'dockview-angular';
 import 'dockview-angular/dist/styles/dockview.css';
 
+type TabGroup = ReturnType<DockviewApi['getTabGroups']>[number];
+
+interface MenuItem {
+    label: string;
+    onClick: () => void;
+}
+
+// dockview.dev docs license key. Replace with your own key in production.
+LicenseManager.setLicenseKey(
+    '[KeyId:DOCKVIEW-DOCS]_[Company:Dockview]_[Plan:team]_[AppName:Dockview_Docs]_[Email:enterprise@dockview.dev]_[ValidFrom:01_Jan_2025]_[ValidUntil:01_Jan_2099]__aaa294ecec1eed47'
+);
+
 @Component({
     selector: 'default-panel',
-    template: `<div style="padding: 10px;">{{ title }}</div>`,
+    template: `<div class="example-panel">{{ title }}</div>`,
 })
 export class DefaultPanelComponent {
     @Input() api: any;
@@ -25,22 +45,79 @@ export class DefaultPanelComponent {
 @Component({
     selector: 'app-root',
     template: `
-        <div style="height: 100%;">
-            <dv-dockview
-                [components]="components"
-                [theme]="theme"
-                [disableFloatingGroups]="true"
-                [getTabGroupChipContextMenuItems]="getTabGroupChipContextMenuItems"
-                (ready)="onReady($event)">
-            </dv-dockview>
+        <div class="example-layout">
+            <div class="example-controls">
+                <label>Tab position:</label>
+                <button
+                    *ngFor="let pos of headerPositions"
+                    (click)="onHeaderPositionChange(pos)"
+                    [disabled]="headerPosition === pos"
+                >
+                    {{ pos }}
+                </button>
+            </div>
+            <div class="example-dock">
+                <dv-dockview
+                    [components]="components"
+                    [theme]="theme"
+                    [disableFloatingGroups]="true"
+                    [getTabContextMenuItems]="getTabContextMenuItems"
+                    [getTabGroupChipContextMenuItems]="
+                        getTabGroupChipContextMenuItems
+                    "
+                    className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
+                    (ready)="onReady($event)"
+                >
+                </dv-dockview>
+            </div>
         </div>
     `,
 })
 export class AppComponent {
     components: Record<string, Type<any>>;
-    theme = { ...themeAbyss, tabAnimation: 'smooth' as const };
-    getTabGroupChipContextMenuItems = () =>
-        ['rename', 'colorPicker'] as const;
+    theme = {
+        ...themeAbyss,
+        tabAnimation: 'smooth' as const,
+        tabGroupIndicator: 'wrap' as const,
+    };
+
+    headerPositions: DockviewHeaderPosition[] = ['top', 'bottom'];
+    headerPosition: DockviewHeaderPosition = 'top';
+
+    private api?: DockviewApi;
+
+    getTabContextMenuItems = (
+        params: GetTabContextMenuItemsParams
+    ): ContextMenuItemConfig[] => {
+        if (!this.api) {
+            return [];
+        }
+        return this.buildTabContextMenuItems(
+            params.group.id,
+            params.panel.id
+        ).map((item) => ({ label: item.label, action: item.onClick }));
+    };
+
+    getTabGroupChipContextMenuItems = (
+        params: GetTabGroupChipContextMenuItemsParams
+    ): (BuiltInChipContextMenuItem | ContextMenuItemConfig)[] => {
+        const result: (BuiltInChipContextMenuItem | ContextMenuItemConfig)[] = [
+            'rename',
+            'colorPicker',
+            'collapse',
+            'close',
+            'separator',
+        ];
+        if (this.api) {
+            for (const item of this.buildChipContextMenuItems(
+                params.group.id,
+                params.tabGroup
+            )) {
+                result.push({ label: item.label, action: item.onClick });
+            }
+        }
+        return result;
+    };
 
     constructor() {
         this.components = {
@@ -48,8 +125,104 @@ export class AppComponent {
         };
     }
 
+    onHeaderPositionChange(position: DockviewHeaderPosition) {
+        this.headerPosition = position;
+        if (!this.api) {
+            return;
+        }
+        for (const group of this.api.groups) {
+            group.api.setHeaderPosition(position);
+        }
+    }
+
+    private buildChipContextMenuItems(
+        groupId: string,
+        tabGroup: TabGroup
+    ): MenuItem[] {
+        return [
+            {
+                label: 'Rename group',
+                onClick: () => {
+                    const name = window.prompt('Group name:', tabGroup.label);
+                    if (name !== null) {
+                        tabGroup.setLabel(name);
+                    }
+                },
+            },
+            {
+                label: tabGroup.collapsed ? 'Expand group' : 'Collapse group',
+                onClick: () => tabGroup.toggle(),
+            },
+            {
+                label: 'Dissolve group',
+                onClick: () =>
+                    this.api!.dissolveTabGroup({
+                        groupId,
+                        tabGroupId: tabGroup.id,
+                    }),
+            },
+        ];
+    }
+
+    private buildTabContextMenuItems(
+        groupId: string,
+        panelId: string
+    ): MenuItem[] {
+        const api = this.api!;
+        const tabGroup = api.getTabGroupForPanel({ groupId, panelId });
+        const allTabGroups = api.getTabGroups({ groupId });
+        const items: MenuItem[] = [];
+
+        if (tabGroup) {
+            items.push({
+                label: `Remove from "${tabGroup.label || tabGroup.id}"`,
+                onClick: () =>
+                    api.removePanelFromTabGroup({ groupId, panelId }),
+            });
+        }
+
+        const otherTabGroups = allTabGroups.filter(
+            (tg) => tg.id !== tabGroup?.id
+        );
+        for (const tg of otherTabGroups) {
+            items.push({
+                label: `Add to "${tg.label || tg.id}"`,
+                onClick: () =>
+                    api.addPanelToTabGroup({
+                        groupId,
+                        tabGroupId: tg.id,
+                        panelId,
+                    }),
+            });
+        }
+
+        items.push({
+            label: 'Add to new group',
+            onClick: () => {
+                const label = window.prompt('Group name:') || '';
+                const colors = DEFAULT_TAB_GROUP_COLORS;
+                const color =
+                    colors[Math.floor(Math.random() * colors.length)].id;
+                const newGroup = api.createTabGroup({ groupId, label, color });
+                api.addPanelToTabGroup({
+                    groupId,
+                    tabGroupId: newGroup.id,
+                    panelId,
+                });
+            },
+        });
+
+        items.push({
+            label: 'Close tab',
+            onClick: () => api.getPanel(panelId)?.api.close(),
+        });
+
+        return items;
+    }
+
     onReady(event: DockviewReadyEvent) {
         const api = event.api;
+        this.api = api;
 
         const titles = [
             'Dashboard',

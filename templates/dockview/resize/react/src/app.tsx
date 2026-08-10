@@ -12,7 +12,7 @@ const Default = (props: IDockviewPanelProps) => {
 
     return (
         <div className="resize-panel">
-            <div style={{ height: '25px' }}>{props.api.title}</div>
+            <div className="resize-title">{props.api.title}</div>
             <div className="resize-control">
                 <span>Width:</span>
                 <input
@@ -23,7 +23,6 @@ const Default = (props: IDockviewPanelProps) => {
                     step={1}
                 />
                 <button
-                    style={{ width: '100px' }}
                     onClick={() => {
                         props.api.group.api.setSize({
                             width,
@@ -33,14 +32,13 @@ const Default = (props: IDockviewPanelProps) => {
                     Resize Group
                 </button>
                 <button
-                    style={{ width: '100px' }}
                     onClick={() => {
                         props.api.setSize({
                             width,
                         });
                     }}
                 >
-                    Resize panel
+                    Resize Panel
                 </button>
             </div>
             <div className="resize-control">
@@ -53,7 +51,6 @@ const Default = (props: IDockviewPanelProps) => {
                     step={1}
                 />
                 <button
-                    style={{ width: '100px' }}
                     onClick={() => {
                         props.api.group.api.setSize({
                             height,
@@ -63,7 +60,6 @@ const Default = (props: IDockviewPanelProps) => {
                     Resize Group
                 </button>
                 <button
-                    style={{ width: '100px' }}
                     onClick={() => {
                         props.api.setSize({
                             height,
@@ -86,11 +82,13 @@ const ResizeDockview = (props: { theme?: string }) => {
         event.api.addPanel({
             id: 'panel_1',
             component: 'default',
+            title: 'Panel 1',
         });
 
         event.api.addPanel({
             id: 'panel_2',
             component: 'default',
+            title: 'Panel 2',
             position: {
                 direction: 'right',
                 referencePanel: 'panel_1',
@@ -100,6 +98,7 @@ const ResizeDockview = (props: { theme?: string }) => {
         event.api.addPanel({
             id: 'panel_3',
             component: 'default',
+            title: 'Panel 3',
             position: {
                 direction: 'below',
                 referencePanel: 'panel_1',
@@ -108,10 +107,12 @@ const ResizeDockview = (props: { theme?: string }) => {
         event.api.addPanel({
             id: 'panel_4',
             component: 'default',
+            title: 'Panel 4',
         });
         event.api.addPanel({
             id: 'panel_5',
             component: 'default',
+            title: 'Panel 5',
         });
     };
 

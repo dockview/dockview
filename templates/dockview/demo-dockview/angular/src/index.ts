@@ -1,3 +1,4 @@
+import { LicenseManager } from 'dockview-enterprise';
 import 'zone.js';
 import '@angular/compiler';
 import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
@@ -21,6 +22,11 @@ import {
     SerializedDockview,
 } from 'dockview-angular';
 import 'dockview-angular/dist/styles/dockview.css';
+
+// dockview.dev docs license key. Replace with your own key in production.
+LicenseManager.setLicenseKey(
+    '[KeyId:DOCKVIEW-DOCS]_[Company:Dockview]_[Plan:team]_[AppName:Dockview_Docs]_[Email:enterprise@dockview.dev]_[ValidFrom:01_Jan_2025]_[ValidUntil:01_Jan_2099]__aaa294ecec1eed47'
+);
 
 const STORAGE_KEY = 'angular_demo_dockview_layout';
 
@@ -56,11 +62,14 @@ const logger = new Logger();
 @Component({
     selector: 'default-panel',
     template: `
-        <div style="height: 100%; overflow: auto; color: white; position: relative;">
+        <div
+            style="height: 100%; overflow: auto; color: white; position: relative;"
+        >
             <span
                 style="position: absolute; top: 50%; left: 50%;
                        transform: translate(-50%, -50%); pointer-events: none;
-                       font-size: 42px; opacity: 0.5;">
+                       font-size: 42px; opacity: 0.5;"
+            >
                 {{ api?.title }}
             </span>
         </div>
@@ -76,7 +85,8 @@ export class DefaultPanelComponent {
         <iframe
             (mousedown)="onActivate()"
             style="width: 100%; height: 100%; border: 0;"
-            src="https://dockview.dev">
+            src="https://dockview.dev"
+        >
         </iframe>
     `,
 })
@@ -93,7 +103,9 @@ export class IframePanelComponent {
 @Component({
     selector: 'log-panel',
     template: `
-        <div style="height: 100%; overflow: auto; color: white; font-family: monospace; font-size: 11px;">
+        <div
+            style="height: 100%; overflow: auto; color: white; font-family: monospace; font-size: 11px;"
+        >
             <div *ngFor="let line of lines" style="padding: 2px 6px;">
                 <span style="color: #888;">{{ line.timestamp }}</span>
                 <span style="margin-left: 8px;">{{ line.text }}</span>
@@ -128,11 +140,14 @@ export class WatermarkComponent {}
 @Component({
     selector: 'left-header-actions',
     template: `
-        <div style="height: 100%; color: white; padding: 0 4px; display: flex; align-items: center;">
+        <div
+            style="height: 100%; color: white; padding: 0 4px; display: flex; align-items: center;"
+        >
             <div
                 (click)="addPanel()"
                 title="Add Panel"
-                style="display: flex; align-items: center; justify-content: center; width: 30px; height: 100%; cursor: pointer; font-size: 18px;">
+                style="display: flex; align-items: center; justify-content: center; width: 30px; height: 100%; cursor: pointer; font-size: 18px;"
+            >
                 <span class="material-symbols-outlined">add</span>
             </div>
         </div>
@@ -156,11 +171,14 @@ export class LeftHeaderActionsComponent {
 @Component({
     selector: 'right-header-actions',
     template: `
-        <div style="height: 100%; color: white; padding: 0 4px; display: flex; align-items: center;">
+        <div
+            style="height: 100%; color: white; padding: 0 4px; display: flex; align-items: center;"
+        >
             <div
                 (click)="toggleFloat()"
                 [title]="isFloating ? 'Dock group' : 'Float group'"
-                style="display: flex; align-items: center; justify-content: center; width: 30px; height: 100%; cursor: pointer; font-size: 18px;">
+                style="display: flex; align-items: center; justify-content: center; width: 30px; height: 100%; cursor: pointer; font-size: 18px;"
+            >
                 <span class="material-symbols-outlined">
                     {{ isFloating ? 'jump_to_element' : 'back_to_tab' }}
                 </span>
@@ -207,7 +225,9 @@ export class RightHeaderActionsComponent implements OnInit, OnDestroy {
     selector: 'app-root',
     template: `
         <div style="display: flex; flex-direction: column; height: 100%;">
-            <div style="padding: 4px 8px; display: flex; gap: 4px; flex-wrap: wrap; background: #1a1a1a;">
+            <div
+                style="padding: 4px 8px; display: flex; gap: 4px; flex-wrap: wrap; background: #1a1a1a;"
+            >
                 <button (click)="addPanel()">Add Panel</button>
                 <button (click)="addIframe()">Add Iframe</button>
                 <button (click)="addLog()">Add Log</button>
@@ -215,9 +235,12 @@ export class RightHeaderActionsComponent implements OnInit, OnDestroy {
                 <button (click)="save()">Save</button>
                 <button (click)="load()">Load</button>
                 <button (click)="clear()">Clear</button>
-                <span style="color: #888; margin-left: auto; align-self: center;">
-                    panels={{ panelCount }} groups={{ groupCount }}
-                    active={{ activePanelId || '-' }}
+                <span
+                    style="color: #888; margin-left: auto; align-self: center;"
+                >
+                    panels={{ panelCount }} groups={{ groupCount }} active={{
+                        activePanelId || '-'
+                    }}
                 </span>
             </div>
             <div style="flex-grow: 1;">
@@ -226,8 +249,9 @@ export class RightHeaderActionsComponent implements OnInit, OnDestroy {
                     [watermarkComponent]="watermarkComponent"
                     [leftHeaderActionsComponent]="leftHeaderActionsComponent"
                     [rightHeaderActionsComponent]="rightHeaderActionsComponent"
-                    className="dockview-theme-abyss"
-                    (ready)="onReady($event)">
+                    className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
+                    (ready)="onReady($event)"
+                >
                 </dv-dockview>
             </div>
         </div>

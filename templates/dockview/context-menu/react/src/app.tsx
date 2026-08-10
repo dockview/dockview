@@ -7,11 +7,7 @@ import {
 import React from 'react';
 
 const Default = (props: IDockviewPanelProps) => {
-    return (
-        <div style={{ padding: '8px' }}>
-            <p>{props.api.title}</p>
-        </div>
-    );
+    return <div className="example-panel">{props.api.title}</div>;
 };
 
 const components = { default: Default };
@@ -66,12 +62,19 @@ const App = (props: { theme?: string }) => {
                 'close',
                 'closeOthers',
                 'closeAll',
+                'closeLeft',
+                'closeRight',
+                'separator',
+                'maximize',
+                'popout',
                 'separator',
                 {
                     label: 'Log panel id',
                     action: () => console.log(params.panel.id),
                 },
                 'separator',
+                // A custom component item, shown here as an alternative to the
+                // built-in `'float'` shortcut.
                 { component: FloatMenuItem },
             ]}
         />

@@ -20,9 +20,7 @@ import 'dockview-angular/dist/styles/dockview.css';
 @Component({
     selector: 'default-panel',
     template: `
-        <div style="height: 100%;">
-            <div>{{ api?.title }}</div>
-        </div>
+        <div class="example-panel">{{ api?.title }}</div>
     `,
 })
 export class DefaultPanelComponent {
@@ -32,8 +30,8 @@ export class DefaultPanelComponent {
 @Component({
     selector: 'app-root',
     template: `
-        <div style="display: flex; flex-direction: column; height: 100%;">
-            <div>
+        <div class="example-layout">
+            <div class="example-controls">
                 <button (click)="togglePanelDrag()">
                     Panel Drag: {{ disablePanelDrag ? 'disabled' : 'enabled' }}
                 </button>
@@ -44,10 +42,10 @@ export class DefaultPanelComponent {
                     Overlay: {{ disableOverlay ? 'disabled' : 'enabled' }}
                 </button>
             </div>
-            <div style="flex-grow: 1;">
+            <div class="example-dock">
                 <dv-dockview
                     [components]="components"
-                    className="dockview-theme-abyss"
+                    className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
                     (ready)="onReady($event)">
                 </dv-dockview>
             </div>

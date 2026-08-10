@@ -14,37 +14,33 @@ import 'dockview-angular/dist/styles/dockview.css';
 @Component({
     selector: 'default-panel',
     template: `
-        <div style="height: 100%; padding: 8px; color: white;">
-            <div style="height: 25px;">{{ api?.title }}</div>
-            <div style="display: flex; gap: 4px; align-items: center; margin-bottom: 4px;">
-                <span>Width:</span>
+        <div style="padding: 10px; height: 100%;">
+            <div style="margin-bottom: 8px;">{{ api?.title }}</div>
+            <div
+                style="display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px;">
+                <span style="width: 60px;">Width:</span>
                 <input
                     type="number"
                     min="50"
                     step="1"
+                    style="width: 75px;"
                     [value]="width"
                     (input)="width = +$any($event.target).value" />
-                <button style="width: 100px;" (click)="resizeGroupWidth()">
-                    Resize Group
-                </button>
-                <button style="width: 100px;" (click)="resizePanelWidth()">
-                    Resize panel
-                </button>
+                <button (click)="resizeGroupWidth()">Resize Group</button>
+                <button (click)="resizePanelWidth()">Resize Panel</button>
             </div>
-            <div style="display: flex; gap: 4px; align-items: center;">
-                <span>Height:</span>
+            <div
+                style="display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px;">
+                <span style="width: 60px;">Height:</span>
                 <input
                     type="number"
                     min="50"
                     step="1"
+                    style="width: 75px;"
                     [value]="height"
                     (input)="height = +$any($event.target).value" />
-                <button style="width: 100px;" (click)="resizeGroupHeight()">
-                    Resize Group
-                </button>
-                <button style="width: 100px;" (click)="resizePanelHeight()">
-                    Resize Panel
-                </button>
+                <button (click)="resizeGroupHeight()">Resize Group</button>
+                <button (click)="resizePanelHeight()">Resize Panel</button>
             </div>
         </div>
     `,
@@ -72,12 +68,14 @@ export class DefaultPanelComponent {
 @Component({
     selector: 'app-root',
     template: `
-        <div style="height: 100%;">
-            <dv-dockview
-                [components]="components"
-                className="dockview-theme-abyss"
-                (ready)="onReady($event)">
-            </dv-dockview>
+        <div class="example-layout">
+            <div class="example-dock">
+                <dv-dockview
+                    [components]="components"
+                    className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
+                    (ready)="onReady($event)">
+                </dv-dockview>
+            </div>
         </div>
     `,
 })
@@ -88,19 +86,21 @@ export class AppComponent {
 
     onReady(event: DockviewReadyEvent) {
         const api: DockviewApi = event.api;
-        api.addPanel({ id: 'panel_1', component: 'default' });
+        api.addPanel({ id: 'panel_1', component: 'default', title: 'Panel 1' });
         api.addPanel({
             id: 'panel_2',
             component: 'default',
+            title: 'Panel 2',
             position: { direction: 'right', referencePanel: 'panel_1' },
         });
         api.addPanel({
             id: 'panel_3',
             component: 'default',
+            title: 'Panel 3',
             position: { direction: 'below', referencePanel: 'panel_1' },
         });
-        api.addPanel({ id: 'panel_4', component: 'default' });
-        api.addPanel({ id: 'panel_5', component: 'default' });
+        api.addPanel({ id: 'panel_4', component: 'default', title: 'Panel 4' });
+        api.addPanel({ id: 'panel_5', component: 'default', title: 'Panel 5' });
     }
 }
 

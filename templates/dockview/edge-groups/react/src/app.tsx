@@ -7,11 +7,7 @@ import {
 import React from 'react';
 
 const Default = (props: IDockviewPanelProps) => {
-    return (
-        <div style={{ padding: 10 }}>
-            <div>{props.api.title}</div>
-        </div>
-    );
+    return <div className="example-panel">{props.api.title}</div>;
 };
 
 const components = {
@@ -34,6 +30,8 @@ const RightActions = (props: IDockviewHeaderActionsProps) => {
 
     return (
         <button
+            title={collapsed ? 'Expand group' : 'Collapse group'}
+            aria-label={collapsed ? 'Expand group' : 'Collapse group'}
             style={{
                 cursor: 'pointer',
                 background: 'none',
@@ -50,7 +48,7 @@ const RightActions = (props: IDockviewHeaderActionsProps) => {
     );
 };
 
-export default () => {
+export default (props: { theme?: string }) => {
     const onReady = (event: DockviewReadyEvent) => {
         event.api.addEdgeGroup('left', {
             id: 'left',
@@ -122,7 +120,7 @@ export default () => {
 
     return (
         <DockviewReact
-            className={'dockview-theme-abyss'}
+            className={`${props.theme || 'dockview-theme-abyss'}`}
             onReady={onReady}
             components={components}
             rightHeaderActionsComponent={RightActions}

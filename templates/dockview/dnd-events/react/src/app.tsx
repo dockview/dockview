@@ -7,11 +7,7 @@ import {
 import React from 'react';
 
 const Default = (props: IDockviewPanelProps) => {
-    return (
-        <div style={{ height: '100%' }}>
-            <div>{props.api.title}</div>
-        </div>
-    );
+    return <div className="example-panel">{props.api.title}</div>;
 };
 
 const components = {
@@ -78,11 +74,13 @@ const Component = (props: { theme?: string }) => {
         event.api.addPanel({
             id: 'panel_1',
             component: 'default',
+            title: 'Panel 1',
         });
 
         event.api.addPanel({
             id: 'panel_2',
             component: 'default',
+            title: 'Panel 2',
             position: {
                 direction: 'right',
                 referencePanel: 'panel_1',
@@ -92,6 +90,7 @@ const Component = (props: { theme?: string }) => {
         event.api.addPanel({
             id: 'panel_3',
             component: 'default',
+            title: 'Panel 3',
             position: {
                 direction: 'below',
                 referencePanel: 'panel_1',
@@ -100,18 +99,18 @@ const Component = (props: { theme?: string }) => {
         event.api.addPanel({
             id: 'panel_4',
             component: 'default',
+            title: 'Panel 4',
         });
         event.api.addPanel({
             id: 'panel_5',
             component: 'default',
+            title: 'Panel 5',
         });
     };
 
     return (
-        <div
-            style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
-        >
-            <div>
+        <div className="example-layout">
+            <div className="example-controls">
                 <button
                     onClick={() => setDisablePanelDrag(!disablePanelDrag)}
                 >{`Panel Drag: ${
@@ -128,7 +127,7 @@ const Component = (props: { theme?: string }) => {
                     disableOverlay ? 'disabled' : 'enabled'
                 }`}</button>
             </div>
-            <div style={{ flexGrow: 1 }}>
+            <div className="example-dock">
                 <DockviewReact
                     className={`${props.theme || 'dockview-theme-abyss'}`}
                     onReady={onReady}

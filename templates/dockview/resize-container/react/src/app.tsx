@@ -7,15 +7,11 @@ import React from 'react';
 
 const components = {
     default: (props: IDockviewPanelProps<{ title: string }>) => {
-        return (
-            <div style={{ padding: '20px', color: 'white' }}>
-                {props.params.title}
-            </div>
-        );
+        return <div className="example-panel">{props.params.title}</div>;
     },
 };
 
-export const App: React.FC = (props: { theme?: string }) => {
+export const App: React.FC<{ theme?: string }> = (props) => {
     const onReady = (event: DockviewReadyEvent) => {
         const panel = event.api.addPanel({
             id: 'panel_1',
@@ -94,18 +90,24 @@ const Container = (props: any) => {
     const [value, setValue] = React.useState<string>('50');
 
     return (
-        <div
-            style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
-        >
-            <input
-                onChange={(event) => setValue(event.target.value)}
-                type="range"
-                min="1"
-                max="100"
-                value={value}
-            />
-            <div style={{ height: `${value}%`, width: `${value}%` }}>
-                <App {...props} />
+        <div className="example-layout">
+            <div className="example-controls">
+                <label>
+                    Scale:{' '}
+                    <input
+                        onChange={(event) => setValue(event.target.value)}
+                        type="range"
+                        min="1"
+                        max="100"
+                        value={value}
+                    />{' '}
+                    {value}%
+                </label>
+            </div>
+            <div className="example-dock">
+                <div style={{ height: `${value}%`, width: `${value}%` }}>
+                    <App {...props} />
+                </div>
             </div>
         </div>
     );

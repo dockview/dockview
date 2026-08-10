@@ -3,6 +3,7 @@ import { PropType, createApp, defineComponent } from 'vue';
 import {
     DockviewVue,
     DockviewReadyEvent,
+    IDockviewHeaderActionsProps,
     IDockviewPanelProps,
 } from 'dockview-vue';
 
@@ -30,9 +31,55 @@ const Panel = defineComponent({
         };
     },
     template: `
-    <div style="height:100%; padding: 10px; color: white;">
+    <div class="example-panel">
       {{title}}
     </div>`,
+});
+
+const RightAction = defineComponent({
+    name: 'RightAction',
+    props: {
+        params: {
+            type: Object as PropType<IDockviewHeaderActionsProps>,
+            required: true,
+        },
+    },
+    data() {
+        return {
+            collapsed: this.params.api.isCollapsed(),
+        };
+    },
+    computed: {
+        isEdge(): boolean {
+            return this.params.location?.type === 'edge';
+        },
+    },
+    methods: {
+        onClick() {
+            if (this.collapsed) {
+                this.params.api.expand();
+            } else {
+                this.params.api.collapse();
+            }
+        },
+    },
+    mounted() {
+        const disposable = this.params.api.onDidCollapsedChange((event) => {
+            this.collapsed = event.isCollapsed;
+        });
+
+        return () => {
+            disposable.dispose();
+        };
+    },
+    template: `
+      <button
+        v-if="isEdge"
+        :title="collapsed ? 'Expand group' : 'Collapse group'"
+        :aria-label="collapsed ? 'Expand group' : 'Collapse group'"
+        style="cursor:pointer;background:none;border:none;color:inherit;padding:0 4px;"
+        @click="onClick"
+      >{{ collapsed ? '+' : '-' }}</button>`,
 });
 
 const App = defineComponent({
@@ -40,6 +87,7 @@ const App = defineComponent({
     components: {
         'dockview-vue': DockviewVue,
         panel: Panel,
+        rightAction: RightAction,
     },
     methods: {
         onReady(event: DockviewReadyEvent) {
@@ -114,8 +162,9 @@ const App = defineComponent({
     template: `
       <dockview-vue
         style="width:100%; height:100%"
-        class="dockview-theme-abyss"
+        className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
         @ready="onReady"
+        rightHeaderActionsComponent="rightAction"
       >
       </dockview-vue>`,
 });

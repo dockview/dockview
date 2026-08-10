@@ -67,7 +67,7 @@ const LeftAction = defineComponent({
         },
     },
     template: `
-      <div style="height:100%;color:white;padding:0px 4px;">
+      <div style="height:100%;padding:0px 4px;">
         <material-icon @click="onClick" icon="add"></material-icon>
       </div>`,
 });
@@ -111,7 +111,7 @@ const RightAction = defineComponent({
         },
     },
     template: `
-      <div style="height:100%;color:white;padding:0px 4px;">
+      <div style="height:100%;padding:0px 4px;">
         <material-icon v-if="maximized" @click="onClick" icon="jump_to_element" ></material-icon>
         <material-icon v-if="!maximized" @click="onClick" icon="back_to_tab"></material-icon>
       </div>`,
@@ -141,10 +141,7 @@ const Panel = defineComponent({
             disposable.dispose();
         };
     },
-    template: `
-      <div style="color:white;">
-        <div>{{title}}</div>
-      </div>`,
+    template: `<div class="example-panel">{{ title }}</div>`,
 });
 
 const App = defineComponent({
@@ -160,10 +157,12 @@ const App = defineComponent({
             event.api.addPanel({
                 id: 'panel_1',
                 component: 'default',
+                title: 'Panel 1',
             });
             event.api.addPanel({
                 id: 'panel_2',
                 component: 'default',
+                title: 'Panel 2',
                 position: {
                     direction: 'right',
                     referencePanel: 'panel_1',
@@ -172,6 +171,7 @@ const App = defineComponent({
             event.api.addPanel({
                 id: 'panel_3',
                 component: 'default',
+                title: 'Panel 3',
                 position: {
                     direction: 'below',
                     referencePanel: 'panel_1',
@@ -180,10 +180,12 @@ const App = defineComponent({
             event.api.addPanel({
                 id: 'panel_4',
                 component: 'default',
+                title: 'Panel 4',
             });
             event.api.addPanel({
                 id: 'panel_5',
                 component: 'default',
+                title: 'Panel 5',
             });
         },
     },
@@ -198,11 +200,11 @@ const App = defineComponent({
     template: `
       <dockview-vue
         style="width:100%;height:100%"
-        class="dockview-theme-abyss"
+        className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
         @ready="onReady"
         leftHeaderActionsComponent="leftAction"
         rightHeaderActionsComponent="rightAction"
-      </dockview-vue>`,
+      ></dockview-vue>`,
 });
 
 const app = createApp(App);

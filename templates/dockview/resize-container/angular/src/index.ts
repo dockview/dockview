@@ -14,7 +14,7 @@ import 'dockview-angular/dist/styles/dockview.css';
 @Component({
     selector: 'default-panel',
     template: `
-        <div style="padding: 20px; color: white;">{{ params?.title }}</div>
+        <div class="example-panel">{{ params?.title }}</div>
     `,
 })
 export class DefaultPanelComponent {
@@ -25,19 +25,27 @@ export class DefaultPanelComponent {
 @Component({
     selector: 'app-root',
     template: `
-        <div style="height: 100%; display: flex; flex-direction: column;">
-            <input
-                type="range"
-                min="1"
-                max="100"
-                [value]="size"
-                (input)="size = +$any($event.target).value" />
-            <div [style.height.%]="size" [style.width.%]="size">
-                <dv-dockview
-                    [components]="components"
-                    className="dockview-theme-abyss"
-                    (ready)="onReady($event)">
-                </dv-dockview>
+        <div class="example-layout">
+            <div class="example-controls">
+                <label>
+                    Scale:
+                    <input
+                        type="range"
+                        min="1"
+                        max="100"
+                        [value]="size"
+                        (input)="size = +$any($event.target).value" />
+                    {{ size }}%
+                </label>
+            </div>
+            <div class="example-dock">
+                <div [style.height.%]="size" [style.width.%]="size">
+                    <dv-dockview
+                        [components]="components"
+                        className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
+                        (ready)="onReady($event)">
+                    </dv-dockview>
+                </div>
             </div>
         </div>
     `,

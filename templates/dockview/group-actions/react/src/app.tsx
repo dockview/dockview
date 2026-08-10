@@ -9,19 +9,7 @@ import './app.css';
 
 const components = {
     default: (props: IDockviewPanelProps<{ title: string; x?: number }>) => {
-        return (
-            <div
-                style={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    color: 'gray',
-                    height: '100%',
-                }}
-            >
-                <span>{`${props.api.title}`}</span>
-            </div>
-        );
+        return <div className="example-panel">{props.api.title}</div>;
     },
 };
 
@@ -32,11 +20,9 @@ const RightHeaderActions = (props: IDockviewHeaderActionsProps) => {
         <div className="dockview-groupcontrol-demo">
             <span
                 className="dockview-groupcontrol-demo-group-active"
-                style={{
-                    background: isGroupActive ? 'green' : 'red',
-                }}
+                data-active={isGroupActive}
             >
-                {isGroupActive ? 'Group Active' : 'Group Inactive'}
+                {isGroupActive ? 'Group active' : 'Group inactive'}
             </span>
         </div>
     );

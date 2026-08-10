@@ -17,7 +17,7 @@ const PARAGRAPH = (TEXT + '\n\n').repeat(20);
 
 @Component({
     selector: 'fixed-height-panel',
-    template: `<div style="height: 100%; color: white;">{{ text }}</div>`,
+    template: `<div class="example-panel" style="height: 100%;">{{ text }}</div>`,
 })
 export class FixedHeightPanelComponent {
     text = PARAGRAPH;
@@ -25,7 +25,7 @@ export class FixedHeightPanelComponent {
 
 @Component({
     selector: 'overflow-panel',
-    template: `<div style="height: 2000px; overflow: auto; color: white;">{{ text }}</div>`,
+    template: `<div class="example-panel" style="height: 2000px; overflow: auto;">{{ text }}</div>`,
 })
 export class OverflowPanelComponent {
     text = PARAGRAPH;
@@ -34,7 +34,7 @@ export class OverflowPanelComponent {
 @Component({
     selector: 'user-overflow-panel',
     template: `
-        <div style="height: 100%; color: white;">
+        <div class="example-panel" style="height: 100%;">
             <div style="height: 100%; overflow: auto;">{{ text }}</div>
         </div>
     `,
@@ -46,12 +46,14 @@ export class UserOverflowPanelComponent {
 @Component({
     selector: 'app-root',
     template: `
-        <div style="height: 100%;">
-            <dv-dockview
-                [components]="components"
-                className="dockview-theme-abyss"
-                (ready)="onReady($event)">
-            </dv-dockview>
+        <div class="example-layout">
+            <div class="example-dock">
+                <dv-dockview
+                    [components]="components"
+                    className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
+                    (ready)="onReady($event)">
+                </dv-dockview>
+            </div>
         </div>
     `,
 })

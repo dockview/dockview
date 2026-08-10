@@ -12,28 +12,25 @@ import 'dockview-angular/dist/styles/dockview.css';
 @Component({
     selector: 'default-panel',
     template: `
-        <div [ngStyle]="{
-            height: '100%',
-            padding: '20px',
-            background: 'var(--dv-group-view-background-color)',
-            color: 'white'
-        }">
-            <button (click)="onClick()">Set</button>
-            <div *ngIf="constraints" [ngStyle]="{ fontSize: '13px' }">
+        <div class="example-panel">
+            <div class="example-controls">
+                <button (click)="onClick()">Set constraints</button>
+            </div>
+            <div *ngIf="constraints" [ngStyle]="{ fontSize: '13px', marginTop: '12px' }">
                 <div *ngIf="constraints.maximumHeight != null" [ngStyle]="constraintItemStyle">
-                    <span [ngStyle]="{ color: 'grey' }">Maximum Height: </span>
+                    <span>Maximum height: </span>
                     <span>{{ constraints.maximumHeight }}px</span>
                 </div>
                 <div *ngIf="constraints.minimumHeight != null" [ngStyle]="constraintItemStyle">
-                    <span [ngStyle]="{ color: 'grey' }">Minimum Height: </span>
+                    <span>Minimum height: </span>
                     <span>{{ constraints.minimumHeight }}px</span>
                 </div>
                 <div *ngIf="constraints.maximumWidth != null" [ngStyle]="constraintItemStyle">
-                    <span [ngStyle]="{ color: 'grey' }">Maximum Width: </span>
+                    <span>Maximum width: </span>
                     <span>{{ constraints.maximumWidth }}px</span>
                 </div>
                 <div *ngIf="constraints.minimumWidth != null" [ngStyle]="constraintItemStyle">
-                    <span [ngStyle]="{ color: 'grey' }">Minimum Width: </span>
+                    <span>Minimum width: </span>
                     <span>{{ constraints.minimumWidth }}px</span>
                 </div>
             </div>
@@ -48,7 +45,7 @@ export class DefaultPanelComponent implements OnInit, OnDestroy {
     constraintItemStyle = {
         border: '1px solid grey',
         margin: '2px',
-        padding: '1px'
+        padding: '4px 6px'
     };
 
     ngOnInit() {
@@ -78,12 +75,14 @@ export class DefaultPanelComponent implements OnInit, OnDestroy {
 @Component({
     selector: 'app-root',
     template: `
-        <div style="height: 100%;">
-            <dv-dockview
-                [components]="components"
-                className="dockview-theme-abyss"
-                (ready)="onReady($event)">
-            </dv-dockview>
+        <div class="example-layout">
+            <div class="example-dock">
+                <dv-dockview
+                    [components]="components"
+                    className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
+                    (ready)="onReady($event)">
+                </dv-dockview>
+            </div>
         </div>
     `,
 })
@@ -102,11 +101,13 @@ export class AppComponent {
         const panel1 = api.addPanel({
             id: 'panel_1',
             component: 'default',
+            title: 'Panel 1',
         });
 
         const panel2 = api.addPanel({
             id: 'panel_2',
             component: 'default',
+            title: 'Panel 2',
             position: {
                 referencePanel: panel1,
                 direction: 'right',
@@ -116,6 +117,7 @@ export class AppComponent {
         const panel3 = api.addPanel({
             id: 'panel_3',
             component: 'default',
+            title: 'Panel 3',
             position: {
                 referencePanel: panel2,
                 direction: 'right',
@@ -125,6 +127,7 @@ export class AppComponent {
         const panel4 = api.addPanel({
             id: 'panel_4',
             component: 'default',
+            title: 'Panel 4',
             position: {
                 direction: 'below',
             },

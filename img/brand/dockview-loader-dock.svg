@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="Dockview loading">
+<title>Dockview loading</title>
+<style>
+.d{transform-box:fill-box;transform-origin:center;opacity:0;animation:dvdock 2.4s cubic-bezier(.5,1.4,.4,1) infinite}
+.d2{animation-delay:.15s}.d3{animation-delay:.3s}.d4{animation-delay:.45s}
+@keyframes dvdock{0%{opacity:0;transform:scale(.3)}12%{opacity:1;transform:scale(1.08)}20%{transform:scale(1)}75%{opacity:1;transform:scale(1)}88%{opacity:0;transform:scale(.3)}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.d{animation:none;opacity:1;transform:none}}
+</style>
+<path class="d d1" d="M28 8 H74 A10 10 0 0 1 84 18 V182 A10 10 0 0 1 74 192 H28 A20 20 0 0 1 8 172 V28 A20 20 0 0 1 28 8 Z" fill="#06C0D6"/>
+<path class="d d2" d="M112 8 H148 A44 44 0 0 1 192 52 V76 A12 12 0 0 1 180 88 H112 A12 12 0 0 1 100 76 V20 A12 12 0 0 1 112 8 Z" fill="#2E74F0"/>
+<rect class="d d3" x="100" y="104" width="40" height="88" rx="12" fill="#F24BA0"/>
+<path class="d d4" d="M164 104 H180 A12 12 0 0 1 192 116 V148 A44 44 0 0 1 148 192 H164 A12 12 0 0 1 152 180 V116 A12 12 0 0 1 164 104 Z" fill="#A24FEE"/>
+</svg>

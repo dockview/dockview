@@ -26,7 +26,7 @@ const STORAGE_KEY = 'dv_rendermode_state';
 @Component({
     selector: 'default-panel',
     template: `
-        <div style="height: 100%; overflow: auto; color: white;">
+        <div style="height: 100%; overflow: auto;">
             <div style="height: 1000px; padding: 20px; overflow: auto;">
                 <div>{{ api?.title }}</div>
                 <div>
@@ -67,23 +67,28 @@ export class DefaultPanelComponent implements OnInit, OnDestroy {
 @Component({
     selector: 'app-root',
     template: `
-        <div style="height: 100%; display: flex; flex-direction: column;">
-            <div>
+        <div class="example-layout">
+            <div class="example-controls">
                 <button (click)="save()">Save</button>
                 <button (click)="load()">Load</button>
-                <input
-                    type="range"
-                    min="1"
-                    max="100"
-                    [value]="size"
-                    (input)="size = +$any($event.target).value" />
+                <label>
+                    Container size ({{ size }}%)
+                    <input
+                        type="range"
+                        min="1"
+                        max="100"
+                        [value]="size"
+                        (input)="size = +$any($event.target).value" />
+                </label>
             </div>
-            <div [style.height.%]="size" [style.width.%]="size">
-                <dv-dockview
-                    [components]="components"
-                    className="dockview-theme-abyss"
-                    (ready)="onReady($event)">
-                </dv-dockview>
+            <div class="example-dock">
+                <div [style.height.%]="size" [style.width.%]="size">
+                    <dv-dockview
+                        [components]="components"
+                        className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
+                        (ready)="onReady($event)">
+                    </dv-dockview>
+                </div>
             </div>
         </div>
     `,

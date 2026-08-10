@@ -19,7 +19,13 @@ const Panel = defineComponent({
         return {
             isRunning: false,
             title: null,
+            myValue: this.params.params.myValue,
         };
+    },
+    computed: {
+        lastUpdated() {
+            return new Date(this.myValue).toLocaleTimeString();
+        },
     },
     methods: {
         toggle() {
@@ -30,10 +36,14 @@ const Panel = defineComponent({
         const disposable = this.params.api.onDidTitleChange(() => {
             this.title = this.api.title;
         });
+        const disposable2 = this.params.api.onDidParametersChange(() => {
+            this.myValue = this.params.params.myValue;
+        });
         this.title = this.api.title;
 
         return () => {
             disposable.dispose();
+            disposable2.dispose();
         };
     },
     watch: {
@@ -53,10 +63,12 @@ const Panel = defineComponent({
         },
     },
     template: `
-      <div style="height:100%;color:white;">
-        <div>{{title}}</div>
-        <button v-if="!isRunning" @click="toggle">Start</button>
-        <button v-if="isRunning" @click="toggle">Stop</button>
+      <div class="example-panel">
+        <div style="margin-bottom:8px">{{ title }}</div>
+        <div class="example-controls">
+          <button @click="toggle">{{ isRunning ? 'Stop' : 'Start' }}</button>
+          <span>Last updated: {{ lastUpdated }}</span>
+        </div>
       </div>`,
 });
 
@@ -76,13 +88,17 @@ const Tab = defineComponent({
             value: this.params.params.myValue,
         };
     },
+    computed: {
+        lastUpdated() {
+            return new Date(this.value).toLocaleTimeString();
+        },
+    },
     mounted() {
         const disposable = this.params.api.onDidTitleChange(() => {
             this.title = this.api.title;
         });
 
         const disposable2 = this.params.api.onDidParametersChange(() => {
-            console.log(this.params);
             this.value = this.params.params.myValue;
         });
 
@@ -97,7 +113,7 @@ const Tab = defineComponent({
     template: `
     <div>
       <div>custom tab: {{title}}</div>
-      <div>value: {{value}}</div>
+      <span>Last updated: {{ lastUpdated }}</span>
     </div>`,
 });
 
@@ -133,9 +149,9 @@ const App = defineComponent({
     template: `
       <dockview-vue
         style="width:100%;height:100%"
-        class="dockview-theme-abyss"
+        className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
         @ready="onReady"
-      </dockview-vue>`,
+      ></dockview-vue>`,
 });
 
 const app = createApp(App);

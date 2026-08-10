@@ -29,12 +29,16 @@ const components = {
         }, [running]);
 
         return (
-            <div style={{ padding: '20px', color: 'white' }}>
-                <div>{props.api.title}</div>
-                <button onClick={() => setRunning(!running)}>
-                    {running ? 'Stop' : 'Start'}
-                </button>
-                <span>{`value: ${props.params.myValue}`}</span>
+            <div className="example-panel">
+                <div style={{ marginBottom: '8px' }}>{props.api.title}</div>
+                <div className="example-controls">
+                    <button onClick={() => setRunning(!running)}>
+                        {running ? 'Stop' : 'Start'}
+                    </button>
+                    <span>{`Last updated: ${new Date(
+                        props.params.myValue
+                    ).toLocaleTimeString()}`}</span>
+                </div>
             </div>
         );
     },
@@ -45,13 +49,15 @@ const tabComponents = {
         return (
             <div>
                 <div>{`custom tab: ${props.api.title}`}</div>
-                <span>{`value: ${props.params.myValue}`}</span>
+                <span>{`Last updated: ${new Date(
+                    props.params.myValue
+                ).toLocaleTimeString()}`}</span>
             </div>
         );
     },
 };
 
-export const App: React.FC = (props: { theme?: string }) => {
+export const App: React.FC<{ theme?: string }> = (props) => {
     const onReady = (event: DockviewReadyEvent) => {
         event.api.addPanel({
             id: 'panel_1',

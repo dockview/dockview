@@ -1,10 +1,18 @@
+import { LicenseManager } from 'dockview-enterprise';
 import 'dockview/dist/styles/dockview.css';
 import {
     createDockview,
+    DockviewHeaderPosition,
     GroupPanelPartInitParameters,
     IContentRenderer,
     themeAbyss,
+    themeLight,
 } from 'dockview';
+
+// dockview.dev docs license key. Replace with your own key in production.
+LicenseManager.setLicenseKey(
+    '[KeyId:DOCKVIEW-DOCS]_[Company:Dockview]_[Plan:team]_[AppName:Dockview_Docs]_[Email:enterprise@dockview.dev]_[ValidFrom:01_Jan_2025]_[ValidUntil:01_Jan_2099]__aaa294ecec1eed47'
+);
 
 class Panel implements IContentRenderer {
     private readonly _element: HTMLElement;
@@ -15,16 +23,63 @@ class Panel implements IContentRenderer {
 
     constructor() {
         this._element = document.createElement('div');
-        this._element.style.padding = '10px';
+        this._element.className = 'example-panel';
     }
 
     init(parameters: GroupPanelPartInitParameters): void {
-        this._element.textContent = parameters.title ?? 'Panel';
+        this._element.textContent = parameters.api.title ?? '';
     }
 }
 
-const api = createDockview(document.getElementById('app'), {
-    theme: { ...themeAbyss, tabAnimation: 'smooth' },
+const root = document.getElementById('app')!;
+root.className = 'example-layout';
+
+const controls = document.createElement('div');
+controls.className = 'example-controls';
+
+const positionLabel = document.createElement('label');
+positionLabel.textContent = 'Tab position:';
+controls.append(positionLabel);
+
+const positions: DockviewHeaderPosition[] = ['top', 'bottom'];
+const positionButtons = new Map<DockviewHeaderPosition, HTMLButtonElement>();
+let headerPosition: DockviewHeaderPosition = 'top';
+
+const syncPositionButtons = (): void => {
+    for (const pos of positions) {
+        positionButtons.get(pos)!.disabled = headerPosition === pos;
+    }
+};
+
+const setHeaderPosition = (position: DockviewHeaderPosition): void => {
+    headerPosition = position;
+    for (const group of api.groups) {
+        group.api.setHeaderPosition(position);
+    }
+    syncPositionButtons();
+};
+
+for (const pos of positions) {
+    const button = document.createElement('button');
+    button.textContent = pos;
+    button.addEventListener('click', () => setHeaderPosition(pos));
+    positionButtons.set(pos, button);
+    controls.append(button);
+}
+syncPositionButtons();
+
+const dockElement = document.createElement('div');
+dockElement.className = 'example-dock';
+
+root.append(controls, dockElement);
+
+const api = createDockview(dockElement, {
+    theme: {
+        ...((window as any).__dockviewColorMode === 'light'
+            ? themeLight
+            : themeAbyss),
+        tabAnimation: 'smooth',
+    },
     disableFloatingGroups: true,
     createComponent: (options) => {
         switch (options.name) {
@@ -32,7 +87,12 @@ const api = createDockview(document.getElementById('app'), {
                 return new Panel();
         }
     },
-    getTabGroupChipContextMenuItems: () => ['rename', 'colorPicker'],
+    getTabGroupChipContextMenuItems: () => [
+        'rename',
+        'colorPicker',
+        'collapse',
+        'close',
+    ],
 });
 
 const titles = [

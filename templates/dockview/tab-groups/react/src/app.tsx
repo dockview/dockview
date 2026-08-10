@@ -15,25 +15,19 @@ import {
 } from './tabGroupActions';
 
 const Default = (props: IDockviewPanelProps) => {
-    return (
-        <div style={{ padding: 10 }}>
-            <div>{props.api.title}</div>
-        </div>
-    );
+    return <div className="example-panel">{props.api.title}</div>;
 };
 
 const components = {
     default: Default,
 };
 
-export default () => {
+export default (props: { theme?: string }) => {
     const [api, setApi] = React.useState<DockviewApi>();
     const [headerPosition, setHeaderPosition] =
         React.useState<DockviewHeaderPosition>('top');
 
-    const onHeaderPositionChange = (
-        position: DockviewHeaderPosition
-    ) => {
+    const onHeaderPositionChange = (position: DockviewHeaderPosition) => {
         setHeaderPosition(position);
         if (!api) return;
         for (const group of api.groups) {
@@ -156,6 +150,8 @@ export default () => {
             return [
                 'rename' as const,
                 'colorPicker' as const,
+                'collapse' as const,
+                'close' as const,
                 'separator' as const,
                 ...items.map((item) => ({
                     label: item.label,
@@ -167,9 +163,9 @@ export default () => {
     );
 
     return (
-        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 8px' }}>
-                <span style={{ fontSize: '12px', color: 'var(--dv-paneview-header-border-color, #888)' }}>Tab position:</span>
+        <div className="example-layout">
+            <div className="example-controls">
+                <label>Tab position:</label>
                 {(['top', 'bottom'] as DockviewHeaderPosition[]).map((pos) => (
                     <button
                         key={pos}
@@ -180,12 +176,16 @@ export default () => {
                     </button>
                 ))}
             </div>
-            <div style={{ flex: 1, minHeight: 0 }}>
+            <div className="example-dock">
                 <DockviewReact
-                    className={'dockview-theme-abyss'}
+                    className={props.theme || 'dockview-theme-abyss'}
                     onReady={onReady}
                     components={components}
-                    theme={{ ...themeAbyss, tabAnimation: 'smooth', tabGroupIndicator: 'wrap' }}
+                    theme={{
+                        ...themeAbyss,
+                        tabAnimation: 'smooth',
+                        tabGroupIndicator: 'wrap',
+                    }}
                     disableFloatingGroups={true}
                     getTabContextMenuItems={getTabContextMenuItems}
                     getTabGroupChipContextMenuItems={
@@ -196,4 +196,3 @@ export default () => {
         </div>
     );
 };
-

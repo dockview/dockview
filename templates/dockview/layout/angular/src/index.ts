@@ -22,10 +22,7 @@ const STORAGE_KEY = 'dockview_persistence_layout';
 @Component({
     selector: 'default-panel',
     template: `
-        <div
-            style="height: 100%; padding: 20px; background: var(--dv-group-view-background-color);">
-            {{ params?.title }}
-        </div>
+        <div class="example-panel">{{ api?.title }}</div>
     `,
 })
 export class DefaultPanelComponent {
@@ -35,22 +32,22 @@ export class DefaultPanelComponent {
 
 @Component({
     selector: 'watermark-panel',
-    template: `<div style="color: white; padding: 8px;">watermark</div>`,
+    template: `<div class="example-panel">This group is empty.</div>`,
 })
 export class WatermarkComponent {}
 
 @Component({
     selector: 'app-root',
     template: `
-        <div style="height: 100%; display: flex; flex-direction: column;">
-            <div style="height: 25px;">
+        <div class="example-layout">
+            <div class="example-controls">
                 <button (click)="clearLayout()">Reset Layout</button>
             </div>
-            <div style="flex-grow: 1; overflow: hidden;">
+            <div class="example-dock">
                 <dv-dockview
                     [components]="components"
                     [watermarkComponent]="watermarkComponent"
-                    className="dockview-theme-abyss"
+                    className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
                     (ready)="onReady($event)">
                 </dv-dockview>
             </div>
@@ -107,17 +104,17 @@ export class AppComponent implements OnDestroy {
         api.addPanel({
             id: 'panel_1',
             component: 'default',
-            params: { title: 'Panel 1' },
+            title: 'Panel 1',
         });
         api.addPanel({
             id: 'panel_2',
             component: 'default',
-            params: { title: 'Panel 2' },
+            title: 'Panel 2',
         });
         api.addPanel({
             id: 'panel_3',
             component: 'default',
-            params: { title: 'Panel 3' },
+            title: 'Panel 3',
         });
     }
 }

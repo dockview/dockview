@@ -3,39 +3,81 @@ import '@angular/compiler';
 import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
 import { Component, Type, NgModule, Input } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
-import { DockviewAngularModule } from 'dockview-angular';
+import {
+    DockviewAngularModule,
+    DockviewPanelApi,
+} from 'dockview-angular';
 import 'dockview-angular/dist/styles/dockview.css';
 
 // Default panel component
 @Component({
     selector: 'default-panel',
-    template: `<div style="padding: 10px;">{{ title || 'Panel' }}</div>`
+    template: `<div class="example-panel">{{ api?.title }}</div>`,
 })
 export class DefaultPanelComponent {
+    @Input() api!: DockviewPanelApi;
+}
+
+// Right header actions component (collapse/expand toggle for edge groups)
+@Component({
+    selector: 'right-header-actions',
+    template: `
+        <button
+            *ngIf="isEdge"
+            [title]="collapsed ? 'Expand group' : 'Collapse group'"
+            [attr.aria-label]="collapsed ? 'Expand group' : 'Collapse group'"
+            style="cursor: pointer; background: none; border: none; color: inherit; padding: 0 4px;"
+            (click)="toggle()"
+        >
+            {{ collapsed ? '+' : '-' }}
+        </button>
+    `,
+})
+export class RightActionsComponent {
     @Input() api: any;
 
-    get title() {
-        return this.api?.title || this.api?.id || 'Panel';
+    isEdge = false;
+    collapsed = false;
+    private disposable: any;
+
+    ngOnInit() {
+        this.isEdge = this.api?.location?.type === 'edge';
+        if (this.isEdge) {
+            this.collapsed = this.api.isCollapsed();
+            this.disposable = this.api.onDidCollapsedChange((event: any) => {
+                this.collapsed = event.isCollapsed;
+            });
+        }
     }
 
-    constructor() {}
+    ngOnDestroy() {
+        this.disposable?.dispose();
+    }
+
+    toggle() {
+        this.collapsed ? this.api.expand() : this.api.collapse();
+    }
 }
 
 // Main app component
 @Component({
     selector: 'app-root',
     template: `
-        <div style="height: 100%;">
-            <dv-dockview
-                [components]="components"
-                className="dockview-theme-abyss"
-                (ready)="onReady($event)">
-            </dv-dockview>
+        <div class="example-layout">
+            <div class="example-dock">
+                <dv-dockview
+                    [components]="components"
+                    [rightHeaderActionsComponent]="rightHeaderActionsComponent"
+                    className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
+                    (ready)="onReady($event)">
+                </dv-dockview>
+            </div>
         </div>
     `
 })
 export class AppComponent {
     components: Record<string, Type<any>>;
+    rightHeaderActionsComponent = RightActionsComponent;
 
     constructor() {
         this.components = {
@@ -120,7 +162,7 @@ export class AppComponent {
 
 // App module
 @NgModule({
-    declarations: [AppComponent, DefaultPanelComponent],
+    declarations: [AppComponent, DefaultPanelComponent, RightActionsComponent],
     imports: [BrowserModule, DockviewAngularModule],
     providers: [],
     bootstrap: [AppComponent]

@@ -6,9 +6,61 @@ import {
     DockviewReadyEvent,
     IDockviewHeaderActionsProps,
     IDockviewPanelProps,
+    SerializedDockview,
 } from 'dockview-vue';
 
+const STORAGE_KEY = 'floating.layout';
+
 let panelCount = 0;
+
+function safeParse<T>(value: any): T | null {
+    try {
+        return JSON.parse(value) as T;
+    } catch (err) {
+        return null;
+    }
+}
+
+function loadDefaultLayout(api: DockviewApi) {
+    api.addPanel({
+        id: 'panel_1',
+        component: 'default',
+        title: 'Panel 1',
+    });
+
+    api.addPanel({
+        id: 'panel_2',
+        component: 'default',
+        title: 'Panel 2',
+    });
+
+    api.addPanel({
+        id: 'panel_3',
+        component: 'default',
+        title: 'Panel 3',
+    });
+
+    const panel4 = api.addPanel({
+        id: 'panel_4',
+        component: 'default',
+        title: 'Panel 4',
+        floating: true,
+    });
+
+    api.addPanel({
+        id: 'panel_5',
+        component: 'default',
+        title: 'Panel 5',
+        floating: false,
+        position: { referencePanel: panel4 },
+    });
+
+    api.addPanel({
+        id: 'panel_6',
+        component: 'default',
+        title: 'Panel 6',
+    });
+}
 
 const MaterialIcon = defineComponent({
     name: 'MaterialIcon',
@@ -23,12 +75,6 @@ const MaterialIcon = defineComponent({
         },
     },
     emits: ['click'],
-    data() {
-        return {
-            title: this.title,
-            icon: this.icon,
-        };
-    },
     methods: {
         onClick() {
             this.$emit('click');
@@ -37,7 +83,7 @@ const MaterialIcon = defineComponent({
     template: `
     <div
       @click="onClick"
-      title="title"
+      :title="title"
       style="display:flex;justify-content:center;align-items:center;width:30px;height:100%;font-size:18px;">
         <span class="material-symbols-outlined" style="font-size:inherit;cursor:pointer;">
           {{icon}}
@@ -66,7 +112,7 @@ const LeftAction = defineComponent({
         },
     },
     template: `
-      <div style="height:100%;color:white;padding:0px 4px;">
+      <div style="height:100%;padding:0px 4px;">
         <material-icon @click="onClick" icon="add"></material-icon>
       </div>`,
 });
@@ -91,12 +137,12 @@ const RightAction = defineComponent({
         onClick() {
             if (this.floating) {
                 const group = this.params.containerApi.addGroup();
-                this.group.api.moveTo({ group });
+                this.params.group.api.moveTo({ group });
             } else {
-                this.containerApi.addFloatingGroup(this.params.group, {
+                this.params.containerApi.addFloatingGroup(this.params.group, {
+                    width: 400,
+                    height: 300,
                     position: {
-                        width: 400,
-                        height: 300,
                         bottom: 50,
                         right: 50,
                     },
@@ -116,9 +162,9 @@ const RightAction = defineComponent({
         };
     },
     template: `
-    <div style="height:100%;color:white;padding:0px 4px">
+    <div style="height:100%;padding:0px 4px">
       <material-icon v-if="floating" @click="onClick" icon="jump_to_element"></material-icon>
-      <material-icon v-if="!floating" @click="onClick" icon="back_to_tab"></material-icon>
+      <material-icon v-else @click="onClick" icon="back_to_tab"></material-icon>
     </div>`,
 });
 
@@ -146,9 +192,12 @@ const Panel = defineComponent({
         };
     },
     template: `
-      <div style="color:white;">
-        <div>{{title}}</div>
-      </div>`,
+      <div class="example-panel">{{title}}</div>`,
+});
+
+const Watermark = defineComponent({
+    name: 'Watermark',
+    template: `<div class="example-panel">This group is empty.</div>`,
 });
 
 const App = defineComponent({
@@ -156,19 +205,62 @@ const App = defineComponent({
     components: {
         'dockview-vue': DockviewVue,
         default: Panel,
+        watermark: Watermark,
         leftAction: LeftAction,
         rightAction: RightAction,
     },
     data() {
         return {
             api: null as DockviewApi | null,
-            bounds: undefined,
+            bounds: undefined as 'boundedWithinViewport' | undefined,
             disableFloatingGroups: false,
+            layout: safeParse<SerializedDockview>(
+                localStorage.getItem(STORAGE_KEY)
+            ),
         };
     },
     methods: {
+        setLayout(state: SerializedDockview | null) {
+            if (state === null) {
+                localStorage.removeItem(STORAGE_KEY);
+                this.layout = null;
+            } else {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+                this.layout = state;
+            }
+        },
+        load(api: DockviewApi) {
+            api.clear();
+            if (this.layout) {
+                try {
+                    api.fromJSON(this.layout);
+                } catch (err) {
+                    console.error(err);
+                    api.clear();
+                    loadDefaultLayout(api);
+                }
+            } else {
+                loadDefaultLayout(api);
+            }
+        },
+        onSave() {
+            if (this.api) {
+                this.setLayout(this.api.toJSON());
+            }
+        },
+        onLoad() {
+            if (this.api) {
+                this.load(this.api);
+            }
+        },
+        onClear() {
+            if (this.api) {
+                this.api.clear();
+            }
+            this.setLayout(null);
+        },
         onAddFloatingGroup() {
-            this.api.addPanel({
+            this.api!.addPanel({
                 id: (++panelCount).toString(),
                 title: `Tab ${panelCount}`,
                 component: 'default',
@@ -183,48 +275,30 @@ const App = defineComponent({
             this.disableFloatingGroups = !this.disableFloatingGroups;
         },
         onReady(event: DockviewReadyEvent) {
-            event.api.addPanel({
-                id: 'panel_1',
-                component: 'default',
-                title: 'Panel 1',
-            });
-
-            event.api.addPanel({
-                id: 'panel_2',
-                component: 'default',
-                title: 'Panel 2',
-                position: {
-                    direction: 'right',
-                },
-            });
-
-            event.api.addPanel({
-                id: 'panel_3',
-                component: 'default',
-                title: 'Panel 3',
-                position: {
-                    direction: 'below',
-                },
-            });
-
+            this.load(event.api);
             this.api = event.api;
         },
     },
     template: `
-    <div style="display:flex;flex-direction:column;height:100%;">
-      <div style="height:25px">
+    <div class="example-layout">
+      <div class="example-controls">
+        <button @click="onSave">Save</button>
+        <button @click="onLoad">Load</button>
+        <button @click="onClear">Clear</button>
         <button @click="onAddFloatingGroup">Add Floating Group</button>
-        <button @click="onToggleBounds">{{'Bounds: ' + bounds}}</button>
-        <button @click="onToggleEnabled">{{'Disabled: ' + disableFloatingGroups}}</button>
+        <button @click="onToggleBounds">{{ 'Bounds: ' + (bounds ? 'Within' : 'Overflow') }}</button>
+        <button @click="onToggleEnabled">{{ (disableFloatingGroups ? 'Enable' : 'Disable') + ' floating groups' }}</button>
       </div>
       <dockview-vue
-        style="width:100%;flex-grow:1"
-        class="dockview-theme-abyss"
+        class="example-dock"
+        className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
         @ready="onReady"
         :floatingGroupBounds="bounds"
+        :disableFloatingGroups="disableFloatingGroups"
+        watermarkComponent="watermark"
         leftHeaderActionsComponent="leftAction"
         rightHeaderActionsComponent="rightAction"
-        :disableFloatingGroups="disableFloatingGroups"
+      >
       </dockview-vue>
     </div>`,
 });

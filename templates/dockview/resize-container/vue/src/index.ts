@@ -30,7 +30,7 @@ const Panel = defineComponent({
         };
     },
     template: `
-    <div style="height:100%;padding:20px;color:white;">
+    <div class="example-panel">
       <div>{{title}}</div>
     </div>`,
 });
@@ -121,15 +121,19 @@ const App = defineComponent({
         },
     },
     template: `
-      <div style="height:100%;display:flex;flex-direction:column;">
-        <input v-model="value" type="range" min="1" max="100"></input>
-        <div :style="styleObject">
-          <dockview-vue
-            style="width:100%;height:100%"
-            class="dockview-theme-abyss"
-            @ready="onReady"
-            :disableFloatingGroups=true
-          </dockview-vue>
+      <div class="example-layout">
+        <div class="example-controls">
+          <label>Scale: <input v-model.number="value" type="range" min="1" max="100"></input> {{value}}%</label>
+        </div>
+        <div class="example-dock">
+          <div :style="styleObject">
+            <dockview-vue
+              style="width:100%;height:100%"
+              className="${(window as any).__dockviewThemeClass ?? 'dockview-theme-abyss'}"
+              @ready="onReady"
+              :disableFloatingGroups=true
+            ></dockview-vue>
+          </div>
         </div>
       </div>`,
 });

@@ -11,14 +11,17 @@ const TEXT =
 const components = {
     fixedHeightContainer: (props: IDockviewPanelProps<{ title: string }>) => {
         return (
-            <div style={{ height: '100%', color: 'white' }}>
+            <div className="example-panel" style={{ height: '100%' }}>
                 {[TEXT, '\n\n'].join('').repeat(20)}
             </div>
         );
     },
     overflowContainer: (props: IDockviewPanelProps<{ title: string }>) => {
         return (
-            <div style={{ height: '2000px', overflow: 'auto', color: 'white' }}>
+            <div
+                className="example-panel"
+                style={{ height: '2000px', overflow: 'auto' }}
+            >
                 {[TEXT, '\n\n'].join('').repeat(20)}
             </div>
         );
@@ -27,14 +30,8 @@ const components = {
         props: IDockviewPanelProps<{ title: string }>
     ) => {
         return (
-            <div style={{ height: '100%', color: 'white' }}>
-                <div
-                    style={{
-                        height: '100%',
-                        color: 'white',
-                        overflow: 'auto',
-                    }}
-                >
+            <div className="example-panel" style={{ height: '100%' }}>
+                <div style={{ height: '100%', overflow: 'auto' }}>
                     {[TEXT, '\n\n'].join('').repeat(20)}
                 </div>
             </div>
