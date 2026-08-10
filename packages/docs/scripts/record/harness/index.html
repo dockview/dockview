@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Dockview — recording stage</title>
+
+        <!-- Built dockview stylesheet (repo-root static server). -->
+        <link
+            rel="stylesheet"
+            href="/packages/dockview-core/dist/styles/dockview.css"
+        />
+
+        <style>
+            /*
+             * Standalone presentation stage for recorded demo clips
+             * (driven by scripts/record/recordClips.mjs). Deliberately NOT part
+             * of the docs website — no navbar, newsletter, or other chrome. A
+             * titled, bordered "window" hosts the dockview; the surroundings are
+             * ours to brand. URL-driven so the recorder / record-demo skill can
+             * parameterise a clip without editing code.
+             */
+            :root {
+                color-scheme: dark;
+            }
+            html,
+            body {
+                margin: 0;
+                height: 100%;
+                width: 100%;
+            }
+            .stage {
+                position: fixed;
+                inset: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 22px;
+                padding: 40px;
+                box-sizing: border-box;
+                background: radial-gradient(
+                        1200px 600px at 50% -10%,
+                        rgba(88, 133, 255, 0.18),
+                        transparent 60%
+                    ),
+                    linear-gradient(160deg, #0b0e14 0%, #0d1220 55%, #0a0d16 100%);
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
+                    Roboto, sans-serif;
+            }
+            .heading {
+                text-align: center;
+                color: #e7ecf5;
+                max-width: 80%;
+            }
+            .title {
+                margin: 0;
+                font-size: 26px;
+                font-weight: 650;
+                letter-spacing: -0.01em;
+            }
+            .subtitle {
+                margin: 6px 0 0;
+                font-size: 14px;
+                font-weight: 400;
+                color: #93a1bd;
+            }
+            .window {
+                display: flex;
+                flex-direction: column;
+                border-radius: 12px;
+                overflow: hidden;
+                border: 1px solid rgba(255, 255, 255, 0.09);
+                box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55),
+                    0 2px 8px rgba(0, 0, 0, 0.4);
+                background: #11151f;
+            }
+            .titlebar {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                height: 34px;
+                padding: 0 12px;
+                background: linear-gradient(180deg, #232a38, #1b212d);
+                border-bottom: 1px solid rgba(0, 0, 0, 0.35);
+                flex: none;
+            }
+            .lights {
+                display: flex;
+                gap: 7px;
+            }
+            .light {
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+            }
+            .light.red {
+                background: #ff5f57;
+            }
+            .light.amber {
+                background: #febc2e;
+            }
+            .light.green {
+                background: #28c840;
+            }
+            .window-title {
+                flex: 1;
+                text-align: center;
+                font-size: 12px;
+                color: #9fb0cc;
+                margin-right: 54px;
+                overflow: hidden;
+                white-space: nowrap;
+                text-overflow: ellipsis;
+            }
+            .body {
+                flex: 1;
+                min-height: 0;
+                position: relative;
+            }
+
+            /* Panel content */
+            .panel {
+                height: 100%;
+                box-sizing: border-box;
+                padding: 14px;
+                color: #c7d2e5;
+                font-size: 13px;
+            }
+            .panel .row {
+                padding: 7px 8px;
+                border-radius: 6px;
+                opacity: 0.85;
+            }
+            .panel pre {
+                margin: 0;
+                font-size: 12.5px;
+                line-height: 1.65;
+                font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+                opacity: 0.9;
+                white-space: pre-wrap;
+            }
+            .panel .muted {
+                opacity: 0.6;
+            }
+            .panel .lede {
+                opacity: 0.75;
+                line-height: 1.6;
+            }
+            .panel .tbl {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 12px;
+            }
+            .panel .tbl th {
+                text-align: left;
+                font-weight: 500;
+                color: #8797b3;
+                padding: 4px 8px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            }
+            .panel .tbl td {
+                padding: 5px 8px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            }
+            .panel .side-buy {
+                color: #4ade80;
+            }
+            .panel .side-sell {
+                color: #f87171;
+            }
+            .panel .st-ok {
+                color: #4ade80;
+            }
+            .panel .st-warn {
+                color: #fbbf24;
+            }
+            .panel .st-bad {
+                color: #f87171;
+            }
+            .panel .st-mut {
+                opacity: 0.6;
+            }
+            .panel .kv {
+                display: flex;
+                justify-content: space-between;
+                padding: 6px 4px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+                font-size: 12.5px;
+            }
+            .panel .kv .k {
+                color: #8797b3;
+            }
+            .panel .kv .v {
+                font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="stage">
+            <div class="heading" id="heading">
+                <h1 class="title" id="title"></h1>
+                <p class="subtitle" id="subtitle"></p>
+            </div>
+            <div class="window" id="window">
+                <div class="titlebar" id="titlebar">
+                    <div class="lights">
+                        <span class="light red"></span>
+                        <span class="light amber"></span>
+                        <span class="light green"></span>
+                    </div>
+                    <span class="window-title" id="window-title"></span>
+                </div>
+                <div class="body" id="dock"></div>
+            </div>
+        </div>
+
+        <!-- Built UMD bundles (repo-root static server). `dockview` is
+             self-contained and exposes the global `dockview`; loading
+             `dockview-enterprise` self-registers its feature modules + the
+             licence check into that same core registry. -->
+        <script src="/packages/dockview/dist/dockview.js"></script>
+        <script src="/packages/dockview-enterprise/dist/dockview-enterprise.js"></script>
+
+        <script>
+            (function () {
+                const lib = window['dockview'];
+
+                // Use the dockview.dev docs licence key so enterprise features
+                // are licensed and the harness is never watermarked.
+                window['dockview-enterprise'].LicenseManager.setLicenseKey(
+                    '[KeyId:DOCKVIEW-DOCS]_[Company:Dockview]_[Plan:team]_[AppName:Dockview_Docs]_[Email:enterprise@dockview.dev]_[ValidFrom:01_Jan_2025]_[ValidUntil:01_Jan_2099]__aaa294ecec1eed47'
+                );
+
+                const params = new URLSearchParams(location.search);
+                const q = (k, d) => params.get(k) ?? d;
+                const title = q('title', 'Dockview');
+                const subtitle = q('subtitle', '');
+                const presetName = q('preset', 'ide');
+                const themeName = q('theme', 'abyss');
+                const showChrome = q('chrome', '1') !== '0';
+                const width = Number(q('width', 940)) || 940;
+                const height = Number(q('height', 560)) || 560;
+
+                // Heading / window chrome.
+                document.getElementById('title').textContent = title;
+                const sub = document.getElementById('subtitle');
+                if (subtitle) sub.textContent = subtitle;
+                else sub.remove();
+                if (!title) document.getElementById('heading').remove();
+                document.getElementById('window-title').textContent = title;
+                if (!showChrome)
+                    document.getElementById('titlebar').remove();
+                const win = document.getElementById('window');
+                win.style.width = width + 'px';
+                win.style.height = height + 'px';
+
+                // Resolve a theme by name (e.g. `abyss` -> `themeAbyss`).
+                const resolveTheme = (name) => {
+                    const key =
+                        'theme' +
+                        name.charAt(0).toUpperCase() +
+                        name.slice(1);
+                    return lib[key] || lib.themeAbyss;
+                };
+
+                // Panel content — lightweight but not empty, so clips look real.
+                const renderContent = (element, kind) => {
+                    if (kind === 'list') {
+                        element.innerHTML = [
+                            'Overview',
+                            'Activity',
+                            'Settings',
+                            'Members',
+                            'Billing',
+                        ]
+                            .map((r) => '<div class="row">' + r + '</div>')
+                            .join('');
+                    } else if (kind === 'editor') {
+                        const pre = document.createElement('pre');
+                        pre.textContent =
+                            "import { DockviewReact } from 'dockview-react';\n\n" +
+                            'export const App = () => (\n' +
+                            '    <DockviewReact\n' +
+                            "        onReady={(e) => e.api.addPanel({ id: 'one' })}\n" +
+                            '        components={{ default: Panel }}\n' +
+                            '    />\n' +
+                            ');';
+                        element.appendChild(pre);
+                    } else if (kind === 'terminal') {
+                        element.innerHTML =
+                            '<div>$ yarn build</div>' +
+                            '<div class="muted">✔ compiled successfully in 1.2s</div>' +
+                            '<div>$ █</div>';
+                    } else if (kind === 'chart') {
+                        element.innerHTML =
+                            '<svg viewBox="0 0 320 150" width="100%" ' +
+                            'preserveAspectRatio="none" style="display:block">' +
+                            '<defs><linearGradient id="dvChartFill" x1="0" y1="0" x2="0" y2="1">' +
+                            '<stop offset="0" stop-color="#5b8cff" stop-opacity="0.45"/>' +
+                            '<stop offset="1" stop-color="#5b8cff" stop-opacity="0"/>' +
+                            '</linearGradient></defs>' +
+                            '<path d="M0,110 L32,86 L64,96 L96,58 L128,72 L160,40 ' +
+                            'L192,54 L224,28 L256,44 L288,18 L320,30 L320,150 L0,150 Z" ' +
+                            'fill="url(#dvChartFill)"/>' +
+                            '<path d="M0,110 L32,86 L64,96 L96,58 L128,72 L160,40 ' +
+                            'L192,54 L224,28 L256,44 L288,18 L320,30" fill="none" ' +
+                            'stroke="#6f9bff" stroke-width="2"/></svg>';
+                    } else if (kind === 'table') {
+                        const rows = [
+                            ['BTC/USD', 'Buy', '1.24', '67,431', 'Filled', 'ok'],
+                            ['AAPL', 'Sell', '640', '182.50', 'Partial', 'warn'],
+                            ['NVDA', 'Buy', '335', '875.40', 'Pending', 'mut'],
+                            ['MSFT', 'Sell', '210', '414.90', 'Filled', 'ok'],
+                            ['TSLA', 'Buy', '1,282', '248.30', 'Cancelled', 'bad'],
+                            ['GOOGL', 'Sell', '676', '176.06', 'Pending', 'mut'],
+                        ];
+                        element.innerHTML =
+                            '<table class="tbl"><thead><tr>' +
+                            ['Symbol', 'Side', 'Qty', 'Price', 'Status']
+                                .map((h) => '<th>' + h + '</th>')
+                                .join('') +
+                            '</tr></thead><tbody>' +
+                            rows
+                                .map(
+                                    (r) =>
+                                        '<tr><td>' +
+                                        r[0] +
+                                        '</td><td class="side-' +
+                                        (r[1] === 'Buy' ? 'buy' : 'sell') +
+                                        '">' +
+                                        r[1] +
+                                        '</td><td>' +
+                                        r[2] +
+                                        '</td><td>' +
+                                        r[3] +
+                                        '</td><td class="st-' +
+                                        r[5] +
+                                        '">' +
+                                        r[4] +
+                                        '</td></tr>'
+                                )
+                                .join('') +
+                            '</tbody></table>';
+                    } else if (kind === 'props') {
+                        const props = [
+                            ['id', 'panel_04'],
+                            ['component', 'default'],
+                            ['width', '320px'],
+                            ['height', '180px'],
+                            ['floating', 'false'],
+                            ['active', 'true'],
+                        ];
+                        element.innerHTML = props
+                            .map(
+                                (p) =>
+                                    '<div class="kv"><span class="k">' +
+                                    p[0] +
+                                    '</span><span class="v">' +
+                                    p[1] +
+                                    '</span></div>'
+                            )
+                            .join('');
+                    } else {
+                        // The tab already shows the panel name, so the body just
+                        // carries a short lede (no redundant heading).
+                        element.innerHTML =
+                            '<div class="lede">Drag this tab, float it, or ' +
+                            'resize the panels — the recorder drives these ' +
+                            'gestures automatically.</div>';
+                    }
+                };
+
+                const component = new lib.DockviewComponent(
+                    document.getElementById('dock'),
+                    {
+                        theme: resolveTheme(themeName),
+                        // Pointer DnD so a synthetic mouse can drive the floating
+                        // -group drag gestures the clips use.
+                        dndStrategy: 'pointer',
+                        // Enterprise niceties, inert until triggered.
+                        smartGuides: { snapDistance: 12 },
+                        dndGuide: true,
+                        createComponent: (options) => {
+                            const element = document.createElement('div');
+                            element.className = 'panel';
+                            return {
+                                element,
+                                init(p) {
+                                    renderContent(
+                                        element,
+                                        (p.params && p.params.kind) || 'text'
+                                    );
+                                },
+                                dispose() {},
+                            };
+                        },
+                    }
+                );
+                const api = component.api;
+
+                const dock = document.getElementById('dock');
+                const relayout = () =>
+                    component.layout(dock.clientWidth, dock.clientHeight);
+                relayout();
+                new ResizeObserver(relayout).observe(dock);
+
+                const add = (opts) =>
+                    api.addPanel(Object.assign({ component: 'default' }, opts));
+
+                const PRESETS = {
+                    basic: () => {
+                        const one = add({ id: 'one', title: 'Overview' });
+                        add({ id: 'two', title: 'Details' });
+                        add({
+                            id: 'three',
+                            title: 'Notes',
+                            position: {
+                                referencePanel: one,
+                                direction: 'right',
+                            },
+                        });
+                    },
+                    tabs: () => {
+                        [
+                            'Home',
+                            'Explorer',
+                            'Search',
+                            'Source Control',
+                            'Debug',
+                        ].forEach((t) => add({ id: t, title: t }));
+                    },
+                    ide: () => {
+                        const explorer = add({
+                            id: 'explorer',
+                            title: 'Explorer',
+                            params: { kind: 'list' },
+                        });
+                        const editor = add({
+                            id: 'App.tsx',
+                            title: 'App.tsx',
+                            params: { kind: 'editor' },
+                            position: {
+                                referencePanel: explorer,
+                                direction: 'right',
+                            },
+                        });
+                        add({
+                            id: 'index.tsx',
+                            title: 'index.tsx',
+                            params: { kind: 'editor' },
+                            position: {
+                                referencePanel: editor,
+                                direction: 'within',
+                            },
+                        });
+                        add({
+                            id: 'terminal',
+                            title: 'Terminal',
+                            params: { kind: 'terminal' },
+                            position: {
+                                referencePanel: editor,
+                                direction: 'below',
+                            },
+                        });
+                    },
+                    floating: () => {
+                        PRESETS.basic();
+                        const p = add({
+                            id: 'inspector',
+                            title: 'Inspector',
+                            floating: {
+                                width: 280,
+                                height: 180,
+                                x: 560,
+                                y: 50,
+                            },
+                        });
+                        p.api.setActive();
+                    },
+                    // A rich, IDE/analytics-style layout: file tree, tabbed
+                    // editors + a live chart, a terminal, a right-hand
+                    // inspector/data column, and a floating notifications panel.
+                    dashboard: () => {
+                        const files = add({
+                            id: 'files',
+                            title: 'Explorer',
+                            params: { kind: 'list' },
+                        });
+                        const editor = add({
+                            id: 'App.tsx',
+                            title: 'App.tsx',
+                            params: { kind: 'editor' },
+                            position: { referencePanel: files, direction: 'right' },
+                        });
+                        add({
+                            id: 'index.tsx',
+                            title: 'index.tsx',
+                            params: { kind: 'editor' },
+                            position: { referencePanel: editor, direction: 'within' },
+                        });
+                        add({
+                            id: 'Preview',
+                            title: 'Preview',
+                            params: { kind: 'chart' },
+                            position: { referencePanel: editor, direction: 'within' },
+                        });
+                        add({
+                            id: 'terminal',
+                            title: 'Terminal',
+                            params: { kind: 'terminal' },
+                            position: { referencePanel: editor, direction: 'below' },
+                        });
+                        const inspector = add({
+                            id: 'Inspector',
+                            title: 'Inspector',
+                            params: { kind: 'props' },
+                            position: { referencePanel: editor, direction: 'right' },
+                        });
+                        add({
+                            id: 'Orders',
+                            title: 'Orders',
+                            params: { kind: 'table' },
+                            position: { referencePanel: inspector, direction: 'within' },
+                        });
+                        editor.api.setActive();
+                        // Narrow the side columns so the editor dominates, like
+                        // a real IDE (sidebar ~230px, inspector ~300px).
+                        try {
+                            files.api.setSize({ width: 230 });
+                            inspector.api.setSize({ width: 300 });
+                        } catch (e) {}
+                        const notif = add({
+                            id: 'Notifications',
+                            title: 'Notifications',
+                            params: { kind: 'text' },
+                            floating: { width: 260, height: 150, x: 430, y: 70 },
+                        });
+                        notif.api.setActive();
+                    },
+                };
+
+                (PRESETS[presetName] || PRESETS.ide)();
+
+                // Handle for API-driven choreography / the record-demo skill.
+                window.__record = { api };
+            })();
+        </script>
+    </body>
+</html>
