@@ -1025,6 +1025,16 @@ describe('ShellManager', () => {
 
             expect(shell.getGridOffset()).toEqual({ left: 250, top: 120 });
 
+            // getGridOffset reads live splitview state, not a cache: a change to
+            // an edge's size — a collapse, or a collapsed edge's tab strip
+            // resizing from overflow / a tab-height change (which fires
+            // EdgeGroupView.onDidChange -> splitview relayout) — is reflected on
+            // the next read. The relayout that moves the grid also re-runs
+            // _syncFloatingOverlayHost, so the host follows.
+            shell.setEdgeGroupCollapsed('left', true);
+            expect(shell.getGridOffset().left).toBe(35); // default collapsedSize
+            expect(shell.getGridOffset().top).toBe(120); // top edge unchanged
+
             shell.dispose();
         });
 
