@@ -79,6 +79,11 @@ node scripts/bench/bench.mjs /tmp/base.js packages/dockview-core/dist/dockview-c
 - **`layout` / `recalc` / `gc`** — Chrome timeline totals over the run
   (Blink Layout, style recalculation, garbage collection). `layout` is the
   actual browser reflow cost.
+- **`alloc`** — total bytes allocated during the workload, from the CDP
+  HeapProfiler sampler. Unlike `gc` (time, non-deterministic — GC fires on heap
+  pressure, so small deltas are noise) this counts *allocations* whether or not
+  they were later collected, so it's the deterministic proxy for GC pressure and
+  the number to watch for per-frame garbage (arrays rebuilt each frame, etc.).
 - Only **relative** deltas within a single A/B invocation are trustworthy.
   Absolute numbers drift with machine load and CPU scaling between runs, so do
   not compare a `base` number from one invocation against a `branch` number

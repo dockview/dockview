@@ -274,10 +274,27 @@ function parseTrace(events) {
     };
 }
 
+// Total bytes attributed to a CDP HeapProfiler sampling profile (sum of every
+// node's selfSize). This counts *allocations* over the run — the deterministic
+// proxy for GC pressure — regardless of whether they were later collected, so
+// it captures transient per-frame garbage (e.g. arrays rebuilt each frame) that
+// a heap-size delta would miss because it's already been GC'd.
+function sumAlloc(node) {
+    let total = node.selfSize || 0;
+    for (const child of node.children || []) {
+        total += sumAlloc(child);
+    }
+    return total;
+}
+
 async function traced(page, client, which, iters) {
     const events = [];
     const onData = (p) => events.push(...p.value);
     client.on('Tracing.dataCollected', onData);
+    // Allocation sampling runs alongside the timeline trace (separate CDP
+    // domain). A small interval samples finely enough to compare workloads.
+    await client.send('HeapProfiler.enable');
+    await client.send('HeapProfiler.startSampling', { samplingInterval: 4096 });
     await client.send('Tracing.start', {
         traceConfig: {
             includedCategories: [
@@ -303,7 +320,10 @@ async function traced(page, client, which, iters) {
         client.send('Tracing.end');
     });
     client.off('Tracing.dataCollected', onData);
-    return { wallMs, ...parseTrace(events) };
+    const { profile } = await client.send('HeapProfiler.stopSampling');
+    await client.send('HeapProfiler.disable');
+    const allocKB = sumAlloc(profile.head) / 1024;
+    return { wallMs, ...parseTrace(events), allocKB };
 }
 
 async function benchBundle(bundlePath) {
@@ -367,6 +387,9 @@ async function benchBundle(bundlePath) {
 }
 
 const ms = (n) => `${n.toFixed(1)}ms`.padStart(11);
+const kb = (n) => `${n.toFixed(0)}KB`.padStart(11);
+// Unit-aware cell for the A/B table (allocKB is bytes, the rest are ms).
+const cell = (k, n) => (k === 'allocKB' ? kb(n) : ms(n));
 const delta = (base, next) => {
     if (base === 0) return 'n/a'.padStart(9);
     const sign = base >= next ? '-' : '+';
@@ -388,7 +411,7 @@ function reportSingle(name, r) {
     ]) {
         const m = r[wl];
         console.log(
-            `${label}: wall ${ms(m.wallMs)}  layout ${ms(m.layoutMs)}  recalc ${ms(m.recalcMs)}  gc ${ms(m.gcMs)}`
+            `${label}: wall ${ms(m.wallMs)}  layout ${ms(m.layoutMs)}  recalc ${ms(m.recalcMs)}  gc ${ms(m.gcMs)}  alloc ${kb(m.allocKB)}`
         );
     }
 }
@@ -421,12 +444,12 @@ function reportAB(a, b) {
         ['constrain', `8 FLOATS + LAYOUT() STORM (${RESIZE_ITERS}) [#1585 audit]`],
     ]) {
         console.log(`\n${label}\n  metric        base       branch     change`);
-        for (const k of ['wallMs', 'layoutMs', 'recalcMs', 'gcMs']) {
+        for (const k of ['wallMs', 'layoutMs', 'recalcMs', 'gcMs', 'allocKB']) {
             console.log(
                 '  ' +
                     k.padEnd(12) +
-                    ms(a[wl][k]) +
-                    ms(b[wl][k]) +
+                    cell(k, a[wl][k]) +
+                    cell(k, b[wl][k]) +
                     delta(a[wl][k], b[wl][k])
             );
         }
@@ -474,12 +497,12 @@ function reportMarkdown(bundles, results) {
                 `0 listeners ${n1(r.emit.zero)}ms · 1 listener ${n1(r.emit.one)}ms · 2 listeners ${n1(r.emit.two)}ms`
         );
         lines.push('');
-        lines.push('| workload | wall | layout | recalc | gc |');
-        lines.push('| --- | ---: | ---: | ---: | ---: |');
+        lines.push('| workload | wall | layout | recalc | gc | alloc |');
+        lines.push('| --- | ---: | ---: | ---: | ---: | ---: |');
         for (const [wl, label] of WORKLOADS) {
             const m = r[wl];
             lines.push(
-                `| ${label} | ${n1(m.wallMs)} | ${n1(m.layoutMs)} | ${n1(m.recalcMs)} | ${n1(m.gcMs)} |`
+                `| ${label} | ${n1(m.wallMs)}ms | ${n1(m.layoutMs)}ms | ${n1(m.recalcMs)}ms | ${n1(m.gcMs)}ms | ${m.allocKB.toFixed(0)}KB |`
             );
         }
     } else {
@@ -491,9 +514,11 @@ function reportMarkdown(bundles, results) {
             lines.push('');
             lines.push('| metric | base | branch | change |');
             lines.push('| --- | ---: | ---: | ---: |');
-            for (const k of ['wallMs', 'layoutMs', 'recalcMs', 'gcMs']) {
+            for (const k of ['wallMs', 'layoutMs', 'recalcMs', 'gcMs', 'allocKB']) {
+                const unit = k === 'allocKB' ? 'KB' : 'ms';
+                const digits = k === 'allocKB' ? 0 : 1;
                 lines.push(
-                    `| ${k.replace('Ms', '')} | ${n1(a[wl][k])}ms | ${n1(b[wl][k])}ms | ${delta(a[wl][k], b[wl][k]).trim()} |`
+                    `| ${k.replace('Ms', '').replace('allocKB', 'alloc')} | ${a[wl][k].toFixed(digits)}${unit} | ${b[wl][k].toFixed(digits)}${unit} | ${delta(a[wl][k], b[wl][k]).trim()} |`
                 );
             }
             lines.push('');
