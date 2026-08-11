@@ -275,15 +275,16 @@ export const beats = {
         needsBase: true,
         async run(ctx) {
             const { page, dir, wait, movie } = ctx;
-            // Give it room: maximise the console group first.
             await movie('addTabs', 'term', [
                 { id: 'tg_news', title: 'News', kind: 'terminal' },
                 { id: 'tg_alerts', title: 'Alerts', kind: 'terminal' },
                 { id: 'tg_risk', title: 'Risk', kind: 'terminal' },
             ]);
             await movie('activate', 'term');
-            await movie('maximize', 'term');
-            await wait(900);
+            // Push the camera in on the console group so the small chip feature
+            // reads large, with the rest of the desk kept as soft context.
+            await movie('zoomTo', 'term', 0.96);
+            await wait(1000);
             await movie('tabGroup', 'term', 'Monitoring', 'blue', [
                 'tg_news',
                 'tg_alerts',
@@ -317,7 +318,8 @@ export const beats = {
             await wait(600);
             await page.keyboard.press('Enter');
             await wait(1200);
-            await movie('exitMaxGroup', 'term');
+            await movie('zoomReset');
+            await wait(400);
             await movie('closeTabs', ['tg_news', 'tg_alerts', 'tg_risk']);
             await wait(700);
         },
@@ -565,11 +567,20 @@ export const beats = {
         order: 80,
         needsBase: true,
         async run({ wait, movie }) {
+            // Draw the eye, then let the group visibly lift and sail off the
+            // right edge — leaving the main viewport before it reappears on a
+            // second screen.
+            await movie('highlight', 'chart');
+            await wait(500);
+            await movie('flyOut', 'chart', 'chart', 'BTC/USD');
+            await wait(1150);
+            await movie('highlight', null);
             await movie('dualMonitor', true);
-            await wait(1300);
+            await wait(1250);
             await movie('popout', 'chart', 'BTC/USD');
             await wait(2200);
             await movie('dualMonitor', false);
+            await movie('endFly');
             await wait(1000);
         },
     },

@@ -375,7 +375,7 @@
                 opacity: 1;
                 transform: none;
             }
-            #dualmon .win-bar {
+            .win-bar {
                 display: flex;
                 align-items: center;
                 gap: 8px;
@@ -384,22 +384,22 @@
                 padding: 0 10px;
                 background: linear-gradient(180deg, #232a38, #1b212d);
             }
-            #dualmon .win-bar .dots {
+            .win-bar .dots {
                 display: flex;
                 gap: 6px;
             }
-            #dualmon .win-bar .dots i {
+            .win-bar .dots i {
                 width: 10px;
                 height: 10px;
                 border-radius: 50%;
                 background: #465;
                 display: inline-block;
             }
-            #dualmon .win-bar .win-title {
+            .win-bar .win-title {
                 font-size: 12px;
                 color: var(--dim);
             }
-            #dualmon .win-body {
+            .win-body {
                 flex: 1;
                 min-height: 0;
                 position: relative;
@@ -765,6 +765,10 @@
                             dm.classList.remove('show');
                             dm.innerHTML = '';
                             dockEl.style.transform = '';
+                            if (this._flyGroup) {
+                                this._flyGroup.style.opacity = '';
+                                this._flyGroup = null;
+                            }
                             return;
                         }
                         dm.innerHTML =
@@ -810,6 +814,74 @@
                         requestAnimationFrame(() =>
                             requestAnimationFrame(() => card.classList.add('in'))
                         );
+                    },
+                    // Lift a group out of the dock and sail it off the right
+                    // edge — it visibly leaves the main viewport before landing
+                    // on the second monitor (paired with popout()).
+                    flyOut(id, kind, title) {
+                        const p = panels[id];
+                        if (!p) return;
+                        const g = p.group.element;
+                        const r = g.getBoundingClientRect();
+                        const card = document.createElement('div');
+                        card.className = 'win-card';
+                        Object.assign(card.style, {
+                            position: 'fixed',
+                            left: r.left + 'px',
+                            top: r.top + 'px',
+                            width: r.width + 'px',
+                            height: r.height + 'px',
+                            margin: '0',
+                            inset: 'auto',
+                            opacity: '1',
+                            transform: 'none',
+                            transformOrigin: '50% 50%',
+                            zIndex: '45',
+                            transition:
+                                'transform 1050ms cubic-bezier(0.4,0,0.2,1), opacity 1050ms ease',
+                        });
+                        // A self-contained chart-like face so the flying window
+                        // reads instantly (no async React render mid-flight).
+                        card.innerHTML =
+                            '<div class="win-bar"><span class="dots"><i></i><i></i><i></i></span>' +
+                            '<span class="win-title">' +
+                            (title || 'BTC/USD') +
+                            '  ·  popped out</span></div>' +
+                            '<div class="win-body" style="background:linear-gradient(180deg,#0b1322,#070b14);' +
+                            'display:flex;align-items:flex-end;padding:16px">' +
+                            '<svg width="100%" height="72%" viewBox="0 0 100 40" ' +
+                            'preserveAspectRatio="none" style="overflow:visible">' +
+                            '<polyline points="0,32 11,26 22,29 33,15 44,21 55,9 66,17 77,7 88,12 100,5" ' +
+                            'fill="none" stroke="#3d9bff" stroke-width="1.4"/>' +
+                            '<polyline points="0,40 0,32 11,26 22,29 33,15 44,21 55,9 66,17 77,7 88,12 100,5 100,40" ' +
+                            'fill="rgba(61,155,255,0.16)" stroke="none"/></svg></div>';
+                        document.body.appendChild(card);
+                        // Fade the vacated slot so the dock reads as "it left".
+                        g.style.transition = 'opacity 550ms ease';
+                        g.style.opacity = '0.16';
+                        this._flyGroup = g;
+                        requestAnimationFrame(() =>
+                            requestAnimationFrame(() => {
+                                // Lift, then sail off the right edge, staying
+                                // legible until it clears the frame.
+                                card.style.transform =
+                                    'translate(' +
+                                    (window.innerWidth - r.left - r.width * 0.4) +
+                                    'px,' +
+                                    -r.height * 0.28 +
+                                    'px) scale(0.52) rotate(2.5deg)';
+                            })
+                        );
+                        setTimeout(() => {
+                            card.style.opacity = '0';
+                        }, 780);
+                        setTimeout(() => card.remove(), 1200);
+                    },
+                    endFly() {
+                        if (this._flyGroup) {
+                            this._flyGroup.style.opacity = '';
+                            this._flyGroup = null;
+                        }
                     },
                     endcard(show, tagline) {
                         const ec = document.getElementById('endcard');
