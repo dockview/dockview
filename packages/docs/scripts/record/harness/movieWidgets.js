@@ -1,16 +1,16 @@
 // Premium panel widgets for the moneyshot stage (movie.html).
 //
-// Every widget fills its panel top-to-bottom: a slim uppercase header with a
-// live status dot, then a body that fills. Data panels (chart, order book,
-// positions, watchlist, time & sales, heatmap) carry muted-but-real content;
-// anything that would otherwise read as empty (console, generic panels, the
-// network view) gets an animated particle CONSTELLATION over a dotted grid —
-// drifting nodes, distance-faded links and travelling data packets — so a panel
-// never looks sparse, even when maximised.
+// Every widget fills its panel edge-to-edge with dense, muted-but-real content
+// and a slim header carrying a live status. Nothing is a placeholder: the
+// console is a live-scrolling ops log, the network is a labelled node graph,
+// the chart carries a price axis + moving average + volume, and the tables pack
+// enough rows to fill. The goal is a workspace that reads as a serious app even
+// when a single panel is maximised full-screen.
 //
 // Each `mount(el, kind, title)` returns { stop } to cancel timers/rAF.
 (function () {
     const rnd = (a, b) => a + Math.random() * (b - a);
+    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
     const fmt = (n, d = 2) =>
         n.toLocaleString('en-US', {
             minimumFractionDigits: d,
@@ -43,16 +43,29 @@
         .mw-chip.up{color:var(--up);background:rgba(52,211,153,.13)}
         .mw-chip.down{color:var(--down);background:rgba(248,113,113,.13)}
         .mw-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
-        .mw-hero{position:absolute;inset:0;display:flex;flex-direction:column;
-            align-items:center;justify-content:center;gap:9px;text-align:center;pointer-events:none}
-        .mw-hero .h1{font-size:15px;font-weight:600;color:var(--ink);letter-spacing:.01em}
-        .mw-hero .h2{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:7px;
-            font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-        .mw-fill{position:absolute;inset:0;display:flex;flex-direction:column;padding:6px 0}
+        .mw-fill{position:absolute;inset:0;display:flex;flex-direction:column;padding:5px 0}
         .mw-fill .row{display:flex;align-items:center;justify-content:space-between;
             padding:0 13px;flex:1;min-height:0;position:relative}
         .mw-scroll{position:absolute;inset:0;display:flex;flex-direction:column;
-            justify-content:flex-end;padding:6px 13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+            justify-content:flex-end;padding:7px 13px;overflow:hidden;
+            font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+        /* live ops log */
+        .lg{display:flex;gap:9px;align-items:baseline;line-height:1.66;white-space:nowrap;font-size:11px}
+        .lg .t{color:var(--dim);opacity:.65}
+        .lg .lv{font-weight:700;font-size:9px;letter-spacing:.03em;min-width:36px;text-align:center;
+            border-radius:3px;padding:0 3px}
+        .lg .lv.info{color:#8ea2c4;background:rgba(142,162,196,.12)}
+        .lg .lv.data{color:#8ab4ff;background:rgba(111,155,255,.15)}
+        .lg .lv.ok{color:#34d399;background:rgba(52,211,153,.13)}
+        .lg .lv.warn{color:#f5b871;background:rgba(245,184,113,.15)}
+        .lg .lv.send{color:#c4b5fd;background:rgba(196,181,253,.15)}
+        .lg .lv.risk{color:#f87171;background:rgba(248,113,113,.14)}
+        .lg .src{color:var(--accent);opacity:.85;min-width:66px}
+        .lg .msg{color:var(--ink);opacity:.88;overflow:hidden;text-overflow:ellipsis}
+        .lg .msg .n{color:#cfe0ff}
+        .lg-caret{display:inline-block;width:7px;height:13px;background:var(--accent);
+            opacity:.85;animation:mwblink 1.1s steps(1) infinite;transform:translateY(2px)}
+        @keyframes mwblink{0%,50%{opacity:.85}51%,100%{opacity:0}}
         `;
         document.head.appendChild(s);
     }
@@ -75,7 +88,7 @@
         };
     }
 
-    // DPR-aware canvas that fills its parent; returns { ctx, size() }.
+    // DPR-aware canvas that fills its parent; returns { ctx, size }.
     function fillCanvas(parent) {
         const canvas = document.createElement('canvas');
         canvas.className = 'mw-canvas';
@@ -93,32 +106,90 @@
     }
 
     // ======================================================================
-    // Particle constellation — the reusable "alive, never empty" backdrop.
+    // Live ops log — dense, streaming, fills wall-to-wall.
     // ======================================================================
-    function constellation(body, { title, sub, density = 1 } = {}) {
+    function consoleLog(el, title) {
+        const { body } = frame(
+            el,
+            title || 'Console',
+            '<span class="mw-chip up">live</span>'
+        );
+        const box = document.createElement('div');
+        box.className = 'mw-scroll';
+        body.appendChild(box);
+
+        const SRC = [
+            'gateway', 'md.stream', 'oms', 'risk', 'fix', 'ledger',
+            'cache', 'feed', 'exec', 'auth', 'seq', 'router',
+        ];
+        const VENUE = ['NASDAQ', 'ARCA', 'LSE', 'XETRA', 'CME', 'CBOE'];
+        const DC = ['NY4', 'LD4', 'TY3', 'FR2', 'SG1', 'CH1'];
+        const SYM = ['BTC/USD', 'ETH/USD', 'NVDA', 'AAPL', 'TSLA', 'MSFT'];
+        const n = (v) => '<span class="n">' + v + '</span>';
+        const templates = [
+            () => ['DATA', 'md.stream', pick(SYM) + '  ' + n(fmt(67000 + rnd(-300, 700), 1)) + (Math.random() > 0.5 ? '  ▲' : '  ▼') + '   qty ' + n(fmt(rnd(0.01, 4), 3))],
+            () => ['OK', 'oms', 'order ' + n('#' + (80000 + Math.floor(rnd(0, 9999)))) + ' filled ' + n(fmt(rnd(0.05, 3), 2)) + ' @ ' + n(fmt(67000 + rnd(0, 700), 1))],
+            () => ['SEND', 'fix', 'NewOrderSingle ' + n(9000 + Math.floor(rnd(0, 900))) + ' → ' + pick(VENUE)],
+            () => ['INFO', 'gateway', 'session ' + pick(DC) + ' · rtt ' + n(Math.floor(rnd(3, 42)) + 'ms') + ' · ' + Math.floor(rnd(1, 6)) + ' venues'],
+            () => ['WARN', 'risk', 'exposure ' + n(Math.floor(rnd(62, 96)) + '%') + ' of limit · ' + pick(SYM)],
+            () => ['DATA', 'feed', 'book snapshot ' + pick(['L2', 'L3']) + ' seq ' + n(Math.floor(rnd(1e6, 9e6)))],
+            () => ['OK', 'ledger', 'settled ' + n(fmt(rnd(1, 80), 2)) + ' ' + pick(['BTC', 'ETH', 'USD']) + ' · fee ' + fmt(rnd(0.1, 2), 1) + 'bp'],
+            () => ['INFO', 'cache', 'warm ' + n(Math.floor(rnd(40, 99)) + '%') + ' · ' + Math.floor(rnd(120, 900)) + 'k keys'],
+            () => ['OK', 'exec', 'TWAP slice ' + n(Math.floor(rnd(1, 19)) + '/' + Math.floor(rnd(20, 40))) + ' done'],
+            () => ['SEND', 'router', 'route ' + pick(SYM) + ' → ' + pick(VENUE) + ' · ' + Math.floor(rnd(1, 9)) + ' child'],
+            () => ['INFO', 'seq', 'heartbeat ok · gap ' + n('0') + ' · lag ' + Math.floor(rnd(0, 4)) + 'ms'],
+            () => ['DATA', 'md.stream', 'throughput ' + n(fmt(rnd(18, 42), 1)) + 'k msg/s'],
+        ];
+        const lines = [];
+        const render = () => {
+            box.innerHTML =
+                lines.join('') +
+                '<div class="lg"><span class="t"> </span><span class="lg-caret"></span></div>';
+        };
+        const push = () => {
+            const [lv, src, msg] = pick(templates)();
+            const now = new Date();
+            const ts =
+                now.toLocaleTimeString('en-GB') +
+                '.' +
+                String(now.getMilliseconds()).padStart(3, '0');
+            lines.push(
+                '<div class="lg"><span class="t">' +
+                    ts +
+                    '</span><span class="lv ' +
+                    lv.toLowerCase() +
+                    '">' +
+                    lv +
+                    '</span><span class="src">' +
+                    src +
+                    '</span><span class="msg">' +
+                    msg +
+                    '</span></div>'
+            );
+            if (lines.length > 90) lines.shift();
+            render();
+        };
+        for (let i = 0; i < 90; i++) push();
+        const t = setInterval(push, 230);
+        return { stop: () => clearInterval(t) };
+    }
+
+    // ======================================================================
+    // Network graph — dense nodes + links + travelling packets + hubs.
+    // ======================================================================
+    function network(body, { density = 2.4 } = {}) {
         body.classList.add('mw-grid');
         const { ctx, size } = fillCanvas(body);
-        if (title) {
-            const hero = document.createElement('div');
-            hero.className = 'mw-hero';
-            hero.innerHTML =
-                '<div class="h1">' +
-                title +
-                '</div><div class="h2"><span class="mw-live"></span>' +
-                (sub || 'Connected · streaming') +
-                '</div>';
-            body.appendChild(hero);
-        }
-
-        const N = Math.round(26 * density);
-        const nodes = Array.from({ length: N }, () => ({
+        const N = Math.round(24 * density);
+        const HUBS = ['NY4', 'LD4', 'TY3', 'FR2'];
+        const nodes = Array.from({ length: N }, (_, i) => ({
             x: Math.random(),
             y: Math.random(),
             vx: rnd(-0.02, 0.02),
             vy: rnd(-0.02, 0.02),
             ph: rnd(0, 6.28),
+            hub: i < HUBS.length,
         }));
-        // Travelling data packets ride the links for a live, "particle" feel.
         const packets = [];
         let lastSpawn = 0;
         let raf;
@@ -129,29 +200,31 @@
             const el = (t - t0) / 1000;
             const { w, h, dpr } = size();
             ctx.clearRect(0, 0, w, h);
-
-            // advance nodes (drift + gentle wrap)
-            for (const n of nodes) {
-                n.x += n.vx * 0.0016;
-                n.y += n.vy * 0.0016;
-                if (n.x < 0) n.x += 1;
-                if (n.x > 1) n.x -= 1;
-                if (n.y < 0) n.y += 1;
-                if (n.y > 1) n.y -= 1;
+            for (const nd of nodes) {
+                nd.x += nd.vx * 0.0015;
+                nd.y += nd.vy * 0.0015;
+                if (nd.x < 0) nd.x += 1;
+                if (nd.x > 1) nd.x -= 1;
+                if (nd.y < 0) nd.y += 1;
+                if (nd.y > 1) nd.y -= 1;
             }
-            const P = nodes.map((n) => ({ x: n.x * w, y: n.y * h, ph: n.ph }));
-            const linkDist = w * 0.24;
-
-            // links
+            const P = nodes.map((nd) => ({
+                x: nd.x * w,
+                y: nd.y * h,
+                ph: nd.ph,
+                hub: nd.hub,
+            }));
+            const linkDist = w * 0.17;
             const pairs = [];
             for (let i = 0; i < N; i++)
                 for (let j = i + 1; j < N; j++) {
                     const dx = P[i].x - P[j].x,
                         dy = P[i].y - P[j].y;
                     const d = Math.hypot(dx, dy);
-                    if (d < linkDist) {
-                        const a = (1 - d / linkDist) * 0.5;
-                        ctx.strokeStyle = 'rgba(120,160,255,' + a * 0.5 + ')';
+                    const reach = P[i].hub || P[j].hub ? linkDist * 2.1 : linkDist;
+                    if (d < reach) {
+                        const a = (1 - d / reach) * 0.55;
+                        ctx.strokeStyle = 'rgba(120,160,255,' + a + ')';
                         ctx.lineWidth = dpr;
                         ctx.beginPath();
                         ctx.moveTo(P[i].x, P[i].y);
@@ -160,14 +233,11 @@
                         pairs.push([i, j]);
                     }
                 }
-
-            // spawn a packet along a random active link
-            if (t - lastSpawn > 520 && pairs.length) {
+            if (t - lastSpawn > 180 && pairs.length) {
                 lastSpawn = t;
-                const [i, j] = pairs[Math.floor(Math.random() * pairs.length)];
-                packets.push({ i, j, u: 0, sp: rnd(0.6, 1.1) });
+                const [i, j] = pick(pairs);
+                packets.push({ i, j, u: 0, sp: rnd(0.7, 1.3) });
             }
-            // draw / advance packets
             for (let k = packets.length - 1; k >= 0; k--) {
                 const pk = packets[k];
                 pk.u += pk.sp * 0.016;
@@ -177,27 +247,44 @@
                 }
                 const a = P[pk.i],
                     b = P[pk.j];
-                const x = a.x + (b.x - a.x) * pk.u;
-                const y = a.y + (b.y - a.y) * pk.u;
+                const x = a.x + (b.x - a.x) * pk.u,
+                    y = a.y + (b.y - a.y) * pk.u;
                 ctx.beginPath();
-                ctx.arc(x, y, 2 * dpr, 0, 7);
+                ctx.arc(x, y, 1.8 * dpr, 0, 7);
                 ctx.fillStyle = 'rgba(174,194,255,0.95)';
                 ctx.shadowColor = '#7aa2ff';
-                ctx.shadowBlur = 9 * dpr;
+                ctx.shadowBlur = 8 * dpr;
                 ctx.fill();
                 ctx.shadowBlur = 0;
             }
-
-            // nodes
+            let hubIdx = 0;
             for (const p of P) {
                 const pulse = 1 + Math.sin(el * 1.6 + p.ph) * 0.4;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 2 * dpr * pulse, 0, 7);
-                ctx.fillStyle = 'rgba(150,185,255,0.9)';
-                ctx.shadowColor = '#6f9bff';
-                ctx.shadowBlur = 7 * dpr;
-                ctx.fill();
-                ctx.shadowBlur = 0;
+                if (p.hub) {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 9 * dpr, 0, 7);
+                    ctx.strokeStyle = 'rgba(122,162,255,0.5)';
+                    ctx.lineWidth = 1.2 * dpr;
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 3.4 * dpr, 0, 7);
+                    ctx.fillStyle = '#aec2ff';
+                    ctx.shadowColor = '#7aa2ff';
+                    ctx.shadowBlur = 12 * dpr;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = 'rgba(196,214,255,0.85)';
+                    ctx.font = '600 ' + 10 * dpr + 'px ui-monospace, Menlo, monospace';
+                    ctx.fillText(HUBS[hubIdx++], p.x + 12 * dpr, p.y + 3.5 * dpr);
+                } else {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 1.9 * dpr * pulse, 0, 7);
+                    ctx.fillStyle = 'rgba(150,185,255,0.85)';
+                    ctx.shadowColor = '#6f9bff';
+                    ctx.shadowBlur = 6 * dpr;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
             }
             raf = requestAnimationFrame(step);
         }
@@ -206,7 +293,7 @@
     }
 
     // ======================================================================
-    // Price chart — area + volume + right price axis + live header price.
+    // Price chart — area + moving average + volume + right price axis.
     // ======================================================================
     function areaChart(el, title) {
         const { body, right } = frame(
@@ -219,13 +306,21 @@
         const priceEl = right.querySelector('.mw-price');
         const chipEl = right.querySelector('.mw-chip');
 
-        const base = 67432;
-        let price = base;
-        let pts = Array.from({ length: 90 }, (_, i) => {
+        let price = 67432;
+        let pts = Array.from({ length: 96 }, (_, i) => {
             price += Math.sin(i / 7) * 12 + rnd(-10, 10);
             return price;
         });
         let vols = pts.map(() => rnd(0.2, 1));
+        const ma = (arr, i, win) => {
+            let s = 0,
+                c = 0;
+            for (let k = Math.max(0, i - win); k <= i; k++) {
+                s += arr[k];
+                c++;
+            }
+            return s / c;
+        };
         let raf,
             last = 0;
 
@@ -239,7 +334,7 @@
         function draw() {
             const { w, h, dpr } = size();
             ctx.clearRect(0, 0, w, h);
-            const padR = 52 * dpr; // room for the price axis
+            const padR = 54 * dpr;
             const padT = 10 * dpr;
             const volH = h * 0.2;
             const plotH = h - volH - padT;
@@ -249,7 +344,6 @@
             const X = (i) => (i / (pts.length - 1)) * (w - padR);
             const Y = (v) => padT + (1 - (v - min) / span) * plotH;
 
-            // grid + axis labels
             ctx.strokeStyle = 'rgba(255,255,255,0.05)';
             ctx.fillStyle = 'rgba(142,162,196,0.65)';
             ctx.font = 11 * dpr + 'px ui-monospace, Menlo, monospace';
@@ -264,20 +358,16 @@
                 ctx.stroke();
                 ctx.fillText(fmt(v, 0), w - padR + 7 * dpr, y);
             }
-
-            // volume bars
             for (let i = 0; i < pts.length; i++) {
                 const up = i === 0 || pts[i] >= pts[i - 1];
                 const bh = vols[i] * volH;
                 ctx.fillStyle = up
-                    ? 'rgba(52,211,153,0.28)'
-                    : 'rgba(248,113,113,0.28)';
+                    ? 'rgba(52,211,153,0.3)'
+                    : 'rgba(248,113,113,0.3)';
                 ctx.fillRect(X(i) - dpr, h - bh, 2.4 * dpr, bh);
             }
-
-            // area
             const grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
-            grad.addColorStop(0, 'rgba(111,155,255,0.4)');
+            grad.addColorStop(0, 'rgba(111,155,255,0.42)');
             grad.addColorStop(1, 'rgba(111,155,255,0)');
             ctx.beginPath();
             ctx.moveTo(0, padT + plotH);
@@ -286,8 +376,16 @@
             ctx.closePath();
             ctx.fillStyle = grad;
             ctx.fill();
-
-            // line
+            // moving average
+            ctx.beginPath();
+            pts.forEach((p, i) => {
+                const y = Y(ma(pts, i, 14));
+                i ? ctx.lineTo(X(i), y) : ctx.moveTo(X(i), y);
+            });
+            ctx.strokeStyle = 'rgba(245,184,113,0.55)';
+            ctx.lineWidth = 1.3 * dpr;
+            ctx.stroke();
+            // price line
             ctx.beginPath();
             pts.forEach((p, i) =>
                 i ? ctx.lineTo(X(i), Y(p)) : ctx.moveTo(X(i), Y(p))
@@ -296,7 +394,6 @@
             ctx.lineWidth = 2 * dpr;
             ctx.stroke();
 
-            // last dot + price tag
             const lx = X(pts.length - 1),
                 ly = Y(pts[pts.length - 1]);
             ctx.strokeStyle = 'rgba(122,162,255,0.4)';
@@ -314,7 +411,6 @@
             ctx.fill();
             ctx.shadowBlur = 0;
 
-            // header price + change chip
             const cur = pts[pts.length - 1];
             const chg = ((cur - pts[0]) / pts[0]) * 100;
             priceEl.textContent = fmt(cur, 1);
@@ -343,8 +439,8 @@
         wrap.style.font = '11.5px ui-monospace, SFMono-Regular, Menlo, monospace';
         body.appendChild(wrap);
         const mk = (b, side) =>
-            Array.from({ length: 8 }, (_, i) => ({
-                price: b + (side === 'ask' ? (8 - i) * 0.5 : -i * 0.5 - 0.5),
+            Array.from({ length: 9 }, (_, i) => ({
+                price: b + (side === 'ask' ? (9 - i) * 0.5 : -i * 0.5 - 0.5),
                 size: rnd(0.2, 6),
             }));
         let asks = mk(67432.5, 'ask'),
@@ -360,7 +456,7 @@
                                 : 'rgba(248,113,113,0.14)';
                         return (
                             '<div class="row">' +
-                            '<span style="position:absolute;right:0;top:6%;bottom:6%;width:' +
+                            '<span style="position:absolute;right:0;top:8%;bottom:8%;width:' +
                             w +
                             '%;background:' +
                             bg +
@@ -377,7 +473,7 @@
                     .join('');
             wrap.innerHTML =
                 rowsHtml(asks, 'down') +
-                '<div class="row" style="flex:0.9;border-top:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.08)">' +
+                '<div class="row" style="flex:0.85;border-top:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.08)">' +
                 '<span class="muted">Spread</span><span class="muted">0.50 · 0.7bp</span></div>' +
                 rowsHtml(bids, 'up');
         }
@@ -386,7 +482,7 @@
             asks.forEach((r) => (r.size = Math.max(0.1, r.size + rnd(-0.6, 0.6))));
             bids.forEach((r) => (r.size = Math.max(0.1, r.size + rnd(-0.6, 0.6))));
             render();
-        }, 650);
+        }, 620);
         return { stop: () => clearInterval(t) };
     }
 
@@ -430,10 +526,10 @@
         };
         paint();
         const t = setInterval(() => {
-            for (let i = 0; i < 8; i++)
+            for (let i = 0; i < 9; i++)
                 cells[Math.floor(rnd(0, cells.length))] = rnd(-1, 1);
             paint();
-        }, 700);
+        }, 680);
         return { stop: () => clearInterval(t) };
     }
 
@@ -451,7 +547,7 @@
             const up = Math.random() > 0.48;
             const now = new Date();
             rows.push(
-                '<div class="row" style="padding:2px 0"><span class="muted">' +
+                '<div class="lg" style="justify-content:space-between"><span class="t">' +
                     now.toLocaleTimeString('en-GB') +
                     '.' +
                     String(now.getMilliseconds()).padStart(3, '0') +
@@ -463,16 +559,16 @@
                     fmt(rnd(0.05, 4.5), 4) +
                     '</span></div>'
             );
-            if (rows.length > 26) rows.shift();
+            if (rows.length > 40) rows.shift();
             box.innerHTML = rows.join('');
         };
-        for (let i = 0; i < 26; i++) push();
-        const t = setInterval(push, 480);
+        for (let i = 0; i < 40; i++) push();
+        const t = setInterval(push, 430);
         return { stop: () => clearInterval(t) };
     }
 
     // ======================================================================
-    // Positions — P/L table with a total row, fills.
+    // Positions — P/L table with a total, packed rows.
     // ======================================================================
     function positions(el, title) {
         const { body, right } = frame(
@@ -493,6 +589,9 @@
             ['MSFT', 'Long', 210, 1540],
             ['TSLA', 'Short', 1282, -6410],
             ['GOOGL', 'Long', 676, 4120],
+            ['AMD', 'Long', 512, 2280],
+            ['META', 'Short', 190, -1870],
+            ['SOL/USD', 'Long', 240, 3660],
         ];
         const render = () => {
             const total = data.reduce((s, d) => s + d[3], 0);
@@ -524,26 +623,30 @@
         const t = setInterval(() => {
             data.forEach((d) => (d[3] += rnd(-300, 320)));
             render();
-        }, 850);
+        }, 820);
         return { stop: () => clearInterval(t) };
     }
 
     // ======================================================================
-    // Watchlist — symbol · sparkline · price · change, fills.
+    // Watchlist — symbol · sparkline · price · change, packed rows.
     // ======================================================================
     function watch(el, title) {
-        const { body } = frame(el, title || 'Watchlist', '6');
-        const wrap = document.createElement('div');
-        wrap.className = 'mw-fill';
-        body.appendChild(wrap);
         const syms = [
             ['BTC/USD', 67432, 0.42],
             ['ETH/USD', 3521, -0.18],
+            ['SOL/USD', 168.4, 1.12],
             ['AAPL', 182.5, 0.31],
             ['NVDA', 875.4, -0.24],
             ['MSFT', 414.9, 0.12],
             ['TSLA', 248.3, 0.68],
+            ['AMD', 168.2, -0.42],
+            ['META', 502.1, 0.27],
+            ['GOOGL', 165.7, 0.09],
         ];
+        const { body } = frame(el, title || 'Watchlist', String(syms.length));
+        const wrap = document.createElement('div');
+        wrap.className = 'mw-fill';
+        body.appendChild(wrap);
         const spark = (seed) => {
             let p = 14,
                 d = '';
@@ -552,7 +655,7 @@
                 d += (i ? 'L' : 'M') + i * 3.2 + ',' + (24 - (p % 20));
             }
             return (
-                '<svg width="84" height="26" style="opacity:.85"><path d="' +
+                '<svg width="78" height="24" style="opacity:.85"><path d="' +
                 d +
                 '" fill="none" stroke="#7aa2ff" stroke-width="1.5"/></svg>'
             );
@@ -560,15 +663,15 @@
         wrap.innerHTML = syms
             .map(
                 (s, i) =>
-                    '<div class="row"><span style="font-weight:600">' +
+                    '<div class="row"><span style="font-weight:600;flex:1">' +
                     s[0] +
                     '</span>' +
                     spark(i * 1.7) +
-                    '<span class="mono">' +
+                    '<span class="mono" style="min-width:62px;text-align:right">' +
                     fmt(s[1], 2) +
                     '</span><span class="mw-chip ' +
                     (s[2] >= 0 ? 'up' : 'down') +
-                    '">' +
+                    '" style="min-width:52px;text-align:center">' +
                     (s[2] >= 0 ? '+' : '') +
                     s[2] +
                     '%</span></div>'
@@ -578,7 +681,7 @@
     }
 
     // ======================================================================
-    // Kind → widget. Sparse-by-nature panels use the constellation backdrop.
+    // Kind → widget.
     // ======================================================================
     const REGISTRY = {
         chart: areaChart,
@@ -588,25 +691,11 @@
         positions: positions,
         watch: watch,
         nodes: (el, title) => {
-            const { body } = frame(el, title || 'Global Network', '26 nodes');
-            return constellation(body, { density: 1 });
+            const { body } = frame(el, title || 'Global Network', 'live');
+            return network(body, { density: 2.4 });
         },
-        terminal: (el, title) => {
-            const { body } = frame(el, title || 'Console', 'streaming');
-            return constellation(body, {
-                title: title || 'Console',
-                sub: 'Connected · streaming market data',
-                density: 1.35,
-            });
-        },
-        field: (el, title) => {
-            const { body } = frame(el, title || 'Workspace', 'live');
-            return constellation(body, {
-                title: title || 'Workspace',
-                sub: 'Connected · idle',
-                density: 1.35,
-            });
-        },
+        terminal: consoleLog,
+        field: consoleLog,
     };
 
     window.MovieWidgets = {
