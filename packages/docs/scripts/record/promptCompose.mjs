@@ -35,6 +35,7 @@ const FULL_TOUR = [
     'float',
     'nested',
     'focus',
+    'analytics',
     'tabGroups',
     'headerPosition',
     'multiRowTabs',

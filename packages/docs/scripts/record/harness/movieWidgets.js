@@ -17,6 +17,24 @@
             maximumFractionDigits: d,
         });
 
+    // Vibrant categorical palette for the analytics charts (the colourful,
+    // varied panels — a nod to what a good docking demo shows off).
+    const PAL = [
+        '#6f9bff', '#5ed3a9', '#f5b871', '#c4b5fd',
+        '#f472b6', '#38bdf8', '#a3e635', '#fb923c',
+    ];
+    const roundRect = (ctx, x, y, w, h, r) => {
+        if (w <= 0 || h <= 0) return;
+        r = Math.max(0, Math.min(r, w / 2, h / 2));
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+    };
+
     // ---- one-time widget chrome ------------------------------------------
     function injectStyles() {
         if (document.getElementById('mw-styles')) return;
@@ -681,6 +699,224 @@
     }
 
     // ======================================================================
+    // Multi-series line chart — colourful strategy performance.
+    // ======================================================================
+    function lineChart(el, title) {
+        const names = ['Momentum', 'Macro', 'Arbitrage'];
+        const { body } = frame(el, title || 'Performance', '1D');
+        body.insertAdjacentHTML(
+            'afterbegin',
+            '<div style="position:absolute;top:0;left:0;right:0;display:flex;flex-wrap:wrap;gap:5px 14px;padding:7px 13px 0">' +
+                names
+                    .map(
+                        (nm, i) =>
+                            '<span style="display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--dim)"><span style="width:9px;height:9px;border-radius:2px;background:' +
+                            PAL[i] +
+                            '"></span>' +
+                            nm +
+                            '</span>'
+                    )
+                    .join('') +
+                '</div>'
+        );
+        const cwrap = document.createElement('div');
+        cwrap.style.cssText = 'position:absolute;inset:28px 0 0 0';
+        body.appendChild(cwrap);
+        const { ctx, size } = fillCanvas(cwrap);
+        const series = names.map((nm, i) => {
+            let v = rnd(35, 65);
+            return {
+                c: PAL[i],
+                pts: Array.from({ length: 64 }, (_, k) => {
+                    v += Math.sin(k / 6 + i) * 3 + rnd(-3, 3);
+                    return Math.max(8, Math.min(92, v));
+                }),
+            };
+        });
+        let raf,
+            last = 0;
+        function tick() {
+            series.forEach((s) => {
+                let v = s.pts[s.pts.length - 1] + rnd(-5, 5);
+                s.pts.push(Math.max(8, Math.min(92, v)));
+                s.pts.shift();
+            });
+        }
+        function draw() {
+            const { w, h, dpr } = size();
+            ctx.clearRect(0, 0, w, h);
+            const pad = 8 * dpr;
+            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+            ctx.lineWidth = dpr;
+            for (let g = 0; g <= 4; g++) {
+                const y = (g / 4) * (h - pad * 2) + pad;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+            const X = (i) => (i / 63) * w;
+            const Y = (v) => h - pad - (v / 100) * (h - pad * 2);
+            series.forEach((s) => {
+                ctx.beginPath();
+                s.pts.forEach((p, i) =>
+                    i ? ctx.lineTo(X(i), Y(p)) : ctx.moveTo(X(i), Y(p))
+                );
+                ctx.strokeStyle = s.c;
+                ctx.lineWidth = 2 * dpr;
+                ctx.stroke();
+                const lx = X(63),
+                    ly = Y(s.pts[63]);
+                ctx.beginPath();
+                ctx.arc(lx, ly, 2.6 * dpr, 0, 7);
+                ctx.fillStyle = s.c;
+                ctx.shadowColor = s.c;
+                ctx.shadowBlur = 8 * dpr;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            });
+        }
+        function loop(t) {
+            if (t - last > 150) {
+                last = t;
+                tick();
+            }
+            draw();
+            raf = requestAnimationFrame(loop);
+        }
+        raf = requestAnimationFrame(loop);
+        return { stop: () => cancelAnimationFrame(raf) };
+    }
+
+    // ======================================================================
+    // Column chart — order flow by venue, animated bars.
+    // ======================================================================
+    function barChart(el, title) {
+        const cats = ['NYSE', 'NASDAQ', 'ARCA', 'CME', 'LSE', 'XETRA', 'CBOE', 'BATS'];
+        const { body } = frame(el, title || 'Order Flow', 'by venue');
+        const cwrap = document.createElement('div');
+        cwrap.style.cssText = 'position:absolute;inset:0';
+        body.appendChild(cwrap);
+        const { ctx, size } = fillCanvas(cwrap);
+        let vals = cats.map(() => rnd(0.3, 1));
+        let tgt = vals.slice();
+        let raf,
+            last = 0;
+        function draw() {
+            const { w, h, dpr } = size();
+            ctx.clearRect(0, 0, w, h);
+            const padB = 22 * dpr,
+                padT = 12 * dpr;
+            vals = vals.map((v, i) => v + (tgt[i] - v) * 0.09);
+            const n = cats.length,
+                gap = 9 * dpr,
+                bw = (w - gap * (n + 1)) / n;
+            for (let i = 0; i < n; i++) {
+                const bh = vals[i] * (h - padB - padT);
+                const x = gap + i * (bw + gap);
+                const y = h - padB - bh;
+                const c = PAL[i % PAL.length];
+                const g = ctx.createLinearGradient(0, y, 0, h - padB);
+                g.addColorStop(0, c);
+                g.addColorStop(1, c + '22');
+                ctx.fillStyle = g;
+                roundRect(ctx, x, y, bw, bh, 3 * dpr);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(142,162,196,0.75)';
+                ctx.font = 9 * dpr + 'px ui-monospace, Menlo, monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(cats[i], x + bw / 2, h - 8 * dpr);
+            }
+        }
+        function loop(t) {
+            if (t - last > 950) {
+                last = t;
+                tgt = cats.map(() => rnd(0.22, 1));
+            }
+            draw();
+            raf = requestAnimationFrame(loop);
+        }
+        raf = requestAnimationFrame(loop);
+        return { stop: () => cancelAnimationFrame(raf) };
+    }
+
+    // ======================================================================
+    // Donut — portfolio allocation, animated sweep + legend.
+    // ======================================================================
+    function donutChart(el, title) {
+        const segs = [
+            { label: 'Equities', v: 38, c: PAL[0] },
+            { label: 'Crypto', v: 24, c: PAL[1] },
+            { label: 'FX', v: 18, c: PAL[2] },
+            { label: 'Bonds', v: 12, c: PAL[3] },
+            { label: 'Cash', v: 8, c: PAL[4] },
+        ];
+        const { body } = frame(el, title || 'Allocation', 'AUM');
+        body.innerHTML +=
+            '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:22px;padding:12px 18px">' +
+            '<canvas class="don" style="height:min(84%,240px);aspect-ratio:1"></canvas>' +
+            '<div class="leg" style="display:flex;flex-direction:column;gap:9px">' +
+            segs
+                .map(
+                    (s) =>
+                        '<div style="display:flex;align-items:center;gap:9px;font-size:11.5px"><span style="width:10px;height:10px;border-radius:2px;background:' +
+                        s.c +
+                        '"></span><span style="flex:1;color:var(--ink)">' +
+                        s.label +
+                        '</span><span class="mono" style="color:var(--dim)">' +
+                        s.v +
+                        '%</span></div>'
+                )
+                .join('') +
+            '</div></div>';
+        const canvas = body.querySelector('.don');
+        const ctx = canvas.getContext('2d');
+        let raf,
+            prog = 0;
+        function draw() {
+            const dpr = window.devicePixelRatio || 1;
+            const sz = Math.max(1, Math.min(canvas.clientWidth, canvas.clientHeight));
+            canvas.width = sz * dpr;
+            canvas.height = sz * dpr;
+            const cx = (sz * dpr) / 2,
+                cy = (sz * dpr) / 2,
+                R = sz * dpr * 0.46,
+                r = sz * dpr * 0.29;
+            ctx.clearRect(0, 0, sz * dpr, sz * dpr);
+            prog = Math.min(1, prog + 0.035);
+            let a = -Math.PI / 2;
+            const total = segs.reduce((s, x) => s + x.v, 0);
+            segs.forEach((s) => {
+                const ang = (s.v / total) * Math.PI * 2 * prog;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.arc(cx, cy, R, a, a + ang);
+                ctx.closePath();
+                ctx.fillStyle = s.c;
+                ctx.fill();
+                a += ang;
+            });
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, 7);
+            ctx.fill();
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.fillStyle = '#dfe7f5';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = '700 ' + 17 * dpr + 'px -apple-system, sans-serif';
+            ctx.fillText('$4.2B', cx, cy - 6 * dpr);
+            ctx.fillStyle = '#8ea2c4';
+            ctx.font = 10 * dpr + 'px -apple-system, sans-serif';
+            ctx.fillText('AUM', cx, cy + 13 * dpr);
+            // Keep redrawing (cheap) so the donut survives a resize/maximise.
+            raf = requestAnimationFrame(draw);
+        }
+        raf = requestAnimationFrame(draw);
+        return { stop: () => cancelAnimationFrame(raf) };
+    }
+
+    // ======================================================================
     // Kind → widget.
     // ======================================================================
     const REGISTRY = {
@@ -696,6 +932,9 @@
         },
         terminal: consoleLog,
         field: consoleLog,
+        lines: lineChart,
+        bars: barChart,
+        donut: donutChart,
     };
 
     window.MovieWidgets = {

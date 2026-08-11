@@ -71,6 +71,15 @@ export async function buildBase({ page, wait, movie }) {
         referencePanel: 'positions',
         direction: 'below',
     });
+    await wait(200);
+    // Colourful analytics tabs alongside the network view — varied chart types
+    // (lines / bars / donut) so the desk reads as a rich, multi-chart dashboard.
+    await movie('addTabs', 'nodes', [
+        { id: 'perf', title: 'Performance', kind: 'lines' },
+        { id: 'flow', title: 'Order Flow', kind: 'bars' },
+        { id: 'alloc', title: 'Allocation', kind: 'donut' },
+    ]);
+    await movie('activate', 'perf');
     await wait(240);
     await page.evaluate(() => {
         const m = window.__movie;
@@ -200,6 +209,52 @@ export const beats = {
             await movie('exitMax');
             await movie('highlight', null);
             await wait(900);
+        },
+    },
+
+    // ---- Analytics: cycle the colourful chart tabs (lines / bars / donut) ----
+    analytics: {
+        id: 'analytics',
+        tag: 'Live charts',
+        title: 'Any chart in any panel',
+        aliases: [
+            'analytics',
+            'charts',
+            'chart types',
+            'dashboard',
+            'graphs',
+            'bar chart',
+            'line chart',
+            'donut',
+            'pie',
+            'visualis',
+            'visualiz',
+        ],
+        caption: ['Any content', 'live charts in every panel'],
+        order: 34,
+        needsBase: true,
+        async run(ctx) {
+            const { page, dir, wait, movie } = ctx;
+            await movie('activate', 'perf');
+            await movie('maximize', 'perf');
+            await wait(1700);
+            // Glide across the analytics tabs so each colourful chart shows.
+            for (const [id, label] of [
+                ['flow', 'Order Flow'],
+                ['alloc', 'Allocation'],
+                ['nodes', 'Global Network'],
+                ['perf', 'Performance'],
+            ]) {
+                await dir.move({
+                    to: { selector: `.dv-tab:has-text("${label}")` },
+                    duration: 520,
+                });
+                await dir.click({ hold: 70 });
+                await movie('activate', id);
+                await wait(1500);
+            }
+            await movie('exitMaxGroup', 'perf');
+            await wait(800);
         },
     },
 
