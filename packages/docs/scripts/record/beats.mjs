@@ -157,8 +157,30 @@ export const beats = {
             const { page, dir, wait, movie, size } = ctx;
             const W = size.width;
             const H = size.height;
-            await tabMenu(ctx, 'Order Book', 'Float');
-            await wait(520);
+            // Open the right-click menu, then pan the camera onto it so the eye
+            // follows the interaction, click Float, and pull back out before the
+            // drag (which uses viewport coordinates, so it needs the reset view).
+            await dir.move({
+                to: { selector: '.dv-tab:has-text("Order Book")' },
+                duration: 620,
+            });
+            await wait(260);
+            await dir.click({ button: 'right', hold: 90 });
+            await page
+                .locator('.dv-context-menu')
+                .first()
+                .waitFor({ state: 'visible', timeout: 5000 });
+            await wait(360);
+            await movie('cameraTo', '.dv-context-menu', 0.46, 0.04);
+            await wait(1300); // let the pan settle before the boundingBox click
+            await dir.click({
+                to: { selector: '.dv-context-menu-item:has-text("Float")' },
+                duration: 520,
+                hold: 80,
+            });
+            await wait(500);
+            await movie('cameraReset');
+            await wait(1300); // let it pan back before the drag grabs the float
             await dir.drag({
                 from: { selector: '.dv-floating-titlebar' },
                 waypoints: [
@@ -284,7 +306,7 @@ export const beats = {
             // Push the camera in on the console group so the small chip feature
             // reads large, with the rest of the desk kept as soft context.
             await movie('zoomTo', 'term', 0.96);
-            await wait(1000);
+            await wait(1350); // let the pan settle before chip interactions
             await movie('tabGroup', 'term', 'Monitoring', 'blue', [
                 'tg_news',
                 'tg_alerts',

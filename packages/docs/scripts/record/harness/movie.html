@@ -281,10 +281,17 @@
             /* Wrapper carries the transform for the dual-monitor "shrink into
                screen 1" move + the zoom-to-group focus. */
             #dockwrap {
-                /* Gentle, slightly slow ease with a soft landing — reads as a
-                   deliberate camera move rather than a snap. */
-                transition: transform 1050ms cubic-bezier(0.32, 0.04, 0.15, 1);
+                /* Symmetric ease-in-out — a deliberate, gliding camera move
+                   that eases off both ends rather than snapping. */
+                transition: transform 1150ms cubic-bezier(0.62, 0, 0.2, 1);
                 transform-origin: 0 0;
+                /* Promote to its own compositor layer so the pan is a pure GPU
+                   transform, independent of the live panels repainting beneath
+                   it (candles, tape, canvases) — that repaint contention was
+                   the source of the judder. */
+                will-change: transform;
+                transform: translateZ(0);
+                backface-visibility: hidden;
             }
             /* Solo mode — fade every group except the focused one (+ sashes) so
                only a single group is visible during the "within a group" beat. */
