@@ -673,6 +673,15 @@ function assertBundlesBuilt() {
         );
         process.exit(1);
     }
+    // The movie stage renders the real /demo React panels from this bundle.
+    if (!existsSync(path.join(__dirname, 'harness', 'panels.bundle.js'))) {
+        console.error(
+            `\n✗ Missing the trading-panels bundle (scripts/record/harness/panels.bundle.js).\n` +
+                `\n  Build it once (from packages/docs):\n\n` +
+                `    yarn build:harness-panels\n`
+        );
+        process.exit(1);
+    }
 }
 
 async function assertServerUp() {

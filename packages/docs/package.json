@@ -13,6 +13,7 @@
     "typecheck": "tsc",
     "build-templates": "node scripts/buildTemplates.mjs",
     "build-templates:local": "node scripts/buildTemplates.mjs --local",
+    "build:harness-panels": "node scripts/record/buildPanels.mjs",
     "record-clips": "node scripts/record/recordClips.mjs"
   },
   "browserslist": {

@@ -37,6 +37,25 @@ and wraps the beats with the title / end cards. To add a capability, append a be
 to `beats.mjs` (give it `aliases` for prompt matching); it is instantly available
 to `--prompt`, `--features` and the `everything` tour.
 
+## Panels
+
+The movie stage (`harness/movie.html`) renders the **real `/demo` trading panels**
+(order book, chart, watchlist, positions, news, correlation, signals, …), so a
+clip shows the genuine product, not mock widgets. They are the React components
+from `sandboxes/react/dockview/demo-dockview/src`, bundled by
+`harness/panels.bundle.js` from `demo-dockview/src/harnessPanels.tsx`, which
+exposes `window.MovieWidgets.mount(el, kind, title)`. All panels render through
+one shared market simulation (via React portals) so prices stay consistent across
+the desk. Rebuild the bundle after changing a demo panel:
+
+```bash
+# from packages/docs
+yarn build:harness-panels
+```
+
+A scene's panel `kind` (`chart`, `depth`, `positions`, `watch`, `heat`, …) maps
+to a demo component in `harnessPanels.tsx`.
+
 ## Prerequisites
 
 - **ffmpeg** on your `PATH` (`ffmpeg -version`).

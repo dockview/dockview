@@ -52,32 +52,31 @@ export async function buildBase({ page, wait, movie }) {
         direction: 'right',
     });
     await wait(300);
-    await movie('add', 'tape', 'Time & Sales', 'tape', {
+    await movie('add', 'tape', 'Orders', 'tape', {
         referencePanel: 'chart',
         direction: 'below',
     });
     await wait(260);
-    await movie('add', 'heat', 'Sector Heatmap', 'heat', {
+    await movie('add', 'heat', 'Correlation', 'heat', {
         referencePanel: 'tape',
         direction: 'within',
     });
     await wait(180);
-    await movie('add', 'term', 'Console', 'terminal', {
+    await movie('add', 'term', 'Newswire', 'terminal', {
         referencePanel: 'tape',
         direction: 'within',
     });
     await wait(260);
-    await movie('add', 'nodes', 'Global Network', 'nodes', {
+    await movie('add', 'nodes', 'Alerts', 'nodes', {
         referencePanel: 'positions',
         direction: 'below',
     });
     await wait(200);
-    // Colourful analytics tabs alongside the network view — varied chart types
-    // (lines / bars / donut) so the desk reads as a rich, multi-chart dashboard.
+    // A tabbed analytics group beside the alerts panel — distinct panel types
+    // (signals / vol surface) so the desk reads as a varied, multi-panel desk.
     await movie('addTabs', 'nodes', [
-        { id: 'perf', title: 'Performance', kind: 'lines' },
-        { id: 'flow', title: 'Order Flow', kind: 'bars' },
-        { id: 'alloc', title: 'Allocation', kind: 'donut' },
+        { id: 'perf', title: 'Signals', kind: 'lines' },
+        { id: 'flow', title: 'Vol Surface', kind: 'bars' },
     ]);
     await movie('activate', 'perf');
     await wait(240);
@@ -230,7 +229,7 @@ export const beats = {
             'visualis',
             'visualiz',
         ],
-        caption: ['Any content', 'live charts in every panel'],
+        caption: ['Any content', 'real panels in every view'],
         order: 34,
         needsBase: true,
         async run(ctx) {
@@ -238,12 +237,11 @@ export const beats = {
             await movie('activate', 'perf');
             await movie('maximize', 'perf');
             await wait(1700);
-            // Glide across the analytics tabs so each colourful chart shows.
+            // Glide across the analytics tabs so each distinct panel shows.
             for (const [id, label] of [
-                ['flow', 'Order Flow'],
-                ['alloc', 'Allocation'],
-                ['nodes', 'Global Network'],
-                ['perf', 'Performance'],
+                ['flow', 'Vol Surface'],
+                ['nodes', 'Alerts'],
+                ['perf', 'Signals'],
             ]) {
                 await dir.move({
                     to: { selector: `.dv-tab:has-text("${label}")` },

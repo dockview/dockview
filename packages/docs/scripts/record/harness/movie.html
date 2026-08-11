@@ -593,7 +593,11 @@
 
         <script src="/packages/dockview/dist/dockview.js"></script>
         <script src="/packages/dockview-enterprise/dist/dockview-enterprise.js"></script>
-        <script src="./movieWidgets.js"></script>
+        <!-- Real /demo trading panels (React), bundled from the demo-dockview
+             sandbox. Exposes window.MovieWidgets.mount — see
+             ../../../sandboxes/react/dockview/demo-dockview/src/harnessPanels.tsx
+             and package.json → build:harness-panels. -->
+        <script src="./panels.bundle.js"></script>
         <script>
             (function () {
                 const lib = window['dockview'];
@@ -721,6 +725,14 @@
                 const captionEl = document.getElementById('caption');
                 const setTheme = (name) => {
                     if (THEMES[name]) component.updateOptions({ theme: THEMES[name] });
+                    // Flip the real panels' colour tokens to match a light theme.
+                    if (window.MovieWidgets && window.MovieWidgets.setColors) {
+                        window.MovieWidgets.setColors(
+                            name === 'light' || name === 'visualStudio'
+                                ? 'light'
+                                : 'dark'
+                        );
+                    }
                 };
 
                 window.__movie = {
