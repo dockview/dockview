@@ -175,19 +175,26 @@ export const beats = {
                 .waitFor({ state: 'visible', timeout: 5000 });
             await wait(340);
             // 2. Pan IN onto the menu — the interaction is the focus.
-            await movie('cameraTo', '.dv-context-menu', 0.46, 0.04);
-            await wait(1300); // settle before the boundingBox click
-            // 3. Click Float, then glide the camera across to a gentle zoom on
-            //    the new floating group — it is now the focus. One continuous
-            //    move that follows the action to the panel. (The float lands at
-            //    a known centre from the harness config, so this needs no
-            //    transform-aware measurement.)
+            await movie('cameraTo', '.dv-context-menu', 0.5, 0.04);
+            await wait(1250); // hold on the menu
+            // 3. Pan back to identity BEFORE clicking, then click Float. The
+            //    click must land at identity: under the camera zoom the menu
+            //    item's hit-target does not register the float reliably.
+            await movie('cameraReset');
+            await wait(1250);
             await dir.click({
                 to: { selector: '.dv-context-menu-item:has-text("Float")' },
                 duration: 520,
                 hold: 80,
             });
-            await wait(420);
+            // 4. Glide the camera to a gentle zoom on the new floating group —
+            //    it is now the focus. (It lands at a known centre from the
+            //    harness config, so this needs no transform-aware measurement.)
+            await page
+                .locator('.dv-floating-titlebar')
+                .first()
+                .waitFor({ state: 'visible', timeout: 5000 });
+            await wait(450);
             const fx = Math.round(W * 0.026 + 630 + 280);
             const fy = Math.round(H * 0.026 + 300 + 205);
             await movie('focusPoint', fx, fy, 1.16);
