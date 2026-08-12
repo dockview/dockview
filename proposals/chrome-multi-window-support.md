@@ -656,12 +656,27 @@ export interface DockviewDetachedWindowHost {
 
 interface DockviewComponentOptions {
     /* … */
-    /** When set, addPopoutGroup delegates to this host instead of opening a
-     *  same-origin window (a multi-webview host has no working alternative,
-     *  so presence implies detached mode for all popouts). */
+    /** Enables the detached transport. See mode resolution below — hosts
+     *  that also support same-origin windows (Electron) can use both
+     *  transports side by side. */
     detachedWindowHost?: DockviewDetachedWindowHost;
 }
+
+export interface DockviewPopoutGroupOptions {
+    /* … */
+    /** Which transport this popout uses when both are available.
+     *  'window'  → same-origin Window (live DOM, §4.7-A / default path)
+     *  'detached'→ the detachedWindowHost protocol (§4.7-B) */
+    mode?: 'window' | 'detached';
+}
 ```
+
+Mode resolution: explicit per‑call `mode` → component‑level default
+(`defaultPopoutMode`, optional) → `'detached'` only when a
+`detachedWindowHost` is configured and no same‑origin path exists →
+`'window'`. A pure multi‑webview host (Tauri) simply never configures the
+window path, so everything is detached; a browser app without a host is
+all‑window; an Electron app can run both (below).
 
 Main-window lifecycle: `addPopoutGroup` serializes the group, **removes it
 from the local layout** (reference-group semantics preserved for the return
@@ -697,15 +712,90 @@ enterprise is a product call; it composes with, but does not require,
 `ScreenManagement` (the `screen`/`box` in the request come from the §4.1
 snapshot when available, else the fallback box).
 
-### 4.8 Backwards-compatibility guarantees
+#### Worked scenario: process-isolated Electron over an event bus
+
+The mixed-mode design above is aimed squarely at this shape of app: an
+Electron workspace where some popouts stay in the opener's renderer process
+(same-origin `window.open` children share it — that's why live DOM transfer
+works) and others run as **separate BrowserWindows in their own renderer
+processes** for crash isolation, sandboxing, or heavy content (GPU-hungry
+canvases, untrusted plugin panels). The isolated windows cannot share DOM by
+construction, so they ride the detached protocol:
+
+- **Transport = the app's event bus, not dockview's.** The natural Electron
+  wiring is `MessageChannelMain`: main creates a channel per detached window
+  and hands one `MessagePort` to each renderer, giving the two dockview
+  instances a direct pipe with no main-process relay (or the app uses its
+  existing ipc bus — dockview only ever sees the `DetachedWindowHandle`).
+- **Everything on the bus is model, never DOM.** The handle's
+  `onDidUpdateState` pushes are `SerializedPopoutGroup` values; "move this
+  panel to window 2" is serialize‑remove‑send‑add via the same
+  `(component, params)` contract. Dockview's job is to make those model-level
+  operations complete and symmetrical (`adoptDetachedState`, panel/group
+  add-from-state), not to own the bus.
+- **A coordinator falls out naturally.** The main dockview window acts as
+  layout owner: it holds the reference positions, aggregates
+  `onDidUpdateState` into `SerializedDockview.detachedWindows`, and persists
+  one document covering every process. On app relaunch, restore replays
+  `host.open(...)` per saved detached window — same code path as §5.
+- **The two transports coexist per popout**: a stock-ticker panel pops out
+  as a same-process window (its WebSocket and scroll state survive live); a
+  third-party plugin panel pops out detached into a sandboxed process. Same
+  `addPopoutGroup` call, one `mode` field apart.
+
+### 4.8 Long-term direction: state-first, not DOM-free
+
+Strategy B is not a bolt-on — it names the architectural end-state this
+proposal is walking toward, so it's worth stating precisely. The long-term
+strategy is **the serialized model becomes the contract; the DOM becomes one
+transport**. That is different from "DOM independence" in one load-bearing
+way:
+
+Dockview already has a dual nature. Every layout exists twice: as the live
+DOM instance (gridview trees holding real elements) and as the declarative
+model (`SerializedDockview` / `GroupPanelViewState` — panels as
+`(component, params)`), and `fromJSON` proves the model is sufficient to
+rebuild everything. What §4.7 does is promote that model from "persistence
+format" to "wire protocol": the detached host consumes it live, not just at
+save/load time.
+
+But the DOM-moving popout must remain a first-class transport, not a legacy
+path, because it does something the model fundamentally cannot: **live
+identity preservation**. A popped-out panel keeps its unserialized runtime
+state — scroll positions, playing video, WebGL contexts, form inputs, a
+mounted React tree. Serialize-and-rebuild loses all of that by definition
+(the `fromJSON` contract: anything not in `params` is gone). So the two
+mechanisms are not old-vs-new; they are two transports with different
+guarantees:
+
+| | Same-origin window (DOM move) | Detached (state protocol) |
+|---|---|---|
+| Runtime state | preserved live | rebuilt from `params` |
+| Boundary | same process/origin only | any (webview, process, machine) |
+| Cross-window dnd | yes | no (app-level) |
+| Hosts | browsers, Electron (same process) | Tauri, process‑isolated Electron, anything |
+
+The pragmatic sequencing, consistent with the zero-breaking-changes rule
+(§4.8 below): grow the seam outward from serialization rather than
+rewriting the engine. This proposal's pieces are deliberate steps on that
+path — `ScreenManager` is already a DOM-independent service,
+`DetachedWindowOpenRequest` makes the model a live contract, and
+`adoptDetachedState()` is the first model-level mount API. A future step
+(explicitly out of scope here) could formalize both transports behind one
+internal `GroupHost` abstraction and make the model observable, at which
+point headless layout, cross-machine sync, and collaborative layouts fall
+out of the same seam — but nothing in this proposal needs to wait for that,
+and none of it requires the live-DOM path to go away.
+
+### 4.9 Backwards-compatibility guarantees
 
 Restating the constraint that binds every section above — **zero breaking
 changes**:
 
-- Every new option (`screen`, `placement`, `fullscreen`,
+- Every new option (`screen`, `placement`, `fullscreen`, `mode`,
   `extraWindowFeatures`, `screenAdapter`, `popoutWindowFactory`,
-  `detachedWindowHost`) is optional; omitting them all reproduces today's
-  behaviour exactly.
+  `detachedWindowHost`, `defaultPopoutMode`) is optional; omitting them all
+  reproduces today's behaviour exactly.
 - Existing event payloads gain only **optional** fields (`screen?` on
   `PopoutGroup` / `PopoutGroupChangePositionEvent`); no payload field is
   renamed, retyped, or removed.
