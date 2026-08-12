@@ -157,30 +157,26 @@ export const beats = {
             const { page, dir, wait, movie, size } = ctx;
             const W = size.width;
             const H = size.height;
-            // 1. Pan IN on the Order Book tab — the point of interaction.
-            const tb = await page
-                .locator('.dv-tab:has-text("Order Book")')
-                .first()
-                .boundingBox();
-            await movie(
-                'focusPoint',
-                Math.round(tb.x + tb.width / 2),
-                Math.round(tb.y + tb.height + 140),
-                1.5
-            );
-            await wait(1300); // settle before interacting (boundingBox clicks)
-            // 2. Right-click the (now enlarged) tab to open the context menu.
+            // 1. Right-click the Order Book tab to open the context menu. This
+            //    MUST happen at identity: dockview positions the menu in
+            //    untransformed coordinates, so opening it while the camera is
+            //    already zoomed renders it in the wrong place. We open first,
+            //    then pan — the menu is inside the camera layer, so it scales
+            //    and stays aligned.
             await dir.move({
                 to: { selector: '.dv-tab:has-text("Order Book")' },
-                duration: 480,
+                duration: 620,
             });
-            await wait(220);
+            await wait(260);
             await dir.click({ button: 'right', hold: 90 });
             await page
                 .locator('.dv-context-menu')
                 .first()
                 .waitFor({ state: 'visible', timeout: 5000 });
-            await wait(650); // hold on the menu, zoomed in
+            await wait(340);
+            // 2. Pan IN onto the menu — the interaction is the focus.
+            await movie('cameraTo', '.dv-context-menu', 0.46, 0.04);
+            await wait(1300); // settle before the boundingBox click
             // 3. Click Float, then glide the camera across to a gentle zoom on
             //    the new floating group — it is now the focus. One continuous
             //    move that follows the action to the panel. (The float lands at
