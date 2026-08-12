@@ -1113,6 +1113,23 @@
                     zoomReset() {
                         document.getElementById('dockwrap').style.transform = '';
                     },
+                    // Pan+zoom so a specific viewport point (in the UN-transformed
+                    // content space) sits centred at `scale`. Coordinates are
+                    // absolute, so this works as a continuous move even while an
+                    // earlier transform is in effect (the transform is replaced).
+                    focusPoint(cx, cy, scale) {
+                        scale = scale || 1.4;
+                        const vw = window.innerWidth,
+                            vh = window.innerHeight;
+                        document.getElementById('dockwrap').style.transform =
+                            'translate(' +
+                            (vw / 2 - cx * scale) +
+                            'px,' +
+                            (vh / 2 - cy * scale) +
+                            'px) scale(' +
+                            scale +
+                            ')';
+                    },
                     // Camera push-in on any element/region (keeps surrounding
                     // context — just magnifies + centres — to guide the eye).
                     cameraTo(selector, fill, biasX, biasY) {

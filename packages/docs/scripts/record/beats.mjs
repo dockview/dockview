@@ -157,46 +157,54 @@ export const beats = {
             const { page, dir, wait, movie, size } = ctx;
             const W = size.width;
             const H = size.height;
-            // Open the right-click menu and pan the camera onto it so the eye
-            // follows the interaction. Then pan back OUT before clicking Float,
-            // so the panel opens into the full frame (not off in the corner of a
-            // zoomed-in view), and it is positioned centrally by the harness.
+            // 1. Pan IN on the Order Book tab — the point of interaction.
+            const tb = await page
+                .locator('.dv-tab:has-text("Order Book")')
+                .first()
+                .boundingBox();
+            await movie(
+                'focusPoint',
+                Math.round(tb.x + tb.width / 2),
+                Math.round(tb.y + tb.height + 140),
+                1.5
+            );
+            await wait(1300); // settle before interacting (boundingBox clicks)
+            // 2. Right-click the (now enlarged) tab to open the context menu.
             await dir.move({
                 to: { selector: '.dv-tab:has-text("Order Book")' },
-                duration: 620,
+                duration: 480,
             });
-            await wait(260);
+            await wait(220);
             await dir.click({ button: 'right', hold: 90 });
             await page
                 .locator('.dv-context-menu')
                 .first()
                 .waitFor({ state: 'visible', timeout: 5000 });
-            await wait(360);
-            await movie('cameraTo', '.dv-context-menu', 0.46, 0.04);
-            await wait(1250); // hold on the menu
-            await movie('cameraReset');
-            await wait(1300); // pan out and settle before floating
+            await wait(650); // hold on the menu, zoomed in
+            // 3. Click Float, then glide the camera across to a gentle zoom on
+            //    the new floating group — it is now the focus. One continuous
+            //    move that follows the action to the panel. (The float lands at
+            //    a known centre from the harness config, so this needs no
+            //    transform-aware measurement.)
             await dir.click({
                 to: { selector: '.dv-context-menu-item:has-text("Float")' },
                 duration: 520,
                 hold: 80,
             });
-            await wait(750); // the group floats in, centred and in frame
-            await dir.drag({
-                from: { selector: '.dv-floating-titlebar' },
-                waypoints: [
-                    { x: Math.round(W * 0.42), y: Math.round(H * 0.52) },
-                    { x: Math.round(W * 0.62), y: Math.round(H * 0.34) },
-                ],
-                duration: 850,
-                dwell: 220,
-            });
-            await wait(700);
+            await wait(420);
+            const fx = Math.round(W * 0.026 + 630 + 280);
+            const fy = Math.round(H * 0.026 + 300 + 205);
+            await movie('focusPoint', fx, fy, 1.16);
+            await wait(1750); // hold on the floating group
+            // 4. Pan out, then dock it back at full view so the snap into the
+            //    layout is visible.
+            await movie('cameraReset');
+            await wait(1250);
             await movie('caption', 'Dock', 'snap it anywhere');
             await dir.drag({
                 from: { selector: '.dv-floating-titlebar' },
                 to: { x: Math.round(W * 0.32), y: Math.round(H * 0.42) },
-                duration: 780,
+                duration: 820,
                 settle: 320,
             });
             // Land the dock deterministically (a pointer drop can miss).
