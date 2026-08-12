@@ -221,31 +221,15 @@ Behaviour:
 Extend `DockviewPopoutGroupOptions` (`dockviewComponent.ts:175`) —
 **backwards‑compatible, all new fields optional**:
 
-```ts
-export type ScreenPlacement =
-    | { type: 'center'; width?: number; height?: number }
-    | { type: 'fill' }                       // fill the screen's work area
-    | { type: 'box'; box: Box };             // explicit, relative to screen origin
+Three new optional fields: `screen?: DockviewScreenTarget`,
+`placement?: ScreenPlacement`, `fullscreen?: boolean` — full interface and type
+definitions in §4.5.
 
-export interface DockviewPopoutGroupOptions {
-    position?: Box;                          // unchanged (main-screen relative)
-    popoutUrl?: string;
-    onDidOpen?: (event: { id: string; window: Window }) => void;
-    onWillClose?: (event: { id: string; window: Window }) => void;
-
-    // NEW — target a specific screen. Ignored (with a console warning) when the
-    // Window Management API is unavailable; falls back to `position`.
-    screen?: DockviewScreen | 'primary' | 'current' | number /* index */;
-    placement?: ScreenPlacement;             // how to size/anchor on `screen`
-    fullscreen?: boolean;                    // request fullscreen on `screen`
-}
-```
-
-`screen` union semantics: `'current'` = the screen hosting the main window;
-`'primary'` = `isPrimary`; a `number` indexes the array last returned by
-`getScreens()` (out of range → fallback + one‑time warning); a
-`DockviewScreen` object is matched by identity against the current snapshot
-(stale object → re‑resolve by `id`, else fallback).
+`DockviewScreenTarget` semantics: `'current'` = the screen hosting the main
+window; `'primary'` = `isPrimary`; a `number` indexes `api.screens` (out of
+range → fallback + one‑time warning); a `DockviewScreen` object is matched by
+identity against the current snapshot (stale object → re‑resolve by `id`, else
+fallback).
 
 Resolution order in `addPopoutGroup`'s `getBox()`
 (`dockviewComponent.ts:1885‑1912`):
@@ -313,22 +297,201 @@ that gets unplugged is simply lost.
 > realm‑crossing `getScreenDetails()` call needed. Use that to enrich
 > `onDidPopoutGroupPositionChange` with the resolved `DockviewScreen`.
 
-### 4.5 Public API additions
+### 4.5 Public API
 
-On `DockviewComponent` and mirrored in `component.api.ts` (`DockviewApi`):
+All types exported from `dockview-core` (and re‑exported by the wrappers);
+implementations ship per the packaging decision (§11). Naming follows the
+existing conventions: `onDidX` event getters, `getX()` methods beside
+`getWindow()` on the group API, commands `assertModule`‑guarded, queries
+silent.
+
+**Exported types:**
 
 ```ts
-// discovery
-api.hasWindowManagement: boolean;                 // ScreenManager.isSupported
-api.getScreens(): Promise<DockviewScreen[]>;      // prompts on first call ('prompt' state) — call from a gesture
-api.onDidChangeScreens: Event<DockviewScreen[]>;
+export interface DockviewScreen {
+    readonly id: string;           // stable within a session; best-effort across
+    readonly label: string;        // e.g. 'DELL U2720Q' — '' until permission granted
+    readonly isPrimary: boolean;
+    readonly isInternal: boolean;  // built-in laptop panel
+    readonly isCurrent: boolean;   // hosts the main dockview window
+    readonly bounds: Box;          // full bounds, multi-screen coordinate space
+    readonly workArea: Box;        // bounds minus taskbars/docks
+    readonly devicePixelRatio: number;
+}
 
-// placement helpers already flow through addPopoutGroup options.
+/** How to size/anchor a popout on its target screen. */
+export type ScreenPlacement =
+    | { type: 'center'; width?: number; height?: number }
+    | { type: 'fill' }
+    | { type: 'box'; box: Box };   // relative to the screen's workArea origin
+
+/** Accepted anywhere a screen can be named. */
+export type DockviewScreenTarget =
+    | DockviewScreen               // from getScreens() / api.screens
+    | 'primary'
+    | 'current'
+    | number;                      // index into api.screens
+
+export type WindowManagementPermissionState =
+    | 'granted' | 'prompt' | 'denied' | 'unsupported';
+
+export interface DockviewScreensChangeEvent {
+    readonly screens: readonly DockviewScreen[];
+    readonly added: readonly DockviewScreen[];    // hotplugged this change
+    readonly removed: readonly DockviewScreen[];  // unplugged this change
+}
 ```
 
-`getScreens()` is the one method a consumer calls (from a click handler) to
-build a "move to screen ▸" menu; the returned `DockviewScreen[]` values are the
-exact objects accepted by `addPopoutGroup({ screen })`.
+**`DockviewApi` (component level):**
+
+```ts
+interface DockviewApi {
+    // --- queries: silent, safe without the module/API/permission ---
+
+    /** True when the Window Management API exists AND the module is loaded. */
+    readonly hasWindowManagement: boolean;
+
+    /** Last-known snapshot; single synthetic screen until details resolve. */
+    readonly screens: readonly DockviewScreen[];
+
+    /** Where the permission stands; never prompts. */
+    getWindowManagementPermission(): Promise<WindowManagementPermissionState>;
+
+    /** Screen hotplug / resolution / arrangement changes. Never fires
+     *  without the module + granted permission. */
+    readonly onDidChangeScreens: Event<DockviewScreensChangeEvent>;
+
+    // --- commands: assertModule-guarded ---
+
+    /** Resolves the true screen list. Prompts when permission is 'prompt',
+     *  so call from a user gesture (click handler). Resolves to the
+     *  single-screen fallback when unsupported/denied. */
+    getScreens(): Promise<DockviewScreen[]>;
+
+    // --- existing method, extended options (see below) ---
+    addPopoutGroup(
+        item: IDockviewPanel | DockviewGroupPanel,
+        options?: DockviewPopoutGroupOptions
+    ): Promise<boolean>;
+}
+```
+
+**`addPopoutGroup` options (extended, all new fields optional):**
+
+```ts
+export interface DockviewPopoutGroupOptions {
+    position?: Box;                    // unchanged
+    popoutUrl?: string;                // unchanged
+    onDidOpen?: (event: { id: string; window: Window }) => void;
+    onWillClose?: (event: { id: string; window: Window }) => void;
+
+    /** Target screen. Without the module / API / permission: one deduped
+     *  console error, then behaves as if unset. */
+    screen?: DockviewScreenTarget;
+    /** Sizing on the target screen. Default { type: 'center' } sized to the
+     *  source element. Only meaningful with `screen`. */
+    placement?: ScreenPlacement;
+    /** Open fullscreen on the target screen (fullscreen window feature,
+     *  falls back to filling the work area). */
+    fullscreen?: boolean;
+}
+```
+
+**`DockviewGroupPanelApi` (group level)** — sits beside the existing
+`getWindow()` (`dockviewGroupPanelApi.ts:236`):
+
+```ts
+interface DockviewGroupPanelApi {
+    /** The screen this group's window currently occupies (geometric
+     *  containment of the window's centre against the snapshot).
+     *  `undefined` until the snapshot is populated. Works for grid /
+     *  floating groups too — they resolve to the main window's screen. */
+    getScreen(): DockviewScreen | undefined;
+
+    /** Move this popout window to another screen. Unlike opening, the
+     *  window already exists, so this MAY await a first-time permission
+     *  prompt safely (no popup blocker involved). Resolves false (with the
+     *  usual deduped diagnostics) for non-popout groups, missing module,
+     *  or denied permission. */
+    moveToScreen(
+        screen: DockviewScreenTarget,
+        placement?: ScreenPlacement
+    ): Promise<boolean>;
+
+    /** Fullscreen toggle for a popout window. NOTE: requestFullscreen needs
+     *  transient activation in the popout's own realm, so this only succeeds
+     *  when called from an interaction inside that window (which is where
+     *  panel content — and thus the consumer's click handlers — lives).
+     *  Resolves false otherwise. */
+    setFullscreen(value: boolean): Promise<boolean>;
+    isFullscreen(): boolean;
+}
+```
+
+**Enriched existing surfaces** (additive, optional fields):
+
+```ts
+// getPopouts() entries and position-change events learn their screen:
+export interface PopoutGroup {
+    readonly id: string;
+    readonly group: DockviewGroupPanel;
+    readonly window: Window;
+    readonly screen?: DockviewScreen;          // NEW (undefined w/o snapshot)
+}
+
+export interface PopoutGroupChangePositionEvent {
+    /* existing fields unchanged */
+    readonly screen?: DockviewScreen;          // NEW
+}
+```
+
+**Usage sketches:**
+
+```ts
+// 1. "Move to screen ▸" context menu (gesture → may prompt once)
+const screens = await api.getScreens();
+menu.items = screens.map((s) => ({
+    label: s.label || (s.isPrimary ? 'Primary display' : 'Display'),
+    checked: group.api.getScreen()?.id === s.id,
+    onClick: () => group.api.moveToScreen(s),
+}));
+
+// 2. Open a panel popped-out and fullscreen on the first non-primary screen
+await api.addPopoutGroup(panel, {
+    screen: (await api.getScreens()).find((s) => !s.isPrimary) ?? 'current',
+    fullscreen: true,
+});
+
+// 3. Feature-gate the UI
+if (api.hasWindowManagement) {
+    showMultiScreenControls();
+}
+
+// 4. React to a monitor being unplugged (rehoming is automatic; this is
+//    for app-level UX like a toast)
+api.onDidChangeScreens((e) => {
+    if (e.removed.length > 0) {
+        toast(`${e.removed[0].label || 'A display'} was disconnected`);
+    }
+});
+```
+
+Design notes:
+
+- `getScreens()` (async, may prompt) vs `api.screens` (sync snapshot) mirrors
+  the ScreenManager split in §4.1 and keeps the no‑await rule easy to follow:
+  UI code awaits `getScreens()`; placement code reads `screens`.
+- `moveToScreen` is deliberately **popout‑only** rather than "popout if
+  needed": popping out has its own option set and failure modes
+  (`addPopoutGroup({ screen })` covers that path), and an implicit
+  grid→popout conversion on a mis‑targeted call would be surprising.
+- `setFullscreen`'s realm constraint is documented rather than hidden because
+  it is a hard platform rule; the common consumer pattern (a fullscreen button
+  rendered inside the popped‑out panel) satisfies it naturally.
+- Nothing here forces a prompt: every entry point degrades to today's
+  behaviour, and only `getScreens()` / `moveToScreen()` /
+  `addPopoutGroup({ screen })` — all gesture‑initiated consumer actions — can
+  trigger one.
 
 ## 5. Serialization & restoration
 
@@ -385,16 +548,19 @@ Small, independently‑shippable, each green before the next.
   (incl. the `'window-placement'` legacy fallback) + single‑screen fallback +
   unit tests (mock `getScreenDetails`). No wiring yet.
 - **Phase 1 — Discovery API.** `ServiceCollection` slot, `ScreenManagerModule`
-  in `allModules.ts`; `api.hasWindowManagement`, `api.getScreens()` (guarded
-  with `assertModule`), `api.onDidChangeScreens`.
+  registration; `api.hasWindowManagement`, `api.screens`,
+  `api.getScreens()` (guarded with `assertModule`),
+  `api.getWindowManagementPermission()`, `api.onDidChangeScreens`.
 - **Phase 2 — Targeted placement.** Extend `DockviewPopoutGroupOptions` with
   `screen` + `placement`; resolve in `addPopoutGroup.getBox()` from the cached
   snapshot only (no‑await rule); open‑then‑`moveTo` rehoming for the `prompt`
-  path; clamp to work area. Tests for coordinate math, clamping, and all
-  fallback rungs.
+  path; clamp to work area. Group‑level `getScreen()` / `moveToScreen()`;
+  `screen` on `PopoutGroup` and `PopoutGroupChangePositionEvent`. Tests for
+  coordinate math, clamping, and all fallback rungs.
 - **Phase 3 — Fullscreen on screen.** `fullscreen` option → `popup,fullscreen`
   window feature when permission is granted; `{type:'fill'}` fallback;
-  `fullscreenchange` relayout hook.
+  group‑level `setFullscreen()` / `isFullscreen()`; `fullscreenchange`
+  relayout hook.
 - **Phase 4 — Topology resilience.** Handle `onDidChangeScreens`: re‑clamp /
   re‑home popouts when screens change or are removed.
 - **Phase 5 — Serialization.** Screen hints in `serialize()`; screen‑aware
