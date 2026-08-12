@@ -647,11 +647,13 @@
                             {
                                 label: 'Float',
                                 action: () =>
+                                    // Open centred and well-sized so it lands in
+                                    // frame for the reel (the stage is ~1820x1024).
                                     params.api.addFloatingGroup(params.group, {
-                                        x: 540,
-                                        y: 170,
-                                        width: 380,
-                                        height: 430,
+                                        x: 630,
+                                        y: 300,
+                                        width: 560,
+                                        height: 410,
                                     }),
                             },
                             {

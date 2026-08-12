@@ -157,9 +157,10 @@ export const beats = {
             const { page, dir, wait, movie, size } = ctx;
             const W = size.width;
             const H = size.height;
-            // Open the right-click menu, then pan the camera onto it so the eye
-            // follows the interaction, click Float, and pull back out before the
-            // drag (which uses viewport coordinates, so it needs the reset view).
+            // Open the right-click menu and pan the camera onto it so the eye
+            // follows the interaction. Then pan back OUT before clicking Float,
+            // so the panel opens into the full frame (not off in the corner of a
+            // zoomed-in view), and it is positioned centrally by the harness.
             await dir.move({
                 to: { selector: '.dv-tab:has-text("Order Book")' },
                 duration: 620,
@@ -172,15 +173,15 @@ export const beats = {
                 .waitFor({ state: 'visible', timeout: 5000 });
             await wait(360);
             await movie('cameraTo', '.dv-context-menu', 0.46, 0.04);
-            await wait(1300); // let the pan settle before the boundingBox click
+            await wait(1250); // hold on the menu
+            await movie('cameraReset');
+            await wait(1300); // pan out and settle before floating
             await dir.click({
                 to: { selector: '.dv-context-menu-item:has-text("Float")' },
                 duration: 520,
                 hold: 80,
             });
-            await wait(500);
-            await movie('cameraReset');
-            await wait(1300); // let it pan back before the drag grabs the float
+            await wait(750); // the group floats in, centred and in frame
             await dir.drag({
                 from: { selector: '.dv-floating-titlebar' },
                 waypoints: [
