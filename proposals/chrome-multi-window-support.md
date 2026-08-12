@@ -563,16 +563,163 @@ export interface DockviewPopoutGroupOptions {
 }
 ```
 
-**Tauri (and other multi-webview hosts) — an honest boundary.** The adapter
-can supply screens (`availableMonitors()`), but it cannot save the popout
-mechanism itself: dockview popouts move live DOM nodes into the child window,
-which requires `window.open` to return a **same-process, same-origin `Window`
-with synchronous DOM access** — true in browsers and Electron, false in
-Tauri, where each window is an isolated webview with its own JS context. A
-Tauri multi-window story would be a different feature (serialize the group,
-render a fresh dockview instance in the second window, sync via events) and
-is explicitly out of scope here. The adapter interface neither helps nor
-hurts that; it just shouldn't be oversold as "Tauri support".
+**Tauri (and other multi-webview hosts) — a different mechanism.** The
+adapter can supply screens (`availableMonitors()`), but it cannot save the
+popout mechanism itself: dockview popouts move live DOM nodes into the child
+window, which requires `window.open` to return a **same-process, same-origin
+`Window` with synchronous DOM access** — true in browsers and Electron, false
+in Tauri, where each window is an isolated webview with its own JS context.
+Making those hosts work requires intercepting the popout at a higher level —
+that is §4.7's detached‑window protocol.
+
+### 4.7 Popout interception
+
+Two interception levels, both **strictly additive** — no existing option,
+event payload, serialized shape, or the `DockviewGroupLocation` union
+changes; every hook is a new optional field that, when absent, leaves
+today's code path byte-for-byte identical.
+
+#### Strategy A — window factory (same-document model preserved)
+
+The cheap seam: let the host supply the `Window`, keep everything else.
+`PopoutWindow.open()` (`popoutWindow.ts:112`) consults a factory before
+falling back to `window.open`:
+
+```ts
+export interface PopoutWindowOpenRequest {
+    readonly id: string;         // the window name dockview would pass to window.open
+    readonly url: string;        // resolved same-origin popout url
+    readonly box: Box;           // multi-screen coordinates
+    readonly features: string;   // the features string dockview would use
+    readonly screen?: DockviewScreen;
+}
+
+interface DockviewComponentOptions {
+    /* … */
+    /** Supply the popout Window yourself. Return null to signal "blocked"
+     *  (dockview runs its existing blocked-popout recovery). The returned
+     *  Window MUST be same-process and same-origin: dockview will drive its
+     *  normal pipeline against it (load → move container → clone styles). */
+    popoutWindowFactory?: (
+        request: PopoutWindowOpenRequest
+    ) => Window | null | Promise<Window | null>;
+}
+```
+
+Because the contract is "hand me a same-origin `Window`", everything
+downstream — DOM transfer, `addStyles`, `beforeunload` teardown, the nested
+gridview, drag-and-drop between windows — keeps working untouched. `null`
+routes into the existing `handleBlockedPopout` path, so failure handling is
+already built. `assertSameOriginPopoutUrl` still guards the URL regardless of
+who opens the window.
+
+Who uses it: Electron apps that want creation to flow through their own
+window logic; apps that pre-open or reuse windows; tests (today every popout
+spec monkey-patches global `window.open` — the factory makes that injection
+first-class).
+
+#### Strategy B — detached-window protocol (multi-webview hosts)
+
+For hosts where no same-origin `Window` can exist (Tauri, multi-webview
+embedders), interception has to happen **above the DOM**: dockview hands the
+host a *serialized* group and a placement, and the host owns the window. The
+payload is `SerializedPopoutGroup` (`dockviewComponent.ts:220`) — the exact
+shape popout serialization already writes (`data` for a single group, `grid`
+for a nested layout), so nothing new needs inventing:
+
+```ts
+export interface DetachedWindowOpenRequest {
+    readonly id: string;
+    readonly state: SerializedPopoutGroup;  // panels as (component + params)
+    readonly box: Box;
+    readonly screen?: DockviewScreen;
+}
+
+export interface DetachedWindowHandle {
+    /** Host → dockview: the external window closed. `state` (if given) is
+     *  reabsorbed into the layout at the reference group, mirroring how a
+     *  closing popout returns its group today. */
+    readonly onDidClose: Event<{ state?: SerializedPopoutGroup }>;
+    /** Optional: live state pushes so layout persistence stays current. */
+    readonly onDidUpdateState?: Event<SerializedPopoutGroup>;
+    /** Optional: live geometry for serialization. */
+    dimensions?(): Box | null;
+    /** Dockview → host: please close (e.g. component disposal). */
+    close(): void;
+}
+
+export interface DockviewDetachedWindowHost {
+    open(
+        request: DetachedWindowOpenRequest
+    ): DetachedWindowHandle | null | Promise<DetachedWindowHandle | null>;
+}
+
+interface DockviewComponentOptions {
+    /* … */
+    /** When set, addPopoutGroup delegates to this host instead of opening a
+     *  same-origin window (a multi-webview host has no working alternative,
+     *  so presence implies detached mode for all popouts). */
+    detachedWindowHost?: DockviewDetachedWindowHost;
+}
+```
+
+Main-window lifecycle: `addPopoutGroup` serializes the group, **removes it
+from the local layout** (reference-group semantics preserved for the return
+position, exactly like popouts), calls `host.open(...)`, and tracks the
+handle in a small registry. Child-window side: the app boots its own
+dockview instance and mounts the payload via a new convenience
+`api.adoptDetachedState(state)` (a thin wrapper over the `fromJSON` restore
+machinery, which already rebuilds groups from this shape). Transport between
+the two windows (Tauri events, IPC, BroadcastChannel) is entirely the app's —
+dockview never touches it.
+
+New API around it (all additive): `api.getDetachedWindows()`,
+`api.onDidAddDetachedWindow` / `api.onDidRemoveDetachedWindow`, and a
+`detachedWindows` array in `SerializedDockview` (old readers ignore unknown
+keys; layouts without detached windows serialize identically to today).
+
+Honest constraints, stated up front in docs:
+
+- Panels must be fully described by `(component, params)` — the **same
+  contract `fromJSON` already imposes**; live runtime state that isn't in
+  params does not cross the boundary.
+- No drag-and-drop between main and detached windows (no shared DOM); moving
+  panels across is an app-level serialize-and-send.
+- The child window loads its own styles/theme (no stylesheet cloning).
+- A detached group is **not in the local model**: it doesn't appear in
+  `getPopouts()` or `groups`, and — deliberately — `DockviewGroupLocation`
+  gains **no new variant**, because consumers exhaustively switch on
+  `location.type` and a new variant would be a breaking type change.
+
+Packaging: Strategy A is a core seam (tiny, pairs with `nonce`-style
+options). Strategy B is a separate module (`DetachedWindows`) — free vs
+enterprise is a product call; it composes with, but does not require,
+`ScreenManagement` (the `screen`/`box` in the request come from the §4.1
+snapshot when available, else the fallback box).
+
+### 4.8 Backwards-compatibility guarantees
+
+Restating the constraint that binds every section above — **zero breaking
+changes**:
+
+- Every new option (`screen`, `placement`, `fullscreen`,
+  `extraWindowFeatures`, `screenAdapter`, `popoutWindowFactory`,
+  `detachedWindowHost`) is optional; omitting them all reproduces today's
+  behaviour exactly.
+- Existing event payloads gain only **optional** fields (`screen?` on
+  `PopoutGroup` / `PopoutGroupChangePositionEvent`); no payload field is
+  renamed, retyped, or removed.
+- `DockviewGroupLocation` is untouched (see §4.7).
+- Serialization: layouts written by older versions load unchanged; layouts
+  written without the new features are **byte-identical** to today's output
+  (screen hints and `detachedWindows` are emitted only when present, and the
+  single-group `data` / multi-group `grid` invariant from
+  `popoutWindowService.ts:250‑263` is preserved).
+- `PopoutWindow` is not exported from the public index, so its constructor
+  and options changes are internal.
+- Consumer-implemented interfaces are all **new** (`DockviewScreenAdapter`,
+  `DockviewDetachedWindowHost`); no existing public interface gains a
+  required member.
 
 ## 5. Serialization & restoration
 
@@ -679,10 +826,18 @@ Small, independently‑shippable, each green before the next.
   re‑home popouts when screens change or are removed.
 - **Phase 5 — Serialization.** Screen hints in `serialize()`; screen‑aware
   restore with off‑screen clamping; round‑trip tests.
-- **Phase 6 — Docs, demo, framework wrappers.** Update
+- **Phase 6 — Popout window factory (§4.7 Strategy A).** `popoutWindowFactory`
+  option consulted in `PopoutWindow.open()`; `null` → existing blocked-popout
+  path; migrate one popout spec to inject via the factory as proof. Small and
+  independent — can land any time after Phase 0.
+- **Phase 7 — Detached-window protocol (§4.7 Strategy B).** `DetachedWindows`
+  module: `detachedWindowHost` option, handle registry,
+  `api.adoptDetachedState()`, `detachedWindows` in serialization, events.
+  Separable follow-up scope — nothing earlier depends on it.
+- **Phase 8 — Docs, demo, framework wrappers.** Update
   `packages/docs/docs/core/groups/popoutGroups.mdx`, add a "move to screen"
-  example to the docs sandbox, re‑export new types from
-  `dockview-react` / `-vue` / `-angular`.
+  example to the docs sandbox, an Electron adapter + Tauri detached recipe
+  page, re‑export new types from `dockview-react` / `-vue` / `-angular`.
 
 ## 9. Testing strategy
 
@@ -803,11 +958,12 @@ and are registered in `allModules.ts` instead).
 | core `src/types/windowManagement.d.ts` | **new** ambient declarations for the Window Management API |
 | core `src/dockview/moduleContracts.ts` | `IScreenManagerService` + `IScreenManagerHost` contracts |
 | core `src/dockview/modules.ts` | `screenManagerService` slot in `ServiceCollection`; `'ScreenManagement'` in `ENTERPRISE_MODULE_NAMES` |
-| core `src/popoutWindow.ts` | `fullscreen` option → `popup,fullscreen` features; `fullscreenchange` relayout |
+| core `src/popoutWindow.ts` | `fullscreen` option → `popup,fullscreen` features; `fullscreenchange` relayout; `popoutWindowFactory` consultation |
 | core `src/dockview/dockviewComponent.ts` | extend options, resolve `screen` in `getBox()` via `?.` seam, open‑then‑`moveTo` rehoming, new events/getters |
 | core `src/dockview/popoutWindowService.ts` | screen hints in `serialize()` via `?.` seam; screen‑aware restore |
 | core `src/api/component.api.ts` | `hasWindowManagement`, `getScreens()` (assertModule‑guarded), `onDidChangeScreens`, new option types |
-| core `src/dockview/options.ts` | `screenAdapter?: DockviewScreenAdapter` component option |
+| core `src/dockview/options.ts` | `screenAdapter`, `popoutWindowFactory`, `detachedWindowHost` component options |
+| `src/dockview/detachedWindowService.ts` (package per product call) | **new** `DetachedWindows` module: handle registry, `adoptDetachedState`, serialization (Phase 7) |
 | core `src/dockview/optionsModules.ts` | `OPTION_MODULE_RULES` entry for `screenAdapter` |
 | core `src/api/dockviewGroupPanelApi.ts` | `getScreen()`, `moveToScreen()`, `setFullscreen()`, `isFullscreen()` |
 | enterprise `src/screenManagerService.ts` | **new** `ScreenManager` implementation + `ScreenManagerModule` (incl. `init()` topology subscription) |
