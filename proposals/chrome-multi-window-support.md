@@ -444,19 +444,91 @@ Small, independently‑shippable, each green before the next.
   coverage relies on mocks, so a manual test matrix (2‑monitor Chrome) is part
   of Phase 4/5 sign‑off.
 
-## 11. Files touched (summary)
+## 11. Packaging as an enterprise module
+
+The feature fits the `dockview-enterprise` seam cleanly — the module system was
+designed for exactly this split (see `modules.ts:1‑10` and the existing twelve
+enterprise modules). What changes versus shipping it in core:
+
+**Stays in core (`dockview-core`)** — core references only interfaces, never
+implementations (`moduleContracts.ts:1‑6`):
+
+- `IScreenManagerService` + `IScreenManagerHost` contracts appended to
+  `src/dockview/moduleContracts.ts` (implementation‑free), plus the
+  `screenManagerService?` slot in `ServiceCollection`.
+- The **types** consumers see in option/API signatures — `DockviewScreen`,
+  `ScreenPlacement`, the extended `DockviewPopoutGroupOptions` fields, and the
+  ambient `windowManagement.d.ts` — must live in core, because core's public
+  interfaces reference them (same pattern as `SmartGuidesOptions` living in
+  core `options.ts` while the service ships in enterprise).
+- The **seams**, all `?.`‑chained no‑ops when the module is absent (the
+  established pattern, e.g. `_smartGuidesService?.` at
+  `dockviewComponent.ts:905‑933`):
+  - `getBox()` consults `this._screenManagerService?.` for `screen` resolution;
+  - `PopoutWindow` accepts the `fullscreen` flag core resolves from the service;
+  - `serialize()` asks the service `?.screenHintFor(entry)` — absent module →
+    today's byte‑stable output;
+  - `api.getScreens()` guarded with `assertModule` (a *command*),
+    `hasWindowManagement` / `onDidChangeScreens` silent query fallbacks
+    (`false` / `NO_EVENT`).
+- `'ScreenManagement'` added to `ENTERPRISE_MODULE_NAMES` (`modules.ts:134`)
+  so `assertModule`/`logMissingModule` automatically emit the
+  "ships in dockview-enterprise … npm install dockview-enterprise" message —
+  and to the sync test (`enterpriseModuleNames.spec.ts`).
+
+**Moves to `dockview-enterprise`:**
+
+- `src/screenManagerService.ts` — the `ScreenManager` implementation +
+  `ScreenManagerModule = defineModule({ name: 'ScreenManagement', serviceKey:
+  'screenManagerService', dependsOn: [PopoutWindowModule], … })`.
+- The Phase 4 topology reaction ports **unchanged** — it was already designed
+  to live in the module's `init()` hook.
+- Export from the enterprise `Modules` list in `index.ts` → self‑registered on
+  import, and automatically covered by the existing `LicenseModule`
+  watermark‑unless‑licensed gate. Its own tests move to
+  `packages/dockview-enterprise/src/__tests__/`; core keeps only seam tests
+  (missing‑module warning, `?.` fallbacks).
+
+**One wrinkle — per‑call options.** `OPTION_MODULE_RULES`
+(`optionsModules.ts:64`) diagnoses *component* options set without their
+module; `screen`/`placement`/`fullscreen` are **per‑call** fields on
+`addPopoutGroup`, so they need the command‑path variant instead: `getBox()`
+calls `logMissingModule('ScreenManagement', 'addPopoutGroup: screen')` (deduped
+per reason) and falls through to the free placement path — the popout still
+opens, just not screen‑targeted. If a component‑level option is ever added
+(e.g. `multiScreen: { rehomeOnTopologyChange: true }`), it gets a normal
+`OPTION_MODULE_RULES` entry plus the module's `options: […]` declaration.
+
+**Honest product caveat.** This gates *convenience, not capability*: the free
+`position: Box` already passes global screen coordinates straight through to
+`window.open` (`dockviewComponent.ts:1905`), so an app that requests the
+permission itself can hand‑roll cross‑screen placement today. The enterprise
+value is the integrated bundle — screen discovery API, placement helpers,
+fullscreen popouts, topology resilience, screen‑aware restore — which is
+consistent with how the other enterprise modules position (free dnd exists;
+`SmartGuides`/`DndCompass` refine it).
+
+The phase plan (§8) is unchanged in content; Phases 0–1 split their file
+targets between the two packages as above, and Phase 6 gains the enterprise
+docs page treatment instead of (or alongside) the core docs update.
+
+## 12. Files touched (summary)
+
+Assuming the enterprise packaging from §11 (core‑only packaging differs just in
+the first column: the service+module land in `src/dockview/screenManager.ts`
+and are registered in `allModules.ts` instead).
 
 | File | Change |
 |---|---|
-| `src/types/windowManagement.d.ts` | **new** ambient declarations for the Window Management API |
-| `src/dockview/screenManager.ts` | **new** façade service + `ScreenManagerModule` (incl. `init()` topology subscription) |
-| `src/dockview/modules.ts` | `screenManagerService` slot in `ServiceCollection` |
-| `src/dockview/allModules.ts` | register `ScreenManagerModule` |
-| `src/popoutWindow.ts` | `fullscreen` option → `popup,fullscreen` features; `fullscreenchange` relayout |
-| `src/dockview/dockviewComponent.ts` | extend options, resolve `screen` in `getBox()`, open‑then‑`moveTo` rehoming, new events/getters |
-| `src/dockview/popoutWindowService.ts` | screen hints in `serialize()`; screen‑aware restore |
-| `src/api/component.api.ts` | `hasWindowManagement`, `getScreens()`, `onDidChangeScreens`, new option types |
-| `src/dockview/options.ts` | (optional) global default `popoutUrl` already here; no new global needed |
-| `__tests__/**` | new `screenManager.spec.ts`; extend popout specs |
+| core `src/types/windowManagement.d.ts` | **new** ambient declarations for the Window Management API |
+| core `src/dockview/moduleContracts.ts` | `IScreenManagerService` + `IScreenManagerHost` contracts |
+| core `src/dockview/modules.ts` | `screenManagerService` slot in `ServiceCollection`; `'ScreenManagement'` in `ENTERPRISE_MODULE_NAMES` |
+| core `src/popoutWindow.ts` | `fullscreen` option → `popup,fullscreen` features; `fullscreenchange` relayout |
+| core `src/dockview/dockviewComponent.ts` | extend options, resolve `screen` in `getBox()` via `?.` seam, open‑then‑`moveTo` rehoming, new events/getters |
+| core `src/dockview/popoutWindowService.ts` | screen hints in `serialize()` via `?.` seam; screen‑aware restore |
+| core `src/api/component.api.ts` | `hasWindowManagement`, `getScreens()` (assertModule‑guarded), `onDidChangeScreens`, new option types |
+| enterprise `src/screenManagerService.ts` | **new** `ScreenManager` implementation + `ScreenManagerModule` (incl. `init()` topology subscription) |
+| enterprise `src/index.ts` | export module; add to self‑registered `Modules` list |
+| core + enterprise `__tests__/**` | seam tests in core; `screenManagerService.spec.ts` in enterprise; extend popout specs; `enterpriseModuleNames.spec.ts` sync |
 | `packages/docs/docs/core/groups/popoutGroups.mdx` + sandbox | docs + example |
 | `dockview-react` / `-vue` / `-angular` | re‑export new public types |
