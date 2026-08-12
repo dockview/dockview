@@ -538,6 +538,28 @@ Design notes:
 The guiding rule: **every new field is optional and every new call is behind a
 capability check**, so the existing popout behaviour is the universal fallback.
 
+**Browser support reality (as of early 2026).** The Window Management API is
+implemented only in Chromium — which covers more than Google Chrome: Edge,
+Opera, Arc, Vivaldi, Brave¹ and every other Chromium derivative, plus
+**Electron**. Electron deserves a callout: dock-style apps embedded in
+Electron are a major dockview use case, and there the host app can grant
+`window-management` programmatically via
+`session.setPermissionRequestHandler`, making the whole feature set work
+deterministically with **no user prompt at all**. On the other side, Mozilla
+has published a *negative* standards position on the API (fingerprinting
+surface: screen count/geometry/labels) and WebKit has shown no adoption
+signal — so Firefox/Safari support should be treated as "not coming", not
+"not yet". That asymmetry is why the plan is strictly progressive
+enhancement: Firefox/Safari users keep fully functional popouts, can drag
+them to any monitor manually, and dockview still serializes/restores whatever
+positions the browser honours (without the permission, cross‑screen
+`window.open` coordinates are clamped — in Chromium to the current screen;
+Firefox/Safari clamping varies by platform).
+
+¹ Brave ships the API but its fingerprinting protections may degrade or gate
+it; treat it as `prompt`/`denied` at runtime — which the permission flow
+already handles.
+
 ## 8. Implementation phases
 
 Small, independently‑shippable, each green before the next.
