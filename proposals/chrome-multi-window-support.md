@@ -493,13 +493,96 @@ Design notes:
   `addPopoutGroup({ screen })` — all gesture‑initiated consumer actions — can
   trigger one.
 
+### 4.6 Host adapter for embedded runtimes (Electron etc.)
+
+Dockview must not depend on Electron/Tauri — but embedded hosts have *better*
+primitives than the web API, so the `ScreenManager` façade gets one injection
+seam: a plain TypeScript interface the app can implement, with **no runtime
+dependency in either direction**.
+
+```ts
+/** Implemented by the host app (e.g. over an Electron preload bridge).
+ *  Everything optional degrades to the web-API path. */
+export interface DockviewScreenAdapter {
+    /** Replaces getScreenDetails() as the source of truth. */
+    getScreens(): Promise<DockviewScreen[]> | DockviewScreen[];
+    /** Replaces screenschange listening. Returns an unsubscribe. */
+    subscribe?(listener: (screens: DockviewScreen[]) => void): () => void;
+    /** Native window placement (e.g. BrowserWindow.setBounds via IPC).
+     *  Falls back to win.moveTo/resizeTo when absent. */
+    moveWindow?(window: Window, box: Box): boolean | Promise<boolean>;
+    /** Native fullscreen (e.g. BrowserWindow.setFullScreen via IPC).
+     *  Falls back to the web fullscreen path when absent. */
+    setFullscreen?(window: Window, value: boolean): boolean | Promise<boolean>;
+}
+```
+
+Wired as a component option (type lives in core; cost is one field):
+
+```ts
+interface DockviewComponentOptions {
+    /* … */
+    screenAdapter?: DockviewScreenAdapter;
+}
+```
+
+`ScreenManager` resolves each capability through a **precedence chain**:
+`adapter → Window Management API → single-screen fallback`. With an adapter
+present there is no permission machinery at all — `hasWindowManagement` is
+true, `getScreens()` never prompts, and the no‑await rule (§4.1) is moot
+because the snapshot can be populated eagerly at startup.
+
+**Why an Electron app would bother** (the web path *does* work there — the
+renderer is Chromium and Electron grants permission requests by default):
+
+- **Stable identity**: Electron's `Display.id` is stable across sessions,
+  fixing the "screen labels aren't reliable restore keys" problem in §5
+  outright — the adapter can surface it as `DockviewScreen.id`.
+- **Native window control**: `BrowserWindow.setBounds` / `setFullScreen` via
+  IPC are not subject to web clamping rules, work on frameless windows, and
+  compose with app-owned window chrome.
+- **Main-process events**: `screen.on('display-added'/'display-removed'/
+  'display-metrics-changed')` is the same topology signal without renderer
+  API coupling.
+
+The app-side recipe (documentation, not dockview code): a preload script
+exposes `getScreens`/`subscribe`/`moveWindow`/`setFullscreen` over
+`contextBridge` + `ipcRenderer`, backed by the main-process `screen` module
+and a `BrowserWindow` registry keyed by the popout's window name (dockview's
+`window.open` target, which Electron surfaces in `setWindowOpenHandler` as
+`details.frameName`). To let the handler recognise and style dockview popouts
+(frameless, always‑on‑top, …), `addPopoutGroup` gains a pass‑through:
+
+```ts
+export interface DockviewPopoutGroupOptions {
+    /* … */
+    /** Extra window.open feature entries appended to the features string —
+     *  e.g. { dockviewPopout: 1 } for an Electron setWindowOpenHandler to
+     *  match on, or nonstandard features a host honours. */
+    extraWindowFeatures?: Record<string, string | number | boolean>;
+}
+```
+
+**Tauri (and other multi-webview hosts) — an honest boundary.** The adapter
+can supply screens (`availableMonitors()`), but it cannot save the popout
+mechanism itself: dockview popouts move live DOM nodes into the child window,
+which requires `window.open` to return a **same-process, same-origin `Window`
+with synchronous DOM access** — true in browsers and Electron, false in
+Tauri, where each window is an isolated webview with its own JS context. A
+Tauri multi-window story would be a different feature (serialize the group,
+render a fresh dockview instance in the second window, sync via events) and
+is explicitly out of scope here. The adapter interface neither helps nor
+hurts that; it just shouldn't be oversold as "Tauri support".
+
 ## 5. Serialization & restoration
 
 `PopoutWindowService.serialize()` (`popoutWindowService.ts:233`) already stores
 `position: entry.window.dimensions()` (global coords) and `url`. Extensions:
 
-- Persist a **screen hint** alongside `position`: `screenLabel` +
-  `screenBounds` (best‑effort; labels are not guaranteed stable across reboots).
+- Persist a **screen hint** alongside `position`: `screenId` + `screenLabel` +
+  `screenBounds` (best‑effort; web labels are not guaranteed stable across
+  reboots — but a §4.6 adapter can supply genuinely stable ids, e.g. Electron's
+  `Display.id`, making the hint reliable there).
 - On restore (`fromJSON` → `addPopoutGroup` with `overridePopoutGridview`,
   `dockviewComponent.ts:3915‑3935`): restoration is **not gesture‑driven**, so
   it can only be screen‑aware when the permission is already `granted` (then
@@ -545,7 +628,9 @@ Opera, Arc, Vivaldi, Brave¹ and every other Chromium derivative, plus
 Electron are a major dockview use case, and there the host app can grant
 `window-management` programmatically via
 `session.setPermissionRequestHandler`, making the whole feature set work
-deterministically with **no user prompt at all**. On the other side, Mozilla
+deterministically with **no user prompt at all** — and §4.6's
+`screenAdapter` seam lets such hosts swap in their native primitives
+entirely. On the other side, Mozilla
 has published a *negative* standards position on the API (fingerprinting
 surface: screen count/geometry/labels) and WebKit has shown no adoption
 signal — so Firefox/Safari support should be treated as "not coming", not
@@ -572,13 +657,20 @@ Small, independently‑shippable, each green before the next.
 - **Phase 1 — Discovery API.** `ServiceCollection` slot, `ScreenManagerModule`
   registration; `api.hasWindowManagement`, `api.screens`,
   `api.getScreens()` (guarded with `assertModule`),
-  `api.getWindowManagementPermission()`, `api.onDidChangeScreens`.
+  `api.getWindowManagementPermission()`, `api.onDidChangeScreens`. The
+  `screenAdapter` option and the `adapter → web API → fallback` precedence
+  chain land here too (an adapter is just an alternative source for the same
+  snapshot), plus its `OPTION_MODULE_RULES` entry — `screenAdapter` is a
+  *component* option, so setting it without the module gets the standard
+  diagnostic naming the module/package.
 - **Phase 2 — Targeted placement.** Extend `DockviewPopoutGroupOptions` with
-  `screen` + `placement`; resolve in `addPopoutGroup.getBox()` from the cached
-  snapshot only (no‑await rule); open‑then‑`moveTo` rehoming for the `prompt`
-  path; clamp to work area. Group‑level `getScreen()` / `moveToScreen()`;
-  `screen` on `PopoutGroup` and `PopoutGroupChangePositionEvent`. Tests for
-  coordinate math, clamping, and all fallback rungs.
+  `screen` + `placement` + `extraWindowFeatures`; resolve in
+  `addPopoutGroup.getBox()` from the cached snapshot only (no‑await rule);
+  open‑then‑`moveTo` rehoming for the `prompt` path (via
+  `adapter.moveWindow` when present); clamp to work area. Group‑level
+  `getScreen()` / `moveToScreen()`; `screen` on `PopoutGroup` and
+  `PopoutGroupChangePositionEvent`. Tests for coordinate math, clamping, and
+  all fallback rungs.
 - **Phase 3 — Fullscreen on screen.** `fullscreen` option → `popup,fullscreen`
   window feature when permission is granted; `{type:'fill'}` fallback;
   group‑level `setFullscreen()` / `isFullscreen()`; `fullscreenchange`
@@ -715,6 +807,9 @@ and are registered in `allModules.ts` instead).
 | core `src/dockview/dockviewComponent.ts` | extend options, resolve `screen` in `getBox()` via `?.` seam, open‑then‑`moveTo` rehoming, new events/getters |
 | core `src/dockview/popoutWindowService.ts` | screen hints in `serialize()` via `?.` seam; screen‑aware restore |
 | core `src/api/component.api.ts` | `hasWindowManagement`, `getScreens()` (assertModule‑guarded), `onDidChangeScreens`, new option types |
+| core `src/dockview/options.ts` | `screenAdapter?: DockviewScreenAdapter` component option |
+| core `src/dockview/optionsModules.ts` | `OPTION_MODULE_RULES` entry for `screenAdapter` |
+| core `src/api/dockviewGroupPanelApi.ts` | `getScreen()`, `moveToScreen()`, `setFullscreen()`, `isFullscreen()` |
 | enterprise `src/screenManagerService.ts` | **new** `ScreenManager` implementation + `ScreenManagerModule` (incl. `init()` topology subscription) |
 | enterprise `src/index.ts` | export module; add to self‑registered `Modules` list |
 | core + enterprise `__tests__/**` | seam tests in core; `screenManagerService.spec.ts` in enterprise; extend popout specs; `enterpriseModuleNames.spec.ts` sync |
