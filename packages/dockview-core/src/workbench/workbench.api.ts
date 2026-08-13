@@ -1,6 +1,10 @@
 import type { DockviewApi } from '../api/component.api';
 import type { IDisposable } from '../lifecycle';
-import type { WorkbenchBand } from './options';
+import type {
+    SideBarPosition,
+    WorkbenchBand,
+    WorkbenchRegion,
+} from './options';
 import type {
     SerializedWorkbench,
     WorkbenchComponent,
@@ -39,6 +43,46 @@ export class WorkbenchApi implements IDisposable {
 
     isBandVisible(band: WorkbenchBand): boolean {
         return this._component.isBandVisible(band);
+    }
+
+    /** Which side the primary side bar (and activity bar) currently sits on. */
+    get primarySideBarPosition(): SideBarPosition {
+        return this._component.primarySideBarPosition;
+    }
+
+    /** Flip the primary side bar (and activity bar) to the given side. */
+    setPrimarySideBarPosition(position: SideBarPosition): void {
+        this._component.setPrimarySideBarPosition(position);
+    }
+
+    setActivityBarVisible(visible: boolean): void {
+        this._component.setRegionVisible('activityBar', visible);
+    }
+
+    setPrimarySideBarVisible(visible: boolean): void {
+        this._component.setRegionVisible('primarySideBar', visible);
+    }
+
+    setSecondarySideBarVisible(visible: boolean): void {
+        this._component.setRegionVisible('secondarySideBar', visible);
+    }
+
+    togglePrimarySideBar(): void {
+        this._component.setRegionVisible(
+            'primarySideBar',
+            !this._component.isRegionVisible('primarySideBar')
+        );
+    }
+
+    toggleSecondarySideBar(): void {
+        this._component.setRegionVisible(
+            'secondarySideBar',
+            !this._component.isRegionVisible('secondarySideBar')
+        );
+    }
+
+    isRegionVisible(region: WorkbenchRegion): boolean {
+        return this._component.isRegionVisible(region);
     }
 
     layout(width: number, height: number): void {

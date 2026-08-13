@@ -206,11 +206,15 @@ export {
 } from './workbench/workbenchComponent';
 export { WorkbenchApi } from './workbench/workbench.api';
 export {
-    type WorkbenchComponentOptions,
-    type WorkbenchOptions,
-    type WorkbenchFrameworkOptions,
-    type WorkbenchBandOptions,
+    type SideBarPosition,
+    type WorkbenchActivityBarOptions,
     type WorkbenchBand,
+    type WorkbenchBandOptions,
+    type WorkbenchComponentOptions,
+    type WorkbenchFrameworkOptions,
+    type WorkbenchOptions,
+    type WorkbenchRegion,
+    type WorkbenchSideBarOptions,
 } from './workbench/options';
 export {
     registerModules,

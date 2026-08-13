@@ -13,14 +13,21 @@ import { CompositeDisposable } from '../lifecycle';
 import type { IFrameworkPart } from '../panel/types';
 import { LayoutPriority, Orientation } from '../splitview/splitview';
 import {
+    DEFAULT_ACTIVITY_BAR_SIZE,
     DEFAULT_HEADER_SIZE,
+    DEFAULT_SIDE_BAR_MINIMUM_SIZE,
+    DEFAULT_SIDE_BAR_SIZE,
     DEFAULT_STATUS_BAR_SIZE,
     DEFAULT_TOOLBAR_SIZE,
+    type SideBarPosition,
     WORKBENCH_EDITOR_COMPONENT,
     WORKBENCH_IDS,
+    type WorkbenchActivityBarOptions,
     type WorkbenchBand,
     type WorkbenchBandOptions,
     type WorkbenchComponentOptions,
+    type WorkbenchRegion,
+    type WorkbenchSideBarOptions,
 } from './options';
 
 export interface SerializedWorkbench {
@@ -28,6 +35,8 @@ export interface SerializedWorkbench {
     grid: SerializedGridviewComponent;
     /** The embedded dockview (editor area, edge groups included). */
     dockview?: SerializedDockview;
+    /** Which side the primary side bar (and its activity bar) sits on. */
+    primarySideBarPosition?: SideBarPosition;
 }
 
 /**
@@ -80,13 +89,17 @@ export class WorkbenchEditorPanel extends GridviewPanel {
 
 /**
  * A VS Code-style workbench: fixed chrome bands (header, toolbar, status bar)
- * wrapped around a central dockview editor. This is Phase 1 - the chrome bands
- * and the embedded editor. Side bars, activity bar and the tool panel are added
- * in later phases.
+ * and side regions (activity bar, primary and secondary side bars) wrapped
+ * around a central dockview editor.
  *
- * The outer frame is a vertical {@link GridviewComponent}; each band is a
- * fixed-height panel (`minimumHeight === maximumHeight`) and the editor is a
- * high-priority panel that absorbs the remaining space.
+ * The outer frame is a vertical {@link GridviewComponent}: the header, toolbar
+ * and status bar are full-width fixed-height bands, and the body row between
+ * them nests a horizontal branch holding the activity bar, primary side bar,
+ * editor and secondary side bar. The editor is the one high-priority panel, so
+ * it absorbs all spare space; the bands and rails are fixed or snap-collapsible.
+ *
+ * The activity bar and primary side bar move together and can be flipped to
+ * either side; the secondary side bar always sits opposite them.
  */
 export class WorkbenchComponent extends CompositeDisposable {
     private readonly _element: HTMLElement;
@@ -94,9 +107,14 @@ export class WorkbenchComponent extends CompositeDisposable {
     private readonly _dockviewOptions: DockviewComponentOptions;
 
     private _editorPanel: WorkbenchEditorPanel | undefined;
+    private _primarySideBarPosition: SideBarPosition;
 
     get element(): HTMLElement {
         return this._element;
+    }
+
+    get primarySideBarPosition(): SideBarPosition {
+        return this._primarySideBarPosition;
     }
 
     get dockview(): DockviewApi {
@@ -110,6 +128,7 @@ export class WorkbenchComponent extends CompositeDisposable {
         super();
 
         this._dockviewOptions = options.dockview;
+        this._primarySideBarPosition = options.primarySideBarPosition ?? 'left';
 
         this._element = document.createElement('div');
         this._element.className = 'dv-workbench';
@@ -188,6 +207,46 @@ export class WorkbenchComponent extends CompositeDisposable {
                 }
             );
         }
+
+        // Side regions are added AFTER the full-width bands so they nest into a
+        // horizontal branch beside the editor only, leaving the header/toolbar/
+        // status bands spanning the full width.
+        const pos = this._primarySideBarPosition;
+        const primarySide = pos; // 'left' | 'right'
+        const oppositeSide: SideBarPosition = pos === 'left' ? 'right' : 'left';
+
+        if (options.primarySideBar) {
+            this._addSideBar(
+                WORKBENCH_IDS.primarySideBar,
+                options.primarySideBar,
+                {
+                    referencePanel: WORKBENCH_IDS.editor,
+                    direction: primarySide,
+                }
+            );
+        }
+
+        if (options.activityBar) {
+            // The rail sits outside the primary side bar (or beside the editor
+            // when there is no side bar).
+            this._addActivityBar(options.activityBar, {
+                referencePanel: options.primarySideBar
+                    ? WORKBENCH_IDS.primarySideBar
+                    : WORKBENCH_IDS.editor,
+                direction: primarySide,
+            });
+        }
+
+        if (options.secondarySideBar) {
+            this._addSideBar(
+                WORKBENCH_IDS.secondarySideBar,
+                options.secondarySideBar,
+                {
+                    referencePanel: WORKBENCH_IDS.editor,
+                    direction: oppositeSide,
+                }
+            );
+        }
     }
 
     private _addBand(
@@ -215,20 +274,127 @@ export class WorkbenchComponent extends CompositeDisposable {
         }
     }
 
-    private _bandId(band: WorkbenchBand): string {
-        return WORKBENCH_IDS[band];
+    private _addSideBar(
+        id: string,
+        options: WorkbenchSideBarOptions,
+        position: { referencePanel: string; direction: 'left' | 'right' }
+    ): void {
+        const size = options.size ?? DEFAULT_SIDE_BAR_SIZE;
+        this._gridview.addPanel({
+            id,
+            component: options.component,
+            params: options.params,
+            minimumWidth: options.minimumWidth ?? DEFAULT_SIDE_BAR_MINIMUM_SIZE,
+            priority: LayoutPriority.Low,
+            // snap so the sash can collapse the side bar shut, VS Code style
+            snap: true,
+            size,
+            position,
+        });
+        if (options.visible === false) {
+            this._setPanelVisible(id, false);
+        }
     }
 
-    setBandVisible(band: WorkbenchBand, visible: boolean): void {
-        const panel = this._gridview.getPanel(this._bandId(band));
+    private _addActivityBar(
+        options: WorkbenchActivityBarOptions,
+        position: { referencePanel: string; direction: 'left' | 'right' }
+    ): void {
+        const size = options.size ?? DEFAULT_ACTIVITY_BAR_SIZE;
+        this._gridview.addPanel({
+            id: WORKBENCH_IDS.activityBar,
+            component: options.component,
+            params: options.params,
+            // fixed width: lock minimum === maximum
+            minimumWidth: size,
+            maximumWidth: size,
+            priority: LayoutPriority.Low,
+            snap: false,
+            size,
+            position,
+        });
+        if (options.visible === false) {
+            this._setPanelVisible(WORKBENCH_IDS.activityBar, false);
+        }
+    }
+
+    /**
+     * Flip the primary side bar (and the activity bar that tracks it) to the
+     * given side. The secondary side bar mirrors to the opposite side. Panels
+     * are moved, not recreated, so their contents and widths are preserved.
+     *
+     * A flip is simply a reversal of the body row's left-to-right order. It is
+     * done with a sequence of "move to the front" operations: each move sends a
+     * panel to the far left, which never crosses its own removal point, so it
+     * sidesteps the stale-index hazard of a single right-crossing move.
+     */
+    setPrimarySideBarPosition(position: SideBarPosition): void {
+        if (position === this._primarySideBarPosition) {
+            return;
+        }
+        const oldPosition = this._primarySideBarPosition;
+        this._primarySideBarPosition = position;
+
+        // The body order for the OLD position, absent regions filtered out.
+        const orderedIds =
+            oldPosition === 'left'
+                ? [
+                      WORKBENCH_IDS.activityBar,
+                      WORKBENCH_IDS.primarySideBar,
+                      WORKBENCH_IDS.editor,
+                      WORKBENCH_IDS.secondarySideBar,
+                  ]
+                : [
+                      WORKBENCH_IDS.secondarySideBar,
+                      WORKBENCH_IDS.editor,
+                      WORKBENCH_IDS.primarySideBar,
+                      WORKBENCH_IDS.activityBar,
+                  ];
+
+        const present = orderedIds
+            .map((id) => this._gridview.getPanel(id))
+            .filter((panel): panel is GridviewPanel => panel !== undefined);
+
+        if (present.length < 2) {
+            return;
+        }
+
+        // Reverse by moving each panel (after the first) to the left of the
+        // running leftmost panel.
+        let leftmost = present[0];
+        for (let i = 1; i < present.length; i++) {
+            const panel = present[i];
+            this._gridview.movePanel(panel, {
+                direction: 'left',
+                reference: leftmost.id,
+                size: panel.width || undefined,
+            });
+            leftmost = panel;
+        }
+    }
+
+    private _setPanelVisible(id: string, visible: boolean): void {
+        const panel = this._gridview.getPanel(id);
         if (panel) {
             this._gridview.setVisible(panel, visible);
         }
     }
 
-    isBandVisible(band: WorkbenchBand): boolean {
-        const panel = this._gridview.getPanel(this._bandId(band));
+    setRegionVisible(region: WorkbenchRegion, visible: boolean): void {
+        this._setPanelVisible(WORKBENCH_IDS[region], visible);
+    }
+
+    isRegionVisible(region: WorkbenchRegion): boolean {
+        const panel = this._gridview.getPanel(WORKBENCH_IDS[region]);
         return panel?.api.isVisible ?? false;
+    }
+
+    setBandVisible(band: WorkbenchBand, visible: boolean): void {
+        this.setRegionVisible(band, visible);
+    }
+
+    isBandVisible(band: WorkbenchBand): boolean {
+        return this.isRegionVisible(band);
     }
 
     layout(width: number, height: number): void {
@@ -239,10 +405,15 @@ export class WorkbenchComponent extends CompositeDisposable {
         return {
             grid: this._gridview.toJSON(),
             dockview: this._editorPanel?.dockview.toJSON(),
+            primarySideBarPosition: this._primarySideBarPosition,
         };
     }
 
     fromJSON(data: SerializedWorkbench): void {
+        // The serialized grid tree already encodes the flipped side-bar order;
+        // keep our tracked position in sync so later flips start from the right
+        // side.
+        this._primarySideBarPosition = data.primarySideBarPosition ?? 'left';
         // Rebuilds the outer grid, which re-creates the editor panel (and a
         // fresh dockview) through createComponent, repointing _editorPanel.
         this._gridview.fromJSON(data.grid);

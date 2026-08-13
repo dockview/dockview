@@ -21,6 +21,42 @@ export interface WorkbenchBandOptions {
     params?: Parameters;
 }
 
+/** Which side the primary side bar (and the activity bar that tracks it) sits on. */
+export type SideBarPosition = 'left' | 'right';
+
+/**
+ * A resizable side bar region (primary or secondary). Hosts a single component
+ * that the caller can fill with an accordion (paneview), a view container, or
+ * anything else. The primary side bar is where VS Code shows the Explorer.
+ */
+export interface WorkbenchSideBarOptions {
+    /** The component name resolved via `createComponent`. */
+    component: string;
+    /** Initial width in pixels. */
+    size?: number;
+    /** Minimum width the sash can drag to before snapping shut. */
+    minimumWidth?: number;
+    /** Start hidden. Toggle later via the api. Defaults to visible. */
+    visible?: boolean;
+    /** Parameters forwarded to the side bar component. */
+    params?: Parameters;
+}
+
+/**
+ * The activity bar: a thin fixed-width icon rail. It always sits on the outer
+ * edge next to the primary side bar and moves with it when the side bar flips.
+ */
+export interface WorkbenchActivityBarOptions {
+    /** The component name resolved via `createComponent`. */
+    component: string;
+    /** Fixed pixel width of the rail. */
+    size?: number;
+    /** Start hidden. Toggle later via the api. Defaults to visible. */
+    visible?: boolean;
+    /** Parameters forwarded to the activity bar component. */
+    params?: Parameters;
+}
+
 /**
  * Options that describe the workbench chrome. The editor itself is a full
  * dockview instance (edge groups included) configured via `dockview`.
@@ -32,6 +68,14 @@ export interface WorkbenchOptions {
     toolbar?: WorkbenchBandOptions;
     /** Fixed band pinned to the bottom of the workbench. */
     statusBar?: WorkbenchBandOptions;
+    /** Thin icon rail next to the primary side bar. */
+    activityBar?: WorkbenchActivityBarOptions;
+    /** Primary side bar (VS Code's Explorer side). */
+    primarySideBar?: WorkbenchSideBarOptions;
+    /** Secondary side bar, always mounted opposite the primary. */
+    secondarySideBar?: WorkbenchSideBarOptions;
+    /** Which side the primary side bar starts on. Defaults to `'left'`. */
+    primarySideBarPosition?: SideBarPosition;
     /** CSS class applied to the workbench root element. */
     className?: string;
 }
@@ -54,6 +98,9 @@ export type WorkbenchComponentOptions = WorkbenchOptions &
 export const DEFAULT_HEADER_SIZE = 35;
 export const DEFAULT_TOOLBAR_SIZE = 35;
 export const DEFAULT_STATUS_BAR_SIZE = 22;
+export const DEFAULT_ACTIVITY_BAR_SIZE = 48;
+export const DEFAULT_SIDE_BAR_SIZE = 240;
+export const DEFAULT_SIDE_BAR_MINIMUM_SIZE = 170;
 
 /** Reserved component name for the editor panel that hosts the dockview. */
 export const WORKBENCH_EDITOR_COMPONENT = '__dv_workbench_editor__';
@@ -64,6 +111,17 @@ export const WORKBENCH_IDS = {
     header: '__dv_workbench_header__',
     toolbar: '__dv_workbench_toolbar__',
     statusBar: '__dv_workbench_status_bar__',
+    activityBar: '__dv_workbench_activity_bar__',
+    primarySideBar: '__dv_workbench_primary_side_bar__',
+    secondarySideBar: '__dv_workbench_secondary_side_bar__',
 } as const;
 
+/** Fixed-height chrome bands stacked above/below the body row. */
 export type WorkbenchBand = 'header' | 'toolbar' | 'statusBar';
+
+/** All toggleable workbench regions. */
+export type WorkbenchRegion =
+    | WorkbenchBand
+    | 'activityBar'
+    | 'primarySideBar'
+    | 'secondarySideBar';

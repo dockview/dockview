@@ -276,6 +276,7 @@ SerializedSplitviewPanelData
 SerializedTabGroup
 SerializedWorkbench
 ServiceCollection
+SideBarPosition
 SizeEvent
 Sizing
 SmartGuidesOptions
@@ -306,6 +307,7 @@ TitleEvent
 ViewFactoryData
 VisibilityEvent
 WatermarkRendererInitParameters
+WorkbenchActivityBarOptions
 WorkbenchApi
 WorkbenchBand
 WorkbenchBandOptions
@@ -314,6 +316,8 @@ WorkbenchComponentOptions
 WorkbenchEditorPanel
 WorkbenchFrameworkOptions
 WorkbenchOptions
+WorkbenchRegion
+WorkbenchSideBarOptions
 applyTabGroupAccent
 clearRegisteredModules
 createCloseButton
