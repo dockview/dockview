@@ -969,16 +969,63 @@ Small, independently‑shippable, each green before the next.
 
 ## 9. Testing strategy
 
-- Unit‑test `ScreenManager` against a mocked `getScreenDetails()` /
-  `ScreenDetails` (multi‑screen, single‑screen, denied, unsupported), including
-  `screenschange` re‑emission and `placementFor` clamping.
-- Extend `__tests__/dockview/popoutWindowService.spec.ts` and
-  `popoutLifecycle.spec.ts` for the `screen`/`placement` resolution and
-  serialize/restore with screen hints (jsdom has no Window Management API, so
-  these exercise the fallback + the injected mock).
-- Guard against regressions in existing popout tests
-  (`popoutWindow.spec.ts`, `popoutWindowService.spec.ts`) — none of their
-  assertions should change.
+Container runtimes (Electron, OpenFin) are **not** required for the bulk of
+this work — roughly ninety percent is testable in jest and plain Chrome,
+because the risky logic is either pure (placement math, protocol state
+machines) or reachable in a normal browser with the right harness flags. The
+pyramid, cheapest and highest-volume first:
+
+**Tier 1 — unit (jest/jsdom, the existing setup).**
+
+- `ScreenManager` against a mocked `getScreenDetails()` / `ScreenDetails`
+  (multi‑screen, single‑screen, denied, unsupported), `screenschange`
+  re‑emission, `placementFor` clamping. The repo's `__mocks__/mockWindow.ts`
+  pattern extends naturally.
+- Extend `popoutWindowService.spec.ts` / `popoutLifecycle.spec.ts` for
+  `screen`/`placement` resolution and serialize/restore with screen hints.
+- **Phase 7's protocol layer is deliberately DOM‑free, so its hardest
+  properties are unit‑testable**: drive the handle/two‑phase‑commit/state‑sync
+  state machine against an in‑memory bus with injected faults — message loss,
+  reordering, arbitrary delay, and child death mid‑move. This is where
+  duplicate/lost‑panel bugs are found, and no container gets you better
+  coverage than a fault‑injecting fake bus.
+- Existing popout test assertions must not change (regression guard).
+
+**Tier 2 — plain Chrome e2e (new, small Playwright harness).** Chrome can
+exercise nearly everything containers can:
+
+- **Permission without prompts**: Playwright/CDP can grant
+  `window-management` to the context, so screen‑targeted paths run headlessly
+  with no UI interaction.
+- **Virtual multi‑monitor, no hardware**: new‑headless Chromium accepts a
+  `--screen-info` flag defining multiple virtual displays (verify exact
+  syntax during the Phase 0 spike); on Linux CI, headful Chrome under Xvfb
+  plus `xrandr --setmonitor` splitting the virtual framebuffer into fake
+  monitors achieves the same. Either way `getScreenDetails()` reports
+  multiple screens in CI.
+- **Popouts are real** (`window.open` from automation is permitted), so
+  cross‑window DOM transfer, style cloning, and rehoming run for real.
+- **Multi‑process protocol tests without any container**: two same‑origin
+  pages joined by `BroadcastChannel` (or a cross‑origin iframe under site
+  isolation + `postMessage`) give genuine message‑passing semantics — the
+  protocol under test is identical regardless of how many OS processes Chrome
+  happens to use, because the contract is async serialized messages either
+  way. Child‑crash recovery = abruptly closing the child page.
+
+**Tier 3 — Electron harness (thin).** Playwright launches Electron
+first‑class (`_electron.launch`), so a minimal sample app — which doubles as
+the §4.6 docs recipe: permission handler, `setWindowOpenHandler` frameName
+matching, `MessageChannelMain` bus, `screenAdapter` over contextBridge — runs
+in CI. Only the adapter edges live here; the protocol itself was already
+proven in tiers 1–2.
+
+**Tier 4 — manual matrix (small, per release).** What automation genuinely
+cannot reach: OS‑level window‑manager quirks (coordinate clamping per
+platform, `popup,fullscreen` behaviour, the permission‑prompt UX and
+transient‑activation ordering) on a real 2‑monitor Windows/macOS/Linux
+Chrome — the §10 list. OpenFin gets a smoke test only if/when a consumer
+materialises; its runtime is Chromium plus their launcher, so tiers 1–3
+already cover everything except their bus and window‑composition specifics.
 
 ## 10. Risks & open questions
 
