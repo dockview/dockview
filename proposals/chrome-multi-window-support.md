@@ -775,8 +775,46 @@ guarantees:
 | Cross-window dnd | yes | no (app-level) |
 | Hosts | browsers, Electron (same process) | Tauri, process‑isolated Electron, anything |
 
+**The terminal extension: process-per-panel (OpenFin-style platforms).** The
+end of this road is a panel or group living in a *different process* — an
+OpenFin/interop-platform window, an isolated Electron renderer — with **all**
+communication on an event bus. The detached protocol is deliberately already
+that shape (dockview holds a handle and serialized state, never a reference
+into the other process; transport is app-owned — `InterApplicationBus`,
+`MessageChannelMain`, FDC3 channels). Three things are genuinely new at that
+point, captured here so Phase 7 designs against them when a driving consumer
+exists:
+
+1. **Panel granularity is nearly free** — a detached panel is a detached
+   group of one; `SerializedPopoutGroup.data` with a single view already
+   expresses it. The `(component, params)` contract is what makes the
+   foreign-process case work at all: `component` is a *name*, resolved
+   against whatever registry the receiving process has — the two sides need
+   shared component names, not shared code paths.
+2. **Cross-process drag-and-drop becomes possible — via the model, not the
+   DOM.** OS-level HTML5 drag already crosses process boundaries with
+   serializable payloads: a `application/x-dockview-panel` `DataTransfer`
+   entry carrying the serialized panel, plus a **two-phase commit over the
+   bus** (source removes only on drop-acknowledged) so a panel is never
+   duplicated or lost mid-move. This is the one piece that makes
+   multi-process feel native rather than bolted on.
+3. **Crash recovery falls out of the sync loop.** The coordinator's cached
+   `onDidUpdateState` snapshots double as recovery state: a child process
+   dying is a handle closing *without* final state, and the coordinator
+   restores the last-known snapshot into the main layout instead of losing
+   the panels.
+
+Costs that don't go away: live runtime state still doesn't cross (the
+`params` contract is the ceiling), and bus round-trips make the aggregate
+layout eventually consistent — persistence and recovery are fine with that;
+synchronous cross-process layout invariants are not, and shouldn't be
+attempted. On OpenFin specifically the division of labour is: dockview is
+the layout engine *inside* each platform window, the platform owns
+window-level composition, and the detached protocol is the bridge between
+them.
+
 The pragmatic sequencing, consistent with the zero-breaking-changes rule
-(§4.8 below): grow the seam outward from serialization rather than
+(§4.9 below): grow the seam outward from serialization rather than
 rewriting the engine. This proposal's pieces are deliberate steps on that
 path — `ScreenManager` is already a DOM-independent service,
 `DetachedWindowOpenRequest` makes the model a live contract, and
