@@ -1,6 +1,8 @@
 import type { DockviewApi } from '../api/component.api';
 import type { IDisposable } from '../lifecycle';
 import type {
+    PanelAlignment,
+    PanelPosition,
     SideBarPosition,
     WorkbenchBand,
     WorkbenchRegion,
@@ -78,6 +80,37 @@ export class WorkbenchApi implements IDisposable {
         this._component.setRegionVisible(
             'secondarySideBar',
             !this._component.isRegionVisible('secondarySideBar')
+        );
+    }
+
+    /** Which side of the editor the tool panel currently occupies. */
+    get panelPosition(): PanelPosition {
+        return this._component.panelPosition;
+    }
+
+    /** Horizontal span of a top/bottom tool panel. */
+    get panelAlignment(): PanelAlignment {
+        return this._component.panelAlignment;
+    }
+
+    /** Move the tool panel to a different side of the editor. */
+    setPanelPosition(position: PanelPosition): void {
+        this._component.setPanelPosition(position);
+    }
+
+    /** Change how a top/bottom tool panel spans horizontally. */
+    setPanelAlignment(alignment: PanelAlignment): void {
+        this._component.setPanelAlignment(alignment);
+    }
+
+    setPanelVisible(visible: boolean): void {
+        this._component.setRegionVisible('panel', visible);
+    }
+
+    togglePanel(): void {
+        this._component.setRegionVisible(
+            'panel',
+            !this._component.isRegionVisible('panel')
         );
     }
 

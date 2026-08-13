@@ -6,6 +6,8 @@ import {
     DEFAULT_ACTIVITY_BAR_SIZE,
     DEFAULT_HEADER_SIZE,
     DEFAULT_STATUS_BAR_SIZE,
+    type PanelAlignment,
+    type PanelPosition,
     type SideBarPosition,
     WORKBENCH_IDS,
 } from '../../workbench/options';
@@ -70,6 +72,12 @@ function createWorkbench(
         primarySideBar?: boolean;
         secondarySideBar?: boolean;
         primarySideBarPosition?: SideBarPosition;
+        panel?: {
+            position?: PanelPosition;
+            alignment?: PanelAlignment;
+            size?: number;
+            visible?: boolean;
+        };
     } = {}
 ): WorkbenchComponent {
     return new WorkbenchComponent(container, {
@@ -83,6 +91,7 @@ function createWorkbench(
         secondarySideBar: opts.secondarySideBar
             ? { component: 'secondary' }
             : undefined,
+        panel: opts.panel ? { component: 'panel', ...opts.panel } : undefined,
         primarySideBarPosition: opts.primarySideBarPosition,
         createComponent: (options) => new TestBand(options.id, options.name),
         dockview: {
@@ -459,6 +468,188 @@ describe('WorkbenchComponent', () => {
                     regionEl(restored.element, 'primary')
                 )
             ).toBe(true);
+
+            restored.dispose();
+            workbench.dispose();
+        });
+    });
+
+    describe('tool panel', () => {
+        const gridOf = (workbench: WorkbenchComponent): GridviewComponent =>
+            (workbench as unknown as { _gridview: GridviewComponent })
+                ._gridview;
+        const panelOf = (workbench: WorkbenchComponent): GridviewPanel =>
+            gridOf(workbench).getPanel(WORKBENCH_IDS.panel) as GridviewPanel;
+        const editorOf = (workbench: WorkbenchComponent): GridviewPanel =>
+            gridOf(workbench).getPanel(WORKBENCH_IDS.editor) as GridviewPanel;
+
+        test('is added at the bottom, centred, by default', () => {
+            const workbench = createWorkbench(container, { panel: {} });
+            workbench.layout(1000, 800);
+
+            expect(workbench.isRegionVisible('panel')).toBe(true);
+            expect(workbench.panelPosition).toBe('bottom');
+            expect(workbench.panelAlignment).toBe('center');
+
+            workbench.dispose();
+        });
+
+        test('centre alignment spans the editor column only', () => {
+            const workbench = createWorkbench(container, {
+                activityBar: true,
+                primarySideBar: true,
+                secondarySideBar: true,
+                panel: { alignment: 'center' },
+            });
+            workbench.layout(1000, 800);
+
+            // panel sits below the editor in the same column
+            expect(panelOf(workbench).width).toBe(editorOf(workbench).width);
+            // ... which is narrower than the whole workbench (side bars beside it)
+            expect(panelOf(workbench).width).toBeLessThan(1000);
+
+            workbench.dispose();
+        });
+
+        test('justify alignment spans the full width past the side bars', () => {
+            const workbench = createWorkbench(container, {
+                header: true,
+                toolbar: true,
+                activityBar: true,
+                primarySideBar: true,
+                secondarySideBar: true,
+                panel: { alignment: 'justify' },
+            });
+            workbench.layout(1000, 800);
+
+            expect(panelOf(workbench).width).toBeGreaterThan(
+                editorOf(workbench).width
+            );
+            expect(panelOf(workbench).width).toBe(1000);
+
+            workbench.dispose();
+        });
+
+        test('position top places the panel above the editor', () => {
+            const workbench = createWorkbench(container, {
+                panel: { position: 'top' },
+            });
+            workbench.layout(1000, 800);
+
+            expect(
+                precedes(
+                    regionEl(workbench.element, 'panel'),
+                    regionEl(workbench.element, 'editor')
+                )
+            ).toBe(true);
+            // same column => same width
+            expect(panelOf(workbench).width).toBe(editorOf(workbench).width);
+
+            workbench.dispose();
+        });
+
+        test('position right places the panel beside the editor', () => {
+            const workbench = createWorkbench(container, {
+                panel: { position: 'right' },
+            });
+            workbench.layout(1000, 800);
+
+            expect(
+                precedes(
+                    regionEl(workbench.element, 'editor'),
+                    regionEl(workbench.element, 'panel')
+                )
+            ).toBe(true);
+            // same row => same height
+            expect(panelOf(workbench).height).toBe(editorOf(workbench).height);
+
+            workbench.dispose();
+        });
+
+        test('setPanelAlignment switches centre <-> justify', () => {
+            const workbench = createWorkbench(container, {
+                primarySideBar: true,
+                secondarySideBar: true,
+                panel: { alignment: 'center' },
+            });
+            workbench.layout(1000, 800);
+
+            expect(panelOf(workbench).width).toBe(editorOf(workbench).width);
+
+            workbench.setPanelAlignment('justify');
+
+            expect(workbench.panelAlignment).toBe('justify');
+            expect(panelOf(workbench).width).toBeGreaterThan(
+                editorOf(workbench).width
+            );
+
+            workbench.dispose();
+        });
+
+        test('setPanelPosition moves the panel to the side', () => {
+            const workbench = createWorkbench(container, {
+                panel: { position: 'bottom' },
+            });
+            workbench.layout(1000, 800);
+
+            workbench.setPanelPosition('left');
+
+            expect(workbench.panelPosition).toBe('left');
+            expect(
+                precedes(
+                    regionEl(workbench.element, 'panel'),
+                    regionEl(workbench.element, 'editor')
+                )
+            ).toBe(true);
+            expect(panelOf(workbench).height).toBe(editorOf(workbench).height);
+
+            workbench.dispose();
+        });
+
+        test('panel visibility toggles', () => {
+            const workbench = createWorkbench(container, { panel: {} });
+            workbench.layout(1000, 800);
+
+            expect(workbench.isRegionVisible('panel')).toBe(true);
+            workbench.setRegionVisible('panel', false);
+            expect(workbench.isRegionVisible('panel')).toBe(false);
+            workbench.setRegionVisible('panel', true);
+            expect(workbench.isRegionVisible('panel')).toBe(true);
+
+            workbench.dispose();
+        });
+
+        test('panel position + alignment round-trip through serialization', () => {
+            const workbench = createWorkbench(container, {
+                header: true,
+                primarySideBar: true,
+                panel: { position: 'bottom', alignment: 'justify' },
+            });
+            workbench.layout(1000, 800);
+
+            const state = workbench.toJSON();
+            expect(state.panelPosition).toBe('bottom');
+            expect(state.panelAlignment).toBe('justify');
+
+            const restored = createWorkbench(container, {
+                header: true,
+                primarySideBar: true,
+                panel: { position: 'bottom', alignment: 'justify' },
+            });
+            restored.layout(1000, 800);
+            restored.fromJSON(state);
+
+            expect(restored.panelPosition).toBe('bottom');
+            expect(restored.panelAlignment).toBe('justify');
+            // justify preserved: panel spans wider than the editor
+            const rGrid = (
+                restored as unknown as { _gridview: GridviewComponent }
+            )._gridview;
+            const rPanel = rGrid.getPanel(WORKBENCH_IDS.panel) as GridviewPanel;
+            const rEditor = rGrid.getPanel(
+                WORKBENCH_IDS.editor
+            ) as GridviewPanel;
+            expect(rPanel.width).toBeGreaterThan(rEditor.width);
 
             restored.dispose();
             workbench.dispose();

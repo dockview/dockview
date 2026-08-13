@@ -227,11 +227,13 @@ PanePanelComponentInitParameter
 PanePanelInitParameter
 PanePanelViewState
 PaneTransfer
+PanelAlignment
 PanelApi
 PanelConstraintChangeEvent
 PanelDimensionChangeEvent
 PanelInitParameters
 PanelOptions
+PanelPosition
 PanelReference
 PanelSizeEvent
 PanelTransfer
@@ -316,6 +318,7 @@ WorkbenchComponentOptions
 WorkbenchEditorPanel
 WorkbenchFrameworkOptions
 WorkbenchOptions
+WorkbenchPanelOptions
 WorkbenchRegion
 WorkbenchSideBarOptions
 applyTabGroupAccent

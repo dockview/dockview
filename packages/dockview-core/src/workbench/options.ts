@@ -57,6 +57,43 @@ export interface WorkbenchActivityBarOptions {
     params?: Parameters;
 }
 
+/** Where the tool panel sits relative to the editor. */
+export type PanelPosition = 'bottom' | 'top' | 'left' | 'right';
+
+/**
+ * How a top/bottom tool panel spans horizontally.
+ * - `center`: spans the editor column only; the side bars run full height beside it.
+ * - `justify`: spans the full workbench width; the side bars stop above it.
+ *
+ * Alignment is ignored when the panel `position` is `left` or `right`.
+ * (`left`/`right` alignment, VS Code's partial-span modes, are not yet
+ * implemented and fall back to `center`.)
+ */
+export type PanelAlignment = 'center' | 'justify' | 'left' | 'right';
+
+/**
+ * The tool panel (VS Code's bottom panel: terminal, problems, output). A
+ * resizable region that can sit on any side of the editor and, when on the
+ * top/bottom, span either the editor column (`center`) or the full width
+ * (`justify`).
+ */
+export interface WorkbenchPanelOptions {
+    /** The component name resolved via `createComponent`. */
+    component: string;
+    /** Side of the editor the panel occupies. Defaults to `'bottom'`. */
+    position?: PanelPosition;
+    /** Horizontal span for a top/bottom panel. Defaults to `'center'`. */
+    alignment?: PanelAlignment;
+    /** Initial size (height for top/bottom, width for left/right). */
+    size?: number;
+    /** Minimum size before the sash snaps the panel shut. */
+    minimumSize?: number;
+    /** Start hidden. Toggle later via the api. Defaults to visible. */
+    visible?: boolean;
+    /** Parameters forwarded to the panel component. */
+    params?: Parameters;
+}
+
 /**
  * Options that describe the workbench chrome. The editor itself is a full
  * dockview instance (edge groups included) configured via `dockview`.
@@ -74,6 +111,8 @@ export interface WorkbenchOptions {
     primarySideBar?: WorkbenchSideBarOptions;
     /** Secondary side bar, always mounted opposite the primary. */
     secondarySideBar?: WorkbenchSideBarOptions;
+    /** Tool panel (terminal / problems / output). */
+    panel?: WorkbenchPanelOptions;
     /** Which side the primary side bar starts on. Defaults to `'left'`. */
     primarySideBarPosition?: SideBarPosition;
     /** CSS class applied to the workbench root element. */
@@ -101,6 +140,8 @@ export const DEFAULT_STATUS_BAR_SIZE = 22;
 export const DEFAULT_ACTIVITY_BAR_SIZE = 48;
 export const DEFAULT_SIDE_BAR_SIZE = 240;
 export const DEFAULT_SIDE_BAR_MINIMUM_SIZE = 170;
+export const DEFAULT_PANEL_SIZE = 200;
+export const DEFAULT_PANEL_MINIMUM_SIZE = 80;
 
 /** Reserved component name for the editor panel that hosts the dockview. */
 export const WORKBENCH_EDITOR_COMPONENT = '__dv_workbench_editor__';
@@ -114,6 +155,7 @@ export const WORKBENCH_IDS = {
     activityBar: '__dv_workbench_activity_bar__',
     primarySideBar: '__dv_workbench_primary_side_bar__',
     secondarySideBar: '__dv_workbench_secondary_side_bar__',
+    panel: '__dv_workbench_panel__',
 } as const;
 
 /** Fixed-height chrome bands stacked above/below the body row. */
@@ -124,4 +166,5 @@ export type WorkbenchRegion =
     | WorkbenchBand
     | 'activityBar'
     | 'primarySideBar'
-    | 'secondarySideBar';
+    | 'secondarySideBar'
+    | 'panel';

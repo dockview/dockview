@@ -5,6 +5,7 @@ import {
 } from '../dockview/dockviewComponent';
 import type { DockviewComponentOptions } from '../dockview/options';
 import {
+    type AddGridviewComponentOptions,
     GridviewComponent,
     type SerializedGridviewComponent,
 } from '../gridview/gridviewComponent';
@@ -15,10 +16,14 @@ import { LayoutPriority, Orientation } from '../splitview/splitview';
 import {
     DEFAULT_ACTIVITY_BAR_SIZE,
     DEFAULT_HEADER_SIZE,
+    DEFAULT_PANEL_MINIMUM_SIZE,
+    DEFAULT_PANEL_SIZE,
     DEFAULT_SIDE_BAR_MINIMUM_SIZE,
     DEFAULT_SIDE_BAR_SIZE,
     DEFAULT_STATUS_BAR_SIZE,
     DEFAULT_TOOLBAR_SIZE,
+    type PanelAlignment,
+    type PanelPosition,
     type SideBarPosition,
     WORKBENCH_EDITOR_COMPONENT,
     WORKBENCH_IDS,
@@ -26,6 +31,7 @@ import {
     type WorkbenchBand,
     type WorkbenchBandOptions,
     type WorkbenchComponentOptions,
+    type WorkbenchPanelOptions,
     type WorkbenchRegion,
     type WorkbenchSideBarOptions,
 } from './options';
@@ -37,6 +43,10 @@ export interface SerializedWorkbench {
     dockview?: SerializedDockview;
     /** Which side the primary side bar (and its activity bar) sits on. */
     primarySideBarPosition?: SideBarPosition;
+    /** Which side of the editor the tool panel sits on. */
+    panelPosition?: PanelPosition;
+    /** Horizontal span of a top/bottom tool panel. */
+    panelAlignment?: PanelAlignment;
 }
 
 /**
@@ -108,6 +118,9 @@ export class WorkbenchComponent extends CompositeDisposable {
 
     private _editorPanel: WorkbenchEditorPanel | undefined;
     private _primarySideBarPosition: SideBarPosition;
+    private _panelPosition: PanelPosition = 'bottom';
+    private _panelAlignment: PanelAlignment = 'center';
+    private _panelOptions: WorkbenchPanelOptions | undefined;
 
     get element(): HTMLElement {
         return this._element;
@@ -115,6 +128,14 @@ export class WorkbenchComponent extends CompositeDisposable {
 
     get primarySideBarPosition(): SideBarPosition {
         return this._primarySideBarPosition;
+    }
+
+    get panelPosition(): PanelPosition {
+        return this._panelPosition;
+    }
+
+    get panelAlignment(): PanelAlignment {
+        return this._panelAlignment;
     }
 
     get dockview(): DockviewApi {
@@ -247,6 +268,16 @@ export class WorkbenchComponent extends CompositeDisposable {
                 }
             );
         }
+
+        if (options.panel) {
+            this._panelOptions = options.panel;
+            this._panelPosition = options.panel.position ?? 'bottom';
+            this._panelAlignment = options.panel.alignment ?? 'center';
+            this._addPanel();
+            if (options.panel.visible === false) {
+                this._setPanelVisible(WORKBENCH_IDS.panel, false);
+            }
+        }
     }
 
     private _addBand(
@@ -315,6 +346,99 @@ export class WorkbenchComponent extends CompositeDisposable {
         });
         if (options.visible === false) {
             this._setPanelVisible(WORKBENCH_IDS.activityBar, false);
+        }
+    }
+
+    /**
+     * Root-level index the body row occupies (the header, if present, always
+     * sits above it). A `justify` panel is inserted at the root, just below or
+     * above the body, so it spans the full width past the side bars.
+     */
+    private _rootBodyIndex(): number {
+        return this._gridview.getPanel(WORKBENCH_IDS.header) ? 1 : 0;
+    }
+
+    private _addPanel(): void {
+        const options = this._panelOptions;
+        if (!options) {
+            return;
+        }
+
+        const position = this._panelPosition;
+        const alignment = this._panelAlignment;
+        const size = options.size ?? DEFAULT_PANEL_SIZE;
+        const minimum = options.minimumSize ?? DEFAULT_PANEL_MINIMUM_SIZE;
+        const horizontal = position === 'left' || position === 'right';
+
+        const add: AddGridviewComponentOptions = {
+            id: WORKBENCH_IDS.panel,
+            component: options.component,
+            params: options.params,
+            priority: LayoutPriority.Low,
+            snap: true,
+            size,
+            // constrain on the panel's resize axis so the sash has room to snap
+            ...(horizontal
+                ? { minimumWidth: minimum }
+                : { minimumHeight: minimum }),
+        };
+
+        if (position === 'left' || position === 'right') {
+            // Beside the editor, inside the horizontal body branch.
+            add.position = {
+                referencePanel: WORKBENCH_IDS.editor,
+                direction: position,
+            };
+        } else if (alignment === 'justify') {
+            // Full-width row at the root, below/above the whole body branch.
+            const bodyIndex = this._rootBodyIndex();
+            add.location =
+                position === 'bottom' ? [bodyIndex + 1] : [bodyIndex];
+        } else {
+            // center (and the not-yet-implemented left/right spans): nest the
+            // panel with the editor so it spans the editor column only.
+            add.position = {
+                referencePanel: WORKBENCH_IDS.editor,
+                direction: position === 'bottom' ? 'below' : 'above',
+            };
+        }
+
+        this._gridview.addPanel(add);
+    }
+
+    /** Move the tool panel to a different side of the editor. */
+    setPanelPosition(position: PanelPosition): void {
+        if (position === this._panelPosition || !this._panelOptions) {
+            return;
+        }
+        this._panelPosition = position;
+        this._rebuildPanel();
+    }
+
+    /** Change how a top/bottom tool panel spans horizontally. */
+    setPanelAlignment(alignment: PanelAlignment): void {
+        if (alignment === this._panelAlignment || !this._panelOptions) {
+            return;
+        }
+        this._panelAlignment = alignment;
+        this._rebuildPanel();
+    }
+
+    /**
+     * Re-place the tool panel after a position/alignment change. The panel view
+     * is recreated (its target location in the grid tree changes), so its
+     * component is re-instantiated via `createComponent`.
+     */
+    private _rebuildPanel(): void {
+        const existing = this._gridview.getPanel(WORKBENCH_IDS.panel);
+        if (!existing) {
+            return;
+        }
+        const wasVisible = existing.api.isVisible;
+        this._gridview.removePanel(existing);
+        this._addPanel();
+        if (!wasVisible) {
+            this._setPanelVisible(WORKBENCH_IDS.panel, false);
         }
     }
 
@@ -406,14 +530,18 @@ export class WorkbenchComponent extends CompositeDisposable {
             grid: this._gridview.toJSON(),
             dockview: this._editorPanel?.dockview.toJSON(),
             primarySideBarPosition: this._primarySideBarPosition,
+            panelPosition: this._panelPosition,
+            panelAlignment: this._panelAlignment,
         };
     }
 
     fromJSON(data: SerializedWorkbench): void {
-        // The serialized grid tree already encodes the flipped side-bar order;
-        // keep our tracked position in sync so later flips start from the right
-        // side.
+        // The serialized grid tree already encodes the flipped side-bar order
+        // and the panel placement; keep our tracked state in sync so later
+        // flips/re-alignments start from the right structure.
         this._primarySideBarPosition = data.primarySideBarPosition ?? 'left';
+        this._panelPosition = data.panelPosition ?? 'bottom';
+        this._panelAlignment = data.panelAlignment ?? 'center';
         // Rebuilds the outer grid, which re-creates the editor panel (and a
         // fresh dockview) through createComponent, repointing _editorPanel.
         this._gridview.fromJSON(data.grid);

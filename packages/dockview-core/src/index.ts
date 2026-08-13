@@ -206,6 +206,8 @@ export {
 } from './workbench/workbenchComponent';
 export { WorkbenchApi } from './workbench/workbench.api';
 export {
+    type PanelAlignment,
+    type PanelPosition,
     type SideBarPosition,
     type WorkbenchActivityBarOptions,
     type WorkbenchBand,
@@ -213,6 +215,7 @@ export {
     type WorkbenchComponentOptions,
     type WorkbenchFrameworkOptions,
     type WorkbenchOptions,
+    type WorkbenchPanelOptions,
     type WorkbenchRegion,
     type WorkbenchSideBarOptions,
 } from './workbench/options';
