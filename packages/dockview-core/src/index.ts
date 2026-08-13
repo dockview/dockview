@@ -197,7 +197,21 @@ export {
     createGridview,
     createPaneview,
     createSplitview,
+    createWorkbench,
 } from './api/entryPoints';
+export {
+    WorkbenchComponent,
+    WorkbenchEditorPanel,
+    type SerializedWorkbench,
+} from './workbench/workbenchComponent';
+export { WorkbenchApi } from './workbench/workbench.api';
+export {
+    type WorkbenchComponentOptions,
+    type WorkbenchOptions,
+    type WorkbenchFrameworkOptions,
+    type WorkbenchBandOptions,
+    type WorkbenchBand,
+} from './workbench/options';
 export {
     registerModules,
     getRegisteredModules,

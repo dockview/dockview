@@ -1,0 +1,59 @@
+import type { DockviewApi } from '../api/component.api';
+import type { IDisposable } from '../lifecycle';
+import type { WorkbenchBand } from './options';
+import type {
+    SerializedWorkbench,
+    WorkbenchComponent,
+} from './workbenchComponent';
+
+/**
+ * Public handle for a {@link WorkbenchComponent}. The editor is exposed as a
+ * regular {@link DockviewApi} via `dockview`, so all existing dockview features
+ * (edge groups, floating, popout, serialization) keep working inside the
+ * workbench editor.
+ */
+export class WorkbenchApi implements IDisposable {
+    constructor(private readonly _component: WorkbenchComponent) {}
+
+    /** The workbench root element. */
+    get element(): HTMLElement {
+        return this._component.element;
+    }
+
+    /** The dockview backing the editor area. */
+    get dockview(): DockviewApi {
+        return this._component.dockview;
+    }
+
+    setHeaderVisible(visible: boolean): void {
+        this._component.setBandVisible('header', visible);
+    }
+
+    setToolbarVisible(visible: boolean): void {
+        this._component.setBandVisible('toolbar', visible);
+    }
+
+    setStatusBarVisible(visible: boolean): void {
+        this._component.setBandVisible('statusBar', visible);
+    }
+
+    isBandVisible(band: WorkbenchBand): boolean {
+        return this._component.isBandVisible(band);
+    }
+
+    layout(width: number, height: number): void {
+        this._component.layout(width, height);
+    }
+
+    toJSON(): SerializedWorkbench {
+        return this._component.toJSON();
+    }
+
+    fromJSON(data: SerializedWorkbench): void {
+        this._component.fromJSON(data);
+    }
+
+    dispose(): void {
+        this._component.dispose();
+    }
+}

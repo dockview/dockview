@@ -274,6 +274,7 @@ SerializedSplitview
 SerializedSplitviewPanel
 SerializedSplitviewPanelData
 SerializedTabGroup
+SerializedWorkbench
 ServiceCollection
 SizeEvent
 Sizing
@@ -305,6 +306,14 @@ TitleEvent
 ViewFactoryData
 VisibilityEvent
 WatermarkRendererInitParameters
+WorkbenchApi
+WorkbenchBand
+WorkbenchBandOptions
+WorkbenchComponent
+WorkbenchComponentOptions
+WorkbenchEditorPanel
+WorkbenchFrameworkOptions
+WorkbenchOptions
 applyTabGroupAccent
 clearRegisteredModules
 createCloseButton
@@ -314,6 +323,7 @@ createGridview
 createPaneview
 createPinButton
 createSplitview
+createWorkbench
 defineModule
 directionToPosition
 findRelativeZIndexParent
