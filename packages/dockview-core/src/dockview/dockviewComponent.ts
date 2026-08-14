@@ -90,6 +90,11 @@ import {
 } from './modules';
 import { validateOptionModules } from './optionsModules';
 import { AllModules } from './allModules';
+import {
+    DockviewScreen,
+    DockviewScreensChangeEvent,
+    WindowManagementPermissionState,
+} from './screenManager';
 import { IFloatingGroupHost } from './floatingGroupService';
 import { IPopoutWindowHost, PopoutGroupEntry } from './popoutWindowService';
 import { IWatermarkHost } from './watermarkService';
@@ -406,6 +411,14 @@ export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
     readonly onDidRemovePopoutGroup: Event<PopoutGroup>;
     readonly onDidOpenPopoutWindowFail: Event<void>;
     getPopouts(): PopoutGroup[];
+    // Screen discovery (ScreenManagement module; design doc §4.5). Queries
+    // fall back silently when the module is absent; getScreens is the one
+    // guarded command.
+    readonly hasWindowManagement: boolean;
+    readonly screens: readonly DockviewScreen[];
+    readonly onDidChangeScreens: Event<DockviewScreensChangeEvent>;
+    getScreens(): Promise<DockviewScreen[]>;
+    getWindowManagementPermission(): Promise<WindowManagementPermissionState>;
     readonly onDidCreateTabGroup: Event<DockviewTabGroupChangeEvent>;
     readonly onDidDestroyTabGroup: Event<DockviewTabGroupChangeEvent>;
     readonly onDidAddPanelToTabGroup: Event<DockviewTabGroupPanelChangeEvent>;
@@ -983,6 +996,52 @@ export class DockviewComponent
                 : undefined;
             return snapped ?? appResult ?? undefined;
         };
+    }
+
+    private get _screenManagerService() {
+        // Optional like every module service; `?.`-guarded everywhere so the
+        // component works with the module absent (it is not registered in
+        // AllModules while the packaging decision is pending).
+        return this._moduleRegistry.services.screenManagerService;
+    }
+
+    /** True when screen discovery is live: module present AND (adapter or
+     *  Window Management API available). Query — silent `false` otherwise. */
+    get hasWindowManagement(): boolean {
+        return this._screenManagerService?.isSupported ?? false;
+    }
+
+    /** Synchronous last-known screens snapshot (empty without the module). */
+    get screens(): readonly DockviewScreen[] {
+        return this._screenManagerService?.screens ?? [];
+    }
+
+    /** Screen hotplug / geometry changes. Never fires without the module. */
+    get onDidChangeScreens(): Event<DockviewScreensChangeEvent> {
+        return this._screenManagerService?.onDidChangeScreens ?? NO_EVENT;
+    }
+
+    /**
+     * Resolve the true screen list. May prompt when the permission is in the
+     * 'prompt' state, so call from a user gesture. Command — logs the missing
+     * module and resolves empty when absent.
+     */
+    getScreens(): Promise<DockviewScreen[]> {
+        return (
+            assertModule(
+                this._screenManagerService,
+                'ScreenManagement',
+                'api.getScreens'
+            )?.getScreens() ?? Promise.resolve([])
+        );
+    }
+
+    /** Where the window-management permission stands; never prompts. */
+    getWindowManagementPermission(): Promise<WindowManagementPermissionState> {
+        return (
+            this._screenManagerService?.permissionState() ??
+            Promise.resolve<WindowManagementPermissionState>('unsupported')
+        );
     }
 
     private get _floatingGroupService() {

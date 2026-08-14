@@ -104,6 +104,15 @@ export {
 
 export * from './dockview/dockviewComponent';
 export {
+    type DockviewScreen,
+    type ScreenPlacement,
+    type DockviewScreenTarget,
+    type WindowManagementPermissionState,
+    type DockviewScreensChangeEvent,
+    type DockviewScreenAdapter,
+    type IScreenManager,
+} from './dockview/screenManager';
+export {
     type EdgeGroupOptions,
     type AddEdgeGroupOptions,
     type EdgeGroupPosition,

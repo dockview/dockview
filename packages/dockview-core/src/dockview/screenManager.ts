@@ -1,6 +1,7 @@
 import { Emitter, Event } from '../events';
 import { CompositeDisposable, Disposable } from '../lifecycle';
 import { Box } from '../types';
+import { defineModule } from './modules';
 
 /**
  * Facade over the Window Management API (design doc:
@@ -9,8 +10,12 @@ import { Box } from '../types';
  * touches `getScreenDetails()` directly and testing is a matter of mocking
  * one object.
  *
- * Phase 0: standalone service + types only — not yet registered as a module
- * or consumed by DockviewComponent.
+ * The module is defined here but NOT registered anywhere yet: the
+ * free-vs-enterprise packaging decision is deferred (DV-94), and registration
+ * (plus the `screenAdapter` option key and its OPTION_MODULE_RULES entry,
+ * whose sync tests require the module to be registered somewhere) lands with
+ * that decision. Until then the feature is dormant; tests exercise it via the
+ * internal `modules` construction seam.
  */
 
 export type WindowManagementPermissionState =
@@ -93,6 +98,33 @@ export interface PermissionStatusLike {
     removeEventListener?(type: 'change', listener: () => void): void;
 }
 
+/**
+ * Host-supplied screen source (design doc §4.6). Implemented by the app —
+ * e.g. over an Electron preload bridge to the main-process `screen` module —
+ * with no runtime dependency in either direction. When present it replaces
+ * the Window Management API entirely: no permission machinery, snapshot
+ * populated eagerly, and `id` can be a genuinely stable native id
+ * (Electron's `Display.id`).
+ */
+export interface DockviewScreenAdapter {
+    /** Replaces getScreenDetails() as the source of truth. */
+    getScreens(): Promise<DockviewScreen[]> | DockviewScreen[];
+    /** Replaces screenschange listening. Returns an unsubscribe. */
+    subscribe?(listener: (screens: DockviewScreen[]) => void): () => void;
+    /**
+     * Native window placement (e.g. BrowserWindow.setBounds via IPC).
+     * Consumers fall back to win.moveTo/resizeTo when absent. (Consumed from
+     * Phase 2 onward.)
+     */
+    moveWindow?(window: Window, box: Box): boolean | Promise<boolean>;
+    /**
+     * Native fullscreen (e.g. BrowserWindow.setFullScreen via IPC).
+     * Consumers fall back to the web fullscreen path when absent. (Consumed
+     * from Phase 3 onward.)
+     */
+    setFullscreen?(window: Window, value: boolean): boolean | Promise<boolean>;
+}
+
 export interface IScreenManager {
     /** True when the Window Management API exists on the host window. */
     readonly isSupported: boolean;
@@ -159,10 +191,12 @@ export class ScreenManager
     private _details: ScreenDetails | null = null;
     private _detachDetailListeners: (() => void) | null = null;
     private _detachPermissionListener: (() => void) | null = null;
+    private _detachAdapterListener: (() => void) | null = null;
     private _denied = false;
 
     constructor(
-        private readonly _window: ScreenManagerWindow = globalThis.window as unknown as ScreenManagerWindow
+        private readonly _window: ScreenManagerWindow = globalThis.window as unknown as ScreenManagerWindow,
+        private readonly _adapter?: DockviewScreenAdapter
     ) {
         super();
         this._screens = [this.fallbackScreen()];
@@ -173,13 +207,19 @@ export class ScreenManager
                 this._detachDetailListeners = null;
                 this._detachPermissionListener?.();
                 this._detachPermissionListener = null;
+                this._detachAdapterListener?.();
+                this._detachAdapterListener = null;
                 this._details = null;
             })
         );
     }
 
     get isSupported(): boolean {
-        return typeof this._window?.getScreenDetails === 'function';
+        // Precedence: adapter → Window Management API → unsupported.
+        return (
+            this._adapter !== undefined ||
+            typeof this._window?.getScreenDetails === 'function'
+        );
     }
 
     get screens(): readonly DockviewScreen[] {
@@ -191,6 +231,10 @@ export class ScreenManager
     }
 
     async permissionState(): Promise<WindowManagementPermissionState> {
+        if (this._adapter) {
+            // Adapter-fed screens involve no browser permission at all.
+            return 'granted';
+        }
         if (!this.isSupported) {
             return 'unsupported';
         }
@@ -221,6 +265,24 @@ export class ScreenManager
     }
 
     async getScreens(): Promise<DockviewScreen[]> {
+        if (this._adapter) {
+            if (this.isDisposed) {
+                return this._screens;
+            }
+            try {
+                const screens = await this._adapter.getScreens();
+                if (this.isDisposed) {
+                    return this._screens;
+                }
+                this.attachAdapterListener();
+                if (screens.length > 0) {
+                    this.updateSnapshot([...screens]);
+                }
+                return this._screens;
+            } catch {
+                return this.useFallback();
+            }
+        }
         if (!this.isSupported || this._denied || this.isDisposed) {
             return this.useFallback();
         }
@@ -413,6 +475,18 @@ export class ScreenManager
         };
     }
 
+    private attachAdapterListener(): void {
+        if (this._detachAdapterListener || !this._adapter?.subscribe) {
+            return;
+        }
+        this._detachAdapterListener = this._adapter.subscribe((screens) => {
+            if (this.isDisposed || screens.length === 0) {
+                return;
+            }
+            this.updateSnapshot([...screens]);
+        });
+    }
+
     private watchPermission(status: PermissionStatusLike): void {
         if (this._detachPermissionListener || !status.addEventListener) {
             return;
@@ -440,3 +514,34 @@ export class ScreenManager
         };
     }
 }
+
+/**
+ * Narrow host surface the module needs. Structural — an options bag that MAY
+ * carry a `screenAdapter`. `DockviewComponentOptions` does not declare the
+ * key yet (it lands with the packaging decision, see the file header), and
+ * optional-property structural typing means the host satisfies this contract
+ * either way.
+ */
+export interface IScreenManagerHost {
+    readonly options: { readonly screenAdapter?: DockviewScreenAdapter };
+}
+
+export const ScreenManagerModule = defineModule<
+    'screenManagerService',
+    IScreenManagerHost
+>({
+    name: 'ScreenManagement',
+    serviceKey: 'screenManagerService',
+    // Declared for the future OPTION_MODULE_RULES entry; inert until the
+    // module is registered and the option key exists (see file header).
+    options: ['screenAdapter'],
+    create: (host) => new ScreenManager(undefined, host.options.screenAdapter),
+    init: (_host, service) => {
+        // Query-only permission probe; populates the snapshot eagerly when
+        // the permission is already granted (or an adapter is present) so
+        // gesture-less paths (fromJSON restore) are screen-aware. Never
+        // prompts.
+        void service.prime();
+        return Disposable.NONE;
+    },
+});

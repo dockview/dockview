@@ -1,5 +1,6 @@
 import {
     DockviewScreen,
+    DockviewScreenAdapter,
     DockviewScreensChangeEvent,
     ScreenManager,
     ScreenManagerWindow,
@@ -515,6 +516,102 @@ describe('screenManager', () => {
                 height: 200,
             });
             m.dispose();
+        });
+    });
+
+    describe('screenAdapter precedence', () => {
+        function adapterScreen(id: string, left = 0): DockviewScreen {
+            return {
+                id,
+                label: id,
+                isPrimary: left === 0,
+                isInternal: false,
+                isCurrent: left === 0,
+                bounds: { left, top: 0, width: 1920, height: 1080 },
+                workArea: { left, top: 0, width: 1920, height: 1040 },
+                devicePixelRatio: 1,
+            };
+        }
+
+        test('adapter replaces the web API entirely', async () => {
+            const fake = fakeWindow(); // has a working getScreenDetails
+            const adapter: DockviewScreenAdapter = {
+                getScreens: () => [adapterScreen('a'), adapterScreen('b', 1920)],
+            };
+            const manager = new ScreenManager(fake.window, adapter);
+
+            expect(manager.isSupported).toBe(true);
+            expect(await manager.permissionState()).toBe('granted');
+            const screens = await manager.getScreens();
+            expect(screens.map((s) => s.id)).toEqual(['a', 'b']);
+            // The web API must never have been consulted.
+            expect(fake.getScreenDetails).not.toHaveBeenCalled();
+            manager.dispose();
+        });
+
+        test('prime() populates eagerly through the adapter', async () => {
+            const adapter: DockviewScreenAdapter = {
+                getScreens: () => [adapterScreen('a')],
+            };
+            const manager = new ScreenManager(
+                fakeWindow({ supported: false }).window,
+                adapter
+            );
+            await manager.prime();
+            expect(manager.screens.map((s) => s.id)).toEqual(['a']);
+            manager.dispose();
+        });
+
+        test('subscribe feeds topology changes; unsubscribe on dispose', async () => {
+            let listener: ((screens: DockviewScreen[]) => void) | null = null;
+            let unsubscribed = false;
+            const adapter: DockviewScreenAdapter = {
+                getScreens: () => [adapterScreen('a'), adapterScreen('b', 1920)],
+                subscribe: (cb) => {
+                    listener = cb;
+                    return () => {
+                        unsubscribed = true;
+                    };
+                },
+            };
+            const manager = new ScreenManager(
+                fakeWindow({ supported: false }).window,
+                adapter
+            );
+            await manager.getScreens();
+
+            const events: DockviewScreensChangeEvent[] = [];
+            manager.onDidChangeScreens((event) => events.push(event));
+            listener!([adapterScreen('a')]);
+            expect(events).toHaveLength(1);
+            expect(events[0].removed.map((s) => s.id)).toEqual(['b']);
+
+            manager.dispose();
+            expect(unsubscribed).toBe(true);
+        });
+
+        test('a throwing or empty adapter degrades to the fallback screen', async () => {
+            const throwing = new ScreenManager(
+                fakeWindow({ supported: false }).window,
+                {
+                    getScreens: () => {
+                        throw new Error('ipc down');
+                    },
+                }
+            );
+            expect(
+                (await throwing.getScreens()).map((s) => s.id)
+            ).toEqual(['dv-screen-fallback']);
+            throwing.dispose();
+
+            const empty = new ScreenManager(
+                fakeWindow({ supported: false }).window,
+                { getScreens: () => [] }
+            );
+            expect((await empty.getScreens()).map((s) => s.id)).toEqual([
+                'dv-screen-fallback',
+            ]);
+            empty.dispose();
         });
     });
 

@@ -25,6 +25,11 @@ import {
     DockviewMessages,
     resolveMessages,
 } from '../dockview/accessibilityMessages';
+import {
+    DockviewScreen,
+    DockviewScreensChangeEvent,
+    WindowManagementPermissionState,
+} from '../dockview/screenManager';
 import { Parameters } from '../panel/types';
 import { Direction } from '../gridview/baseComponentGridview';
 import {
@@ -840,6 +845,49 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
     /** Enumerate the popout groups currently open in their own windows. */
     getPopouts(): PopoutGroup[] {
         return this.component.getPopouts();
+    }
+
+    /**
+     * True when screen discovery is live: the ScreenManagement module is
+     * present and either a `screenAdapter` or the browser's Window Management
+     * API is available. Safe to read anywhere; never prompts.
+     */
+    get hasWindowManagement(): boolean {
+        return this.component.hasWindowManagement;
+    }
+
+    /**
+     * Synchronous last-known screens snapshot. A single synthetic screen (or
+     * empty without the module) until {@link getScreens} / an adapter has
+     * resolved the real list.
+     */
+    get screens(): readonly DockviewScreen[] {
+        return this.component.screens;
+    }
+
+    /**
+     * Fires on screen hotplug / geometry / arrangement changes. Never fires
+     * without the ScreenManagement module and a granted permission (or
+     * adapter).
+     */
+    get onDidChangeScreens(): Event<DockviewScreensChangeEvent> {
+        return this.component.onDidChangeScreens;
+    }
+
+    /**
+     * Resolve the true screen list. Prompts when the `window-management`
+     * permission is in the `'prompt'` state, so call this from a user gesture
+     * (e.g. a click handler building a "move to screen" menu). Resolves to a
+     * single-screen fallback when unsupported/denied, and to an empty list
+     * (with a logged diagnostic) when the module is absent.
+     */
+    getScreens(): Promise<DockviewScreen[]> {
+        return this.component.getScreens();
+    }
+
+    /** Where the `window-management` permission stands; never prompts. */
+    getWindowManagementPermission(): Promise<WindowManagementPermissionState> {
+        return this.component.getWindowManagementPermission();
     }
 
     /**

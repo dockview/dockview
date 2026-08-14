@@ -12,6 +12,7 @@
 import { IDisposable } from '../lifecycle';
 import { IFloatingGroupService } from './floatingGroupService';
 import { IPopoutWindowService } from './popoutWindowService';
+import { IScreenManager } from './screenManager';
 import { IWatermarkService } from './watermarkService';
 import { IEdgeGroupService } from './edgeGroupService';
 import { IRootDropTargetService } from './rootDropTargetService';
@@ -36,6 +37,7 @@ import {
 export interface ServiceCollection {
     floatingGroupService?: IFloatingGroupService;
     popoutWindowService?: IPopoutWindowService;
+    screenManagerService?: IScreenManager;
     watermarkService?: IWatermarkService;
     edgeGroupService?: IEdgeGroupService;
     tabGroupChipsService?: ITabGroupChipsService;
