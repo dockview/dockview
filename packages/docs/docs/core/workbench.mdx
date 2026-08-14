@@ -89,14 +89,16 @@ Set the initial view with the `activeViewContainer` option. The active view cont
 The tool panel can sit on any side of the editor, and a top or bottom panel can span either the editor column or the full width.
 
 - `position`: `'bottom'` (default), `'top'`, `'left'` or `'right'`.
-- `alignment` (top / bottom only): `'center'` spans the editor column so the side bars run full height beside the panel; `'justify'` spans the full width so the side bars stop above it.
+- `alignment` (top / bottom only):
+  - `'center'` spans the editor column so the side bars run full height beside the panel.
+  - `'justify'` spans the full width so the side bars stop above it.
+  - `'left'` spans the editor plus the side bars to its left; the right side bar stays full height.
+  - `'right'` spans the editor plus the side bars to its right; the left side bars stay full height.
 
 ```ts
 api.setPanelPosition('right');
 api.setPanelAlignment('justify');
 ```
-
-`left` and `right` alignment are not yet implemented and fall back to `center`.
 
 ## Visibility
 

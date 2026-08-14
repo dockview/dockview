@@ -64,10 +64,12 @@ export type PanelPosition = 'bottom' | 'top' | 'left' | 'right';
  * How a top/bottom tool panel spans horizontally.
  * - `center`: spans the editor column only; the side bars run full height beside it.
  * - `justify`: spans the full workbench width; the side bars stop above it.
+ * - `left`: spans the editor plus the side bars to its left; the right side bar
+ *   stays full height.
+ * - `right`: spans the editor plus the side bars to its right; the left side
+ *   bars stay full height.
  *
  * Alignment is ignored when the panel `position` is `left` or `right`.
- * (`left`/`right` alignment, VS Code's partial-span modes, are not yet
- * implemented and fall back to `center`.)
  */
 export type PanelAlignment = 'center' | 'justify' | 'left' | 'right';
 

@@ -138,6 +138,9 @@ export class WorkbenchComponent extends CompositeDisposable {
     private _panelPosition: PanelPosition = 'bottom';
     private _panelAlignment: PanelAlignment = 'center';
     private _panelOptions: WorkbenchPanelOptions | undefined;
+    private _activityBarOptions: WorkbenchActivityBarOptions | undefined;
+    private _primarySideBarOptions: WorkbenchSideBarOptions | undefined;
+    private _secondarySideBarOptions: WorkbenchSideBarOptions | undefined;
     private _activeViewContainer: string | undefined;
 
     private readonly _onDidChangeActiveViewContainer = new Emitter<
@@ -265,42 +268,10 @@ export class WorkbenchComponent extends CompositeDisposable {
         // Side regions are added AFTER the full-width bands so they nest into a
         // horizontal branch beside the editor only, leaving the header/toolbar/
         // status bands spanning the full width.
-        const pos = this._primarySideBarPosition;
-        const primarySide = pos; // 'left' | 'right'
-        const oppositeSide: SideBarPosition = pos === 'left' ? 'right' : 'left';
-
-        if (options.primarySideBar) {
-            this._addSideBar(
-                WORKBENCH_IDS.primarySideBar,
-                options.primarySideBar,
-                {
-                    referencePanel: WORKBENCH_IDS.editor,
-                    direction: primarySide,
-                }
-            );
-        }
-
-        if (options.activityBar) {
-            // The rail sits outside the primary side bar (or beside the editor
-            // when there is no side bar).
-            this._addActivityBar(options.activityBar, {
-                referencePanel: options.primarySideBar
-                    ? WORKBENCH_IDS.primarySideBar
-                    : WORKBENCH_IDS.editor,
-                direction: primarySide,
-            });
-        }
-
-        if (options.secondarySideBar) {
-            this._addSideBar(
-                WORKBENCH_IDS.secondarySideBar,
-                options.secondarySideBar,
-                {
-                    referencePanel: WORKBENCH_IDS.editor,
-                    direction: oppositeSide,
-                }
-            );
-        }
+        this._activityBarOptions = options.activityBar;
+        this._primarySideBarOptions = options.primarySideBar;
+        this._secondarySideBarOptions = options.secondarySideBar;
+        this._addSideRegions();
 
         if (options.panel) {
             this._panelOptions = options.panel;
@@ -311,6 +282,86 @@ export class WorkbenchComponent extends CompositeDisposable {
                 this._setPanelVisible(WORKBENCH_IDS.panel, false);
             }
         }
+    }
+
+    /**
+     * Add the activity bar and side bars in the flat body arrangement (beside
+     * the editor). A `left`/`right`-aligned panel later pulls the same-side
+     * bars into the editor column so the panel spans them; this method always
+     * produces the un-nested baseline, so it is also the reset step of a
+     * panel re-alignment.
+     */
+    private _addSideRegions(): void {
+        const primarySide = this._primarySideBarPosition;
+        const oppositeSide: SideBarPosition =
+            primarySide === 'left' ? 'right' : 'left';
+
+        if (this._primarySideBarOptions) {
+            this._addSideBar(
+                WORKBENCH_IDS.primarySideBar,
+                this._primarySideBarOptions,
+                { referencePanel: WORKBENCH_IDS.editor, direction: primarySide }
+            );
+        }
+
+        if (this._activityBarOptions) {
+            // The rail sits outside the primary side bar (or beside the editor
+            // when there is no side bar).
+            this._addActivityBar(this._activityBarOptions, {
+                referencePanel: this._primarySideBarOptions
+                    ? WORKBENCH_IDS.primarySideBar
+                    : WORKBENCH_IDS.editor,
+                direction: primarySide,
+            });
+        }
+
+        if (this._secondarySideBarOptions) {
+            this._addSideBar(
+                WORKBENCH_IDS.secondarySideBar,
+                this._secondarySideBarOptions,
+                {
+                    referencePanel: WORKBENCH_IDS.editor,
+                    direction: oppositeSide,
+                }
+            );
+        }
+    }
+
+    private _removeSideRegions(): void {
+        for (const id of [
+            WORKBENCH_IDS.secondarySideBar,
+            WORKBENCH_IDS.activityBar,
+            WORKBENCH_IDS.primarySideBar,
+        ]) {
+            const panel = this._gridview.getPanel(id);
+            if (panel) {
+                this._gridview.removePanel(panel);
+            }
+        }
+    }
+
+    /**
+     * The side-bar ids sitting on the given side of the editor, in visual
+     * left-to-right order, for the current primary side bar position.
+     */
+    private _sideBarsOnSide(side: SideBarPosition): string[] {
+        const present = (id: string): boolean =>
+            this._gridview.getPanel(id) !== undefined;
+        const filter = (ids: string[]): string[] => ids.filter(present);
+
+        // primary-left body order:  [activity, primary, editor, secondary]
+        // primary-right body order: [secondary, editor, primary, activity]
+        if (this._primarySideBarPosition === 'left') {
+            return side === 'left'
+                ? filter([
+                      WORKBENCH_IDS.activityBar,
+                      WORKBENCH_IDS.primarySideBar,
+                  ])
+                : filter([WORKBENCH_IDS.secondarySideBar]);
+        }
+        return side === 'left'
+            ? filter([WORKBENCH_IDS.secondarySideBar])
+            : filter([WORKBENCH_IDS.primarySideBar, WORKBENCH_IDS.activityBar]);
     }
 
     private _addBand(
@@ -431,8 +482,9 @@ export class WorkbenchComponent extends CompositeDisposable {
             add.location =
                 position === 'bottom' ? [bodyIndex + 1] : [bodyIndex];
         } else {
-            // center (and the not-yet-implemented left/right spans): nest the
-            // panel with the editor so it spans the editor column only.
+            // center / left / right: nest the panel with the editor column
+            // (spanning the editor only for now); a left/right span then pulls
+            // the same-side bars into that column below.
             add.position = {
                 referencePanel: WORKBENCH_IDS.editor,
                 direction: position === 'bottom' ? 'below' : 'above',
@@ -441,6 +493,37 @@ export class WorkbenchComponent extends CompositeDisposable {
 
         this._gridview.addPanel(add);
         this._tagRegion(WORKBENCH_IDS.panel);
+
+        if (
+            (position === 'bottom' || position === 'top') &&
+            (alignment === 'left' || alignment === 'right')
+        ) {
+            this._spanPanelOverSide(alignment);
+        }
+    }
+
+    /**
+     * Extend a centred top/bottom panel to span the editor plus the side bars
+     * on `side`, by pulling those bars into the editor's column (so the panel,
+     * which sits below/above that column, spans them too). The opposite side's
+     * bars stay full height. Uses `moveGroup`, which re-resolves the reference
+     * after removing the moved bar, so these cross-branch moves are index-safe.
+     */
+    private _spanPanelOverSide(side: SideBarPosition): void {
+        const bars = this._sideBarsOnSide(side);
+        // 'left': pull bars to the left of the editor, right-to-left, chaining
+        //   the reference so the final order stays [bars..., editor].
+        // 'right': pull bars to the right, left-to-right, chaining likewise.
+        const ordered = side === 'left' ? [...bars].reverse() : bars;
+        let referenceId: string = WORKBENCH_IDS.editor;
+        for (const barId of ordered) {
+            const reference = this._gridview.getPanel(referenceId);
+            const bar = this._gridview.getPanel(barId);
+            if (reference && bar) {
+                this._gridview.moveGroup(reference, barId, side);
+                referenceId = barId;
+            }
+        }
     }
 
     /** Move the tool panel to a different side of the editor. */
@@ -462,20 +545,44 @@ export class WorkbenchComponent extends CompositeDisposable {
     }
 
     /**
-     * Re-place the tool panel after a position/alignment change. The panel view
-     * is recreated (its target location in the grid tree changes), so its
-     * component is re-instantiated via `createComponent`.
+     * Re-place the tool panel after a position/alignment change. The panel and
+     * the side bars are torn down and rebuilt, because a `left`/`right` span
+     * nests the same-side bars into the editor column and switching alignment
+     * must (un)nest them. The editor is never touched, so the dockview is
+     * preserved; the side bar / panel components are re-created (their content
+     * re-initialises). Per-region visibility is captured and restored.
      */
     private _rebuildPanel(): void {
         const existing = this._gridview.getPanel(WORKBENCH_IDS.panel);
         if (!existing) {
             return;
         }
-        const wasVisible = existing.api.isVisible;
+
+        const wasVisible = (region: WorkbenchRegion): boolean =>
+            this.isRegionVisible(region);
+        const visibility = {
+            panel: wasVisible('panel'),
+            activityBar: wasVisible('activityBar'),
+            primarySideBar: wasVisible('primarySideBar'),
+            secondarySideBar: wasVisible('secondarySideBar'),
+        };
+
         this._gridview.removePanel(existing);
+        this._removeSideRegions();
+
+        this._addSideRegions();
         this._addPanel();
-        if (!wasVisible) {
-            this._setPanelVisible(WORKBENCH_IDS.panel, false);
+
+        // Restore any regions that were hidden before the rebuild.
+        for (const region of [
+            'activityBar',
+            'primarySideBar',
+            'secondarySideBar',
+            'panel',
+        ] as const) {
+            if (!visibility[region]) {
+                this.setRegionVisible(region, false);
+            }
         }
     }
 

@@ -530,6 +530,89 @@ describe('WorkbenchComponent', () => {
             workbench.dispose();
         });
 
+        const barOf = (
+            workbench: WorkbenchComponent,
+            id: string
+        ): GridviewPanel => gridOf(workbench).getPanel(id) as GridviewPanel;
+
+        test('left alignment spans the editor + left bars, not the right bar', () => {
+            const workbench = createWorkbench(container, {
+                activityBar: true,
+                primarySideBar: true,
+                secondarySideBar: true,
+                panel: { alignment: 'left' },
+            });
+            workbench.layout(1000, 800);
+
+            const panel = panelOf(workbench);
+            const editor = editorOf(workbench);
+            const primary = barOf(workbench, WORKBENCH_IDS.primarySideBar);
+            const secondary = barOf(workbench, WORKBENCH_IDS.secondarySideBar);
+
+            // spans wider than the editor, but not the whole width (secondary excluded)
+            expect(panel.width).toBeGreaterThan(editor.width);
+            expect(panel.width).toBeLessThan(1000);
+            // the left primary bar shares the editor row (panel below it)
+            expect(primary.height).toBe(editor.height);
+            // the excluded right bar runs full height, past the panel
+            expect(secondary.height).toBeGreaterThan(editor.height);
+
+            workbench.dispose();
+        });
+
+        test('right alignment spans the editor + right bar, not the left bars', () => {
+            const workbench = createWorkbench(container, {
+                activityBar: true,
+                primarySideBar: true,
+                secondarySideBar: true,
+                panel: { alignment: 'right' },
+            });
+            workbench.layout(1000, 800);
+
+            const panel = panelOf(workbench);
+            const editor = editorOf(workbench);
+            const primary = barOf(workbench, WORKBENCH_IDS.primarySideBar);
+            const secondary = barOf(workbench, WORKBENCH_IDS.secondarySideBar);
+
+            expect(panel.width).toBeGreaterThan(editor.width);
+            expect(panel.width).toBeLessThan(1000);
+            // the right (secondary) bar shares the editor row
+            expect(secondary.height).toBe(editor.height);
+            // the excluded left (primary) bar runs full height, past the panel
+            expect(primary.height).toBeGreaterThan(editor.height);
+
+            workbench.dispose();
+        });
+
+        test('switching left -> center -> justify re-nests correctly', () => {
+            const workbench = createWorkbench(container, {
+                activityBar: true,
+                primarySideBar: true,
+                secondarySideBar: true,
+                panel: { alignment: 'center' },
+            });
+            workbench.layout(1000, 800);
+
+            expect(panelOf(workbench).width).toBe(editorOf(workbench).width);
+
+            workbench.setPanelAlignment('left');
+            expect(workbench.panelAlignment).toBe('left');
+            expect(panelOf(workbench).width).toBeGreaterThan(
+                editorOf(workbench).width
+            );
+            expect(panelOf(workbench).width).toBeLessThan(1000);
+
+            // back to center: the pulled-in bars are un-nested again
+            workbench.setPanelAlignment('center');
+            expect(panelOf(workbench).width).toBe(editorOf(workbench).width);
+
+            // and out to full width
+            workbench.setPanelAlignment('justify');
+            expect(panelOf(workbench).width).toBe(1000);
+
+            workbench.dispose();
+        });
+
         test('position top places the panel above the editor', () => {
             const workbench = createWorkbench(container, {
                 panel: { position: 'top' },
