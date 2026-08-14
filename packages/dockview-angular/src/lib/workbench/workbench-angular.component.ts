@@ -65,6 +65,7 @@ export class WorkbenchAngularComponent implements OnInit, OnDestroy {
     @Input() secondarySideBar?: WorkbenchSideBarOptions;
     @Input() panel?: WorkbenchPanelOptions;
     @Input() primarySideBarPosition?: SideBarPosition;
+    @Input() activeViewContainer?: string;
     @Input() className?: string;
 
     @Output() ready = new EventEmitter<WorkbenchAngularReadyEvent>();
@@ -107,6 +108,7 @@ export class WorkbenchAngularComponent implements OnInit, OnDestroy {
             secondarySideBar: this.secondarySideBar,
             panel: this.panel,
             primarySideBarPosition: this.primarySideBarPosition,
+            activeViewContainer: this.activeViewContainer,
             className: this.className,
             createComponent: (options) =>
                 bandFactory.createGridviewComponent(options),

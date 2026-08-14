@@ -41,6 +41,7 @@ export interface IWorkbenchVueProps {
     secondarySideBar?: WorkbenchSideBarOptions;
     panel?: WorkbenchPanelOptions;
     primarySideBarPosition?: SideBarPosition;
+    activeViewContainer?: string;
     className?: string;
 }
 

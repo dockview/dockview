@@ -115,6 +115,8 @@ export interface WorkbenchOptions {
     panel?: WorkbenchPanelOptions;
     /** Which side the primary side bar starts on. Defaults to `'left'`. */
     primarySideBarPosition?: SideBarPosition;
+    /** The view container shown in the primary side bar on creation. */
+    activeViewContainer?: string;
     /** CSS class applied to the workbench root element. */
     className?: string;
 }

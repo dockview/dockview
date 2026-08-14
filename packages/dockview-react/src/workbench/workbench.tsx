@@ -55,6 +55,7 @@ export interface IWorkbenchReactProps {
     secondarySideBar?: WorkbenchSideBarOptions;
     panel?: WorkbenchPanelOptions;
     primarySideBarPosition?: SideBarPosition;
+    activeViewContainer?: string;
     className?: string;
 }
 
@@ -88,6 +89,7 @@ export const WorkbenchReact = React.forwardRef(
                 secondarySideBar: props.secondarySideBar,
                 panel: props.panel,
                 primarySideBarPosition: props.primarySideBarPosition,
+                activeViewContainer: props.activeViewContainer,
                 className: props.className,
                 createComponent: (options) =>
                     new ReactGridPanelView(

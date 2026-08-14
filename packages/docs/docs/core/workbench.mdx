@@ -64,6 +64,26 @@ const side = api.primarySideBarPosition; // 'left' | 'right'
 
 Set the starting side with the `primarySideBarPosition` option.
 
+## Activity bar and view containers
+
+The activity bar selects which view the primary side bar shows. The workbench tracks an active view container id and fires an event when it changes; the side bar component renders the selected view.
+
+```ts
+// an activity-bar item was clicked
+api.setActiveViewContainer('search'); // reveals the side bar if hidden
+
+// clicking the already-active item again toggles the side bar shut
+api.setActiveViewContainer('search');
+
+const active = api.activeViewContainer; // 'search'
+
+api.onDidChangeActiveViewContainer((id) => {
+    // swap the primary side bar content to the view for `id`
+});
+```
+
+Set the initial view with the `activeViewContainer` option. The active view container is serialized.
+
 ## Panel position and alignment
 
 The tool panel can sit on any side of the editor, and a top or bottom panel can span either the editor column or the full width.

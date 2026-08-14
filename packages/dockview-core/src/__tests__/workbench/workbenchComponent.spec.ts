@@ -675,9 +675,9 @@ describe('WorkbenchComponent', () => {
             const cls = (id: string): DOMTokenList =>
                 (grid.getPanel(id) as GridviewPanel).element.classList;
 
-            expect(cls(WORKBENCH_IDS.header).contains('dv-workbench-header')).toBe(
-                true
-            );
+            expect(
+                cls(WORKBENCH_IDS.header).contains('dv-workbench-header')
+            ).toBe(true);
             expect(
                 cls(WORKBENCH_IDS.activityBar).contains(
                     'dv-workbench-activity-bar'
@@ -688,9 +688,9 @@ describe('WorkbenchComponent', () => {
                     'dv-workbench-primary-side-bar'
                 )
             ).toBe(true);
-            expect(cls(WORKBENCH_IDS.panel).contains('dv-workbench-panel')).toBe(
-                true
-            );
+            expect(
+                cls(WORKBENCH_IDS.panel).contains('dv-workbench-panel')
+            ).toBe(true);
             // every region also carries the shared marker class
             expect(
                 cls(WORKBENCH_IDS.secondarySideBar).contains(
@@ -709,6 +709,80 @@ describe('WorkbenchComponent', () => {
                 true
             );
 
+            workbench.dispose();
+        });
+    });
+
+    describe('view containers', () => {
+        test('setActiveViewContainer sets the active id and fires the event', () => {
+            const workbench = createWorkbench(container, {
+                primarySideBar: true,
+            });
+            workbench.layout(1000, 800);
+
+            const seen: (string | undefined)[] = [];
+            const disposable = workbench.onDidChangeActiveViewContainer((id) =>
+                seen.push(id)
+            );
+
+            workbench.setActiveViewContainer('search');
+
+            expect(workbench.activeViewContainer).toBe('search');
+            expect(seen).toEqual(['search']);
+
+            disposable.dispose();
+            workbench.dispose();
+        });
+
+        test('selecting a container reveals a hidden side bar', () => {
+            const workbench = createWorkbench(container, {
+                primarySideBar: true,
+            });
+            workbench.layout(1000, 800);
+
+            workbench.setRegionVisible('primarySideBar', false);
+            workbench.setActiveViewContainer('search');
+
+            expect(workbench.isRegionVisible('primarySideBar')).toBe(true);
+            expect(workbench.activeViewContainer).toBe('search');
+
+            workbench.dispose();
+        });
+
+        test('selecting the active container again toggles the side bar shut', () => {
+            const workbench = createWorkbench(container, {
+                primarySideBar: true,
+            });
+            workbench.layout(1000, 800);
+
+            workbench.setActiveViewContainer('explorer');
+            expect(workbench.isRegionVisible('primarySideBar')).toBe(true);
+
+            workbench.setActiveViewContainer('explorer');
+            expect(workbench.isRegionVisible('primarySideBar')).toBe(false);
+
+            workbench.dispose();
+        });
+
+        test('active view container round-trips through serialization', () => {
+            const workbench = createWorkbench(container, {
+                primarySideBar: true,
+            });
+            workbench.layout(1000, 800);
+            workbench.setActiveViewContainer('search');
+
+            const state = workbench.toJSON();
+            expect(state.activeViewContainer).toBe('search');
+
+            const restored = createWorkbench(container, {
+                primarySideBar: true,
+            });
+            restored.layout(1000, 800);
+            restored.fromJSON(state);
+
+            expect(restored.activeViewContainer).toBe('search');
+
+            restored.dispose();
             workbench.dispose();
         });
     });

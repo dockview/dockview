@@ -49,6 +49,7 @@ onMounted(() => {
         secondarySideBar: props.secondarySideBar,
         panel: props.panel,
         primarySideBarPosition: props.primarySideBarPosition,
+        activeViewContainer: props.activeViewContainer,
         className: props.className,
         createComponent: (options) => {
             const component = findComponent(

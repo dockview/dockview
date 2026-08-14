@@ -1,4 +1,5 @@
 import type { DockviewApi } from '../api/component.api';
+import type { Event } from '../events';
 import type { IDisposable } from '../lifecycle';
 import type {
     PanelAlignment,
@@ -116,6 +117,25 @@ export class WorkbenchApi implements IDisposable {
 
     isRegionVisible(region: WorkbenchRegion): boolean {
         return this._component.isRegionVisible(region);
+    }
+
+    /** The active view container shown in the primary side bar. */
+    get activeViewContainer(): string | undefined {
+        return this._component.activeViewContainer;
+    }
+
+    /** Fires when the active view container changes. */
+    get onDidChangeActiveViewContainer(): Event<string | undefined> {
+        return this._component.onDidChangeActiveViewContainer;
+    }
+
+    /**
+     * Select the view container shown in the primary side bar (what an
+     * activity-bar item maps to). Reveals the side bar if hidden; selecting the
+     * active container again toggles it shut.
+     */
+    setActiveViewContainer(id: string): void {
+        this._component.setActiveViewContainer(id);
     }
 
     layout(width: number, height: number): void {

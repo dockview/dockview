@@ -4,6 +4,7 @@ import {
     type SerializedDockview,
 } from '../dockview/dockviewComponent';
 import type { DockviewComponentOptions } from '../dockview/options';
+import { Emitter, type Event } from '../events';
 import {
     type AddGridviewComponentOptions,
     GridviewComponent,
@@ -61,6 +62,8 @@ export interface SerializedWorkbench {
     panelPosition?: PanelPosition;
     /** Horizontal span of a top/bottom tool panel. */
     panelAlignment?: PanelAlignment;
+    /** The active view container shown in the primary side bar. */
+    activeViewContainer?: string;
 }
 
 /**
@@ -135,9 +138,21 @@ export class WorkbenchComponent extends CompositeDisposable {
     private _panelPosition: PanelPosition = 'bottom';
     private _panelAlignment: PanelAlignment = 'center';
     private _panelOptions: WorkbenchPanelOptions | undefined;
+    private _activeViewContainer: string | undefined;
+
+    private readonly _onDidChangeActiveViewContainer = new Emitter<
+        string | undefined
+    >();
+    /** Fires when the active view container (primary side bar view) changes. */
+    readonly onDidChangeActiveViewContainer: Event<string | undefined> =
+        this._onDidChangeActiveViewContainer.event;
 
     get element(): HTMLElement {
         return this._element;
+    }
+
+    get activeViewContainer(): string | undefined {
+        return this._activeViewContainer;
     }
 
     get primarySideBarPosition(): SideBarPosition {
@@ -164,6 +179,7 @@ export class WorkbenchComponent extends CompositeDisposable {
 
         this._dockviewOptions = options.dockview;
         this._primarySideBarPosition = options.primarySideBarPosition ?? 'left';
+        this._activeViewContainer = options.activeViewContainer;
 
         this._element = document.createElement('div');
         this._element.className = 'dv-workbench';
@@ -191,7 +207,10 @@ export class WorkbenchComponent extends CompositeDisposable {
             },
         });
 
-        this.addDisposables(this._gridview);
+        this.addDisposables(
+            this._gridview,
+            this._onDidChangeActiveViewContainer
+        );
 
         // Establish an initial size before adding panels; the gridview
         // distributes sizes at add-time and needs non-negative bounds.
@@ -531,6 +550,34 @@ export class WorkbenchComponent extends CompositeDisposable {
         }
     }
 
+    /**
+     * Select the active view container shown in the primary side bar (the
+     * view an activity-bar item maps to). Reveals the primary side bar if it is
+     * hidden, and fires {@link onDidChangeActiveViewContainer} so the side bar
+     * component can render the selected view. Selecting the already-active
+     * container while the side bar is visible toggles it shut, matching VS
+     * Code's activity-bar behaviour.
+     */
+    setActiveViewContainer(id: string): void {
+        const sideBarVisible = this.isRegionVisible('primarySideBar');
+
+        if (id === this._activeViewContainer && sideBarVisible) {
+            this.setRegionVisible('primarySideBar', false);
+            return;
+        }
+
+        const changed = id !== this._activeViewContainer;
+        this._activeViewContainer = id;
+
+        if (!sideBarVisible) {
+            this.setRegionVisible('primarySideBar', true);
+        }
+
+        if (changed) {
+            this._onDidChangeActiveViewContainer.fire(id);
+        }
+    }
+
     setRegionVisible(region: WorkbenchRegion, visible: boolean): void {
         this._setPanelVisible(WORKBENCH_IDS[region], visible);
     }
@@ -559,6 +606,7 @@ export class WorkbenchComponent extends CompositeDisposable {
             primarySideBarPosition: this._primarySideBarPosition,
             panelPosition: this._panelPosition,
             panelAlignment: this._panelAlignment,
+            activeViewContainer: this._activeViewContainer,
         };
     }
 
@@ -569,6 +617,7 @@ export class WorkbenchComponent extends CompositeDisposable {
         this._primarySideBarPosition = data.primarySideBarPosition ?? 'left';
         this._panelPosition = data.panelPosition ?? 'bottom';
         this._panelAlignment = data.panelAlignment ?? 'center';
+        this._activeViewContainer = data.activeViewContainer;
         // Rebuilds the outer grid, which re-creates the editor panel (and a
         // fresh dockview) through createComponent, repointing _editorPanel.
         this._gridview.fromJSON(data.grid);
