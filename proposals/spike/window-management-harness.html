@@ -1,0 +1,170 @@
+<!doctype html>
+<!--
+    Manual spike harness for the multi-window proposal (design doc §10 /
+    Linear DV-85). Validates the four load-bearing runtime assumptions on a
+    real 2-monitor machine. Serve same-origin (e.g. `npx serve proposals/spike`)
+    and open in Chrome 100+; popups must be allowed for the origin.
+
+    A1  getScreenDetails() kicked off + window.open in the SAME synchronous
+        task must not be popup-blocked (the "no-await" rule).
+    A2  'popup,fullscreen' window feature opens directly fullscreen on the
+        screen containing left/top (Chromium ~132+, permission granted).
+    A3  Without the permission, cross-screen window.open coordinates are
+        clamped to the current screen; with it, they are honoured.
+    A4  (Electron, separate shell) default permission grant + same-process
+        window.open DOM access — see notes at the bottom.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Window Management spike harness</title>
+<style>
+    body { font: 14px/1.5 system-ui, sans-serif; margin: 2rem; max-width: 60rem; }
+    button { margin: 0.25rem 0.5rem 0.25rem 0; padding: 0.4rem 0.8rem; }
+    section { border: 1px solid #ccc; border-radius: 6px; padding: 0.5rem 1rem; margin: 1rem 0; }
+    #log { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 12px;
+           background: #111; color: #9e9; padding: 1rem; border-radius: 6px; min-height: 8rem; }
+    table { border-collapse: collapse; } td, th { border: 1px solid #ccc; padding: 2px 8px; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>Window Management spike harness</h1>
+
+<section>
+    <h2>Setup</h2>
+    <button id="query">Query permission (both names)</button>
+    <button id="details">getScreenDetails() + subscribe</button>
+    <div id="screens"></div>
+</section>
+
+<section>
+    <h2>A1 — no-await ordering</h2>
+    <p>Kicks off <code>getScreenDetails()</code> (may prompt) and calls
+    <code>window.open</code> in the same synchronous task. PASS = popup opens
+    even while the permission prompt is showing.</p>
+    <button id="a1">Run A1</button>
+</section>
+
+<section>
+    <h2>A2 — fullscreen popup feature</h2>
+    <p>Opens <code>popup,fullscreen</code> at the chosen screen's origin.
+    PASS = window appears fullscreen on that screen with no further call.</p>
+    <select id="a2screen"></select>
+    <button id="a2">Run A2</button>
+</section>
+
+<section>
+    <h2>A3 — cross-screen clamping</h2>
+    <p>Opens a plain popup at the chosen screen's coordinates, then reads back
+    <code>screenX/screenY</code> after load. Run once before granting the
+    permission (expect clamping to the current screen) and once after
+    (expect the target coordinates).</p>
+    <select id="a3screen"></select>
+    <button id="a3">Run A3</button>
+</section>
+
+<h2>Log</h2>
+<div id="log"></div>
+
+<script>
+const logEl = document.getElementById('log');
+function log(...parts) {
+    logEl.textContent += parts.join(' ') + '\n';
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+let details = null;
+
+function renderScreens() {
+    const rows = (details?.screens ?? []).map((s, i) =>
+        `<tr><td>${i}</td><td>${s.label || '(no label)'}</td>` +
+        `<td>${s.left},${s.top} ${s.width}×${s.height}</td>` +
+        `<td>${s.availLeft},${s.availTop} ${s.availWidth}×${s.availHeight}</td>` +
+        `<td>${s.isPrimary ? 'primary' : ''} ${s.isInternal ? 'internal' : ''}` +
+        ` ${s === details.currentScreen ? 'current' : ''}</td></tr>`).join('');
+    document.getElementById('screens').innerHTML = details
+        ? `<table><tr><th>#</th><th>label</th><th>bounds</th><th>workArea</th><th>flags</th></tr>${rows}</table>`
+        : '';
+    for (const id of ['a2screen', 'a3screen']) {
+        const select = document.getElementById(id);
+        select.innerHTML = (details?.screens ?? []).map((s, i) =>
+            `<option value="${i}">${i}: ${s.label || s.left + ',' + s.top}</option>`).join('');
+    }
+}
+
+document.getElementById('query').onclick = async () => {
+    for (const name of ['window-management', 'window-placement']) {
+        try {
+            const status = await navigator.permissions.query({ name });
+            log(`permission '${name}': ${status.state}`);
+        } catch (err) {
+            log(`permission '${name}': threw ${err.name} (${err.message})`);
+        }
+    }
+    log(`screen.isExtended: ${window.screen.isExtended}`);
+};
+
+document.getElementById('details').onclick = async () => {
+    try {
+        details = await window.getScreenDetails();
+        log(`getScreenDetails OK: ${details.screens.length} screen(s)`);
+        details.addEventListener('screenschange', () => {
+            log(`screenschange → ${details.screens.length} screen(s)`);
+            renderScreens();
+        });
+        details.addEventListener('currentscreenchange', () => {
+            log(`currentscreenchange → current is now '${details.currentScreen.label}'`);
+            renderScreens();
+        });
+        renderScreens();
+    } catch (err) {
+        log(`getScreenDetails FAILED: ${err.name} (${err.message})`);
+    }
+};
+
+document.getElementById('a1').onclick = () => {
+    // Same synchronous task: kick off the (possibly prompting) details
+    // request, then immediately open. Do NOT await in between.
+    const pending = window.getScreenDetails?.();
+    const child = window.open('about:blank', 'dv-a1', 'left=120,top=120,width=400,height=300');
+    log(`A1: window.open returned ${child ? 'a window — PASS' : 'null — BLOCKED (FAIL)'}`);
+    pending?.then(
+        (d) => log(`A1: details resolved after open (${d.screens.length} screens)`),
+        (err) => log(`A1: details rejected: ${err.name}`)
+    );
+};
+
+document.getElementById('a2').onclick = () => {
+    if (!details) { log('A2: run getScreenDetails first'); return; }
+    const s = details.screens[Number(document.getElementById('a2screen').value)];
+    const features = `popup,fullscreen,left=${s.availLeft},top=${s.availTop},width=800,height=600`;
+    const child = window.open('about:blank', 'dv-a2', features);
+    log(`A2: opened with '${features}' → ${child ? 'window' : 'BLOCKED'}.`,
+        'PASS = fullscreen on the target screen with no further call.');
+};
+
+document.getElementById('a3').onclick = () => {
+    if (!details) { log('A3: run getScreenDetails first (or pick coords manually)'); return; }
+    const s = details.screens[Number(document.getElementById('a3screen').value)];
+    const child = window.open('about:blank', 'dv-a3',
+        `left=${s.availLeft + 50},top=${s.availTop + 50},width=500,height=400`);
+    if (!child) { log('A3: BLOCKED'); return; }
+    setTimeout(() => {
+        log(`A3: requested ${s.availLeft + 50},${s.availTop + 50} →`,
+            `actual ${child.screenX},${child.screenY}`,
+            `(${Math.abs(child.screenX - (s.availLeft + 50)) < 50 ? 'honoured' : 'clamped'})`);
+    }, 500);
+};
+</script>
+
+<section>
+    <h2>A4 — Electron notes (separate shell)</h2>
+    <p>In a minimal Electron app loading this page: (1) with no
+    <code>setPermissionRequestHandler</code>, <code>getScreenDetails()</code>
+    should resolve without a prompt (default grant); (2) a window opened via
+    <code>window.open</code> from this page should allow synchronous
+    same-origin DOM access (<code>child.document.body.append(...)</code>) —
+    the invariant dockview's popouts rely on.</p>
+</section>
+</body>
+</html>
