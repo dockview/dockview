@@ -150,13 +150,73 @@
     background-color: var(--dv-floating-titlebar-background-color);
     border-bottom: var(--dv-floating-titlebar-border-bottom, none);
     user-select: none;
+    // Center the optional grip affordance (`.dv-floating-titlebar-handle`).
+    // The bar is empty on themes that leave the handle colour transparent, so
+    // this is inert there.
+    display: flex;
+    align-items: center;
+    justify-content: center;
     // Without touch-action: none, mobile browsers interpret a drag on the bar
     // as a scroll/zoom and fire pointercancel, losing the move gesture.
     touch-action: none;
 
     &.dv-draggable {
-        cursor: grab;
+        cursor: var(--dv-floating-titlebar-cursor, grab);
+
+        &:active {
+            cursor: grabbing;
+        }
     }
+}
+
+// Optional grip affordance inside the drag handle: a 3×3 dot grid painted with
+// `--dv-floating-titlebar-handle-color`. Transparent by default, so the bar is
+// empty on every theme until one opts in by setting the colour.
+.dv-floating-titlebar-handle {
+    width: var(--dv-floating-titlebar-handle-size, 15px);
+    height: var(--dv-floating-titlebar-handle-size, 15px);
+    background-image: radial-gradient(
+        circle,
+        var(--dv-floating-titlebar-handle-color) 1.4px,
+        transparent 1.7px
+    );
+    background-size: 5px 5px;
+    background-position: center;
+    opacity: 0.8;
+    pointer-events: none;
+}
+
+.dv-floating-titlebar:hover .dv-floating-titlebar-handle {
+    opacity: 1;
+}
+
+// Optional inset frame + rounded corners for floating groups, driven by
+// `--dv-floating-inset` / `--dv-floating-border-radius` (both 0 by default, so
+// this is inert until a theme opts in). No `overflow: hidden` — the edge resize
+// handles straddle the frame at -2px, so clipping would halve their grab area;
+// instead the frame plus the corner leaf elements are rounded (title bar caps
+// the top, content container caps the bottom), and the frame colour shows in
+// the inset band.
+.dv-resize-container > .dv-grid-view {
+    box-sizing: border-box;
+    padding: var(--dv-floating-inset);
+}
+
+.dv-resize-container-with-titlebar > .dv-floating-titlebar {
+    border-top-left-radius: var(--dv-floating-border-radius);
+    border-top-right-radius: var(--dv-floating-border-radius);
+}
+
+.dv-resize-container:not(.dv-resize-container-with-titlebar)
+    .dv-groupview
+    > .dv-tabs-and-actions-container {
+    border-top-left-radius: var(--dv-floating-border-radius);
+    border-top-right-radius: var(--dv-floating-border-radius);
+}
+
+.dv-resize-container .dv-groupview > .dv-content-container {
+    border-bottom-left-radius: var(--dv-floating-border-radius);
+    border-bottom-right-radius: var(--dv-floating-border-radius);
 }
 
 .dv-resize-container {
@@ -165,13 +225,15 @@
     position: absolute;
     z-index: calc(var(--dv-overlay-z-index) - 2);
 
-    // The container is the backdrop behind its content. A single floating group
-    // hides it entirely, but a nested floating layout exposes the gaps/sashes
-    // between groups, and without a fill those gaps would be transparent. Mirror
-    // the docked backdrop (the dockview root uses --dv-group-view-background-color).
-    background-color: var(--dv-group-view-background-color);
+    // The container is the backdrop behind its content, and (when a theme sets
+    // `--dv-floating-inset`) the frame that shows in the inset band around the
+    // content. `--dv-floating-frame-color` defaults to the docked backdrop
+    // colour, so with no inset it is invisible; a single floating group hides
+    // it entirely, while a nested floating layout exposes the gaps/sashes.
+    background-color: var(--dv-floating-frame-color);
 
     border: var(--dv-floating-border);
+    border-radius: var(--dv-floating-border-radius);
     box-shadow: var(--dv-floating-box-shadow);
 
     /* GPU optimizations for floating group movement */

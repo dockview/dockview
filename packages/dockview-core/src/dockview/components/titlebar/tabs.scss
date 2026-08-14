@@ -237,6 +237,10 @@
     box-sizing: border-box;
     font-size: var(--dv-tab-font-size);
     margin: var(--dv-tab-margin);
+    // Top-corner rounding for "folder" tabs. Inert at the default radius of 0;
+    // a theme (or `.dockview-tabs-connected`) sets `--dv-tab-border-radius`.
+    border-top-left-radius: var(--dv-tab-border-radius);
+    border-top-right-radius: var(--dv-tab-border-radius);
     // Block the browser's native pan so the pointer drag source can run
     // its long-press arming without Chrome firing pointercancel mid-gesture.
     // See the container comment above; pre-arm scroll is forwarded in JS.
@@ -290,6 +294,12 @@
             margin var(--dv-transition-duration, 200ms) ease-out,
             opacity var(--dv-transition-duration, 200ms) ease-out;
     }
+}
+
+// Optional inactive-tab hover feedback. Transparent by default (no hover); a
+// theme sets `--dv-tab-inactive-hover-background-color` to enable it.
+.dv-tab.dv-inactive-tab:hover {
+    background-color: var(--dv-tab-inactive-hover-background-color);
 }
 
 // Pinned tabs (PinnedTabs module). Presentation only: the classes are inert
