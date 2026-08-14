@@ -1,0 +1,95 @@
+---
+title: Workbench
+description: "Wrap a dockview editor in a VS Code-style shell: header, toolbar, status bar, activity bar, primary and secondary side bars, and a tool panel."
+---
+
+import { CodeRunner } from '@site/src/components/ui/codeRunner';
+
+The workbench wraps a dockview editor in a VS Code-style frame: fixed chrome bands (header, toolbar, status bar), an activity bar, primary and secondary side bars, and a tool panel. The editor in the centre is a full dockview instance, so tabs, splitting, floating groups, popout windows and edge groups all keep working inside it.
+
+<CodeRunner id="dockview/workbench" height={540} />
+
+## Regions
+
+A workbench is built from an outer grid of regions around the editor:
+
+| Region | Description |
+| --------------------- | ------------------------------------------------------------ |
+| `header` | Fixed-height band pinned to the top. |
+| `toolbar` | Fixed-height band directly above the status bar. |
+| `statusBar` | Fixed-height band pinned to the bottom. |
+| `activityBar` | Fixed-width icon rail next to the primary side bar. |
+| `primarySideBar` | Resizable side bar (VS Code's Explorer side). |
+| `secondarySideBar` | Resizable side bar, always mounted opposite the primary. |
+| `panel` | The tool panel (terminal / problems / output). |
+
+Every region is optional. Each names a `component` that the workbench resolves through `createComponent`, the same contract used by gridview. The editor is always present.
+
+## Creating a workbench
+
+```ts
+// JavaScript
+const api = createWorkbench(element, {
+    header: { component: 'header' },
+    statusBar: { component: 'status' },
+    activityBar: { component: 'activity' },
+    primarySideBar: { component: 'explorer' },
+    secondarySideBar: { component: 'outline' },
+    panel: { component: 'terminal', position: 'bottom', alignment: 'center' },
+    createComponent: (options) => {
+        /* return a GridviewPanel for the bands / side bars / panel */
+    },
+    dockview: {
+        // options for the embedded editor (theme, dnd, ...)
+        createComponent: (options) => {
+            /* return an IContentRenderer for the editor panels */
+        },
+    },
+});
+
+// the editor is a normal dockview
+api.dockview.addPanel({ id: 'file.ts', component: 'editor', title: 'file.ts' });
+```
+
+In React, Vue and Angular the same regions are set as props / inputs. Bands, side bars and the panel come from a `components` map; the editor panels come from an `editorComponents` map.
+
+## Side bar side
+
+The primary side bar and the activity bar move together and can sit on either side. The secondary side bar always mirrors to the opposite side. Flip them at runtime:
+
+```ts
+api.setPrimarySideBarPosition('right'); // activity bar follows; secondary mirrors
+const side = api.primarySideBarPosition; // 'left' | 'right'
+```
+
+Set the starting side with the `primarySideBarPosition` option.
+
+## Panel position and alignment
+
+The tool panel can sit on any side of the editor, and a top or bottom panel can span either the editor column or the full width.
+
+- `position`: `'bottom'` (default), `'top'`, `'left'` or `'right'`.
+- `alignment` (top / bottom only): `'center'` spans the editor column so the side bars run full height beside the panel; `'justify'` spans the full width so the side bars stop above it.
+
+```ts
+api.setPanelPosition('right');
+api.setPanelAlignment('justify');
+```
+
+`left` and `right` alignment are not yet implemented and fall back to `center`.
+
+## Visibility
+
+Every region can be shown or hidden, which redistributes the space to the editor:
+
+```ts
+api.setHeaderVisible(false);
+api.togglePrimarySideBar();
+api.toggleSecondarySideBar();
+api.togglePanel();
+api.setActivityBarVisible(false);
+```
+
+## Serialization
+
+`api.toJSON()` captures the outer grid (region sizes and visibility), the side bar side, the panel position and alignment, and the embedded dockview state (edge groups included). `api.fromJSON(state)` restores all of it.
