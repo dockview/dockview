@@ -1122,6 +1122,36 @@ The phase plan (§8) is unchanged in content; Phases 0–1 split their file
 targets between the two packages as above, and Phase 6 gains the enterprise
 docs page treatment instead of (or alongside) the core docs update.
 
+**Feature-by-feature recommendation** (the full inventory of distinctly new
+features, and which side of the line each falls on):
+
+| # | Feature | Phase | Rec |
+|---|---|---|---|
+| 1 | Screen discovery API (`getScreens`, `screens`, permission query, `onDidChangeScreens`) | 1 | Enterprise |
+| 2 | Screen-targeted placement (`screen`/`placement`, clamping, rehoming) | 2 | Enterprise |
+| 3 | Group screen API (`getScreen`, `moveToScreen`) | 2 | Enterprise |
+| 4 | Screen-enriched popout events | 2 | Enterprise (rides on 1) |
+| 5 | Fullscreen popouts (`fullscreen`, `setFullscreen`/`isFullscreen`) | 3 | Enterprise |
+| 6 | Topology resilience (auto rehome/clamp) | 4 | Enterprise |
+| 7 | Screen-aware serialization & restore | 5 | Enterprise |
+| 8 | `screenAdapter` (Electron native screens) | 1 | Enterprise (inert without 1) |
+| 9 | `extraWindowFeatures` pass-through | 2 | **Free** |
+| 10 | `popoutWindowFactory` seam | 6 | **Free** |
+| 11 | Detached-window protocol + extensions | 7 | Defer; lean base-free / extensions-enterprise |
+
+Rationale for the line: 1–8 form one product (2–8 all consume 1's snapshot),
+so they ship as the single `ScreenManagement` module — one diagnostic, no
+"see screens but can't use them" half-tier — and pass the
+convenience-not-capability test since free `position: Box` still allows DIY
+cross-screen placement. 9–10 are core seams by necessity and double as
+testing infrastructure (dockview's own specs migrate onto the factory);
+paywalling them would degrade the free product rather than upsell the paid
+one. 11 cuts the other way for Tauri users (the base protocol is their only
+path to popouts at all → lean free), while its multi-process workflow
+extensions (cross-process dnd, crash recovery, panel-level detach,
+coordinator utilities) target OpenFin-shaped enterprise buyers → lean
+enterprise; decide at Phase 7 with a driving consumer.
+
 ## 12. Files touched (summary)
 
 Assuming the enterprise packaging from §11 (core‑only packaging differs just in
