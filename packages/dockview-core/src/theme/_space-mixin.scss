@@ -6,10 +6,13 @@
     // multi-row wrap rule below can subtract the exact vertical margin from
     // the wrapped-tab height (calc can't read a component out of the
     // `--dv-tab-margin` shorthand).
-    --dv-tab-margin-block: 0.5rem;
+    --dv-tab-margin-block: 4px;
     --dv-tab-margin-inline: 0.25rem;
     --dv-tab-margin: var(--dv-tab-margin-block) var(--dv-tab-margin-inline);
-    --dv-tabs-and-actions-container-height: 44px;
+    // Compact header: a short strip with tight tab margins keeps the pill tabs
+    // snug (the old 44px / 8px-margin strip read as too tall). The tab centres
+    // in the strip: height − 2·margin-block ≈ 20px.
+    --dv-tabs-and-actions-container-height: 28px;
     --dv-tab-border-radius: 8px;
     --dv-sash-border-radius: 4px;
     --dv-dropdown-border-radius: 8px;
@@ -104,6 +107,12 @@
 
     .dv-tab {
         border-radius: var(--dv-tab-border-radius);
+
+        // Crisper selection: a slightly bolder label on the selected tab
+        // (the pill fill alone reads faintly on the low-contrast themes).
+        &.dv-active-tab {
+            font-weight: 500;
+        }
 
         .dv-svg {
             height: var(--dv-tab-close-icon-size);
