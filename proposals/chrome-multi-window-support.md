@@ -991,20 +991,39 @@ pyramid, cheapest and highest-volume first:
   coverage than a fault‑injecting fake bus.
 - Existing popout test assertions must not change (regression guard).
 
-**Tier 2 — plain Chrome e2e (new, small Playwright harness).** Chrome can
-exercise nearly everything containers can:
+**Tier 2 — plain Chrome e2e (new, small Playwright harness).** The bullets
+below were **empirically verified on headless Chromium 141** via
+`proposals/spike/playwright-probe.js` (Phase 0); the recipe has sharp edges
+that cost real debugging time, recorded here so nobody rediscovers them:
 
-- **Permission without prompts**: Playwright/CDP can grant
-  `window-management` to the context, so screen‑targeted paths run headlessly
-  with no UI interaction.
-- **Virtual multi‑monitor, no hardware**: new‑headless Chromium accepts a
-  `--screen-info` flag defining multiple virtual displays (verify exact
-  syntax during the Phase 0 spike); on Linux CI, headful Chrome under Xvfb
-  plus `xrandr --setmonitor` splitting the virtual framebuffer into fake
-  monitors achieves the same. Either way `getScreenDetails()` reports
-  multiple screens in CI.
-- **Popouts are real** (`window.open` from automation is permitted), so
-  cross‑window DOM transfer, style cloning, and rehoming run for real.
+- **Secure context is a hard gate**: the API is `[SecureContext]`-gated and
+  `about:blank` under automation is NOT secure — every probe against it
+  reports `getScreenDetails` absent. Serve tests from `http://127.0.0.1`
+  (a trustworthy origin) or https.
+- **Virtual multi‑monitor, no hardware — verified**:
+  `--screen-info={0,0 1920x1080}{1920,0 1600x900}` gives headless Chromium
+  two virtual screens; `screen.isExtended === true` and `getScreenDetails()`
+  enumerates both with correct geometry. Screen *enumeration* is fully
+  CI‑testable. (The Xvfb + `xrandr --setmonitor` alternative does **not**
+  work — Xvfb's RANDR rejects monitor creation with `BadValue`; a real Xorg
+  with the dummy driver might, unverified.)
+- **Permission without prompts — verified recipe**: Playwright's
+  `grantPermissions` does not know `'window-management'` (as of 1.62), and
+  CDP `Browser.grantPermissions`/`Browser.setPermission` silently miss pages
+  in a **non‑default browser context**. What works:
+  `launchPersistentContext` (the default context) + CDP
+  `Browser.setPermission({ permission: { name: 'window-management' },
+  setting: 'granted', origin })`. Also: without a grant, headless
+  `getScreenDetails()` **hangs forever** (a prompt nobody can answer) — wrap
+  probes in a timeout race.
+- **A1's granted path passes in CI**: `getScreenDetails()` kickoff +
+  `window.open` in one synchronous task opens un‑blocked and resolves both
+  screens.
+- **Fidelity boundary**: headless has **no real window manager** — popout
+  windows open and the DOM/styles pipeline runs for real, but window
+  *positions* are synthetic (cross‑screen coordinates clamp arbitrarily even
+  when granted) and the `fullscreen` window feature is inert. Placement and
+  fullscreen assertions belong to the manual tier, not CI.
 - **Multi‑process protocol tests without any container**: two same‑origin
   pages joined by `BroadcastChannel` (or a cross‑origin iframe under site
   isolation + `postMessage`) give genuine message‑passing semantics — the
