@@ -36,6 +36,20 @@ import {
     type WorkbenchSideBarOptions,
 } from './options';
 
+/**
+ * CSS class applied to each region's panel element so the theme
+ * (`workbench.scss`) can style the region containers.
+ */
+const REGION_CLASS: Record<string, string> = {
+    [WORKBENCH_IDS.header]: 'dv-workbench-header',
+    [WORKBENCH_IDS.toolbar]: 'dv-workbench-toolbar',
+    [WORKBENCH_IDS.statusBar]: 'dv-workbench-status-bar',
+    [WORKBENCH_IDS.activityBar]: 'dv-workbench-activity-bar',
+    [WORKBENCH_IDS.primarySideBar]: 'dv-workbench-primary-side-bar',
+    [WORKBENCH_IDS.secondarySideBar]: 'dv-workbench-secondary-side-bar',
+    [WORKBENCH_IDS.panel]: 'dv-workbench-panel',
+};
+
 export interface SerializedWorkbench {
     /** The outer gridview holding the chrome bands and the editor cell. */
     grid: SerializedGridviewComponent;
@@ -300,6 +314,7 @@ export class WorkbenchComponent extends CompositeDisposable {
             size,
             position,
         });
+        this._tagRegion(id);
         if (options.visible === false) {
             this.setBandVisible(band, false);
         }
@@ -322,6 +337,7 @@ export class WorkbenchComponent extends CompositeDisposable {
             size,
             position,
         });
+        this._tagRegion(id);
         if (options.visible === false) {
             this._setPanelVisible(id, false);
         }
@@ -344,6 +360,7 @@ export class WorkbenchComponent extends CompositeDisposable {
             size,
             position,
         });
+        this._tagRegion(WORKBENCH_IDS.activityBar);
         if (options.visible === false) {
             this._setPanelVisible(WORKBENCH_IDS.activityBar, false);
         }
@@ -404,6 +421,7 @@ export class WorkbenchComponent extends CompositeDisposable {
         }
 
         this._gridview.addPanel(add);
+        this._tagRegion(WORKBENCH_IDS.panel);
     }
 
     /** Move the tool panel to a different side of the editor. */
@@ -501,6 +519,15 @@ export class WorkbenchComponent extends CompositeDisposable {
         const panel = this._gridview.getPanel(id);
         if (panel) {
             this._gridview.setVisible(panel, visible);
+        }
+    }
+
+    /** Tag a region's panel element so `workbench.scss` can style it. */
+    private _tagRegion(id: string): void {
+        const className = REGION_CLASS[id];
+        const panel = this._gridview.getPanel(id);
+        if (className && panel) {
+            panel.element.classList.add('dv-workbench-region', className);
         }
     }
 

@@ -655,4 +655,61 @@ describe('WorkbenchComponent', () => {
             workbench.dispose();
         });
     });
+
+    describe('theming', () => {
+        test('tags each region element with theme classes', () => {
+            const workbench = createWorkbench(container, {
+                header: true,
+                toolbar: true,
+                statusBar: true,
+                activityBar: true,
+                primarySideBar: true,
+                secondarySideBar: true,
+                panel: {},
+            });
+            workbench.layout(1000, 800);
+
+            const grid = (
+                workbench as unknown as { _gridview: GridviewComponent }
+            )._gridview;
+            const cls = (id: string): DOMTokenList =>
+                (grid.getPanel(id) as GridviewPanel).element.classList;
+
+            expect(cls(WORKBENCH_IDS.header).contains('dv-workbench-header')).toBe(
+                true
+            );
+            expect(
+                cls(WORKBENCH_IDS.activityBar).contains(
+                    'dv-workbench-activity-bar'
+                )
+            ).toBe(true);
+            expect(
+                cls(WORKBENCH_IDS.primarySideBar).contains(
+                    'dv-workbench-primary-side-bar'
+                )
+            ).toBe(true);
+            expect(cls(WORKBENCH_IDS.panel).contains('dv-workbench-panel')).toBe(
+                true
+            );
+            // every region also carries the shared marker class
+            expect(
+                cls(WORKBENCH_IDS.secondarySideBar).contains(
+                    'dv-workbench-region'
+                )
+            ).toBe(true);
+
+            workbench.dispose();
+        });
+
+        test('root element carries the dv-workbench class', () => {
+            const workbench = createWorkbench(container, { header: true });
+            workbench.layout(1000, 800);
+
+            expect(workbench.element.classList.contains('dv-workbench')).toBe(
+                true
+            );
+
+            workbench.dispose();
+        });
+    });
 });

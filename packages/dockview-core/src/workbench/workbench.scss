@@ -1,0 +1,66 @@
+/**
+ * Workbench theming.
+ *
+ * Region backgrounds and borders are derived from existing dockview theme
+ * variables, so the workbench inherits any theme (abyss, light, visual studio,
+ * ...) without per-theme additions. A consumer's band / side bar / panel
+ * component that sets no background of its own sits on the themed surface here;
+ * one that does set a background simply paints over it.
+ */
+.dv-workbench {
+    height: 100%;
+    width: 100%;
+
+    // Themed defaults. Override any `--dv-workbench-*` token to restyle.
+    --dv-workbench-surface-background-color: var(
+        --dv-group-view-background-color
+    );
+    --dv-workbench-band-background-color: var(
+        --dv-tabs-and-actions-container-background-color,
+        var(--dv-group-view-background-color)
+    );
+    --dv-workbench-foreground-color: var(
+        --dv-activegroup-visiblepanel-tab-color,
+        inherit
+    );
+    --dv-workbench-muted-foreground-color: var(
+        --dv-inactivegroup-visiblepanel-tab-color,
+        var(--dv-workbench-foreground-color)
+    );
+    --dv-workbench-border: var(--dv-separator-border);
+
+    background-color: var(--dv-workbench-surface-background-color);
+    color: var(--dv-workbench-foreground-color);
+
+    .dv-workbench-region {
+        box-sizing: border-box;
+        // side bars and the tool panel default to the main surface colour
+        background-color: var(--dv-workbench-surface-background-color);
+    }
+
+    // The chrome bands (header / toolbar / status / activity) default to the
+    // tab-strip colour so they read as chrome rather than content.
+    .dv-workbench-header,
+    .dv-workbench-toolbar,
+    .dv-workbench-status-bar,
+    .dv-workbench-activity-bar {
+        background-color: var(--dv-workbench-band-background-color);
+    }
+
+    .dv-workbench-header {
+        border-bottom: var(--dv-workbench-border);
+    }
+
+    .dv-workbench-toolbar {
+        border-top: var(--dv-workbench-border);
+        border-bottom: var(--dv-workbench-border);
+    }
+
+    .dv-workbench-status-bar {
+        border-top: var(--dv-workbench-border);
+    }
+
+    .dv-workbench-panel {
+        border-top: var(--dv-workbench-border);
+    }
+}

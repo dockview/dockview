@@ -90,6 +90,25 @@ api.togglePanel();
 api.setActivityBarVisible(false);
 ```
 
+## Theming
+
+Each region's container carries a class (`dv-workbench-header`, `dv-workbench-activity-bar`, `dv-workbench-primary-side-bar`, `dv-workbench-panel`, and so on), and the workbench root carries `dv-workbench`. The bundled stylesheet gives these a themed surface derived from the active dockview theme, so a band component that sets no background of its own sits on the right colour automatically. Pass the theme class through the workbench `className` (React/Vue/Angular) so the tokens resolve:
+
+```tsx
+<WorkbenchReact className="dockview-theme-abyss" ... />
+```
+
+Restyle any region by overriding its token:
+
+```css
+.dv-workbench {
+    --dv-workbench-surface-background-color: #1e1e1e;
+    --dv-workbench-band-background-color: #333;
+    --dv-workbench-foreground-color: #ddd;
+    --dv-workbench-border: 1px solid #000;
+}
+```
+
 ## Serialization
 
 `api.toJSON()` captures the outer grid (region sizes and visibility), the side bar side, the panel position and alignment, and the embedded dockview state (edge groups included). `api.fromJSON(state)` restores all of it.
