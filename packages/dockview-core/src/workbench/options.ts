@@ -43,13 +43,27 @@ export interface WorkbenchSideBarOptions {
 }
 
 /**
- * The activity bar: a thin fixed-width icon rail. It always sits on the outer
- * edge next to the primary side bar and moves with it when the side bar flips.
+ * Where the activity bar sits relative to the primary side bar.
+ * - `default`: a fixed-width vertical rail on the outer edge of the primary
+ *   side bar; it follows the side bar when the side bar flips.
+ * - `top`: a fixed-height horizontal strip stacked at the top of the primary
+ *   side bar column.
+ * - `bottom`: the same strip stacked at the bottom of the primary side bar.
+ */
+export type ActivityBarPosition = 'default' | 'top' | 'bottom';
+
+/**
+ * The activity bar: a thin fixed-size icon strip. By default a vertical rail on
+ * the outer edge next to the primary side bar (moving with it when the side bar
+ * flips); it can instead sit as a horizontal strip at the `top` or `bottom` of
+ * the primary side bar column.
  */
 export interface WorkbenchActivityBarOptions {
     /** The component name resolved via `createComponent`. */
     component: string;
-    /** Fixed pixel width of the rail. */
+    /** Where the activity bar sits. Defaults to `'default'` (side rail). */
+    position?: ActivityBarPosition;
+    /** Fixed pixel size of the strip (width when a rail, height when top/bottom). */
     size?: number;
     /** Start hidden. Toggle later via the api. Defaults to visible. */
     visible?: boolean;

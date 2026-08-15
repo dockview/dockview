@@ -17,7 +17,7 @@ A workbench is built from an outer grid of regions around the editor:
 | --------------------- | ------------------------------------------------------------ |
 | `header` | Fixed-height band pinned to the top. |
 | `statusBar` | Fixed-height band pinned to the bottom. |
-| `activityBar` | Fixed-width icon rail next to the primary side bar. |
+| `activityBar` | Fixed-size icon strip: a vertical rail next to the primary side bar, or a top/bottom strip stacked into its column. |
 | `primarySideBar` | Resizable side bar (VS Code's Explorer side). |
 | `secondarySideBar` | Resizable side bar, always mounted opposite the primary. |
 | `panel` | The tool panel (terminal / problems / output). |
@@ -84,6 +84,21 @@ api.onDidChangeActiveViewContainer((id) => {
 ```
 
 Set the initial view with the `activeViewContainer` option. The active view container is serialized.
+
+### Activity bar placement
+
+By default the activity bar is a fixed-width vertical rail on the outer edge of the primary side bar, following it when the side bar flips. It can instead sit as a fixed-height horizontal strip at the top or bottom of the primary side bar column:
+
+```ts
+// via the option
+activityBar: { component: 'activity', position: 'top' }, // 'default' | 'top' | 'bottom'
+
+// or at runtime
+api.setActivityBarPosition('top');
+const where = api.activityBarPosition; // 'default' | 'top' | 'bottom'
+```
+
+`position` is serialized. Switching it at runtime re-creates the side bar components (their content re-initialises), as does flipping the side bar while the activity bar is stacked. Alignment note: a `left`/`right`-aligned tool panel spans the editor only on the side that holds a stacked activity bar (the stacked column can't be pulled under the panel); the opposite side spans as usual.
 
 ## Panel position and alignment
 

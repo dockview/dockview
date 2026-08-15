@@ -3,6 +3,7 @@ import type { GridviewComponent } from '../../gridview/gridviewComponent';
 import { GridviewPanel } from '../../gridview/gridviewPanel';
 import type { IFrameworkPart, PanelUpdateEvent } from '../../panel/types';
 import {
+    type ActivityBarPosition,
     DEFAULT_ACTIVITY_BAR_SIZE,
     DEFAULT_HEADER_SIZE,
     DEFAULT_STATUS_BAR_SIZE,
@@ -68,6 +69,7 @@ function createWorkbench(
         header?: boolean;
         statusBar?: boolean;
         activityBar?: boolean;
+        activityBarPosition?: ActivityBarPosition;
         primarySideBar?: boolean;
         secondarySideBar?: boolean;
         primarySideBarPosition?: SideBarPosition;
@@ -82,7 +84,9 @@ function createWorkbench(
     return new WorkbenchComponent(container, {
         header: opts.header ? { component: 'header' } : undefined,
         statusBar: opts.statusBar ? { component: 'status' } : undefined,
-        activityBar: opts.activityBar ? { component: 'activity' } : undefined,
+        activityBar: opts.activityBar
+            ? { component: 'activity', position: opts.activityBarPosition }
+            : undefined,
         primarySideBar: opts.primarySideBar
             ? { component: 'primary' }
             : undefined,
@@ -466,6 +470,172 @@ describe('WorkbenchComponent', () => {
             restored.dispose();
             workbench.dispose();
         });
+    });
+
+    describe('activity bar position', () => {
+        const railOf = (workbench: WorkbenchComponent): GridviewPanel =>
+            (
+                workbench as unknown as { _gridview: GridviewComponent }
+            )._gridview.getPanel(WORKBENCH_IDS.activityBar) as GridviewPanel;
+
+        test('top: fixed-height strip stacked above the primary side bar', () => {
+            const workbench = createWorkbench(container, {
+                activityBar: true,
+                activityBarPosition: 'top',
+                primarySideBar: true,
+            });
+            workbench.layout(1000, 800);
+
+            expect(workbench.activityBarPosition).toBe('top');
+
+            const rail = railOf(workbench);
+            // fixed height, not fixed width
+            expect(rail.minimumHeight).toBe(DEFAULT_ACTIVITY_BAR_SIZE);
+            expect(rail.maximumHeight).toBe(DEFAULT_ACTIVITY_BAR_SIZE);
+            expect(rail.maximumWidth).toBeGreaterThan(DEFAULT_ACTIVITY_BAR_SIZE);
+
+            const activity = regionEl(workbench.element, 'activity');
+            const primary = regionEl(workbench.element, 'primary');
+            const editor = regionEl(workbench.element, 'editor');
+            // stacked above the primary, both left of the editor
+            expect(precedes(activity, primary)).toBe(true);
+            expect(precedes(primary, editor)).toBe(true);
+
+            workbench.dispose();
+        });
+
+        test('bottom: fixed-height strip stacked below the primary side bar', () => {
+            const workbench = createWorkbench(container, {
+                activityBar: true,
+                activityBarPosition: 'bottom',
+                primarySideBar: true,
+            });
+            workbench.layout(1000, 800);
+
+            const rail = railOf(workbench);
+            expect(rail.minimumHeight).toBe(DEFAULT_ACTIVITY_BAR_SIZE);
+            expect(rail.maximumHeight).toBe(DEFAULT_ACTIVITY_BAR_SIZE);
+
+            const activity = regionEl(workbench.element, 'activity');
+            const primary = regionEl(workbench.element, 'primary');
+            const editor = regionEl(workbench.element, 'editor');
+            // primary above the strip, both left of the editor
+            expect(precedes(primary, activity)).toBe(true);
+            expect(precedes(activity, editor)).toBe(true);
+
+            workbench.dispose();
+        });
+
+        test('setActivityBarPosition switches a rail to a top strip at runtime', () => {
+            const workbench = createWorkbench(container, {
+                activityBar: true,
+                primarySideBar: true,
+            });
+            workbench.layout(1000, 800);
+
+            // starts as a fixed-width rail
+            expect(workbench.activityBarPosition).toBe('default');
+            expect(railOf(workbench).maximumWidth).toBe(DEFAULT_ACTIVITY_BAR_SIZE);
+
+            workbench.setActivityBarPosition('top');
+
+            expect(workbench.activityBarPosition).toBe('top');
+            const rail = railOf(workbench);
+            expect(rail.maximumHeight).toBe(DEFAULT_ACTIVITY_BAR_SIZE);
+            expect(
+                precedes(
+                    regionEl(workbench.element, 'activity'),
+                    regionEl(workbench.element, 'primary')
+                )
+            ).toBe(true);
+
+            workbench.dispose();
+        });
+
+        test('position round-trips through serialization', () => {
+            const workbench = createWorkbench(container, {
+                activityBar: true,
+                activityBarPosition: 'top',
+                primarySideBar: true,
+            });
+            workbench.layout(1000, 800);
+
+            const state = workbench.toJSON();
+            expect(state.activityBarPosition).toBe('top');
+
+            const restored = createWorkbench(container, {
+                activityBar: true,
+                activityBarPosition: 'top',
+                primarySideBar: true,
+            });
+            restored.layout(1000, 800);
+            restored.fromJSON(state);
+
+            expect(restored.activityBarPosition).toBe('top');
+            expect(railOf(restored).maximumHeight).toBe(DEFAULT_ACTIVITY_BAR_SIZE);
+
+            restored.dispose();
+            workbench.dispose();
+        });
+
+        test('flips cleanly with a top activity bar, staying stacked', () => {
+            const workbench = createWorkbench(container, {
+                activityBar: true,
+                activityBarPosition: 'top',
+                primarySideBar: true,
+                secondarySideBar: true,
+            });
+            workbench.layout(1000, 800);
+
+            workbench.setPrimarySideBarPosition('right');
+
+            expect(workbench.primarySideBarPosition).toBe('right');
+            const activity = regionEl(workbench.element, 'activity');
+            const primary = regionEl(workbench.element, 'primary');
+            const editor = regionEl(workbench.element, 'editor');
+            // sidebar column now right of the editor, strip still stacked above
+            expect(precedes(editor, activity)).toBe(true);
+            expect(precedes(activity, primary)).toBe(true);
+            // still a fixed-height strip after the flip
+            expect(railOf(workbench).maximumHeight).toBe(
+                DEFAULT_ACTIVITY_BAR_SIZE
+            );
+
+            workbench.dispose();
+        });
+
+        test.each([
+            ['center', { position: 'bottom', alignment: 'center' }],
+            ['justify', { position: 'bottom', alignment: 'justify' }],
+            ['left-aligned', { position: 'bottom', alignment: 'left' }],
+        ] as const)(
+            'a top activity bar coexists with a %s panel',
+            (_name, panel) => {
+                const workbench = createWorkbench(container, {
+                    activityBar: true,
+                    activityBarPosition: 'top',
+                    primarySideBar: true,
+                    secondarySideBar: true,
+                    panel: panel as {
+                        position?: PanelPosition;
+                        alignment?: PanelAlignment;
+                    },
+                });
+                workbench.layout(1000, 800);
+
+                expect(workbench.isRegionVisible('panel')).toBe(true);
+                expect(railOf(workbench).maximumHeight).toBe(
+                    DEFAULT_ACTIVITY_BAR_SIZE
+                );
+
+                // and it still flips without throwing
+                workbench.setPrimarySideBarPosition('right');
+                expect(workbench.primarySideBarPosition).toBe('right');
+                expect(workbench.isRegionVisible('panel')).toBe(true);
+
+                workbench.dispose();
+            }
+        );
     });
 
     describe('flipping with a tool panel', () => {

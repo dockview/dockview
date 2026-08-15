@@ -22,6 +22,7 @@ import {
     DEFAULT_SIDE_BAR_MINIMUM_SIZE,
     DEFAULT_SIDE_BAR_SIZE,
     DEFAULT_STATUS_BAR_SIZE,
+    type ActivityBarPosition,
     type PanelAlignment,
     type PanelPosition,
     type SideBarPosition,
@@ -56,6 +57,8 @@ export interface SerializedWorkbench {
     dockview?: SerializedDockview;
     /** Which side the primary side bar (and its activity bar) sits on. */
     primarySideBarPosition?: SideBarPosition;
+    /** Where the activity bar sits (side rail, or top/bottom strip). */
+    activityBarPosition?: ActivityBarPosition;
     /** Which side of the editor the tool panel sits on. */
     panelPosition?: PanelPosition;
     /** Horizontal span of a top/bottom tool panel. */
@@ -133,6 +136,7 @@ export class WorkbenchComponent extends CompositeDisposable {
 
     private _editorPanel: WorkbenchEditorPanel | undefined;
     private _primarySideBarPosition: SideBarPosition;
+    private _activityBarPosition: ActivityBarPosition = 'default';
     private _panelPosition: PanelPosition = 'bottom';
     private _panelAlignment: PanelAlignment = 'center';
     private _panelOptions: WorkbenchPanelOptions | undefined;
@@ -160,6 +164,10 @@ export class WorkbenchComponent extends CompositeDisposable {
         return this._primarySideBarPosition;
     }
 
+    get activityBarPosition(): ActivityBarPosition {
+        return this._activityBarPosition;
+    }
+
     get panelPosition(): PanelPosition {
         return this._panelPosition;
     }
@@ -180,6 +188,7 @@ export class WorkbenchComponent extends CompositeDisposable {
 
         this._dockviewOptions = options.dockview;
         this._primarySideBarPosition = options.primarySideBarPosition ?? 'left';
+        this._activityBarPosition = options.activityBar?.position ?? 'default';
         this._activeViewContainer = options.activeViewContainer;
 
         this._element = document.createElement('div');
@@ -296,13 +305,21 @@ export class WorkbenchComponent extends CompositeDisposable {
         }
 
         if (this._activityBarOptions) {
-            // The rail sits outside the primary side bar (or beside the editor
-            // when there is no side bar).
+            // A `default` rail sits outside the primary side bar (or beside the
+            // editor when there is no side bar). `top`/`bottom` stack the strip
+            // into the primary side bar's column instead.
+            const reference = this._primarySideBarOptions
+                ? WORKBENCH_IDS.primarySideBar
+                : WORKBENCH_IDS.editor;
+            const direction =
+                this._activityBarPosition === 'top'
+                    ? 'above'
+                    : this._activityBarPosition === 'bottom'
+                      ? 'below'
+                      : primarySide;
             this._addActivityBar(this._activityBarOptions, {
-                referencePanel: this._primarySideBarOptions
-                    ? WORKBENCH_IDS.primarySideBar
-                    : WORKBENCH_IDS.editor,
-                direction: primarySide,
+                referencePanel: reference,
+                direction,
             });
         }
 
@@ -331,28 +348,48 @@ export class WorkbenchComponent extends CompositeDisposable {
         }
     }
 
+    /** True when the activity bar is stacked into the primary side bar column. */
+    private _activityBarIsStacked(): boolean {
+        return (
+            this._activityBarOptions !== undefined &&
+            this._activityBarPosition !== 'default'
+        );
+    }
+
     /**
-     * The side-bar ids sitting on the given side of the editor, in visual
-     * left-to-right order, for the current primary side bar position.
+     * The body-row side-bar ids sitting on the given side of the editor, in
+     * visual left-to-right order, that a `left`/`right`-aligned panel can span
+     * by pulling into the editor column.
+     *
+     * When the activity bar is stacked (top/bottom) it shares a vertical branch
+     * with the primary side bar; that column can't be pulled into the editor
+     * column without stranding the activity strip, so the primary's side is
+     * reported as un-spannable (empty) and the panel spans the editor only
+     * there. The opposite (secondary) side is always a plain body column.
      */
     private _sideBarsOnSide(side: SideBarPosition): string[] {
         const present = (id: string): boolean =>
             this._gridview.getPanel(id) !== undefined;
         const filter = (ids: string[]): string[] => ids.filter(present);
 
-        // primary-left body order:  [activity, primary, editor, secondary]
-        // primary-right body order: [secondary, editor, primary, activity]
-        if (this._primarySideBarPosition === 'left') {
-            return side === 'left'
+        const primarySide = this._primarySideBarPosition;
+
+        if (side === primarySide) {
+            if (this._activityBarIsStacked()) {
+                return [];
+            }
+            // activity sits outside the primary side bar on that side
+            return primarySide === 'left'
                 ? filter([
                       WORKBENCH_IDS.activityBar,
                       WORKBENCH_IDS.primarySideBar,
                   ])
-                : filter([WORKBENCH_IDS.secondarySideBar]);
+                : filter([
+                      WORKBENCH_IDS.primarySideBar,
+                      WORKBENCH_IDS.activityBar,
+                  ]);
         }
-        return side === 'left'
-            ? filter([WORKBENCH_IDS.secondarySideBar])
-            : filter([WORKBENCH_IDS.primarySideBar, WORKBENCH_IDS.activityBar]);
+        return filter([WORKBENCH_IDS.secondarySideBar]);
     }
 
     private _addBand(
@@ -404,16 +441,23 @@ export class WorkbenchComponent extends CompositeDisposable {
 
     private _addActivityBar(
         options: WorkbenchActivityBarOptions,
-        position: { referencePanel: string; direction: 'left' | 'right' }
+        position: {
+            referencePanel: string;
+            direction: 'left' | 'right' | 'above' | 'below';
+        }
     ): void {
         const size = options.size ?? DEFAULT_ACTIVITY_BAR_SIZE;
+        // A vertical rail (left/right) is fixed width; a top/bottom strip
+        // (above/below) is fixed height. Lock minimum === maximum on that axis.
+        const horizontal =
+            position.direction === 'above' || position.direction === 'below';
         this._gridview.addPanel({
             id: WORKBENCH_IDS.activityBar,
             component: options.component,
             params: options.params,
-            // fixed width: lock minimum === maximum
-            minimumWidth: size,
-            maximumWidth: size,
+            ...(horizontal
+                ? { minimumHeight: size, maximumHeight: size }
+                : { minimumWidth: size, maximumWidth: size }),
             priority: LayoutPriority.Low,
             snap: false,
             size,
@@ -519,7 +563,7 @@ export class WorkbenchComponent extends CompositeDisposable {
             return;
         }
         this._panelPosition = position;
-        this._rebuildPanel();
+        this._rebuildBody();
     }
 
     /** Change how a top/bottom tool panel spans horizontally. */
@@ -528,23 +572,29 @@ export class WorkbenchComponent extends CompositeDisposable {
             return;
         }
         this._panelAlignment = alignment;
-        this._rebuildPanel();
+        this._rebuildBody();
+    }
+
+    /** Move the activity bar to a side rail (`default`) or a top/bottom strip. */
+    setActivityBarPosition(position: ActivityBarPosition): void {
+        if (position === this._activityBarPosition || !this._activityBarOptions) {
+            return;
+        }
+        this._activityBarPosition = position;
+        this._rebuildBody();
     }
 
     /**
-     * Re-place the tool panel after a position/alignment change. The panel and
-     * the side bars are torn down and rebuilt, because a `left`/`right` span
-     * nests the same-side bars into the editor column and switching alignment
-     * must (un)nest them. The editor is never touched, so the dockview is
-     * preserved; the side bar / panel components are re-created (their content
-     * re-initialises). Per-region visibility is captured and restored.
+     * Rebuild the body's side regions and tool panel in place. Used after a
+     * panel position/alignment change, an activity-bar reposition, or a flip
+     * that the flat-row reversal can't express: a `left`/`right` span nests the
+     * same-side bars into the editor column and a stacked activity bar nests
+     * into the primary side bar column, so those structures must be torn down
+     * and re-added. The editor is never touched, so the dockview is preserved;
+     * the side bar / panel / activity bar components are re-created (their
+     * content re-initialises). Per-region visibility is captured and restored.
      */
-    private _rebuildPanel(): void {
-        const existing = this._gridview.getPanel(WORKBENCH_IDS.panel);
-        if (!existing) {
-            return;
-        }
-
+    private _rebuildBody(): void {
         const wasVisible = (region: WorkbenchRegion): boolean =>
             this.isRegionVisible(region);
         const visibility = {
@@ -554,7 +604,10 @@ export class WorkbenchComponent extends CompositeDisposable {
             secondarySideBar: wasVisible('secondarySideBar'),
         };
 
-        this._gridview.removePanel(existing);
+        const existing = this._gridview.getPanel(WORKBENCH_IDS.panel);
+        if (existing) {
+            this._gridview.removePanel(existing);
+        }
         this._removeSideRegions();
 
         this._addSideRegions();
@@ -602,11 +655,13 @@ export class WorkbenchComponent extends CompositeDisposable {
      * so it sidesteps the stale-index hazard of a single right-crossing move.
      * Side bars are moved, not recreated, so their contents and widths survive.
      *
-     * When the tool panel lives in the body ({@link _panelIsInBody}) the row is
-     * no longer flat — a centred/aligned panel is nested into the editor column,
-     * a left/right panel is an extra sibling — so the reversal cannot express
-     * the flip. Those cases rebuild the body (like a panel re-alignment does),
-     * which re-creates the side bar components.
+     * When the row is no longer flat — a body panel is present
+     * ({@link _panelIsInBody}: a centred/aligned panel nested into the editor
+     * column, or a left/right panel as an extra sibling), or the activity bar
+     * is stacked into the primary side bar column
+     * ({@link _activityBarIsStacked}) — the reversal cannot express the flip, so
+     * those cases rebuild the body (like a panel re-alignment does), which
+     * re-creates the side bar components.
      */
     setPrimarySideBarPosition(position: SideBarPosition): void {
         if (position === this._primarySideBarPosition) {
@@ -615,8 +670,8 @@ export class WorkbenchComponent extends CompositeDisposable {
         const oldPosition = this._primarySideBarPosition;
         this._primarySideBarPosition = position;
 
-        if (this._panelIsInBody()) {
-            this._rebuildPanel();
+        if (this._panelIsInBody() || this._activityBarIsStacked()) {
+            this._rebuildBody();
             return;
         }
 
@@ -727,6 +782,7 @@ export class WorkbenchComponent extends CompositeDisposable {
             grid: this._gridview.toJSON(),
             dockview: this._editorPanel?.dockview.toJSON(),
             primarySideBarPosition: this._primarySideBarPosition,
+            activityBarPosition: this._activityBarPosition,
             panelPosition: this._panelPosition,
             panelAlignment: this._panelAlignment,
             activeViewContainer: this._activeViewContainer,
@@ -738,6 +794,7 @@ export class WorkbenchComponent extends CompositeDisposable {
         // and the panel placement; keep our tracked state in sync so later
         // flips/re-alignments start from the right structure.
         this._primarySideBarPosition = data.primarySideBarPosition ?? 'left';
+        this._activityBarPosition = data.activityBarPosition ?? 'default';
         this._panelPosition = data.panelPosition ?? 'bottom';
         this._panelAlignment = data.panelAlignment ?? 'center';
         this._activeViewContainer = data.activeViewContainer;

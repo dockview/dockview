@@ -206,6 +206,7 @@ export {
 } from './workbench/workbenchComponent';
 export { WorkbenchApi } from './workbench/workbench.api';
 export {
+    type ActivityBarPosition,
     type PanelAlignment,
     type PanelPosition,
     type SideBarPosition,

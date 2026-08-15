@@ -2,6 +2,7 @@ import type { DockviewApi } from '../api/component.api';
 import type { Event } from '../events';
 import type { IDisposable } from '../lifecycle';
 import type {
+    ActivityBarPosition,
     PanelAlignment,
     PanelPosition,
     SideBarPosition,
@@ -56,6 +57,16 @@ export class WorkbenchApi implements IDisposable {
 
     setActivityBarVisible(visible: boolean): void {
         this._component.setRegionVisible('activityBar', visible);
+    }
+
+    /** Where the activity bar currently sits (side rail, or top/bottom strip). */
+    get activityBarPosition(): ActivityBarPosition {
+        return this._component.activityBarPosition;
+    }
+
+    /** Move the activity bar to a side rail (`default`) or a top/bottom strip. */
+    setActivityBarPosition(position: ActivityBarPosition): void {
+        this._component.setActivityBarPosition(position);
     }
 
     setPrimarySideBarVisible(visible: boolean): void {
