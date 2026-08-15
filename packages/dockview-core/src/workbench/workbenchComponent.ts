@@ -574,14 +574,39 @@ export class WorkbenchComponent extends CompositeDisposable {
     }
 
     /**
+     * True when the tool panel occupies the body row (the horizontal branch
+     * beside the editor), rather than sitting at the workbench root. A
+     * top/bottom `justify` panel is a full-width root row; every other panel
+     * placement is in the body: `left`/`right` positions are body siblings, and
+     * a `center`/`left`/`right`-aligned top/bottom panel is nested into the
+     * editor column. A flip cannot be expressed as a flat body-row reversal
+     * while the panel is in the body, so those cases rebuild instead.
+     */
+    private _panelIsInBody(): boolean {
+        if (!this._panelOptions) {
+            return false;
+        }
+        const topOrBottom =
+            this._panelPosition === 'bottom' || this._panelPosition === 'top';
+        return !(topOrBottom && this._panelAlignment === 'justify');
+    }
+
+    /**
      * Flip the primary side bar (and the activity bar that tracks it) to the
-     * given side. The secondary side bar mirrors to the opposite side. Panels
-     * are moved, not recreated, so their contents and widths are preserved.
+     * given side. The secondary side bar mirrors to the opposite side.
      *
-     * A flip is simply a reversal of the body row's left-to-right order. It is
-     * done with a sequence of "move to the front" operations: each move sends a
-     * panel to the far left, which never crosses its own removal point, so it
-     * sidesteps the stale-index hazard of a single right-crossing move.
+     * With no body panel (or only a full-width `justify` panel at the root) the
+     * body is a flat `[bars…, editor, bars…]` row, so the flip is a reversal of
+     * that row done with a sequence of "move to the front" operations: each move
+     * sends a panel to the far left, which never crosses its own removal point,
+     * so it sidesteps the stale-index hazard of a single right-crossing move.
+     * Side bars are moved, not recreated, so their contents and widths survive.
+     *
+     * When the tool panel lives in the body ({@link _panelIsInBody}) the row is
+     * no longer flat — a centred/aligned panel is nested into the editor column,
+     * a left/right panel is an extra sibling — so the reversal cannot express
+     * the flip. Those cases rebuild the body (like a panel re-alignment does),
+     * which re-creates the side bar components.
      */
     setPrimarySideBarPosition(position: SideBarPosition): void {
         if (position === this._primarySideBarPosition) {
@@ -589,6 +614,11 @@ export class WorkbenchComponent extends CompositeDisposable {
         }
         const oldPosition = this._primarySideBarPosition;
         this._primarySideBarPosition = position;
+
+        if (this._panelIsInBody()) {
+            this._rebuildPanel();
+            return;
+        }
 
         // The body order for the OLD position, absent regions filtered out.
         const orderedIds =

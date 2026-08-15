@@ -468,6 +468,104 @@ describe('WorkbenchComponent', () => {
         });
     });
 
+    describe('flipping with a tool panel', () => {
+        // The flat body-row reversal cannot express a flip while the panel is
+        // in the body, so those cases rebuild. Assert the flip still produces
+        // the mirrored bar order and keeps the panel present in every panel
+        // configuration.
+        const barsAreFlipped = (workbench: WorkbenchComponent): void => {
+            const editor = regionEl(workbench.element, 'editor');
+            const primary = regionEl(workbench.element, 'primary');
+            const activity = regionEl(workbench.element, 'activity');
+            const secondary = regionEl(workbench.element, 'secondary');
+            // right layout: secondary | editor | primary | activity
+            expect(precedes(secondary, editor)).toBe(true);
+            expect(precedes(editor, primary)).toBe(true);
+            expect(precedes(primary, activity)).toBe(true);
+        };
+
+        const allBars = {
+            activityBar: true,
+            primarySideBar: true,
+            secondarySideBar: true,
+        } as const;
+
+        test.each([
+            ['center', { position: 'bottom', alignment: 'center' }],
+            ['left-aligned', { position: 'bottom', alignment: 'left' }],
+            ['right-aligned', { position: 'bottom', alignment: 'right' }],
+            ['justify', { position: 'bottom', alignment: 'justify' }],
+            ['left position', { position: 'left' }],
+            ['right position', { position: 'right' }],
+        ] as const)(
+            'flips cleanly with a %s panel, panel preserved',
+            (_name, panel) => {
+                const workbench = createWorkbench(container, {
+                    ...allBars,
+                    panel: panel as {
+                        position?: PanelPosition;
+                        alignment?: PanelAlignment;
+                    },
+                });
+                workbench.layout(1000, 800);
+
+                expect(workbench.isRegionVisible('panel')).toBe(true);
+
+                workbench.setPrimarySideBarPosition('right');
+
+                expect(workbench.primarySideBarPosition).toBe('right');
+                barsAreFlipped(workbench);
+                // the panel survives the flip in every configuration
+                expect(workbench.isRegionVisible('panel')).toBe(true);
+                expect(regionEl(workbench.element, 'panel')).toBeTruthy();
+
+                workbench.dispose();
+            }
+        );
+
+        test('a hidden panel stays hidden across a flip', () => {
+            const workbench = createWorkbench(container, {
+                ...allBars,
+                panel: { position: 'bottom', alignment: 'center' },
+            });
+            workbench.layout(1000, 800);
+
+            workbench.setRegionVisible('panel', false);
+            expect(workbench.isRegionVisible('panel')).toBe(false);
+
+            workbench.setPrimarySideBarPosition('right');
+
+            barsAreFlipped(workbench);
+            expect(workbench.isRegionVisible('panel')).toBe(false);
+
+            workbench.dispose();
+        });
+
+        test('flip then flip back restores the left layout with a panel', () => {
+            const workbench = createWorkbench(container, {
+                ...allBars,
+                panel: { position: 'bottom', alignment: 'left' },
+            });
+            workbench.layout(1000, 800);
+
+            workbench.setPrimarySideBarPosition('right');
+            workbench.setPrimarySideBarPosition('left');
+
+            expect(workbench.primarySideBarPosition).toBe('left');
+            // back to: activity | primary | editor | secondary
+            const activity = regionEl(workbench.element, 'activity');
+            const primary = regionEl(workbench.element, 'primary');
+            const editor = regionEl(workbench.element, 'editor');
+            const secondary = regionEl(workbench.element, 'secondary');
+            expect(precedes(activity, primary)).toBe(true);
+            expect(precedes(primary, editor)).toBe(true);
+            expect(precedes(editor, secondary)).toBe(true);
+            expect(workbench.isRegionVisible('panel')).toBe(true);
+
+            workbench.dispose();
+        });
+    });
+
     describe('tool panel', () => {
         const gridOf = (workbench: WorkbenchComponent): GridviewComponent =>
             (workbench as unknown as { _gridview: GridviewComponent })
