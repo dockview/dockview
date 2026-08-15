@@ -776,6 +776,55 @@ describe('WorkbenchComponent', () => {
             workbench.dispose();
         });
 
+        test('region theme classes survive a toJSON / fromJSON round-trip', () => {
+            const workbench = createWorkbench(container, {
+                header: true,
+                statusBar: true,
+                activityBar: true,
+                primarySideBar: true,
+                secondarySideBar: true,
+                panel: {},
+            });
+            workbench.layout(1000, 800);
+
+            const state = workbench.toJSON();
+
+            const restored = createWorkbench(container, {
+                header: true,
+                statusBar: true,
+                activityBar: true,
+                primarySideBar: true,
+                secondarySideBar: true,
+                panel: {},
+            });
+            restored.layout(1000, 800);
+            restored.fromJSON(state);
+
+            const grid = (
+                restored as unknown as { _gridview: GridviewComponent }
+            )._gridview;
+            const cls = (id: string): DOMTokenList =>
+                (grid.getPanel(id) as GridviewPanel).element.classList;
+
+            for (const [id, className] of [
+                [WORKBENCH_IDS.header, 'dv-workbench-header'],
+                [WORKBENCH_IDS.statusBar, 'dv-workbench-status-bar'],
+                [WORKBENCH_IDS.activityBar, 'dv-workbench-activity-bar'],
+                [WORKBENCH_IDS.primarySideBar, 'dv-workbench-primary-side-bar'],
+                [
+                    WORKBENCH_IDS.secondarySideBar,
+                    'dv-workbench-secondary-side-bar',
+                ],
+                [WORKBENCH_IDS.panel, 'dv-workbench-panel'],
+            ] as const) {
+                expect(cls(id).contains('dv-workbench-region')).toBe(true);
+                expect(cls(id).contains(className)).toBe(true);
+            }
+
+            restored.dispose();
+            workbench.dispose();
+        });
+
         test('root element carries the dv-workbench class', () => {
             const workbench = createWorkbench(container, { header: true });
             workbench.layout(1000, 800);

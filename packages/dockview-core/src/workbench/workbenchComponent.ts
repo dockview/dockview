@@ -185,7 +185,10 @@ export class WorkbenchComponent extends CompositeDisposable {
         this._element = document.createElement('div');
         this._element.className = 'dv-workbench';
         if (options.className) {
-            this._element.classList.add(...options.className.split(' '));
+            const tokens = options.className.split(/\s+/).filter(Boolean);
+            if (tokens.length > 0) {
+                this._element.classList.add(...tokens);
+            }
         }
         this._element.style.height = '100%';
         this._element.style.width = '100%';
@@ -204,7 +207,13 @@ export class WorkbenchComponent extends CompositeDisposable {
                     this._editorPanel = panel;
                     return panel;
                 }
-                return options.createComponent(viewOptions);
+                const view = options.createComponent(viewOptions);
+                // Tag region panels by their reserved id so `workbench.scss`
+                // can theme the containers. Keyed off the id (which the grid
+                // serializes) exactly as the editor is keyed off its reserved
+                // name, so the classes are re-applied on `fromJSON` for free.
+                this._tagRegion(viewOptions.id, view);
+                return view;
             },
         });
 
@@ -366,7 +375,6 @@ export class WorkbenchComponent extends CompositeDisposable {
             size,
             position,
         });
-        this._tagRegion(id);
         if (options.visible === false) {
             this.setBandVisible(band, false);
         }
@@ -389,7 +397,6 @@ export class WorkbenchComponent extends CompositeDisposable {
             size,
             position,
         });
-        this._tagRegion(id);
         if (options.visible === false) {
             this._setPanelVisible(id, false);
         }
@@ -412,7 +419,6 @@ export class WorkbenchComponent extends CompositeDisposable {
             size,
             position,
         });
-        this._tagRegion(WORKBENCH_IDS.activityBar);
         if (options.visible === false) {
             this._setPanelVisible(WORKBENCH_IDS.activityBar, false);
         }
@@ -474,7 +480,6 @@ export class WorkbenchComponent extends CompositeDisposable {
         }
 
         this._gridview.addPanel(add);
-        this._tagRegion(WORKBENCH_IDS.panel);
 
         if (
             (position === 'bottom' || position === 'top') &&
@@ -631,10 +636,9 @@ export class WorkbenchComponent extends CompositeDisposable {
     }
 
     /** Tag a region's panel element so `workbench.scss` can style it. */
-    private _tagRegion(id: string): void {
+    private _tagRegion(id: string, panel: GridviewPanel): void {
         const className = REGION_CLASS[id];
-        const panel = this._gridview.getPanel(id);
-        if (className && panel) {
+        if (className) {
             panel.element.classList.add('dv-workbench-region', className);
         }
     }
