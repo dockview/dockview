@@ -63,6 +63,8 @@ const side = api.primarySideBarPosition; // 'left' | 'right'
 
 Set the starting side with the `primarySideBarPosition` option.
 
+Flipping normally just moves the side bars, preserving their widths and contents. The exception is when a tool panel currently sits in the body — a top/bottom panel with `center`, `left` or `right` alignment, or a `left`/`right` panel — where the flip re-places the panel against the mirrored side bars and the side bar components are re-created (their content re-initialises). A `justify` panel or no panel flips without re-creating anything.
+
 ## Activity bar and view containers
 
 The activity bar selects which view the primary side bar shows. The workbench tracks an active view container id and fires an event when it changes; the side bar component renders the selected view.
