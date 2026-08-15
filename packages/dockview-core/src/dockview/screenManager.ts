@@ -68,6 +68,12 @@ export interface DockviewScreensChangeEvent {
     readonly added: readonly DockviewScreen[];
     /** Screens unplugged in this change. */
     readonly removed: readonly DockviewScreen[];
+    /**
+     * Screens present before and after whose geometry (bounds / work area)
+     * changed in place — e.g. a resolution or taskbar change. A screen that
+     * merely became (or stopped being) the current one is not included.
+     */
+    readonly changed: readonly DockviewScreen[];
 }
 
 /**
@@ -522,20 +528,28 @@ export class ScreenManager
         const added = next.filter((screen) => !previousIds.has(screen.id));
         const removed = previous.filter((screen) => !nextIds.has(screen.id));
 
-        const geometryChanged = next.some((screen) => {
+        const changed = next.filter((screen) => {
             const before = previous.find((s) => s.id === screen.id);
             return (
                 before !== undefined &&
                 (JSON.stringify(before.bounds) !==
                     JSON.stringify(screen.bounds) ||
                     JSON.stringify(before.workArea) !==
-                        JSON.stringify(screen.workArea) ||
-                    before.isCurrent !== screen.isCurrent)
+                        JSON.stringify(screen.workArea))
             );
         });
+        const currentChanged = next.some((screen) => {
+            const before = previous.find((s) => s.id === screen.id);
+            return before !== undefined && before.isCurrent !== screen.isCurrent;
+        });
 
-        if (added.length || removed.length || geometryChanged) {
-            this._onDidChangeScreens.fire({ screens: next, added, removed });
+        if (added.length || removed.length || changed.length || currentChanged) {
+            this._onDidChangeScreens.fire({
+                screens: next,
+                added,
+                removed,
+                changed,
+            });
         }
     }
 
@@ -603,6 +617,8 @@ export class ScreenManager
  */
 export interface IScreenManagerHost {
     readonly options: { readonly screenAdapter?: DockviewScreenAdapter };
+    /** The live popout window handles (topology rehoming, design §4.4). */
+    getPopoutWindows?(): Window[];
 }
 
 export const ScreenManagerModule = defineModule<
@@ -615,12 +631,94 @@ export const ScreenManagerModule = defineModule<
     // module is registered and the option key exists (see file header).
     options: ['screenAdapter'],
     create: (host) => new ScreenManager(undefined, host.options.screenAdapter),
-    init: (_host, service) => {
+    init: (host, service) => {
         // Query-only permission probe; populates the snapshot eagerly when
         // the permission is already granted (or an adapter is present) so
         // gesture-less paths (fromJSON restore) are screen-aware. Never
         // prompts.
         void service.prime();
-        return Disposable.NONE;
+
+        // Topology resilience (design §4.4): a popout on an unplugged
+        // monitor would otherwise be lost off-screen. Membership is computed
+        // geometrically from the window's centre against the snapshot —
+        // `currentscreenchange` can't be used, it tracks only the window
+        // that called getScreenDetails().
+        return service.onDidChangeScreens((event) => {
+            if (!service.hasResolvedScreens) {
+                return;
+            }
+            for (const win of host.getPopoutWindows?.() ?? []) {
+                if (!win || win.closed) {
+                    continue;
+                }
+                try {
+                    // A fullscreen popout intentionally covers full screen
+                    // bounds; clamping it to a work area would be wrong.
+                    if (win.document?.fullscreenElement) {
+                        continue;
+                    }
+                } catch {
+                    continue;
+                }
+                const rect = {
+                    left: win.screenX,
+                    top: win.screenY,
+                    width: win.innerWidth,
+                    height: win.innerHeight,
+                };
+                const screen = service.screenAtPoint(
+                    rect.left + rect.width / 2,
+                    rect.top + rect.height / 2
+                );
+                if (!screen) {
+                    // The window's screen is gone (or it sits in dead space):
+                    // re-place it onto the current/primary screen at its size.
+                    const target =
+                        service.resolveTarget('current') ??
+                        service.resolveTarget('primary') ??
+                        service.screens[0];
+                    if (!target) {
+                        continue;
+                    }
+                    void service.moveWindowTo(
+                        win,
+                        service.placementFor(target, {
+                            type: 'center',
+                            width: rect.width || undefined,
+                            height: rect.height || undefined,
+                        })
+                    );
+                } else if (event.changed.some((c) => c.id === screen.id)) {
+                    // The window's own screen changed geometry: clamp into
+                    // its new work area. Only screens from `changed` are
+                    // touched so unrelated topology events (a monitor added
+                    // elsewhere) never yank deliberately-placed windows.
+                    const wa = screen.workArea;
+                    const width = Math.min(rect.width, wa.width);
+                    const height = Math.min(rect.height, wa.height);
+                    const left = Math.min(
+                        Math.max(rect.left, wa.left),
+                        wa.left + wa.width - width
+                    );
+                    const top = Math.min(
+                        Math.max(rect.top, wa.top),
+                        wa.top + wa.height - height
+                    );
+                    if (
+                        left !== rect.left ||
+                        top !== rect.top ||
+                        width !== rect.width ||
+                        height !== rect.height
+                    ) {
+                        void service.moveWindowTo(win, {
+                            left,
+                            top,
+                            width,
+                            height,
+                        });
+                    }
+                }
+            }
+        });
     },
 });
