@@ -185,6 +185,12 @@ export interface DockviewPopoutGroupOptions {
     popoutUrl?: string;
     onDidOpen?: (event: { id: string; window: Window }) => void;
     onWillClose?: (event: { id: string; window: Window }) => void;
+    /**
+     * Extra window.open feature entries appended to the features string —
+     * e.g. `{ dockviewPopout: 1 }` for an Electron `setWindowOpenHandler` to
+     * match on. Booleans serialize as 1/0.
+     */
+    extraWindowFeatures?: Record<string, string | number | boolean>;
 }
 
 interface DockviewPopoutGroupOptionsInternal
@@ -1932,6 +1938,8 @@ export class DockviewComponent
                 onDidOpen: options?.onDidOpen,
                 onWillClose: options?.onWillClose,
                 nonce: this.options?.nonce,
+                extraFeatures: options?.extraWindowFeatures,
+                windowFactory: this.options?.popoutWindowFactory,
             }
         );
 

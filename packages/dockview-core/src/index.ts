@@ -81,6 +81,10 @@ export {
 } from './dockview/framework';
 
 export * from './dockview/options';
+export {
+    type PopoutWindowOpenRequest,
+    type PopoutWindowFactory,
+} from './popoutWindow';
 export * from './dockview/theme';
 export * from './dockview/dockviewPanel';
 export {

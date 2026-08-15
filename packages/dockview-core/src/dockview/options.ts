@@ -31,6 +31,7 @@ import { DockviewTheme } from './theme';
 import { ITabGroup } from './tabGroup';
 import { CspNonceProvider } from '../dom';
 export { type CspNonceProvider };
+import { PopoutWindowFactory } from '../popoutWindow';
 import { DockviewTabGroupColorEntry } from './tabGroupAccent';
 
 export interface IHeaderActionsRenderer extends IDisposable {
@@ -395,6 +396,21 @@ export interface DockviewOptions {
      */
     floatingGroupDragHandle?: 'titlebar' | 'tabbar';
     popoutUrl?: string;
+    /**
+     * Supply the popout `Window` yourself instead of dockview calling
+     * `window.open` — e.g. an Electron app routing window creation through
+     * its own logic, an app that pre-opens or reuses windows, or a test
+     * injecting a window. Return `null` to signal "blocked": dockview then
+     * runs its existing blocked-popout recovery
+     * (`onDidOpenPopoutWindowFail`).
+     *
+     * The returned `Window` MUST be same-process and same-origin — dockview
+     * drives its normal pipeline against it (load → move DOM container →
+     * clone styles). The popout URL is validated by the same-origin check
+     * regardless of who opens the window. Honoured live via
+     * `updateOptions`; the factory is consulted each time a popout opens.
+     */
+    popoutWindowFactory?: PopoutWindowFactory;
     nonce?: CspNonceProvider;
     defaultRenderer?: DockviewPanelRenderer;
     defaultHeaderPosition?: DockviewHeaderPosition;
@@ -784,6 +800,7 @@ export const PROPERTY_KEYS_DOCKVIEW: (keyof DockviewOptions)[] = (() => {
         smartGuides: undefined,
         floatingGroupDragHandle: undefined,
         popoutUrl: undefined,
+        popoutWindowFactory: undefined,
         nonce: undefined,
         defaultRenderer: undefined,
         defaultHeaderPosition: undefined,

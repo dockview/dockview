@@ -3,11 +3,45 @@ import { Emitter, addDisposableListener } from './events';
 import { CompositeDisposable, Disposable, IDisposable } from './lifecycle';
 import { Box } from './types';
 
+/**
+ * Everything dockview would pass to `window.open`, handed to a
+ * `popoutWindowFactory` so a host can open the window itself.
+ */
+export interface PopoutWindowOpenRequest {
+    /** The window name dockview would pass to `window.open`. */
+    readonly id: string;
+    /** The resolved same-origin popout url. */
+    readonly url: string;
+    /** The window bounds dockview would request, in screen coordinates. */
+    readonly box: Box;
+    /** The features string dockview would pass to `window.open`. */
+    readonly features: string;
+}
+
+/**
+ * Supply the popout `Window` yourself instead of dockview calling
+ * `window.open`. Return `null` to signal "blocked"; dockview then runs its
+ * existing blocked-popout recovery. The returned `Window` must be
+ * same-process and same-origin: dockview drives its normal pipeline against
+ * it (load → move DOM container → clone styles).
+ */
+export type PopoutWindowFactory = (
+    request: PopoutWindowOpenRequest
+) => Window | null | Promise<Window | null>;
+
 export type PopoutWindowOptions = {
     url: string;
     onDidOpen?: (event: { id: string; window: Window }) => void;
     onWillClose?: (event: { id: string; window: Window }) => void;
     nonce?: CspNonceProvider;
+    windowFactory?: PopoutWindowFactory;
+    /**
+     * Extra window.open feature entries appended to the features string —
+     * e.g. a marker for an Electron `setWindowOpenHandler` to match on, or
+     * nonstandard features a host honours. Booleans serialize as 1/0 (the
+     * form window features expect).
+     */
+    extraFeatures?: Record<string, string | number | boolean>;
 } & Box;
 
 /**
@@ -102,14 +136,31 @@ export class PopoutWindow extends CompositeDisposable {
             left: this.options.left,
             width: this.options.width,
             height: this.options.height,
+            ...this.options.extraFeatures,
         })
-            .map(([key, value]) => `${key}=${value}`)
+            .map(([key, value]) =>
+                typeof value === 'boolean'
+                    ? `${key}=${value ? 1 : 0}`
+                    : `${key}=${value}`
+            )
             .join(',');
 
         /**
          * @see https://developer.mozilla.org/en-US/docs/Web/API/Window/open
          */
-        const externalWindow = window.open(url, this.target, features);
+        const externalWindow = this.options.windowFactory
+            ? await this.options.windowFactory({
+                  id: this.target,
+                  url,
+                  box: {
+                      top: this.options.top,
+                      left: this.options.left,
+                      width: this.options.width,
+                      height: this.options.height,
+                  },
+                  features,
+              })
+            : window.open(url, this.target, features);
 
         if (!externalWindow) {
             /**
