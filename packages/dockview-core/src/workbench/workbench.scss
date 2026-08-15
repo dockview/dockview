@@ -38,21 +38,15 @@
         background-color: var(--dv-workbench-surface-background-color);
     }
 
-    // The chrome bands (header / toolbar / status / activity) default to the
-    // tab-strip colour so they read as chrome rather than content.
+    // The chrome bands (header / status / activity) default to the tab-strip
+    // colour so they read as chrome rather than content.
     .dv-workbench-header,
-    .dv-workbench-toolbar,
     .dv-workbench-status-bar,
     .dv-workbench-activity-bar {
         background-color: var(--dv-workbench-band-background-color);
     }
 
     .dv-workbench-header {
-        border-bottom: var(--dv-workbench-border);
-    }
-
-    .dv-workbench-toolbar {
-        border-top: var(--dv-workbench-border);
         border-bottom: var(--dv-workbench-border);
     }
 

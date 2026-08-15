@@ -36,10 +36,6 @@ export class WorkbenchApi implements IDisposable {
         this._component.setBandVisible('header', visible);
     }
 
-    setToolbarVisible(visible: boolean): void {
-        this._component.setBandVisible('toolbar', visible);
-    }
-
     setStatusBarVisible(visible: boolean): void {
         this._component.setBandVisible('statusBar', visible);
     }

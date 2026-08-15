@@ -36,7 +36,7 @@ export interface IWorkbenchReactProps {
     onReady: (event: WorkbenchReadyEvent) => void;
     /**
      * Components for the chrome bands, side bars and tool panel (header,
-     * toolbar, status bar, activity bar, primary/secondary side bars, panel).
+     * status bar, activity bar, primary/secondary side bars, panel).
      */
     components: Record<string, React.FunctionComponent<IWorkbenchPanelProps>>;
     /** Components for the editor area (rendered inside the embedded dockview). */
@@ -48,7 +48,6 @@ export interface IWorkbenchReactProps {
     editorProps?: Omit<DockviewComponentOptions, 'createComponent'>;
 
     header?: WorkbenchBandOptions;
-    toolbar?: WorkbenchBandOptions;
     statusBar?: WorkbenchBandOptions;
     activityBar?: WorkbenchActivityBarOptions;
     primarySideBar?: WorkbenchSideBarOptions;
@@ -82,7 +81,6 @@ export const WorkbenchReact = React.forwardRef(
 
             const api = createWorkbench(domRef.current, {
                 header: props.header,
-                toolbar: props.toolbar,
                 statusBar: props.statusBar,
                 activityBar: props.activityBar,
                 primarySideBar: props.primarySideBar,

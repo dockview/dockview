@@ -24,7 +24,6 @@ export interface WorkbenchAngularOptions {
     /** Extra dockview options for the editor (theme, dnd, etc.). */
     editorProps?: Omit<DockviewComponentOptions, 'createComponent'>;
     header?: WorkbenchBandOptions;
-    toolbar?: WorkbenchBandOptions;
     statusBar?: WorkbenchBandOptions;
     activityBar?: WorkbenchActivityBarOptions;
     primarySideBar?: WorkbenchSideBarOptions;

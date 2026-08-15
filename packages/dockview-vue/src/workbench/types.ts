@@ -34,7 +34,6 @@ export interface IWorkbenchVueProps {
     editorProps?: Omit<DockviewComponentOptions, 'createComponent'>;
 
     header?: WorkbenchBandOptions;
-    toolbar?: WorkbenchBandOptions;
     statusBar?: WorkbenchBandOptions;
     activityBar?: WorkbenchActivityBarOptions;
     primarySideBar?: WorkbenchSideBarOptions;

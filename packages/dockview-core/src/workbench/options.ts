@@ -6,8 +6,8 @@ import type { GridviewPanel } from '../gridview/gridviewPanel';
 import type { Parameters } from '../panel/types';
 
 /**
- * A fixed-height chrome band (header, toolbar, or status bar) rendered above or
- * below the editor. The band's `component` is resolved through the workbench's
+ * A fixed-height chrome band (header or status bar) rendered above or below the
+ * editor. The band's `component` is resolved through the workbench's
  * `createComponent` factory, exactly like a gridview panel.
  */
 export interface WorkbenchBandOptions {
@@ -103,8 +103,6 @@ export interface WorkbenchPanelOptions {
 export interface WorkbenchOptions {
     /** Fixed band pinned to the top of the workbench. */
     header?: WorkbenchBandOptions;
-    /** Fixed band pinned directly above the status bar. */
-    toolbar?: WorkbenchBandOptions;
     /** Fixed band pinned to the bottom of the workbench. */
     statusBar?: WorkbenchBandOptions;
     /** Thin icon rail next to the primary side bar. */
@@ -125,8 +123,8 @@ export interface WorkbenchOptions {
 
 export interface WorkbenchFrameworkOptions {
     /**
-     * Factory for the chrome band components (header/toolbar/status bar, and in
-     * later phases the side bars and panel views). Mirrors the gridview
+     * Factory for the chrome band components (header/status bar, the side bars
+     * and the tool panel). Mirrors the gridview
      * `createComponent` contract. The reserved editor component is created by
      * the workbench itself and never passed here.
      */
@@ -139,7 +137,6 @@ export type WorkbenchComponentOptions = WorkbenchOptions &
     WorkbenchFrameworkOptions;
 
 export const DEFAULT_HEADER_SIZE = 35;
-export const DEFAULT_TOOLBAR_SIZE = 35;
 export const DEFAULT_STATUS_BAR_SIZE = 22;
 export const DEFAULT_ACTIVITY_BAR_SIZE = 48;
 export const DEFAULT_SIDE_BAR_SIZE = 240;
@@ -154,7 +151,6 @@ export const WORKBENCH_EDITOR_COMPONENT = '__dv_workbench_editor__';
 export const WORKBENCH_IDS = {
     editor: '__dv_workbench_editor__',
     header: '__dv_workbench_header__',
-    toolbar: '__dv_workbench_toolbar__',
     statusBar: '__dv_workbench_status_bar__',
     activityBar: '__dv_workbench_activity_bar__',
     primarySideBar: '__dv_workbench_primary_side_bar__',
@@ -163,7 +159,7 @@ export const WORKBENCH_IDS = {
 } as const;
 
 /** Fixed-height chrome bands stacked above/below the body row. */
-export type WorkbenchBand = 'header' | 'toolbar' | 'statusBar';
+export type WorkbenchBand = 'header' | 'statusBar';
 
 /** All toggleable workbench regions. */
 export type WorkbenchRegion =

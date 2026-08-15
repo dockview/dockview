@@ -58,7 +58,6 @@ export class WorkbenchAngularComponent implements OnInit, OnDestroy {
     @Input() editorProps?: WorkbenchComponentOptions['dockview'];
 
     @Input() header?: WorkbenchBandOptions;
-    @Input() toolbar?: WorkbenchBandOptions;
     @Input() statusBar?: WorkbenchBandOptions;
     @Input() activityBar?: WorkbenchActivityBarOptions;
     @Input() primarySideBar?: WorkbenchSideBarOptions;
@@ -101,7 +100,6 @@ export class WorkbenchAngularComponent implements OnInit, OnDestroy {
 
         this.workbenchApi = createWorkbench(this.containerRef.nativeElement, {
             header: this.header,
-            toolbar: this.toolbar,
             statusBar: this.statusBar,
             activityBar: this.activityBar,
             primarySideBar: this.primarySideBar,

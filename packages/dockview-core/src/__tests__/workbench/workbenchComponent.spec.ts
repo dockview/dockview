@@ -66,7 +66,6 @@ function createWorkbench(
     container: HTMLElement,
     opts: {
         header?: boolean;
-        toolbar?: boolean;
         statusBar?: boolean;
         activityBar?: boolean;
         primarySideBar?: boolean;
@@ -82,7 +81,6 @@ function createWorkbench(
 ): WorkbenchComponent {
     return new WorkbenchComponent(container, {
         header: opts.header ? { component: 'header' } : undefined,
-        toolbar: opts.toolbar ? { component: 'toolbar' } : undefined,
         statusBar: opts.statusBar ? { component: 'status' } : undefined,
         activityBar: opts.activityBar ? { component: 'activity' } : undefined,
         primarySideBar: opts.primarySideBar
@@ -159,28 +157,24 @@ describe('WorkbenchComponent', () => {
         const workbench = createWorkbench(container);
         workbench.layout(1000, 800);
 
-        // no header/toolbar/status requested
+        // no header/status requested
         expect(workbench.isBandVisible('header')).toBe(false);
-        expect(workbench.isBandVisible('toolbar')).toBe(false);
         expect(workbench.isBandVisible('statusBar')).toBe(false);
 
         workbench.dispose();
     });
 
-    test('header + toolbar + status bar are added when requested', () => {
+    test('header + status bar are added when requested', () => {
         const workbench = createWorkbench(container, {
             header: true,
-            toolbar: true,
             statusBar: true,
         });
         workbench.layout(1000, 800);
 
         expect(container.querySelector('.test-band-header')).toBeTruthy();
-        expect(container.querySelector('.test-band-toolbar')).toBeTruthy();
         expect(container.querySelector('.test-band-status')).toBeTruthy();
 
         expect(workbench.isBandVisible('header')).toBe(true);
-        expect(workbench.isBandVisible('toolbar')).toBe(true);
         expect(workbench.isBandVisible('statusBar')).toBe(true);
 
         workbench.dispose();
@@ -514,7 +508,6 @@ describe('WorkbenchComponent', () => {
         test('justify alignment spans the full width past the side bars', () => {
             const workbench = createWorkbench(container, {
                 header: true,
-                toolbar: true,
                 activityBar: true,
                 primarySideBar: true,
                 secondarySideBar: true,
@@ -743,7 +736,6 @@ describe('WorkbenchComponent', () => {
         test('tags each region element with theme classes', () => {
             const workbench = createWorkbench(container, {
                 header: true,
-                toolbar: true,
                 statusBar: true,
                 activityBar: true,
                 primarySideBar: true,

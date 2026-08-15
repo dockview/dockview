@@ -22,7 +22,6 @@ import {
     DEFAULT_SIDE_BAR_MINIMUM_SIZE,
     DEFAULT_SIDE_BAR_SIZE,
     DEFAULT_STATUS_BAR_SIZE,
-    DEFAULT_TOOLBAR_SIZE,
     type PanelAlignment,
     type PanelPosition,
     type SideBarPosition,
@@ -43,7 +42,6 @@ import {
  */
 const REGION_CLASS: Record<string, string> = {
     [WORKBENCH_IDS.header]: 'dv-workbench-header',
-    [WORKBENCH_IDS.toolbar]: 'dv-workbench-toolbar',
     [WORKBENCH_IDS.statusBar]: 'dv-workbench-status-bar',
     [WORKBENCH_IDS.activityBar]: 'dv-workbench-activity-bar',
     [WORKBENCH_IDS.primarySideBar]: 'dv-workbench-primary-side-bar',
@@ -115,12 +113,12 @@ export class WorkbenchEditorPanel extends GridviewPanel {
 }
 
 /**
- * A VS Code-style workbench: fixed chrome bands (header, toolbar, status bar)
- * and side regions (activity bar, primary and secondary side bars) wrapped
- * around a central dockview editor.
+ * A VS Code-style workbench: fixed chrome bands (header, status bar) and side
+ * regions (activity bar, primary and secondary side bars) wrapped around a
+ * central dockview editor.
  *
- * The outer frame is a vertical {@link GridviewComponent}: the header, toolbar
- * and status bar are full-width fixed-height bands, and the body row between
+ * The outer frame is a vertical {@link GridviewComponent}: the header and
+ * status bar are full-width fixed-height bands, and the body row between
  * them nests a horizontal branch holding the activity bar, primary side bar,
  * editor and secondary side bar. The editor is the one high-priority panel, so
  * it absorbs all spare space; the bands and rails are fixed or snap-collapsible.
@@ -239,34 +237,18 @@ export class WorkbenchComponent extends CompositeDisposable {
             );
         }
 
-        if (options.toolbar) {
-            this._addBand(
-                'toolbar',
-                WORKBENCH_IDS.toolbar,
-                options.toolbar,
-                DEFAULT_TOOLBAR_SIZE,
-                { referencePanel: WORKBENCH_IDS.editor, direction: 'below' }
-            );
-        }
-
         if (options.statusBar) {
             this._addBand(
                 'statusBar',
                 WORKBENCH_IDS.statusBar,
                 options.statusBar,
                 DEFAULT_STATUS_BAR_SIZE,
-                {
-                    // sit below the toolbar when present, else below the editor
-                    referencePanel: options.toolbar
-                        ? WORKBENCH_IDS.toolbar
-                        : WORKBENCH_IDS.editor,
-                    direction: 'below',
-                }
+                { referencePanel: WORKBENCH_IDS.editor, direction: 'below' }
             );
         }
 
         // Side regions are added AFTER the full-width bands so they nest into a
-        // horizontal branch beside the editor only, leaving the header/toolbar/
+        // horizontal branch beside the editor only, leaving the header and
         // status bands spanning the full width.
         this._activityBarOptions = options.activityBar;
         this._primarySideBarOptions = options.primarySideBar;

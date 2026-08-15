@@ -1,11 +1,11 @@
 ---
 title: Workbench
-description: "Wrap a dockview editor in a VS Code-style shell: header, toolbar, status bar, activity bar, primary and secondary side bars, and a tool panel."
+description: "Wrap a dockview editor in a VS Code-style shell: header, status bar, activity bar, primary and secondary side bars, and a tool panel."
 ---
 
 import { CodeRunner } from '@site/src/components/ui/codeRunner';
 
-The workbench wraps a dockview editor in a VS Code-style frame: fixed chrome bands (header, toolbar, status bar), an activity bar, primary and secondary side bars, and a tool panel. The editor in the centre is a full dockview instance, so tabs, splitting, floating groups, popout windows and edge groups all keep working inside it.
+The workbench wraps a dockview editor in a VS Code-style frame: fixed chrome bands (header, status bar), an activity bar, primary and secondary side bars, and a tool panel. The editor in the centre is a full dockview instance, so tabs, splitting, floating groups, popout windows and edge groups all keep working inside it.
 
 <CodeRunner id="dockview/workbench" height={540} />
 
@@ -16,7 +16,6 @@ A workbench is built from an outer grid of regions around the editor:
 | Region | Description |
 | --------------------- | ------------------------------------------------------------ |
 | `header` | Fixed-height band pinned to the top. |
-| `toolbar` | Fixed-height band directly above the status bar. |
 | `statusBar` | Fixed-height band pinned to the bottom. |
 | `activityBar` | Fixed-width icon rail next to the primary side bar. |
 | `primarySideBar` | Resizable side bar (VS Code's Explorer side). |

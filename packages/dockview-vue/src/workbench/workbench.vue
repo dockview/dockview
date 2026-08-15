@@ -42,7 +42,6 @@ onMounted(() => {
 
     const api = createWorkbench(el.value, {
         header: props.header,
-        toolbar: props.toolbar,
         statusBar: props.statusBar,
         activityBar: props.activityBar,
         primarySideBar: props.primarySideBar,
