@@ -700,6 +700,87 @@ describe('screenManager', () => {
         });
     });
 
+    describe('setFullscreen', () => {
+        /** A window whose document mimics the element-fullscreen contract. */
+        function fullscreenableWindow(init: { requestFails?: boolean } = {}) {
+            let fullscreenElement: unknown = null;
+            const documentElement = {
+                requestFullscreen: jest.fn(async () => {
+                    if (init.requestFails) {
+                        throw new DOMException('no transient activation');
+                    }
+                    fullscreenElement = documentElement;
+                }),
+            };
+            const doc = {
+                documentElement,
+                exitFullscreen: jest.fn(async () => {
+                    fullscreenElement = null;
+                }),
+                get fullscreenElement() {
+                    return fullscreenElement;
+                },
+            };
+            return {
+                win: { document: doc } as unknown as Window,
+                documentElement,
+                doc,
+            };
+        }
+
+        test('web path: enters and exits element fullscreen on the window own document', async () => {
+            const manager = new ScreenManager(fakeWindow().window);
+            const { win, documentElement, doc } = fullscreenableWindow();
+
+            await expect(manager.setFullscreen(win, true)).resolves.toBe(true);
+            expect(documentElement.requestFullscreen).toHaveBeenCalledTimes(1);
+            expect(doc.fullscreenElement).toBe(documentElement);
+
+            // already fullscreen: no second request
+            await expect(manager.setFullscreen(win, true)).resolves.toBe(true);
+            expect(documentElement.requestFullscreen).toHaveBeenCalledTimes(1);
+
+            await expect(manager.setFullscreen(win, false)).resolves.toBe(true);
+            expect(doc.exitFullscreen).toHaveBeenCalledTimes(1);
+            expect(doc.fullscreenElement).toBeNull();
+
+            // already out: exit is not re-invoked
+            await expect(manager.setFullscreen(win, false)).resolves.toBe(true);
+            expect(doc.exitFullscreen).toHaveBeenCalledTimes(1);
+            manager.dispose();
+        });
+
+        test('web path: a rejected request (e.g. no activation in that realm) resolves false', async () => {
+            const manager = new ScreenManager(fakeWindow().window);
+            const { win } = fullscreenableWindow({ requestFails: true });
+
+            await expect(manager.setFullscreen(win, true)).resolves.toBe(false);
+            manager.dispose();
+        });
+
+        test('prefers adapter.setFullscreen; false results and throws propagate as false', async () => {
+            const setFullscreen = jest.fn().mockResolvedValue(true);
+            const manager = new ScreenManager(fakeWindow().window, {
+                getScreens: () => [],
+                setFullscreen,
+            });
+            const { win, documentElement } = fullscreenableWindow();
+
+            await expect(manager.setFullscreen(win, true)).resolves.toBe(true);
+            expect(setFullscreen).toHaveBeenCalledWith(win, true);
+            expect(documentElement.requestFullscreen).not.toHaveBeenCalled();
+
+            setFullscreen.mockResolvedValue(false);
+            await expect(manager.setFullscreen(win, true)).resolves.toBe(false);
+
+            setFullscreen.mockRejectedValue(new Error('ipc down'));
+            await expect(manager.setFullscreen(win, false)).resolves.toBe(
+                false
+            );
+            manager.dispose();
+        });
+    });
+
     describe('screenAtPoint', () => {
         test('geometric containment against full bounds', async () => {
             const { window } = fakeWindow();

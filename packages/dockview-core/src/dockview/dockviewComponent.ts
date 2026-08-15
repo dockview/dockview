@@ -248,6 +248,17 @@ export interface DockviewPopoutGroupOptions {
      * serialize as 1/0.
      */
     extraWindowFeatures?: Record<string, string | number | boolean>;
+    /**
+     * Open the popout fullscreen on its target screen (`screen`; defaults to
+     * the current one). Emits the `popup,fullscreen` window features —
+     * honoured by Chromium ≥132 when the `window-management` permission is
+     * granted, in which case the window opens truly fullscreen; elsewhere
+     * the features are ignored and the default placement becomes
+     * `{ type: 'fill' }`, covering the screen's work area as the graceful
+     * fallback. An explicit `placement` wins over that fallback. Requires
+     * the ScreenManagement module (one deduped diagnostic without it).
+     */
+    fullscreen?: boolean;
 }
 
 interface DockviewPopoutGroupOptionsInternal
@@ -2100,6 +2111,53 @@ export class DockviewComponent
         return service.moveWindowTo(win, box);
     }
 
+    /**
+     * Whether the popout group's window is currently DOM-fullscreen. A pure
+     * read — needs no module. Adapter-native fullscreen (e.g. Electron's
+     * `BrowserWindow.setFullScreen`) is not observable from the DOM, so
+     * hosts driving fullscreen through an adapter should track that state
+     * themselves.
+     */
+    isPopoutGroupFullscreen(group: DockviewGroupPanel): boolean {
+        if (group.api.location.type !== 'popout') {
+            return false;
+        }
+        try {
+            const win = group.api.getWindow();
+            return !win.closed && !!win.document.fullscreenElement;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Enter/exit fullscreen for a popout group's window (design doc §4.3) —
+     * via the adapter's native hook when available, else element fullscreen
+     * on the popout's own document. The web path succeeds only when invoked
+     * from an interaction inside the popout's own realm: transient
+     * activation does not cross windows, so a main-window gesture cannot
+     * fullscreen a popout. Resolves false for non-popout groups, a missing
+     * module, or a failed transition.
+     */
+    async setPopoutGroupFullscreen(
+        group: DockviewGroupPanel,
+        value: boolean
+    ): Promise<boolean> {
+        const service = assertModule(
+            this._screenManagerService,
+            'ScreenManagement',
+            'api.setFullscreen'
+        );
+        if (!service || group.api.location.type !== 'popout') {
+            return false;
+        }
+        const win = group.api.getWindow();
+        if (win.closed) {
+            return false;
+        }
+        return service.setFullscreen(win, value);
+    }
+
     /** The live popout `Window` handles, one per open popout group. The
      *  narrow surface accessibility services need to mirror per-window state. */
     getPopoutWindows(): Window[] {
@@ -2154,8 +2212,19 @@ export class DockviewComponent
         const screenService = this._screenManagerService;
         let targetScreen: DockviewScreen | undefined;
         let rehome: Promise<DockviewScreen | undefined> | undefined;
-        const requestedScreen = options?.screen;
-        if (requestedScreen !== undefined && !options?.overridePopoutGroup) {
+        // Fullscreen (design §4.3) rides the same resolution machinery: it
+        // needs a target screen — defaulting to the current one — whose work
+        // area becomes the fill-fallback box.
+        const wantsFullscreen =
+            !!options?.fullscreen && !options?.overridePopoutGroup;
+        if (wantsFullscreen && !screenService) {
+            logMissingModule('ScreenManagement', 'addPopoutGroup: fullscreen');
+        }
+        const requestedScreen = options?.overridePopoutGroup
+            ? undefined
+            : (options?.screen ??
+              (wantsFullscreen && screenService ? 'current' : undefined));
+        if (requestedScreen !== undefined) {
             if (!screenService) {
                 logMissingModule('ScreenManagement', 'addPopoutGroup: screen');
             } else if (screenService.hasResolvedScreens) {
@@ -2184,11 +2253,14 @@ export class DockviewComponent
             width: number;
             height: number;
         }): ScreenPlacement =>
-            options?.placement ?? {
-                type: 'center',
-                width: rect.width || undefined,
-                height: rect.height || undefined,
-            };
+            options?.placement ??
+            (wantsFullscreen
+                ? { type: 'fill' }
+                : {
+                      type: 'center',
+                      width: rect.width || undefined,
+                      height: rect.height || undefined,
+                  });
 
         // Always returns absolute *screen* coordinates. A caller-supplied /
         // restored `position` is already in screen space; it originates from
@@ -2233,6 +2305,16 @@ export class DockviewComponent
 
         const popoutUrl = resolvedPopoutUrl ?? '/popout.html';
 
+        // Fullscreen popup features (design §4.3): honoured by Chromium ≥132
+        // when window-management is granted — the window then opens fullscreen
+        // on the screen containing the coordinates. Ignored elsewhere; the
+        // fill placement above is the graceful fallback. Caller-supplied
+        // features spread last so an explicit entry wins.
+        const fullscreenFeatures =
+            wantsFullscreen && screenService
+                ? { popup: true, fullscreen: true }
+                : undefined;
+
         const _window = new PopoutWindow(
             `${this.id}-${groupId}`, // unique id
             theme ?? '',
@@ -2250,13 +2332,16 @@ export class DockviewComponent
                 },
                 nonce: this.options?.nonce,
                 styleRoot: () => this.element.getRootNode(),
-                // Component-level features apply to every popout (including
-                // fromJSON-restored ones, which replay no per-call options);
-                // per-call entries merge over them.
+                // Feature precedence, lowest to highest: fullscreen features,
+                // component-level popoutWindowFeatures (apply to every popout
+                // including fromJSON-restored ones), per-call
+                // extraWindowFeatures.
                 extraFeatures:
+                    fullscreenFeatures ||
                     this.options?.popoutWindowFeatures ||
                     options?.extraWindowFeatures
                         ? {
+                              ...fullscreenFeatures,
                               ...this.options?.popoutWindowFeatures,
                               ...options?.extraWindowFeatures,
                           }
@@ -2552,6 +2637,42 @@ export class DockviewComponent
                 if (resizeObserverDisposable) {
                     popoutWindowDisposable.addDisposables(
                         resizeObserverDisposable
+                    );
+                }
+
+                // Relayout on fullscreen transitions in the popout realm
+                // (design §4.3). The gridview ResizeObserver above covers
+                // engines that expose one in the popout window; this hook is
+                // the fallback for those that don't, and fires on the
+                // transition itself rather than the resize settle.
+                const popoutDocument = _window.window?.document;
+                if (
+                    typeof popoutDocument?.addEventListener === 'function' &&
+                    typeof popoutDocument?.removeEventListener === 'function'
+                ) {
+                    const onFullscreenChange = () => {
+                        const win = _window.window;
+                        if (!win || win.closed || this.isDisposed) {
+                            return;
+                        }
+                        const width = popoutGridview.element.clientWidth;
+                        const height = popoutGridview.element.clientHeight;
+                        if (width > 0 && height > 0) {
+                            popoutGridview.layout(width, height);
+                        }
+                        overlayRenderContainer.updateAllPositions();
+                    };
+                    popoutDocument.addEventListener(
+                        'fullscreenchange',
+                        onFullscreenChange
+                    );
+                    popoutWindowDisposable.addDisposables(
+                        Disposable.from(() => {
+                            popoutDocument.removeEventListener(
+                                'fullscreenchange',
+                                onFullscreenChange
+                            );
+                        })
                     );
                 }
 
