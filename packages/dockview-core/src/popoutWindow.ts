@@ -8,6 +8,13 @@ export type PopoutWindowOptions = {
     onDidOpen?: (event: { id: string; window: Window }) => void;
     onWillClose?: (event: { id: string; window: Window }) => void;
     nonce?: CspNonceProvider;
+    /**
+     * Extra window.open feature entries appended to the features string —
+     * e.g. a marker for an Electron `setWindowOpenHandler` to match on, or
+     * nonstandard features a host honours. Booleans serialize as 1/0 (the
+     * form window features expect).
+     */
+    extraFeatures?: Record<string, string | number | boolean>;
 } & Box;
 
 /**
@@ -102,8 +109,13 @@ export class PopoutWindow extends CompositeDisposable {
             left: this.options.left,
             width: this.options.width,
             height: this.options.height,
+            ...this.options.extraFeatures,
         })
-            .map(([key, value]) => `${key}=${value}`)
+            .map(([key, value]) =>
+                typeof value === 'boolean'
+                    ? `${key}=${value ? 1 : 0}`
+                    : `${key}=${value}`
+            )
             .join(',');
 
         /**

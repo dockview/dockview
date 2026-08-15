@@ -1,5 +1,10 @@
 import { Position, positionToDirection } from '../dnd/droptarget';
 import { DockviewComponent } from '../dockview/dockviewComponent';
+import {
+    DockviewScreen,
+    DockviewScreenTarget,
+    ScreenPlacement,
+} from '../dockview/screenManager';
 import { Box } from '../types';
 import { DockviewGroupPanel } from '../dockview/dockviewGroupPanel';
 import {
@@ -86,6 +91,24 @@ export interface DockviewGroupPanelApi extends GridviewPanelApi {
      * If you require the Window object
      */
     getWindow(): Window;
+    /**
+     * The screen this group's window currently occupies (geometric
+     * containment of the window centre against the screens snapshot). Grid /
+     * floating groups resolve to the main window's screen. `undefined`
+     * without the ScreenManagement module or before its snapshot is live.
+     */
+    getScreen(): DockviewScreen | undefined;
+    /**
+     * Move this popout group's window to another screen. Unlike opening a
+     * popout, the window already exists, so this MAY safely await a
+     * first-time permission prompt (no popup blocker involved). Resolves
+     * false (with the usual deduped diagnostics where applicable) for
+     * non-popout groups, a missing module, or a denied permission.
+     */
+    moveToScreen(
+        screen: DockviewScreenTarget,
+        placement?: ScreenPlacement
+    ): Promise<boolean>;
     moveTo(options: DockviewGroupMoveParams): void;
     setHeaderPosition(position: DockviewHeaderPosition): void;
     getHeaderPosition(): DockviewHeaderPosition;
@@ -237,6 +260,24 @@ export class DockviewGroupPanelApiImpl extends GridviewPanelApiImpl {
         return this.location.type === 'popout'
             ? this.location.getWindow()
             : globalThis.window;
+    }
+
+    getScreen(): DockviewScreen | undefined {
+        return this.accessor.screenForWindow(this.getWindow());
+    }
+
+    moveToScreen(
+        screen: DockviewScreenTarget,
+        placement?: ScreenPlacement
+    ): Promise<boolean> {
+        if (!this._group) {
+            return Promise.resolve(false);
+        }
+        return this.accessor.movePopoutGroupToScreen(
+            this._group,
+            screen,
+            placement
+        );
     }
 
     setHeaderPosition(position: DockviewHeaderPosition): void {

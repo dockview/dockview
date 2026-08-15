@@ -85,6 +85,7 @@ import {
     assertModule,
     DockviewModule,
     getRegisteredModules,
+    logMissingModule,
     missingModuleMessage,
     ModuleRegistry,
 } from './modules';
@@ -93,6 +94,8 @@ import { AllModules } from './allModules';
 import {
     DockviewScreen,
     DockviewScreensChangeEvent,
+    DockviewScreenTarget,
+    ScreenPlacement,
     WindowManagementPermissionState,
 } from './screenManager';
 import { IFloatingGroupHost } from './floatingGroupService';
@@ -190,6 +193,28 @@ export interface DockviewPopoutGroupOptions {
     popoutUrl?: string;
     onDidOpen?: (event: { id: string; window: Window }) => void;
     onWillClose?: (event: { id: string; window: Window }) => void;
+    /**
+     * Target screen for the popout (ScreenManagement module; design doc
+     * §4.2). Honoured only when the screens snapshot is live (permission
+     * granted or a screenAdapter present) — the browser clamps cross-screen
+     * coordinates otherwise. If the snapshot isn't ready but the API is
+     * available, the window opens at the fallback position and is rehomed to
+     * the target once the screen list resolves. Without the module: one
+     * deduped console diagnostic, then behaves as if unset.
+     */
+    screen?: DockviewScreenTarget;
+    /**
+     * How to size/anchor the popout on the target screen. Defaults to
+     * `{ type: 'center' }` sized to the source element. Only meaningful with
+     * `screen`.
+     */
+    placement?: ScreenPlacement;
+    /**
+     * Extra window.open feature entries appended to the features string —
+     * e.g. `{ dockviewPopout: 1 }` for an Electron `setWindowOpenHandler` to
+     * match on. Booleans serialize as 1/0. Needs no module.
+     */
+    extraWindowFeatures?: Record<string, string | number | boolean>;
 }
 
 interface DockviewPopoutGroupOptionsInternal
@@ -363,6 +388,8 @@ export interface PopoutGroupChangeSizeEvent {
 export interface PopoutGroupChangePositionEvent {
     screenX: number;
     screenY: number;
+    /** The screen now hosting the window; undefined without a live snapshot. */
+    screen?: DockviewScreen;
     group: DockviewGroupPanel;
 }
 
@@ -378,6 +405,12 @@ export interface PopoutGroup {
     readonly id: string;
     readonly group: DockviewGroupPanel;
     readonly window: Window;
+    /**
+     * The screen currently hosting the window (geometric containment of the
+     * window centre against the screens snapshot). Undefined without the
+     * ScreenManagement module or before the snapshot is live.
+     */
+    readonly screen?: DockviewScreen;
 }
 
 export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
@@ -1899,8 +1932,80 @@ export class DockviewComponent
                 id: entry.popoutGroup.id,
                 group: entry.popoutGroup,
                 window: entry.getWindow(),
+                screen: this.screenForWindow(entry.getWindow()),
             })) ?? []
         );
+    }
+
+    /**
+     * The screen whose full bounds contain the point (multi-screen
+     * coordinates). Undefined without the ScreenManagement module or before
+     * its snapshot is live.
+     */
+    screenAtPoint(x: number, y: number): DockviewScreen | undefined {
+        const service = this._screenManagerService;
+        return service?.hasResolvedScreens
+            ? service.screenAtPoint(x, y)
+            : undefined;
+    }
+
+    /**
+     * The screen hosting `win`, by geometric containment of the window's
+     * centre against the snapshot. Works for the main window and popouts
+     * alike; `currentscreenchange` can't be used here because it tracks only
+     * the window that called getScreenDetails().
+     */
+    screenForWindow(win: Window | null | undefined): DockviewScreen | undefined {
+        // Gate on a live snapshot BEFORE touching window properties: reading
+        // them has observable effects on some hosts (and test mocks), and
+        // without a real screen list the answer is undefined anyway.
+        if (!win || !this._screenManagerService?.hasResolvedScreens) {
+            return undefined;
+        }
+        return this.screenAtPoint(
+            win.screenX + (win.innerWidth ?? 0) / 2,
+            win.screenY + (win.innerHeight ?? 0) / 2
+        );
+    }
+
+    /**
+     * Move a popout group's window to another screen (design doc §4.5).
+     * Unlike opening, the window already exists, so awaiting a first-time
+     * permission prompt here is safe — no popup blocker is involved.
+     * Resolves false for non-popout groups, a missing module, or an
+     * unresolved/denied screen list.
+     */
+    async movePopoutGroupToScreen(
+        group: DockviewGroupPanel,
+        target: DockviewScreenTarget,
+        placement?: ScreenPlacement
+    ): Promise<boolean> {
+        const service = assertModule(
+            this._screenManagerService,
+            'ScreenManagement',
+            'api.moveToScreen'
+        );
+        if (!service || group.api.location.type !== 'popout') {
+            return false;
+        }
+        const win = group.api.getWindow();
+        await service.getScreens();
+        if (!service.hasResolvedScreens || win.closed) {
+            return false;
+        }
+        const screen = service.resolveTarget(target);
+        if (!screen) {
+            return false;
+        }
+        const box = service.placementFor(
+            screen,
+            placement ?? {
+                type: 'center',
+                width: win.innerWidth || undefined,
+                height: win.innerHeight || undefined,
+            }
+        );
+        return service.moveWindowTo(win, box);
     }
 
     /** The live popout `Window` handles, one per open popout group. The
@@ -1940,6 +2045,59 @@ export class DockviewComponent
         const theme = getDockviewTheme(this.gridview.element);
         const element = this.element;
 
+        const sourceRect = (): DOMRect => {
+            const sourceElement =
+                itemToPopout instanceof DockviewGroupPanel
+                    ? itemToPopout.element
+                    : (itemToPopout.group?.element ?? element);
+            return sourceElement.getBoundingClientRect();
+        };
+
+        // Screen-targeted placement (ScreenManagement module; design doc
+        // §4.2). Resolved from the SYNCHRONOUS snapshot only — never await
+        // between the caller's gesture and window.open, or the open is
+        // popup-blocked. When the target can't be resolved yet but the API is
+        // available, kick off resolution NOW (still inside the gesture, so a
+        // permission prompt may show) and rehome the window once it lands.
+        const screenService = this._screenManagerService;
+        let targetScreen: DockviewScreen | undefined;
+        let rehome: Promise<DockviewScreen | undefined> | undefined;
+        const requestedScreen = options?.screen;
+        if (requestedScreen !== undefined && !options?.overridePopoutGroup) {
+            if (!screenService) {
+                logMissingModule('ScreenManagement', 'addPopoutGroup: screen');
+            } else if (screenService.hasResolvedScreens) {
+                targetScreen = screenService.resolveTarget(requestedScreen);
+                if (!targetScreen) {
+                    console.warn(
+                        `dockview: addPopoutGroup: screen target could not be resolved; falling back to default placement`
+                    );
+                }
+            } else if (screenService.isSupported) {
+                rehome = screenService
+                    .getScreens()
+                    .then(() =>
+                        screenService.hasResolvedScreens
+                            ? screenService.resolveTarget(requestedScreen)
+                            : undefined
+                    )
+                    .catch(() => undefined);
+            }
+        }
+
+        // Default placement on a target screen: centred, sized like the
+        // source element (rect may be 0 in tests/hidden elements — then
+        // placementFor's own default kicks in).
+        const placementOf = (rect: {
+            width: number;
+            height: number;
+        }): ScreenPlacement =>
+            options?.placement ?? {
+                type: 'center',
+                width: rect.width || undefined,
+                height: rect.height || undefined,
+            };
+
         // Always returns absolute *screen* coordinates. A caller-supplied /
         // restored `position` is already in screen space; it originates from
         // PopoutWindow.dimensions() (screenX/screenY). A fresh popout is
@@ -1949,16 +2107,18 @@ export class DockviewComponent
         // coordinate-space agnostic, and avoids double-offsetting a restored
         // popout when the opener sits on a non-primary monitor (screenX/Y != 0).
         function getBox(): Box {
+            if (targetScreen && screenService) {
+                return screenService.placementFor(
+                    targetScreen,
+                    placementOf(sourceRect())
+                );
+            }
+
             if (options?.position) {
                 return options.position;
             }
 
-            const sourceElement =
-                itemToPopout instanceof DockviewGroupPanel
-                    ? itemToPopout.element
-                    : (itemToPopout.group?.element ?? element);
-
-            const rect = sourceElement.getBoundingClientRect();
+            const rect = sourceRect();
 
             return {
                 left: window.screenX + rect.left,
@@ -1991,6 +2151,7 @@ export class DockviewComponent
                 onDidOpen: options?.onDidOpen,
                 onWillClose: options?.onWillClose,
                 nonce: this.options?.nonce,
+                extraFeatures: options?.extraWindowFeatures,
             }
         );
 
@@ -2198,6 +2359,34 @@ export class DockviewComponent
 
                 this.doSetGroupAndPanelActive(group);
 
+                // Prompt-path rehoming (§4.2 rule 2): the window opened at the
+                // fallback box; once the kicked-off screen resolution lands,
+                // move it to the requested screen. Guards cover the window
+                // closing (or the component disposing) before then.
+                if (rehome) {
+                    void rehome.then((screen) => {
+                        const win = _window.window;
+                        if (
+                            !screen ||
+                            !screenService ||
+                            !win ||
+                            win.closed ||
+                            _window.isDisposed ||
+                            this.isDisposed
+                        ) {
+                            return;
+                        }
+                        const target = screenService.placementFor(
+                            screen,
+                            placementOf({
+                                width: win.innerWidth ?? 0,
+                                height: win.innerHeight ?? 0,
+                            })
+                        );
+                        void screenService.moveWindowTo(win, target);
+                    });
+                }
+
                 const resizeObserverDisposable = service.observeGridviewSize(
                     _window,
                     popoutGridview,
@@ -2284,6 +2473,7 @@ export class DockviewComponent
                         this._onDidPopoutGroupPositionChange.fire({
                             screenX: _window.window!.screenX,
                             screenY: _window.window!.screenY,
+                            screen: this.screenForWindow(_window.window),
                             group: value.popoutGroup,
                         });
                     }),

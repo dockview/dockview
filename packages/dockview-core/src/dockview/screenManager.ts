@@ -130,6 +130,13 @@ export interface IScreenManager {
     readonly isSupported: boolean;
     /** Last-known snapshot; a single synthetic screen until details resolve. */
     readonly screens: readonly DockviewScreen[];
+    /**
+     * True once the snapshot reflects a real source (Window Management API or
+     * adapter) rather than the single-screen fallback. Placement code gates
+     * on this: honouring a `screen` target against the fallback would be
+     * placing against made-up geometry.
+     */
+    readonly hasResolvedScreens: boolean;
     readonly currentScreen: DockviewScreen | undefined;
     readonly onDidChangeScreens: Event<DockviewScreensChangeEvent>;
 
@@ -156,6 +163,14 @@ export interface IScreenManager {
      * area so a window can never open with its titlebar off the usable area.
      */
     placementFor(screen: DockviewScreen, placement?: ScreenPlacement): Box;
+
+    /**
+     * Move/resize a window to `box` (multi-screen coordinates) — via the
+     * adapter's native placement when available, else `win.moveTo/resizeTo`
+     * (cross-screen moves require the permission to be granted; the browser
+     * clamps otherwise). Resolves false when the move failed or threw.
+     */
+    moveWindowTo(window: Window, box: Box): Promise<boolean>;
 
     dispose(): void;
 }
@@ -193,6 +208,7 @@ export class ScreenManager
     private _detachPermissionListener: (() => void) | null = null;
     private _detachAdapterListener: (() => void) | null = null;
     private _denied = false;
+    private _hasResolvedScreens = false;
 
     constructor(
         private readonly _window: ScreenManagerWindow = globalThis.window as unknown as ScreenManagerWindow,
@@ -224,6 +240,10 @@ export class ScreenManager
 
     get screens(): readonly DockviewScreen[] {
         return this._screens;
+    }
+
+    get hasResolvedScreens(): boolean {
+        return this._hasResolvedScreens;
     }
 
     get currentScreen(): DockviewScreen | undefined {
@@ -276,7 +296,7 @@ export class ScreenManager
                 }
                 this.attachAdapterListener();
                 if (screens.length > 0) {
-                    this.updateSnapshot([...screens]);
+                    this.updateSnapshot([...screens], true);
                 }
                 return this._screens;
             } catch {
@@ -295,7 +315,7 @@ export class ScreenManager
                 this._details = details;
                 this.attachDetailListeners(details);
             }
-            this.updateSnapshot(this.mapScreens(this._details));
+            this.updateSnapshot(this.mapScreens(this._details), true);
             return this._screens;
         } catch {
             // NotAllowedError: the user denied the prompt (or policy blocks
@@ -434,9 +454,27 @@ export class ScreenManager
         });
     }
 
-    private updateSnapshot(next: DockviewScreen[]): void {
+    async moveWindowTo(window: Window, box: Box): Promise<boolean> {
+        if (this._adapter?.moveWindow) {
+            try {
+                return (await this._adapter.moveWindow(window, box)) !== false;
+            } catch {
+                return false;
+            }
+        }
+        try {
+            window.moveTo(box.left, box.top);
+            window.resizeTo(box.width, box.height);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    private updateSnapshot(next: DockviewScreen[], live = false): void {
         const previous = this._screens;
         this._screens = next;
+        this._hasResolvedScreens = live;
 
         const previousIds = new Set(previous.map((screen) => screen.id));
         const nextIds = new Set(next.map((screen) => screen.id));
@@ -465,7 +503,7 @@ export class ScreenManager
             if (this.isDisposed || !this._details) {
                 return;
             }
-            this.updateSnapshot(this.mapScreens(this._details));
+            this.updateSnapshot(this.mapScreens(this._details), true);
         };
         details.addEventListener('screenschange', refresh);
         details.addEventListener('currentscreenchange', refresh);
@@ -483,7 +521,7 @@ export class ScreenManager
             if (this.isDisposed || screens.length === 0) {
                 return;
             }
-            this.updateSnapshot([...screens]);
+            this.updateSnapshot([...screens], true);
         });
     }
 

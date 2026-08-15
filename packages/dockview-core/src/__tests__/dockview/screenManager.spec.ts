@@ -615,6 +615,91 @@ describe('screenManager', () => {
         });
     });
 
+    describe('hasResolvedScreens', () => {
+        test('false on fallback, true after real details, false after revoke', async () => {
+            const fake = fakeWindow({ permission: 'granted' });
+            const manager = new ScreenManager(fake.window);
+            expect(manager.hasResolvedScreens).toBe(false);
+
+            // prime() rather than a bare getScreens(): it also queries the
+            // permission, which is what attaches the revoke listener.
+            await manager.prime();
+            expect(manager.hasResolvedScreens).toBe(true);
+
+            fake.firePermissionChange('denied');
+            expect(manager.hasResolvedScreens).toBe(false);
+            manager.dispose();
+        });
+
+        test('true after adapter resolution', async () => {
+            const manager = new ScreenManager(
+                fakeWindow({ supported: false }).window,
+                {
+                    getScreens: () => [
+                        {
+                            id: 'a',
+                            label: '',
+                            isPrimary: true,
+                            isInternal: false,
+                            isCurrent: true,
+                            bounds: { left: 0, top: 0, width: 100, height: 100 },
+                            workArea: {
+                                left: 0,
+                                top: 0,
+                                width: 100,
+                                height: 100,
+                            },
+                            devicePixelRatio: 1,
+                        },
+                    ],
+                }
+            );
+            expect(manager.hasResolvedScreens).toBe(false);
+            await manager.getScreens();
+            expect(manager.hasResolvedScreens).toBe(true);
+            manager.dispose();
+        });
+    });
+
+    describe('moveWindowTo', () => {
+        const box = { left: 100, top: 50, width: 800, height: 600 };
+
+        test('uses win.moveTo/resizeTo without an adapter', async () => {
+            const manager = new ScreenManager(fakeWindow().window);
+            const moveTo = jest.fn();
+            const resizeTo = jest.fn();
+            const win = { moveTo, resizeTo } as unknown as Window;
+
+            await expect(manager.moveWindowTo(win, box)).resolves.toBe(true);
+            expect(moveTo).toHaveBeenCalledWith(100, 50);
+            expect(resizeTo).toHaveBeenCalledWith(800, 600);
+            manager.dispose();
+        });
+
+        test('prefers adapter.moveWindow; false results and throws propagate as false', async () => {
+            const moveWindow = jest.fn().mockResolvedValue(true);
+            const manager = new ScreenManager(fakeWindow().window, {
+                getScreens: () => [],
+                moveWindow,
+            });
+            const win = {
+                moveTo: jest.fn(),
+                resizeTo: jest.fn(),
+            } as unknown as Window;
+
+            await expect(manager.moveWindowTo(win, box)).resolves.toBe(true);
+            expect(moveWindow).toHaveBeenCalledWith(win, box);
+            expect((win as { moveTo: jest.Mock }).moveTo).not.toHaveBeenCalled();
+
+            moveWindow.mockResolvedValue(false);
+            await expect(manager.moveWindowTo(win, box)).resolves.toBe(false);
+
+            moveWindow.mockRejectedValue(new Error('ipc down'));
+            await expect(manager.moveWindowTo(win, box)).resolves.toBe(false);
+            manager.dispose();
+        });
+    });
+
     describe('screenAtPoint', () => {
         test('geometric containment against full bounds', async () => {
             const { window } = fakeWindow();
