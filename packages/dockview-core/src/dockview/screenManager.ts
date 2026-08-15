@@ -172,6 +172,16 @@ export interface IScreenManager {
      */
     moveWindowTo(window: Window, box: Box): Promise<boolean>;
 
+    /**
+     * Enter/exit fullscreen for `window` — via the adapter's native hook
+     * when available, else element fullscreen on the window's own document.
+     * The web path succeeds only with transient activation IN that window
+     * (activation never crosses windows), so callers must hold a gesture
+     * from the window's own realm. Resolves false when the transition failed
+     * or threw.
+     */
+    setFullscreen(window: Window, value: boolean): Promise<boolean>;
+
     dispose(): void;
 }
 
@@ -466,6 +476,37 @@ export class ScreenManager
             window.moveTo(box.left, box.top);
             window.resizeTo(box.width, box.height);
             return true;
+        } catch {
+            return false;
+        }
+    }
+
+    async setFullscreen(window: Window, value: boolean): Promise<boolean> {
+        if (this._adapter?.setFullscreen) {
+            try {
+                return (
+                    (await this._adapter.setFullscreen(window, value)) !== false
+                );
+            } catch {
+                return false;
+            }
+        }
+        // Web fallback: element fullscreen on the window's OWN document.
+        // Transient activation never crosses windows (spike finding: a load
+        // handler in a fresh popout cannot requestFullscreen), so this
+        // succeeds only when driven by a gesture inside that window's realm.
+        try {
+            const doc = window.document;
+            if (value) {
+                if (!doc.fullscreenElement) {
+                    await doc.documentElement.requestFullscreen();
+                }
+                return !!doc.fullscreenElement;
+            }
+            if (doc.fullscreenElement) {
+                await doc.exitFullscreen();
+            }
+            return !doc.fullscreenElement;
         } catch {
             return false;
         }

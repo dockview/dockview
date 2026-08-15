@@ -109,6 +109,23 @@ export interface DockviewGroupPanelApi extends GridviewPanelApi {
         screen: DockviewScreenTarget,
         placement?: ScreenPlacement
     ): Promise<boolean>;
+    /**
+     * Whether this popout group's window is currently DOM-fullscreen. Always
+     * false for non-popout groups. Adapter-native fullscreen (e.g. Electron)
+     * is not observable from the DOM; hosts driving fullscreen through an
+     * adapter should track that state themselves.
+     */
+    isFullscreen(): boolean;
+    /**
+     * Enter/exit fullscreen for this popout group's window (ScreenManagement
+     * module) — adapter-native when available, else element fullscreen on
+     * the popout's document. The web path succeeds only when invoked from an
+     * interaction inside the popout's own realm: transient activation does
+     * not cross windows, so a main-window gesture cannot fullscreen a
+     * popout. Resolves false for non-popout groups, a missing module, or a
+     * failed transition.
+     */
+    setFullscreen(value: boolean): Promise<boolean>;
     moveTo(options: DockviewGroupMoveParams): void;
     setHeaderPosition(position: DockviewHeaderPosition): void;
     getHeaderPosition(): DockviewHeaderPosition;
@@ -278,6 +295,19 @@ export class DockviewGroupPanelApiImpl extends GridviewPanelApiImpl {
             screen,
             placement
         );
+    }
+
+    isFullscreen(): boolean {
+        return this._group
+            ? this.accessor.isPopoutGroupFullscreen(this._group)
+            : false;
+    }
+
+    setFullscreen(value: boolean): Promise<boolean> {
+        if (!this._group) {
+            return Promise.resolve(false);
+        }
+        return this.accessor.setPopoutGroupFullscreen(this._group, value);
     }
 
     setHeaderPosition(position: DockviewHeaderPosition): void {
