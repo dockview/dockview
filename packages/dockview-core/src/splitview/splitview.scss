@@ -84,6 +84,12 @@
                 cursor: s-resize;
             }
         }
+
+        & > .dv-view-container > .dv-view {
+            // Cross-axis sizing: layoutViews() clears the inline width for
+            // vertical views and relies on this to span the container.
+            width: 100%;
+        }
     }
 
     .dv-sash-container {
@@ -156,13 +162,18 @@
     }
 
     &.dv-separator-border {
+        // Scope the separator border to the container's *own* views via the
+        // direct-child chain. A plain descendant selector
+        // (`.dv-vertical .dv-view`) would leak the border into nested
+        // split-view containers of the opposite orientation, drawing a stray
+        // line on the wrong axis of grandchild views.
         &.dv-horizontal {
-            .dv-view:not(:first-child) {
+            & > .dv-view-container > .dv-view:not(:first-child) {
                 border-left: 1px solid var(--dv-separator-border);
             }
         }
         &.dv-vertical {
-            .dv-view:not(:first-child) {
+            & > .dv-view-container > .dv-view:not(:first-child) {
                 border-top: 1px solid var(--dv-separator-border);
             }
         }
