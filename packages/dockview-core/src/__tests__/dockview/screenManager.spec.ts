@@ -388,6 +388,49 @@ describe('screenManager', () => {
             manager.dispose();
         });
 
+        test('changed carries in-place geometry changes; excludes current-screen flips', async () => {
+            const fake = fakeWindow();
+            const manager = new ScreenManager(fake.window);
+            await manager.getScreens();
+
+            const events: DockviewScreensChangeEvent[] = [];
+            manager.onDidChangeScreens((event) => events.push(event));
+
+            // resize the second screen in place
+            fake.details.setScreens([
+                fakeScreen({ isPrimary: true, label: 'Internal' }),
+                fakeScreen({ left: 1920, label: 'DELL U2720Q', width: 800 }),
+            ]);
+            fake.details.fire('screenschange');
+
+            expect(events).toHaveLength(1);
+            expect(events[0].changed.map((screen) => screen.id)).toEqual([
+                'DELL U2720Q',
+            ]);
+            expect(events[0].added).toHaveLength(0);
+            expect(events[0].removed).toHaveLength(0);
+
+            // a pure current-screen flip fires, but changed stays empty
+            fake.details.setScreens(
+                [
+                    fakeScreen({ isPrimary: true, label: 'Internal' }),
+                    fakeScreen({
+                        left: 1920,
+                        label: 'DELL U2720Q',
+                        width: 800,
+                    }),
+                ],
+                1
+            );
+            fake.details.fire('currentscreenchange');
+
+            expect(events).toHaveLength(2);
+            expect(events[1].changed).toHaveLength(0);
+            expect(events[1].added).toHaveLength(0);
+            expect(events[1].removed).toHaveLength(0);
+            manager.dispose();
+        });
+
         test('no events after dispose', async () => {
             const fake = fakeWindow();
             const manager = new ScreenManager(fake.window);
