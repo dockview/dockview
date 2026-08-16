@@ -492,7 +492,9 @@ describe('WorkbenchComponent', () => {
             // fixed height, not fixed width
             expect(rail.minimumHeight).toBe(DEFAULT_ACTIVITY_BAR_SIZE);
             expect(rail.maximumHeight).toBe(DEFAULT_ACTIVITY_BAR_SIZE);
-            expect(rail.maximumWidth).toBeGreaterThan(DEFAULT_ACTIVITY_BAR_SIZE);
+            expect(rail.maximumWidth).toBeGreaterThan(
+                DEFAULT_ACTIVITY_BAR_SIZE
+            );
 
             const activity = regionEl(workbench.element, 'activity');
             const primary = regionEl(workbench.element, 'primary');
@@ -535,7 +537,9 @@ describe('WorkbenchComponent', () => {
 
             // starts as a fixed-width rail
             expect(workbench.activityBarPosition).toBe('default');
-            expect(railOf(workbench).maximumWidth).toBe(DEFAULT_ACTIVITY_BAR_SIZE);
+            expect(railOf(workbench).maximumWidth).toBe(
+                DEFAULT_ACTIVITY_BAR_SIZE
+            );
 
             workbench.setActivityBarPosition('top');
 
@@ -572,7 +576,9 @@ describe('WorkbenchComponent', () => {
             restored.fromJSON(state);
 
             expect(restored.activityBarPosition).toBe('top');
-            expect(railOf(restored).maximumHeight).toBe(DEFAULT_ACTIVITY_BAR_SIZE);
+            expect(railOf(restored).maximumHeight).toBe(
+                DEFAULT_ACTIVITY_BAR_SIZE
+            );
 
             restored.dispose();
             workbench.dispose();
@@ -608,34 +614,31 @@ describe('WorkbenchComponent', () => {
             ['center', { position: 'bottom', alignment: 'center' }],
             ['justify', { position: 'bottom', alignment: 'justify' }],
             ['left-aligned', { position: 'bottom', alignment: 'left' }],
-        ] as const)(
-            'a top activity bar coexists with a %s panel',
-            (_name, panel) => {
-                const workbench = createWorkbench(container, {
-                    activityBar: true,
-                    activityBarPosition: 'top',
-                    primarySideBar: true,
-                    secondarySideBar: true,
-                    panel: panel as {
-                        position?: PanelPosition;
-                        alignment?: PanelAlignment;
-                    },
-                });
-                workbench.layout(1000, 800);
+        ] as const)('a top activity bar coexists with a %s panel', (_name, panel) => {
+            const workbench = createWorkbench(container, {
+                activityBar: true,
+                activityBarPosition: 'top',
+                primarySideBar: true,
+                secondarySideBar: true,
+                panel: panel as {
+                    position?: PanelPosition;
+                    alignment?: PanelAlignment;
+                },
+            });
+            workbench.layout(1000, 800);
 
-                expect(workbench.isRegionVisible('panel')).toBe(true);
-                expect(railOf(workbench).maximumHeight).toBe(
-                    DEFAULT_ACTIVITY_BAR_SIZE
-                );
+            expect(workbench.isRegionVisible('panel')).toBe(true);
+            expect(railOf(workbench).maximumHeight).toBe(
+                DEFAULT_ACTIVITY_BAR_SIZE
+            );
 
-                // and it still flips without throwing
-                workbench.setPrimarySideBarPosition('right');
-                expect(workbench.primarySideBarPosition).toBe('right');
-                expect(workbench.isRegionVisible('panel')).toBe(true);
+            // and it still flips without throwing
+            workbench.setPrimarySideBarPosition('right');
+            expect(workbench.primarySideBarPosition).toBe('right');
+            expect(workbench.isRegionVisible('panel')).toBe(true);
 
-                workbench.dispose();
-            }
-        );
+            workbench.dispose();
+        });
     });
 
     describe('flipping with a tool panel', () => {
@@ -667,31 +670,28 @@ describe('WorkbenchComponent', () => {
             ['justify', { position: 'bottom', alignment: 'justify' }],
             ['left position', { position: 'left' }],
             ['right position', { position: 'right' }],
-        ] as const)(
-            'flips cleanly with a %s panel, panel preserved',
-            (_name, panel) => {
-                const workbench = createWorkbench(container, {
-                    ...allBars,
-                    panel: panel as {
-                        position?: PanelPosition;
-                        alignment?: PanelAlignment;
-                    },
-                });
-                workbench.layout(1000, 800);
+        ] as const)('flips cleanly with a %s panel, panel preserved', (_name, panel) => {
+            const workbench = createWorkbench(container, {
+                ...allBars,
+                panel: panel as {
+                    position?: PanelPosition;
+                    alignment?: PanelAlignment;
+                },
+            });
+            workbench.layout(1000, 800);
 
-                expect(workbench.isRegionVisible('panel')).toBe(true);
+            expect(workbench.isRegionVisible('panel')).toBe(true);
 
-                workbench.setPrimarySideBarPosition('right');
+            workbench.setPrimarySideBarPosition('right');
 
-                expect(workbench.primarySideBarPosition).toBe('right');
-                barsAreFlipped(workbench);
-                // the panel survives the flip in every configuration
-                expect(workbench.isRegionVisible('panel')).toBe(true);
-                expect(regionEl(workbench.element, 'panel')).toBeTruthy();
+            expect(workbench.primarySideBarPosition).toBe('right');
+            barsAreFlipped(workbench);
+            // the panel survives the flip in every configuration
+            expect(workbench.isRegionVisible('panel')).toBe(true);
+            expect(regionEl(workbench.element, 'panel')).toBeTruthy();
 
-                workbench.dispose();
-            }
-        );
+            workbench.dispose();
+        });
 
         test('a hidden panel stays hidden across a flip', () => {
             const workbench = createWorkbench(container, {
@@ -1004,9 +1004,7 @@ describe('WorkbenchComponent', () => {
         const editorVisible = (workbench: WorkbenchComponent): boolean =>
             (
                 workbench as unknown as { _gridview: GridviewComponent }
-            )._gridview
-                .getPanel(WORKBENCH_IDS.editor)
-                ?.api.isVisible ?? false;
+            )._gridview.getPanel(WORKBENCH_IDS.editor)?.api.isVisible ?? false;
 
         const fullWorkbench = (): WorkbenchComponent =>
             createWorkbench(container, {

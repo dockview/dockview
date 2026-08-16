@@ -590,7 +590,10 @@ export class WorkbenchComponent extends CompositeDisposable {
 
     /** Move the activity bar to a side rail (`default`) or a top/bottom strip. */
     setActivityBarPosition(position: ActivityBarPosition): void {
-        if (position === this._activityBarPosition || !this._activityBarOptions) {
+        if (
+            position === this._activityBarPosition ||
+            !this._activityBarOptions
+        ) {
             return;
         }
         this._activityBarPosition = position;
