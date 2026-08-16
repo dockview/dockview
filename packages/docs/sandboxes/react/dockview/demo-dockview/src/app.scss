@@ -266,3 +266,18 @@
         }
     }
 }
+
+// Spaced dockview themes inset each tab into a short rounded pill, but the
+// prefix / left / right header action items (the `group-control` icons) fill
+// the full strip height with a barely-rounded hover box, so on a spaced theme
+// they read as tall square boxes beside the pills. Size the action box to the
+// tab-pill height and round it to the tab radius so the header actions match
+// the spaced tabs. Demo-only.
+.dockview-demo [class*='-spaced'] .group-control .action {
+    height: calc(
+        var(--dv-tabs-and-actions-container-height) - 2 *
+            var(--dv-tab-margin-block, 4px)
+    );
+    padding: 0 6px;
+    border-radius: var(--dv-tab-border-radius);
+}
