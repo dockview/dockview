@@ -178,6 +178,14 @@ export const OPTION_MODULE_RULES: OptionModuleRule[] = [
         // and naming each separately would report one mistake twice.
         when: (o) => !!o.keyboardNavigation,
     },
+    {
+        optionKey: 'screenAdapter',
+        reason: 'screenAdapter',
+        moduleName: 'ScreenManagement',
+        // Supplying an adapter is unambiguous intent: it exists solely to
+        // feed the ScreenManagement module's snapshot.
+        when: (o) => o.screenAdapter != null,
+    },
 ];
 
 /**

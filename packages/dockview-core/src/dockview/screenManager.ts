@@ -10,12 +10,10 @@ import { defineModule } from './modules';
  * touches `getScreenDetails()` directly and testing is a matter of mocking
  * one object.
  *
- * The module is defined here but NOT registered anywhere yet: the
- * free-vs-enterprise packaging decision is deferred (DV-94), and registration
- * (plus the `screenAdapter` option key and its OPTION_MODULE_RULES entry,
- * whose sync tests require the module to be registered somewhere) lands with
- * that decision. Until then the feature is dormant; tests exercise it via the
- * internal `modules` construction seam.
+ * The module is defined here (core owns the contracts and implementation)
+ * and registered by `dockview-enterprise`'s self-registering `Modules` list
+ * (the DV-94 packaging decision). Core tests exercise it via the internal
+ * `modules` construction seam so they need no enterprise import.
  */
 
 export type WindowManagementPermissionState =
@@ -610,10 +608,8 @@ export class ScreenManager
 
 /**
  * Narrow host surface the module needs. Structural — an options bag that MAY
- * carry a `screenAdapter`. `DockviewComponentOptions` does not declare the
- * key yet (it lands with the packaging decision, see the file header), and
- * optional-property structural typing means the host satisfies this contract
- * either way.
+ * carry a `screenAdapter`, plus the popout window handles for topology
+ * rehoming.
  */
 export interface IScreenManagerHost {
     readonly options: { readonly screenAdapter?: DockviewScreenAdapter };
@@ -627,8 +623,6 @@ export const ScreenManagerModule = defineModule<
 >({
     name: 'ScreenManagement',
     serviceKey: 'screenManagerService',
-    // Declared for the future OPTION_MODULE_RULES entry; inert until the
-    // module is registered and the option key exists (see file header).
     options: ['screenAdapter'],
     create: (host) => new ScreenManager(undefined, host.options.screenAdapter),
     init: (host, service) => {

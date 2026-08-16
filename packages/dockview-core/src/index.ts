@@ -111,6 +111,9 @@ export {
     type DockviewScreensChangeEvent,
     type DockviewScreenAdapter,
     type IScreenManager,
+    type IScreenManagerHost,
+    ScreenManager,
+    ScreenManagerModule,
 } from './dockview/screenManager';
 export {
     type EdgeGroupOptions,

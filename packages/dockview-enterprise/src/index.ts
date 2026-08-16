@@ -1,4 +1,4 @@
-import { DockviewModule, registerModules } from 'dockview';
+import { DockviewModule, registerModules, ScreenManagerModule } from 'dockview';
 import { ContextMenuModule } from './contextMenu';
 import { KeyboardNavigationModule } from './keyboardNavigationService';
 import { LayoutHistoryModule } from './layoutHistoryService';
@@ -82,6 +82,9 @@ export const Modules: DockviewModule<any>[] = [
     PinnedTabsModule,
     AdvancedOverflowModule,
     KeyboardDockingModule,
+    // Implemented in dockview-core (it is the popout machinery's neighbour
+    // and core owns the contracts); packaged enterprise, so registered here.
+    ScreenManagerModule,
     LicenseModule,
 ];
 

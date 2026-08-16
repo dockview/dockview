@@ -145,6 +145,7 @@ export const ENTERPRISE_MODULE_NAMES: ReadonlySet<string> = new Set([
     'License',
     'MultiRowTabs',
     'PinnedTabs',
+    'ScreenManagement',
     'SmartGuides',
 ]);
 
