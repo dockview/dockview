@@ -1088,8 +1088,15 @@
 //   --dv-tab-shoulder-color  flare colour (defaults to the active tab bg)
 //   --dv-tab-divider-color   separator pill colour (from the base divider)
 @mixin dockview-connected-tabs-mixin {
+    // Gap between adjacent tabs. The active tab's shoulders flare
+    // `--dv-tab-shoulder-size` beyond it on each side, so without a gap those
+    // flares paint over the neighbouring tabs. Size the gap to the flare plus a
+    // few px of clearance, so whichever tab is active its flares sit in the
+    // gutter and a sliver of strip stays visible between tabs.
+    --dv-tab-connected-gap: calc(var(--dv-tab-shoulder-size) + 4px);
+
     // Compact tabs so a folder set reads as a tight row; the container gutter
-    // below gives the end tabs' shoulders room to flare.
+    // and inter-tab gap below give the shoulders room to flare.
     .dv-tab {
         padding: 0 10px;
         transition:
@@ -1097,21 +1104,24 @@
             color 0.1s ease;
     }
 
+    .dv-tabs-container:not(.dv-tabs-container-vertical) > .dv-tab:not(:first-child) {
+        margin-left: var(--dv-tab-connected-gap);
+    }
+
     .dv-tabs-container:not(.dv-tabs-container-vertical) {
         padding: 0 var(--dv-tab-shoulder-size);
     }
 
-    // Inactive-tab separators: a thin, centred hairline between adjacent tabs.
-    // Self-contained (own `content` + background) rather than leaning on the
-    // base `::before` divider, because that base rule is scoped to
-    // `.dv-active-group` and would drop the separators whenever the group loses
-    // focus. Sits on the boundary between the two tabs, so with symmetric tab
-    // padding it lands mid-gutter.
+    // Inactive-tab separators: a thin, centred hairline in the gap between
+    // adjacent tabs. Self-contained (own `content` + background) rather than
+    // leaning on the base `::before` divider, because that base rule is scoped
+    // to `.dv-active-group` and would drop the separators whenever the group
+    // loses focus. Offset half the gap to the left so it lands mid-gutter.
     .dv-tabs-container:not(.dv-tabs-container-vertical) > .dv-tab:not(:first-child)::before {
         content: '';
         position: absolute;
         top: 50%;
-        left: 0;
+        left: calc(-0.5 * var(--dv-tab-connected-gap));
         height: 14px;
         width: 1px;
         border-radius: 0;
