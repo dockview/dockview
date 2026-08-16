@@ -229,7 +229,7 @@ describe('theme', () => {
                 expect(theme.gap).toBe(10);
                 // Matches the compact spaced tab-strip height
                 // (--dv-tabs-and-actions-container-height in the space mixin).
-                expect(theme.edgeGroupCollapsedSize).toBe(44);
+                expect(theme.edgeGroupCollapsedSize).toBe(28);
                 expect(theme.dndOverlayMounting).toBe('absolute');
                 expect(theme.dndPanelOverlay).toBe('group');
                 expect(theme.dndTabIndicator).toBe('line');
