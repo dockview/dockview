@@ -222,3 +222,21 @@ export const themeGithubLightSpaced: DockviewTheme = {
     dndTabIndicator: 'line',
     dndOverlayBorder: '2px solid var(--dv-active-sash-color)',
 };
+
+export const themeSlate: DockviewTheme = {
+    name: 'slate',
+    className: 'dockview-theme-slate',
+    colorScheme: 'light',
+    // Connected folder tabs merge into the panel, so an insertion line reads
+    // more cleanly than a fill when dropping a tab.
+    dndTabIndicator: 'line',
+    edgeGroupCollapsedSize: 32,
+};
+
+export const themeSlateDark: DockviewTheme = {
+    name: 'slateDark',
+    className: 'dockview-theme-slate-dark',
+    colorScheme: 'dark',
+    dndTabIndicator: 'line',
+    edgeGroupCollapsedSize: 32,
+};
