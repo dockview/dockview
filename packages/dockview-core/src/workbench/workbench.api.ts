@@ -122,6 +122,29 @@ export class WorkbenchApi implements IDisposable {
         );
     }
 
+    /** Whether the tool panel is currently maximized (filling the body). */
+    get isPanelMaximized(): boolean {
+        return this._component.isPanelMaximized;
+    }
+
+    /** Fires when the tool panel is maximized or restored. */
+    get onDidChangePanelMaximized(): Event<boolean> {
+        return this._component.onDidChangePanelMaximized;
+    }
+
+    /**
+     * Maximize the tool panel so it fills the body (hiding the editor and side
+     * regions), or restore the previous layout.
+     */
+    setPanelMaximized(maximized: boolean): void {
+        this._component.setPanelMaximized(maximized);
+    }
+
+    /** Toggle the tool panel between maximized and its previous layout. */
+    toggleMaximizedPanel(): void {
+        this._component.toggleMaximizedPanel();
+    }
+
     isRegionVisible(region: WorkbenchRegion): boolean {
         return this._component.isRegionVisible(region);
     }

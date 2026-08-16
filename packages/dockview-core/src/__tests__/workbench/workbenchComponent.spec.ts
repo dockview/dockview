@@ -1000,6 +1000,148 @@ describe('WorkbenchComponent', () => {
         });
     });
 
+    describe('panel maximize', () => {
+        const editorVisible = (workbench: WorkbenchComponent): boolean =>
+            (
+                workbench as unknown as { _gridview: GridviewComponent }
+            )._gridview
+                .getPanel(WORKBENCH_IDS.editor)
+                ?.api.isVisible ?? false;
+
+        const fullWorkbench = (): WorkbenchComponent =>
+            createWorkbench(container, {
+                activityBar: true,
+                primarySideBar: true,
+                secondarySideBar: true,
+                panel: {},
+            });
+
+        test('maximizing hides the editor and side regions, keeps the panel', () => {
+            const workbench = fullWorkbench();
+            workbench.layout(1000, 800);
+
+            const seen: boolean[] = [];
+            const d = workbench.onDidChangePanelMaximized((m) => seen.push(m));
+
+            workbench.setPanelMaximized(true);
+
+            expect(workbench.isPanelMaximized).toBe(true);
+            expect(editorVisible(workbench)).toBe(false);
+            expect(workbench.isRegionVisible('activityBar')).toBe(false);
+            expect(workbench.isRegionVisible('primarySideBar')).toBe(false);
+            expect(workbench.isRegionVisible('secondarySideBar')).toBe(false);
+            expect(workbench.isRegionVisible('panel')).toBe(true);
+            expect(seen).toEqual([true]);
+
+            d.dispose();
+            workbench.dispose();
+        });
+
+        test('restoring brings the editor and side regions back', () => {
+            const workbench = fullWorkbench();
+            workbench.layout(1000, 800);
+
+            workbench.setPanelMaximized(true);
+            workbench.setPanelMaximized(false);
+
+            expect(workbench.isPanelMaximized).toBe(false);
+            expect(editorVisible(workbench)).toBe(true);
+            expect(workbench.isRegionVisible('activityBar')).toBe(true);
+            expect(workbench.isRegionVisible('primarySideBar')).toBe(true);
+            expect(workbench.isRegionVisible('secondarySideBar')).toBe(true);
+
+            workbench.dispose();
+        });
+
+        test('a region hidden before maximize stays hidden after restore', () => {
+            const workbench = fullWorkbench();
+            workbench.layout(1000, 800);
+
+            workbench.setRegionVisible('secondarySideBar', false);
+            workbench.setPanelMaximized(true);
+            workbench.setPanelMaximized(false);
+
+            expect(workbench.isRegionVisible('secondarySideBar')).toBe(false);
+            expect(workbench.isRegionVisible('primarySideBar')).toBe(true);
+
+            workbench.dispose();
+        });
+
+        test('toggleMaximizedPanel flips the state', () => {
+            const workbench = fullWorkbench();
+            workbench.layout(1000, 800);
+
+            workbench.toggleMaximizedPanel();
+            expect(workbench.isPanelMaximized).toBe(true);
+            workbench.toggleMaximizedPanel();
+            expect(workbench.isPanelMaximized).toBe(false);
+
+            workbench.dispose();
+        });
+
+        test('maximize is a no-op without a tool panel', () => {
+            const workbench = createWorkbench(container, {
+                primarySideBar: true,
+            });
+            workbench.layout(1000, 800);
+
+            workbench.setPanelMaximized(true);
+
+            expect(workbench.isPanelMaximized).toBe(false);
+            expect(editorVisible(workbench)).toBe(true);
+
+            workbench.dispose();
+        });
+
+        test('a flip exits maximize and restores the layout', () => {
+            const workbench = fullWorkbench();
+            workbench.layout(1000, 800);
+
+            workbench.setPanelMaximized(true);
+            workbench.setPrimarySideBarPosition('right');
+
+            expect(workbench.isPanelMaximized).toBe(false);
+            expect(editorVisible(workbench)).toBe(true);
+            expect(workbench.isRegionVisible('primarySideBar')).toBe(true);
+
+            workbench.dispose();
+        });
+
+        test('changing panel position exits maximize', () => {
+            const workbench = fullWorkbench();
+            workbench.layout(1000, 800);
+
+            workbench.setPanelMaximized(true);
+            workbench.setPanelPosition('right');
+
+            expect(workbench.isPanelMaximized).toBe(false);
+            expect(editorVisible(workbench)).toBe(true);
+
+            workbench.dispose();
+        });
+
+        test('serializing while maximized captures the restored layout', () => {
+            const workbench = fullWorkbench();
+            workbench.layout(1000, 800);
+            workbench.setPanelMaximized(true);
+
+            const state = workbench.toJSON();
+            // the source workbench stays maximized after serializing
+            expect(workbench.isPanelMaximized).toBe(true);
+
+            const restored = fullWorkbench();
+            restored.layout(1000, 800);
+            restored.fromJSON(state);
+
+            // the restored workbench is not maximized; the editor is visible
+            expect(restored.isPanelMaximized).toBe(false);
+            expect(editorVisible(restored)).toBe(true);
+
+            restored.dispose();
+            workbench.dispose();
+        });
+    });
+
     describe('theming', () => {
         test('tags each region element with theme classes', () => {
             const workbench = createWorkbench(container, {

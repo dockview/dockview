@@ -63,7 +63,7 @@ const side = api.primarySideBarPosition; // 'left' | 'right'
 
 Set the starting side with the `primarySideBarPosition` option.
 
-Flipping normally just moves the side bars, preserving their widths and contents. The exception is when a tool panel currently sits in the body — a top/bottom panel with `center`, `left` or `right` alignment, or a `left`/`right` panel — where the flip re-places the panel against the mirrored side bars and the side bar components are re-created (their content re-initialises). A `justify` panel or no panel flips without re-creating anything.
+Flipping normally just moves the side bars, preserving their widths and contents. The exception is when a tool panel currently sits in the body (a top/bottom panel with `center`, `left` or `right` alignment, or a `left`/`right` panel): the flip re-places the panel against the mirrored side bars and the side bar components are re-created (their content re-initialises). A `justify` panel or no panel flips without re-creating anything.
 
 ## Activity bar and view containers
 
@@ -127,6 +127,22 @@ api.toggleSecondarySideBar();
 api.togglePanel();
 api.setActivityBarVisible(false);
 ```
+
+## Maximizing the panel
+
+The tool panel can be maximized to fill the body, hiding the editor and side regions, then restored to the previous layout:
+
+```ts
+api.toggleMaximizedPanel();
+api.setPanelMaximized(true);
+const maxed = api.isPanelMaximized; // boolean
+
+api.onDidChangePanelMaximized((maximized) => {
+    // update the panel's maximize button, etc.
+});
+```
+
+Restoring returns the editor and side bars to their previous sizes, and a region that was already hidden stays hidden. Maximize is a transient mode: it is not serialized, and any layout change (panel position or alignment, an activity-bar move, or a side bar flip) restores first.
 
 ## Theming
 

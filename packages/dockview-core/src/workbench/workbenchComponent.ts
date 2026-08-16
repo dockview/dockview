@@ -144,6 +144,9 @@ export class WorkbenchComponent extends CompositeDisposable {
     private _primarySideBarOptions: WorkbenchSideBarOptions | undefined;
     private _secondarySideBarOptions: WorkbenchSideBarOptions | undefined;
     private _activeViewContainer: string | undefined;
+    private _panelMaximized = false;
+    /** Ids hidden by the current maximize, to re-show on restore. */
+    private _maximizeRestore: string[] = [];
 
     private readonly _onDidChangeActiveViewContainer = new Emitter<
         string | undefined
@@ -151,6 +154,11 @@ export class WorkbenchComponent extends CompositeDisposable {
     /** Fires when the active view container (primary side bar view) changes. */
     readonly onDidChangeActiveViewContainer: Event<string | undefined> =
         this._onDidChangeActiveViewContainer.event;
+
+    private readonly _onDidChangePanelMaximized = new Emitter<boolean>();
+    /** Fires when the tool panel is maximized or restored. */
+    readonly onDidChangePanelMaximized: Event<boolean> =
+        this._onDidChangePanelMaximized.event;
 
     get element(): HTMLElement {
         return this._element;
@@ -174,6 +182,10 @@ export class WorkbenchComponent extends CompositeDisposable {
 
     get panelAlignment(): PanelAlignment {
         return this._panelAlignment;
+    }
+
+    get isPanelMaximized(): boolean {
+        return this._panelMaximized;
     }
 
     get dockview(): DockviewApi {
@@ -228,7 +240,8 @@ export class WorkbenchComponent extends CompositeDisposable {
 
         this.addDisposables(
             this._gridview,
-            this._onDidChangeActiveViewContainer
+            this._onDidChangeActiveViewContainer,
+            this._onDidChangePanelMaximized
         );
 
         // Establish an initial size before adding panels; the gridview
@@ -584,6 +597,59 @@ export class WorkbenchComponent extends CompositeDisposable {
         this._rebuildBody();
     }
 
+    /** Toggle the tool panel between maximized and its previous layout. */
+    toggleMaximizedPanel(): void {
+        this.setPanelMaximized(!this._panelMaximized);
+    }
+
+    /**
+     * Maximize the tool panel so it fills the body, hiding the editor and side
+     * regions, or restore them. The editor and side bars are collapsed with
+     * `setVisible`, which remembers their sizes, so restoring returns to the
+     * previous layout exactly. Only regions that were visible are re-shown, so a
+     * side bar the user had already hidden stays hidden. This is a transient
+     * mode: it is not serialized, and any layout change (position, alignment,
+     * activity-bar move or flip) restores first.
+     */
+    setPanelMaximized(maximized: boolean): void {
+        if (maximized === this._panelMaximized || !this._panelOptions) {
+            return;
+        }
+        const panel = this._gridview.getPanel(WORKBENCH_IDS.panel);
+        if (!panel) {
+            return;
+        }
+
+        if (maximized) {
+            // reveal the panel itself, then collapse everything around it
+            this._setPanelVisible(WORKBENCH_IDS.panel, true);
+            this._maximizeRestore = [];
+            for (const id of [
+                WORKBENCH_IDS.editor,
+                WORKBENCH_IDS.activityBar,
+                WORKBENCH_IDS.primarySideBar,
+                WORKBENCH_IDS.secondarySideBar,
+            ]) {
+                const region = this._gridview.getPanel(id);
+                if (region?.api.isVisible) {
+                    this._gridview.setVisible(region, false);
+                    this._maximizeRestore.push(id);
+                }
+            }
+        } else {
+            for (const id of this._maximizeRestore) {
+                const region = this._gridview.getPanel(id);
+                if (region) {
+                    this._gridview.setVisible(region, true);
+                }
+            }
+            this._maximizeRestore = [];
+        }
+
+        this._panelMaximized = maximized;
+        this._onDidChangePanelMaximized.fire(maximized);
+    }
+
     /**
      * Rebuild the body's side regions and tool panel in place. Used after a
      * panel position/alignment change, an activity-bar reposition, or a flip
@@ -595,6 +661,10 @@ export class WorkbenchComponent extends CompositeDisposable {
      * content re-initialises). Per-region visibility is captured and restored.
      */
     private _rebuildBody(): void {
+        // A layout change exits maximize first, so the captured visibility below
+        // reflects the real per-region state rather than the collapsed one.
+        this.setPanelMaximized(false);
+
         const wasVisible = (region: WorkbenchRegion): boolean =>
             this.isRegionVisible(region);
         const visibility = {
@@ -667,6 +737,10 @@ export class WorkbenchComponent extends CompositeDisposable {
         if (position === this._primarySideBarPosition) {
             return;
         }
+        // A flip is a layout change; exit maximize so the reversal below runs
+        // against the real (visible) body rather than the collapsed one.
+        this.setPanelMaximized(false);
+
         const oldPosition = this._primarySideBarPosition;
         this._primarySideBarPosition = position;
 
@@ -778,7 +852,14 @@ export class WorkbenchComponent extends CompositeDisposable {
     }
 
     toJSON(): SerializedWorkbench {
-        return {
+        // Maximize is a transient mode and is not serialized. If it is active
+        // the editor and side bars are collapsed, so restore them for the
+        // snapshot and re-maximize afterwards, capturing the real layout.
+        const wasMaximized = this._panelMaximized;
+        if (wasMaximized) {
+            this.setPanelMaximized(false);
+        }
+        const json: SerializedWorkbench = {
             grid: this._gridview.toJSON(),
             dockview: this._editorPanel?.dockview.toJSON(),
             primarySideBarPosition: this._primarySideBarPosition,
@@ -787,6 +868,10 @@ export class WorkbenchComponent extends CompositeDisposable {
             panelAlignment: this._panelAlignment,
             activeViewContainer: this._activeViewContainer,
         };
+        if (wasMaximized) {
+            this.setPanelMaximized(true);
+        }
+        return json;
     }
 
     fromJSON(data: SerializedWorkbench): void {
