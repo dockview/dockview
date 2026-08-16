@@ -1,12 +1,10 @@
-import type { DockviewApi } from '../api/component.api';
 import type { Event } from '../events';
 import type { IDisposable } from '../lifecycle';
 import type {
     ActivityBarPosition,
-    PanelAlignment,
-    PanelPosition,
     SideBarPosition,
-    WorkbenchBand,
+    ToolPanelAlignment,
+    ToolPanelPosition,
     WorkbenchRegion,
 } from './options';
 import type {
@@ -15,10 +13,11 @@ import type {
 } from './workbenchComponent';
 
 /**
- * Public handle for a {@link WorkbenchComponent}. The editor is exposed as a
- * regular {@link DockviewApi} via `dockview`, so all existing dockview features
- * (edge groups, floating, popout, serialization) keep working inside the
- * workbench editor.
+ * Runtime handle for the workbench chrome around a dockview. Reached through
+ * `api.workbench` on the {@link DockviewApi} returned by `createDockview` when a
+ * `workbench` option was supplied; `undefined` otherwise. The editor itself is
+ * the dockview `api`, so all existing dockview features (edge groups, floating,
+ * popout, serialization) keep working at the centre of the workbench.
  */
 export class WorkbenchApi implements IDisposable {
     constructor(private readonly _component: WorkbenchComponent) {}
@@ -28,21 +27,12 @@ export class WorkbenchApi implements IDisposable {
         return this._component.element;
     }
 
-    /** The dockview backing the editor area. */
-    get dockview(): DockviewApi {
-        return this._component.dockview;
-    }
-
     setHeaderVisible(visible: boolean): void {
-        this._component.setBandVisible('header', visible);
+        this._component.setRegionVisible('header', visible);
     }
 
     setStatusBarVisible(visible: boolean): void {
-        this._component.setBandVisible('statusBar', visible);
-    }
-
-    isBandVisible(band: WorkbenchBand): boolean {
-        return this._component.isBandVisible(band);
+        this._component.setRegionVisible('statusBar', visible);
     }
 
     /** Which side the primary side bar (and activity bar) currently sits on. */
@@ -92,80 +82,61 @@ export class WorkbenchApi implements IDisposable {
     }
 
     /** Which side of the editor the tool panel currently occupies. */
-    get panelPosition(): PanelPosition {
-        return this._component.panelPosition;
+    get toolPanelPosition(): ToolPanelPosition {
+        return this._component.toolPanelPosition;
     }
 
     /** Horizontal span of a top/bottom tool panel. */
-    get panelAlignment(): PanelAlignment {
-        return this._component.panelAlignment;
+    get toolPanelAlignment(): ToolPanelAlignment {
+        return this._component.toolPanelAlignment;
     }
 
     /** Move the tool panel to a different side of the editor. */
-    setPanelPosition(position: PanelPosition): void {
-        this._component.setPanelPosition(position);
+    setToolPanelPosition(position: ToolPanelPosition): void {
+        this._component.setToolPanelPosition(position);
     }
 
     /** Change how a top/bottom tool panel spans horizontally. */
-    setPanelAlignment(alignment: PanelAlignment): void {
-        this._component.setPanelAlignment(alignment);
+    setToolPanelAlignment(alignment: ToolPanelAlignment): void {
+        this._component.setToolPanelAlignment(alignment);
     }
 
-    setPanelVisible(visible: boolean): void {
-        this._component.setRegionVisible('panel', visible);
+    setToolPanelVisible(visible: boolean): void {
+        this._component.setRegionVisible('toolPanel', visible);
     }
 
-    togglePanel(): void {
+    toggleToolPanel(): void {
         this._component.setRegionVisible(
-            'panel',
-            !this._component.isRegionVisible('panel')
+            'toolPanel',
+            !this._component.isRegionVisible('toolPanel')
         );
     }
 
     /** Whether the tool panel is currently maximized (filling the body). */
-    get isPanelMaximized(): boolean {
-        return this._component.isPanelMaximized;
+    get isToolPanelMaximized(): boolean {
+        return this._component.isToolPanelMaximized;
     }
 
     /** Fires when the tool panel is maximized or restored. */
-    get onDidChangePanelMaximized(): Event<boolean> {
-        return this._component.onDidChangePanelMaximized;
+    get onDidChangeToolPanelMaximized(): Event<boolean> {
+        return this._component.onDidChangeToolPanelMaximized;
     }
 
     /**
      * Maximize the tool panel so it fills the body (hiding the editor and side
      * regions), or restore the previous layout.
      */
-    setPanelMaximized(maximized: boolean): void {
-        this._component.setPanelMaximized(maximized);
+    setToolPanelMaximized(maximized: boolean): void {
+        this._component.setToolPanelMaximized(maximized);
     }
 
     /** Toggle the tool panel between maximized and its previous layout. */
-    toggleMaximizedPanel(): void {
-        this._component.toggleMaximizedPanel();
+    toggleMaximizedToolPanel(): void {
+        this._component.toggleMaximizedToolPanel();
     }
 
     isRegionVisible(region: WorkbenchRegion): boolean {
         return this._component.isRegionVisible(region);
-    }
-
-    /** The active view container shown in the primary side bar. */
-    get activeViewContainer(): string | undefined {
-        return this._component.activeViewContainer;
-    }
-
-    /** Fires when the active view container changes. */
-    get onDidChangeActiveViewContainer(): Event<string | undefined> {
-        return this._component.onDidChangeActiveViewContainer;
-    }
-
-    /**
-     * Select the view container shown in the primary side bar (what an
-     * activity-bar item maps to). Reveals the side bar if hidden; selecting the
-     * active container again toggles it shut.
-     */
-    setActiveViewContainer(id: string): void {
-        this._component.setActiveViewContainer(id);
     }
 
     layout(width: number, height: number): void {

@@ -1,9 +1,9 @@
 import 'dockview-vue/dist/styles/dockview.css';
 import { PropType, createApp, defineComponent } from 'vue';
 import {
-    WorkbenchVue,
+    DockviewVue,
+    DockviewReadyEvent,
     WorkbenchApi,
-    WorkbenchReadyEvent,
     IDockviewPanelProps,
     themeAbyss,
     themeLight,
@@ -26,10 +26,10 @@ const Header = defineComponent({
         },
         toggleAlign() {
             if (!workbench) return;
-            workbench.setPanelAlignment(
-                workbench.panelAlignment === 'center' ? 'justify' : 'center'
+            workbench.setToolPanelAlignment(
+                workbench.toolPanelAlignment === 'center' ? 'justify' : 'center'
             );
-            this.alignment = workbench.panelAlignment;
+            this.alignment = workbench.toolPanelAlignment;
         },
     },
     template: `
@@ -96,30 +96,40 @@ const Editor = defineComponent({
 
 const App = defineComponent({
     name: 'App',
-    components: { 'workbench-vue': WorkbenchVue },
+    components: { 'dockview-vue': DockviewVue },
     data() {
         return {
-            components: {
-                header: Header,
-                activity: ActivityBar,
-                explorer: Explorer,
-                outline: Outline,
-                terminal: Terminal,
-                status: StatusBar,
-            },
             editorComponents: { editor: Editor },
-            editorProps: {
-                theme:
-                    (window as any).__dockviewColorMode === 'light'
-                        ? themeLight
-                        : themeAbyss,
+            theme:
+                (window as any).__dockviewColorMode === 'light'
+                    ? themeLight
+                    : themeAbyss,
+            workbenchOptions: {
+                components: {
+                    header: Header,
+                    activity: ActivityBar,
+                    explorer: Explorer,
+                    outline: Outline,
+                    terminal: Terminal,
+                    status: StatusBar,
+                },
+                header: { component: 'header' },
+                statusBar: { component: 'status' },
+                activityBar: { component: 'activity' },
+                primarySideBar: { component: 'explorer' },
+                secondarySideBar: { component: 'outline' },
+                toolPanel: {
+                    component: 'terminal',
+                    position: 'bottom',
+                    alignment: 'center',
+                },
             },
         };
     },
     methods: {
-        onReady(event: WorkbenchReadyEvent) {
-            workbench = event.api;
-            const dv = event.api.dockview;
+        onReady(event: DockviewReadyEvent) {
+            workbench = event.api.workbench;
+            const dv = event.api;
             dv.addPanel({ id: 'index.ts', component: 'editor', title: 'index.ts' });
             dv.addPanel({
                 id: 'readme.md',
@@ -130,17 +140,11 @@ const App = defineComponent({
         },
     },
     template: `
-      <workbench-vue
+      <dockview-vue
         style="width:100%;height:100%"
-        :components="components"
-        :editorComponents="editorComponents"
-        :editorProps="editorProps"
-        :header="{ component: 'header' }"
-        :statusBar="{ component: 'status' }"
-        :activityBar="{ component: 'activity' }"
-        :primarySideBar="{ component: 'explorer' }"
-        :secondarySideBar="{ component: 'outline' }"
-        :panel="{ component: 'terminal', position: 'bottom', alignment: 'center' }"
+        :components="editorComponents"
+        :theme="theme"
+        :workbench="workbenchOptions"
         @ready="onReady"
       />`,
 });

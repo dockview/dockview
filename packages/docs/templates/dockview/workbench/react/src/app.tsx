@@ -1,9 +1,9 @@
 import {
+    DockviewReact,
+    DockviewReadyEvent,
     IDockviewPanelProps,
     IWorkbenchPanelProps,
     WorkbenchApi,
-    WorkbenchReadyEvent,
-    WorkbenchReact,
     themeAbyss,
     themeLight,
 } from 'dockview-react';
@@ -43,15 +43,15 @@ const Header = (_props: IWorkbenchPanelProps) => {
             <button
                 onClick={() => {
                     if (!workbench) return;
-                    workbench.setPanelAlignment(
-                        workbench.panelAlignment === 'center'
+                    workbench.setToolPanelAlignment(
+                        workbench.toolPanelAlignment === 'center'
                             ? 'justify'
                             : 'center'
                     );
                     force();
                 }}
             >
-                Panel: {workbench?.panelAlignment ?? 'center'}
+                Panel: {workbench?.toolPanelAlignment ?? 'center'}
             </button>
         </div>
     );
@@ -144,10 +144,10 @@ const Editor = (props: IDockviewPanelProps) => (
 const editorComponents = { editor: Editor };
 
 export default (props: { theme?: string }) => {
-    const onReady = (event: WorkbenchReadyEvent) => {
-        workbench = event.api;
+    const onReady = (event: DockviewReadyEvent) => {
+        workbench = event.api.workbench;
 
-        const dv = event.api.dockview;
+        const dv = event.api;
         dv.addPanel({ id: 'app.tsx', component: 'editor', title: 'app.tsx' });
         dv.addPanel({
             id: 'readme.md',
@@ -158,19 +158,23 @@ export default (props: { theme?: string }) => {
     };
 
     return (
-        <WorkbenchReact
-            className={props.theme || 'dockview-theme-abyss'}
-            components={components}
-            editorComponents={editorComponents}
-            editorProps={{
-                theme: props.theme?.includes('light') ? themeLight : themeAbyss,
+        <DockviewReact
+            components={editorComponents}
+            theme={props.theme?.includes('light') ? themeLight : themeAbyss}
+            workbench={{
+                className: props.theme || 'dockview-theme-abyss',
+                components,
+                header: { component: 'header' },
+                statusBar: { component: 'status' },
+                activityBar: { component: 'activity' },
+                primarySideBar: { component: 'explorer' },
+                secondarySideBar: { component: 'outline' },
+                toolPanel: {
+                    component: 'terminal',
+                    position: 'bottom',
+                    alignment: 'center',
+                },
             }}
-            header={{ component: 'header' }}
-            statusBar={{ component: 'status' }}
-            activityBar={{ component: 'activity' }}
-            primarySideBar={{ component: 'explorer' }}
-            secondarySideBar={{ component: 'outline' }}
-            panel={{ component: 'terminal', position: 'bottom', alignment: 'center' }}
             onReady={onReady}
         />
     );

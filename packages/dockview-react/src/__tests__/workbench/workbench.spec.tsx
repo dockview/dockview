@@ -1,73 +1,80 @@
 import { act, render, waitFor } from '@testing-library/react';
-import type { IDockviewPanelProps, WorkbenchApi } from 'dockview';
+import type {
+    DockviewApi,
+    DockviewReadyEvent,
+    IDockviewPanelProps,
+} from 'dockview';
 import React from 'react';
 import {
+    DockviewReact,
     type IWorkbenchPanelProps,
-    WorkbenchReact,
-    type WorkbenchReadyEvent,
-} from '../../workbench/workbench';
+} from '../../dockview/dockview';
 
 describe('workbench react', () => {
     let components: Record<
         string,
-        React.FunctionComponent<IWorkbenchPanelProps>
-    >;
-    let editorComponents: Record<
-        string,
         React.FunctionComponent<IDockviewPanelProps>
+    >;
+    let workbenchComponents: Record<
+        string,
+        React.FunctionComponent<IWorkbenchPanelProps>
     >;
 
     beforeEach(() => {
         components = {
-            header: () => <div>header-band</div>,
-            explorer: () => <div>explorer-view</div>,
-            terminal: () => <div>terminal-view</div>,
-        };
-        editorComponents = {
             editor: (props: IDockviewPanelProps) => (
                 <div>{`editor-${props.api.id}`}</div>
             ),
         };
+        workbenchComponents = {
+            header: () => <div>header-band</div>,
+            explorer: () => <div>explorer-view</div>,
+            terminal: () => <div>terminal-view</div>,
+        };
     });
 
-    test('creates a workbench exposing a dockview editor api', () => {
-        let api: WorkbenchApi | undefined;
+    test('creates a dockview exposing a workbench api', () => {
+        let api: DockviewApi | undefined;
 
         render(
-            <WorkbenchReact
+            <DockviewReact
                 components={components}
-                editorComponents={editorComponents}
-                header={{ component: 'header' }}
-                primarySideBar={{ component: 'explorer' }}
-                panel={{ component: 'terminal' }}
-                onReady={(event: WorkbenchReadyEvent) => {
+                workbench={{
+                    components: workbenchComponents,
+                    header: { component: 'header' },
+                    primarySideBar: { component: 'explorer' },
+                    toolPanel: { component: 'terminal' },
+                }}
+                onReady={(event: DockviewReadyEvent) => {
                     api = event.api;
                 }}
             />
         );
 
         expect(api).toBeTruthy();
-        expect(api!.dockview).toBeTruthy();
+        expect(api!.workbench).toBeTruthy();
     });
 
     test('renders band, side bar and editor react components', async () => {
-        let api: WorkbenchApi | undefined;
+        let api: DockviewApi | undefined;
 
         const wrapper = render(
-            <WorkbenchReact
+            <DockviewReact
                 components={components}
-                editorComponents={editorComponents}
-                header={{ component: 'header' }}
-                primarySideBar={{ component: 'explorer' }}
-                panel={{ component: 'terminal' }}
-                onReady={(event: WorkbenchReadyEvent) => {
+                workbench={{
+                    components: workbenchComponents,
+                    header: { component: 'header' },
+                    primarySideBar: { component: 'explorer' },
+                    toolPanel: { component: 'terminal' },
+                }}
+                onReady={(event: DockviewReadyEvent) => {
                     api = event.api;
                 }}
             />
         );
 
         act(() => {
-            api!.dockview.addPanel({ id: 'p1', component: 'editor' });
+            api!.addPanel({ id: 'p1', component: 'editor' });
         });
 
         await waitFor(() => {
@@ -84,26 +91,28 @@ describe('workbench react', () => {
         });
     });
 
-    test('exposes workbench layout controls on the api', () => {
-        let api: WorkbenchApi | undefined;
+    test('exposes workbench layout controls on api.workbench', () => {
+        let api: DockviewApi | undefined;
 
         render(
-            <WorkbenchReact
+            <DockviewReact
                 components={components}
-                editorComponents={editorComponents}
-                activityBar={{ component: 'header' }}
-                primarySideBar={{ component: 'explorer' }}
-                secondarySideBar={{ component: 'explorer' }}
-                onReady={(event: WorkbenchReadyEvent) => {
+                workbench={{
+                    components: workbenchComponents,
+                    activityBar: { component: 'header' },
+                    primarySideBar: { component: 'explorer' },
+                    secondarySideBar: { component: 'explorer' },
+                }}
+                onReady={(event: DockviewReadyEvent) => {
                     api = event.api;
                 }}
             />
         );
 
-        expect(api!.primarySideBarPosition).toBe('left');
+        expect(api!.workbench!.primarySideBarPosition).toBe('left');
         act(() => {
-            api!.setPrimarySideBarPosition('right');
+            api!.workbench!.setPrimarySideBarPosition('right');
         });
-        expect(api!.primarySideBarPosition).toBe('right');
+        expect(api!.workbench!.primarySideBarPosition).toBe('right');
     });
 });

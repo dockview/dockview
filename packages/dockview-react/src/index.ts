@@ -7,6 +7,5 @@ export { type IDockviewGroupDragGhostProps } from './dockview/reactGroupDragGhos
 export * from './splitview/splitview';
 export * from './gridview/gridview';
 export * from './paneview/paneview';
-export * from './workbench/workbench';
 export * from './types';
 export * from './react';

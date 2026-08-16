@@ -228,13 +228,11 @@ PanePanelComponentInitParameter
 PanePanelInitParameter
 PanePanelViewState
 PaneTransfer
-PanelAlignment
 PanelApi
 PanelConstraintChangeEvent
 PanelDimensionChangeEvent
 PanelInitParameters
 PanelOptions
-PanelPosition
 PanelReference
 PanelSizeEvent
 PanelTransfer
@@ -307,6 +305,8 @@ TabGroupColorPalette
 TabGroupOptions
 TabPartInitParameters
 TitleEvent
+ToolPanelAlignment
+ToolPanelPosition
 ViewFactoryData
 VisibilityEvent
 WatermarkRendererInitParameters
@@ -315,13 +315,11 @@ WorkbenchApi
 WorkbenchBand
 WorkbenchBandOptions
 WorkbenchComponent
-WorkbenchComponentOptions
 WorkbenchEditorPanel
-WorkbenchFrameworkOptions
 WorkbenchOptions
-WorkbenchPanelOptions
 WorkbenchRegion
 WorkbenchSideBarOptions
+WorkbenchToolPanelOptions
 applyTabGroupAccent
 clearRegisteredModules
 createCloseButton
@@ -331,7 +329,6 @@ createGridview
 createPaneview
 createPinButton
 createSplitview
-createWorkbench
 defineModule
 directionToPosition
 findRelativeZIndexParent

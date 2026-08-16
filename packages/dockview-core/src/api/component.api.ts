@@ -13,6 +13,7 @@ import {
     PopoutGroupChangeSizeEvent,
     SerializedDockview,
 } from '../dockview/dockviewComponent';
+import type { WorkbenchApi } from '../workbench/workbench.api';
 import {
     AddGroupOptions,
     AddPanelOptions,
@@ -938,6 +939,23 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
         return resolveMessages(this.component.options.messages);
     }
 
+    private _workbench: WorkbenchApi | undefined;
+
+    /**
+     * The workbench chrome around this dockview (header, side bars, tool panel,
+     * ...), present only when `createDockview` was called with a `workbench`
+     * option; otherwise `undefined`. Save the workbench layout via
+     * `api.workbench.toJSON()`.
+     */
+    get workbench(): WorkbenchApi | undefined {
+        return this._workbench;
+    }
+
+    /** @internal Attach the workbench frame that wraps this dockview. */
+    setWorkbench(workbench: WorkbenchApi): void {
+        this._workbench = workbench;
+    }
+
     constructor(private readonly component: IDockviewComponent) {}
 
     /**
@@ -958,6 +976,13 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
      * Force resize the component to an exact width and height. Read about auto-resizing before using.
      */
     layout(width: number, height: number, force = false): void {
+        // When wrapped in a workbench, sizing the outer frame cascades down to
+        // this dockview through the editor cell; sizing the dockview alone would
+        // leave the frame unlaid-out.
+        if (this._workbench) {
+            this._workbench.layout(width, height);
+            return;
+        }
         this.component.layout(width, height, force);
     }
 
@@ -1362,6 +1387,12 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
      * Release resources and teardown component. Do not call when using framework versions of dockview.
      */
     dispose(): void {
+        // The workbench frame owns this dockview (via its editor cell), so
+        // tearing the frame down disposes the dockview too.
+        if (this._workbench) {
+            this._workbench.dispose();
+            return;
+        }
         this.component.dispose();
     }
 }

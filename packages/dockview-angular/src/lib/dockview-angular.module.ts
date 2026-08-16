@@ -5,7 +5,6 @@ import { DockviewAngularComponent } from './dockview/dockview-angular.component'
 import { GridviewAngularComponent } from './gridview/gridview-angular.component';
 import { PaneviewAngularComponent } from './paneview/paneview-angular.component';
 import { SplitviewAngularComponent } from './splitview/splitview-angular.component';
-import { WorkbenchAngularComponent } from './workbench/workbench-angular.component';
 
 @NgModule({
     imports: [
@@ -14,14 +13,12 @@ import { WorkbenchAngularComponent } from './workbench/workbench-angular.compone
         GridviewAngularComponent,
         PaneviewAngularComponent,
         SplitviewAngularComponent,
-        WorkbenchAngularComponent,
     ],
     exports: [
         DockviewAngularComponent,
         GridviewAngularComponent,
         PaneviewAngularComponent,
         SplitviewAngularComponent,
-        WorkbenchAngularComponent,
     ],
 })
 export class DockviewAngularModule {}

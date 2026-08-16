@@ -1,9 +1,8 @@
 import { flushPromises, mount } from '@vue/test-utils';
-import type { WorkbenchApi } from 'dockview';
+import type { DockviewApi } from 'dockview';
 import { defineComponent } from 'vue';
 import { describe, expect, test } from 'vitest';
-import WorkbenchVue from '../workbench/workbench.vue';
-import * as workbenchTypes from '../workbench/types';
+import DockviewVue from '../dockview/dockview.vue';
 
 const Band = defineComponent({
     name: 'Band',
@@ -17,59 +16,62 @@ const Editor = defineComponent({
     template: '<div class="mock-editor">Editor</div>',
 });
 
-describe('WorkbenchVue Component', () => {
-    test('exports component types', () => {
-        expect(workbenchTypes).toBeDefined();
-        expect(typeof workbenchTypes).toBe('object');
-    });
-
-    test('mounts and emits a ready event with a workbench api', async () => {
-        const wrapper = mount(WorkbenchVue, {
+describe('DockviewVue workbench', () => {
+    test('mounts and emits a ready event exposing a workbench api', async () => {
+        const wrapper = mount(DockviewVue, {
             props: {
-                components: { header: Band, explorer: Band, terminal: Band },
-                editorComponents: { editor: Editor },
-                header: { component: 'header' },
-                primarySideBar: { component: 'explorer' },
-                panel: { component: 'terminal' },
+                components: { editor: Editor },
+                workbench: {
+                    components: {
+                        header: Band,
+                        explorer: Band,
+                        terminal: Band,
+                    },
+                    header: { component: 'header' },
+                    primarySideBar: { component: 'explorer' },
+                    toolPanel: { component: 'terminal' },
+                },
             },
             attachTo: document.body,
         });
         await flushPromises();
 
-        const api = (wrapper.emitted('ready')![0][0] as { api: WorkbenchApi })
+        const api = (wrapper.emitted('ready')![0][0] as { api: DockviewApi })
             .api;
 
         expect(api).toBeDefined();
         expect(typeof api.layout).toBe('function');
-        expect(api.dockview).toBeDefined();
+        expect(api.workbench).toBeDefined();
 
         wrapper.unmount();
     });
 
     test('exposes workbench layout controls and a working editor', async () => {
-        const wrapper = mount(WorkbenchVue, {
+        const wrapper = mount(DockviewVue, {
             props: {
-                components: { explorer: Band },
-                editorComponents: { editor: Editor },
-                activityBar: { component: 'explorer' },
-                primarySideBar: { component: 'explorer' },
-                secondarySideBar: { component: 'explorer' },
+                components: { editor: Editor },
+                workbench: {
+                    components: { explorer: Band },
+                    activityBar: { component: 'explorer' },
+                    primarySideBar: { component: 'explorer' },
+                    secondarySideBar: { component: 'explorer' },
+                },
             },
             attachTo: document.body,
         });
         await flushPromises();
 
-        const api = (wrapper.emitted('ready')![0][0] as { api: WorkbenchApi })
+        const api = (wrapper.emitted('ready')![0][0] as { api: DockviewApi })
             .api;
 
-        expect(api.primarySideBarPosition).toBe('left');
-        api.setPrimarySideBarPosition('right');
-        expect(api.primarySideBarPosition).toBe('right');
+        expect(api.workbench!.primarySideBarPosition).toBe('left');
+        api.workbench!.setPrimarySideBarPosition('right');
+        expect(api.workbench!.primarySideBarPosition).toBe('right');
 
         expect(() =>
-            api.dockview.addPanel({ id: 'e1', component: 'editor' })
+            api.addPanel({ id: 'e1', component: 'editor' })
         ).not.toThrow();
-        expect(api.dockview.getPanel('e1')).toBeDefined();
+        expect(api.getPanel('e1')).toBeDefined();
 
         wrapper.unmount();
     });

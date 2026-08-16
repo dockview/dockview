@@ -1,25 +1,27 @@
 import { TestBed } from '@angular/core/testing';
 
-import type { WorkbenchApi } from 'dockview';
-import { WorkbenchAngularComponent } from '../lib/workbench/workbench-angular.component';
+import type { DockviewApi } from 'dockview';
+import { DockviewAngularComponent } from '../lib/dockview/dockview-angular.component';
 import { getTestComponents, setupTestBed } from './__test_utils__/test-helpers';
 
-describe('WorkbenchAngularComponent', () => {
-    let component: WorkbenchAngularComponent;
+describe('DockviewAngularComponent workbench', () => {
+    let component: DockviewAngularComponent;
 
     beforeEach(async () => {
         setupTestBed();
         await TestBed.compileComponents();
 
-        const fixture = TestBed.createComponent(WorkbenchAngularComponent);
+        const fixture = TestBed.createComponent(DockviewAngularComponent);
         component = fixture.componentInstance;
 
         component.components = getTestComponents();
-        component.editorComponents = getTestComponents();
+        component.workbench = {
+            components: getTestComponents(),
+        };
     });
 
     afterEach(() => {
-        component?.getWorkbenchApi()?.dispose();
+        component?.getDockviewApi()?.dispose();
     });
 
     it('should create', () => {
@@ -30,34 +32,32 @@ describe('WorkbenchAngularComponent', () => {
         component.components = undefined as never;
 
         expect(() => component.ngOnInit()).toThrow(
-            'WorkbenchAngularComponent: components input is required'
-        );
-    });
-
-    it('should throw if editorComponents input is not provided', () => {
-        component.editorComponents = undefined as never;
-
-        expect(() => component.ngOnInit()).toThrow(
-            'WorkbenchAngularComponent: editorComponents input is required'
+            'DockviewAngularComponent: components input is required'
         );
     });
 
     it('should initialise the workbench api on ngOnInit', () => {
-        component.header = { component: 'test-panel' };
-        component.primarySideBar = { component: 'test-panel' };
-        component.panel = { component: 'test-panel' };
+        component.workbench = {
+            components: getTestComponents(),
+            header: { component: 'test-panel' },
+            primarySideBar: { component: 'test-panel' },
+            toolPanel: { component: 'test-panel' },
+        };
 
         component.ngOnInit();
 
-        const api = component.getWorkbenchApi();
+        const api = component.getDockviewApi();
         expect(api).toBeDefined();
-        expect(api!.dockview).toBeDefined();
+        expect(api!.workbench).toBeDefined();
     });
 
-    it('should emit ready with the workbench api', (done) => {
+    it('should emit ready with a dockview api exposing the workbench', (done) => {
         component.ready.subscribe((event) => {
             expect(event.api).toBeDefined();
-            expect(typeof event.api.setPrimarySideBarPosition).toBe('function');
+            expect(event.api.workbench).toBeDefined();
+            expect(typeof event.api.workbench!.setPrimarySideBarPosition).toBe(
+                'function'
+            );
             done();
         });
 
@@ -67,10 +67,10 @@ describe('WorkbenchAngularComponent', () => {
     it('should expose a working editor dockview', () => {
         component.ngOnInit();
 
-        const api = component.getWorkbenchApi() as WorkbenchApi;
+        const api = component.getDockviewApi() as DockviewApi;
         expect(() =>
-            api.dockview.addPanel({ id: 'e1', component: 'test-panel' })
+            api.addPanel({ id: 'e1', component: 'test-panel' })
         ).not.toThrow();
-        expect(api.dockview.getPanel('e1')).toBeDefined();
+        expect(api.getPanel('e1')).toBeDefined();
     });
 });

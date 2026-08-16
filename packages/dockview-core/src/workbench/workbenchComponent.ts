@@ -17,24 +17,23 @@ import { LayoutPriority, Orientation } from '../splitview/splitview';
 import {
     DEFAULT_ACTIVITY_BAR_SIZE,
     DEFAULT_HEADER_SIZE,
-    DEFAULT_PANEL_MINIMUM_SIZE,
-    DEFAULT_PANEL_SIZE,
     DEFAULT_SIDE_BAR_MINIMUM_SIZE,
     DEFAULT_SIDE_BAR_SIZE,
     DEFAULT_STATUS_BAR_SIZE,
+    DEFAULT_TOOL_PANEL_MINIMUM_SIZE,
+    DEFAULT_TOOL_PANEL_SIZE,
     type ActivityBarPosition,
-    type PanelAlignment,
-    type PanelPosition,
     type SideBarPosition,
+    type ToolPanelAlignment,
+    type ToolPanelPosition,
     WORKBENCH_EDITOR_COMPONENT,
     WORKBENCH_IDS,
     type WorkbenchActivityBarOptions,
     type WorkbenchBand,
     type WorkbenchBandOptions,
-    type WorkbenchComponentOptions,
-    type WorkbenchPanelOptions,
     type WorkbenchRegion,
     type WorkbenchSideBarOptions,
+    type WorkbenchToolPanelOptions,
 } from './options';
 
 /**
@@ -47,7 +46,7 @@ const REGION_CLASS: Record<string, string> = {
     [WORKBENCH_IDS.activityBar]: 'dv-workbench-activity-bar',
     [WORKBENCH_IDS.primarySideBar]: 'dv-workbench-primary-side-bar',
     [WORKBENCH_IDS.secondarySideBar]: 'dv-workbench-secondary-side-bar',
-    [WORKBENCH_IDS.panel]: 'dv-workbench-panel',
+    [WORKBENCH_IDS.toolPanel]: 'dv-workbench-tool-panel',
 };
 
 export interface SerializedWorkbench {
@@ -60,11 +59,9 @@ export interface SerializedWorkbench {
     /** Where the activity bar sits (side rail, or top/bottom strip). */
     activityBarPosition?: ActivityBarPosition;
     /** Which side of the editor the tool panel sits on. */
-    panelPosition?: PanelPosition;
+    toolPanelPosition?: ToolPanelPosition;
     /** Horizontal span of a top/bottom tool panel. */
-    panelAlignment?: PanelAlignment;
-    /** The active view container shown in the primary side bar. */
-    activeViewContainer?: string;
+    toolPanelAlignment?: ToolPanelAlignment;
 }
 
 /**
@@ -83,7 +80,7 @@ export class WorkbenchEditorPanel extends GridviewPanel {
     constructor(
         id: string,
         component: string,
-        dockviewOptions: DockviewComponentOptions
+        editorOptions: DockviewComponentOptions
     ) {
         super(id, component, {
             minimumWidth: 100,
@@ -93,7 +90,7 @@ export class WorkbenchEditorPanel extends GridviewPanel {
         this.element.classList.add('dv-workbench-editor');
 
         // The dockview mounts its shell (edge groups included) into this cell.
-        this._dockview = new DockviewComponent(this.element, dockviewOptions);
+        this._dockview = new DockviewComponent(this.element, editorOptions);
 
         this.api.initialize(this);
     }
@@ -117,8 +114,9 @@ export class WorkbenchEditorPanel extends GridviewPanel {
 
 /**
  * A VS Code-style workbench: fixed chrome bands (header, status bar) and side
- * regions (activity bar, primary and secondary side bars) wrapped around a
- * central dockview editor.
+ * regions (activity bar, primary and secondary side bars, tool panel) wrapped
+ * around a central dockview editor. Built by {@link createDockview} when the
+ * `workbench` option is present, and reached at runtime through `api.workbench`.
  *
  * The outer frame is a vertical {@link GridviewComponent}: the header and
  * status bar are full-width fixed-height bands, and the body row between
@@ -132,40 +130,28 @@ export class WorkbenchEditorPanel extends GridviewPanel {
 export class WorkbenchComponent extends CompositeDisposable {
     private readonly _element: HTMLElement;
     private readonly _gridview: GridviewComponent;
-    private readonly _dockviewOptions: DockviewComponentOptions;
+    private readonly _editorOptions: DockviewComponentOptions;
 
     private _editorPanel: WorkbenchEditorPanel | undefined;
     private _primarySideBarPosition: SideBarPosition;
     private _activityBarPosition: ActivityBarPosition = 'default';
-    private _panelPosition: PanelPosition = 'bottom';
-    private _panelAlignment: PanelAlignment = 'center';
-    private _panelOptions: WorkbenchPanelOptions | undefined;
+    private _toolPanelPosition: ToolPanelPosition = 'bottom';
+    private _toolPanelAlignment: ToolPanelAlignment = 'center';
+    private _toolPanelOptions: WorkbenchToolPanelOptions | undefined;
     private _activityBarOptions: WorkbenchActivityBarOptions | undefined;
     private _primarySideBarOptions: WorkbenchSideBarOptions | undefined;
     private _secondarySideBarOptions: WorkbenchSideBarOptions | undefined;
-    private _activeViewContainer: string | undefined;
-    private _panelMaximized = false;
+    private _toolPanelMaximized = false;
     /** Ids hidden by the current maximize, to re-show on restore. */
     private _maximizeRestore: string[] = [];
 
-    private readonly _onDidChangeActiveViewContainer = new Emitter<
-        string | undefined
-    >();
-    /** Fires when the active view container (primary side bar view) changes. */
-    readonly onDidChangeActiveViewContainer: Event<string | undefined> =
-        this._onDidChangeActiveViewContainer.event;
-
-    private readonly _onDidChangePanelMaximized = new Emitter<boolean>();
+    private readonly _onDidChangeToolPanelMaximized = new Emitter<boolean>();
     /** Fires when the tool panel is maximized or restored. */
-    readonly onDidChangePanelMaximized: Event<boolean> =
-        this._onDidChangePanelMaximized.event;
+    readonly onDidChangeToolPanelMaximized: Event<boolean> =
+        this._onDidChangeToolPanelMaximized.event;
 
     get element(): HTMLElement {
         return this._element;
-    }
-
-    get activeViewContainer(): string | undefined {
-        return this._activeViewContainer;
     }
 
     get primarySideBarPosition(): SideBarPosition {
@@ -176,16 +162,16 @@ export class WorkbenchComponent extends CompositeDisposable {
         return this._activityBarPosition;
     }
 
-    get panelPosition(): PanelPosition {
-        return this._panelPosition;
+    get toolPanelPosition(): ToolPanelPosition {
+        return this._toolPanelPosition;
     }
 
-    get panelAlignment(): PanelAlignment {
-        return this._panelAlignment;
+    get toolPanelAlignment(): ToolPanelAlignment {
+        return this._toolPanelAlignment;
     }
 
-    get isPanelMaximized(): boolean {
-        return this._panelMaximized;
+    get isToolPanelMaximized(): boolean {
+        return this._toolPanelMaximized;
     }
 
     get dockview(): DockviewApi {
@@ -195,18 +181,30 @@ export class WorkbenchComponent extends CompositeDisposable {
         return this._editorPanel.dockview.api;
     }
 
-    constructor(container: HTMLElement, options: WorkbenchComponentOptions) {
+    constructor(container: HTMLElement, options: DockviewComponentOptions) {
         super();
 
-        this._dockviewOptions = options.dockview;
-        this._primarySideBarPosition = options.primarySideBarPosition ?? 'left';
-        this._activityBarPosition = options.activityBar?.position ?? 'default';
-        this._activeViewContainer = options.activeViewContainer;
+        const workbench = options.workbench;
+        if (!workbench) {
+            throw new Error(
+                'workbench: createDockview must be called with a `workbench` option'
+            );
+        }
+
+        // The editor is the dockview itself; strip the chrome options so the
+        // embedded DockviewComponent is a plain dockview (no recursion).
+        const { workbench: _omit, ...editorOptions } = options;
+        this._editorOptions = editorOptions;
+
+        this._primarySideBarPosition =
+            workbench.primarySideBarPosition ?? 'left';
+        this._activityBarPosition =
+            workbench.activityBar?.position ?? 'default';
 
         this._element = document.createElement('div');
         this._element.className = 'dv-workbench';
-        if (options.className) {
-            const tokens = options.className.split(/\s+/).filter(Boolean);
+        if (workbench.className) {
+            const tokens = workbench.className.split(/\s+/).filter(Boolean);
             if (tokens.length > 0) {
                 this._element.classList.add(...tokens);
             }
@@ -223,12 +221,12 @@ export class WorkbenchComponent extends CompositeDisposable {
                     const panel = new WorkbenchEditorPanel(
                         viewOptions.id,
                         viewOptions.name,
-                        this._dockviewOptions
+                        this._editorOptions
                     );
                     this._editorPanel = panel;
                     return panel;
                 }
-                const view = options.createComponent(viewOptions);
+                const view = workbench.createComponent(viewOptions);
                 // Tag region panels by their reserved id so `workbench.scss`
                 // can theme the containers. Keyed off the id (which the grid
                 // serializes) exactly as the editor is keyed off its reserved
@@ -240,8 +238,7 @@ export class WorkbenchComponent extends CompositeDisposable {
 
         this.addDisposables(
             this._gridview,
-            this._onDidChangeActiveViewContainer,
-            this._onDidChangePanelMaximized
+            this._onDidChangeToolPanelMaximized
         );
 
         // Establish an initial size before adding panels; the gridview
@@ -258,21 +255,21 @@ export class WorkbenchComponent extends CompositeDisposable {
             priority: LayoutPriority.High,
         });
 
-        if (options.header) {
+        if (workbench.header) {
             this._addBand(
                 'header',
                 WORKBENCH_IDS.header,
-                options.header,
+                workbench.header,
                 DEFAULT_HEADER_SIZE,
                 { referencePanel: WORKBENCH_IDS.editor, direction: 'above' }
             );
         }
 
-        if (options.statusBar) {
+        if (workbench.statusBar) {
             this._addBand(
                 'statusBar',
                 WORKBENCH_IDS.statusBar,
-                options.statusBar,
+                workbench.statusBar,
                 DEFAULT_STATUS_BAR_SIZE,
                 { referencePanel: WORKBENCH_IDS.editor, direction: 'below' }
             );
@@ -281,28 +278,29 @@ export class WorkbenchComponent extends CompositeDisposable {
         // Side regions are added AFTER the full-width bands so they nest into a
         // horizontal branch beside the editor only, leaving the header and
         // status bands spanning the full width.
-        this._activityBarOptions = options.activityBar;
-        this._primarySideBarOptions = options.primarySideBar;
-        this._secondarySideBarOptions = options.secondarySideBar;
+        this._activityBarOptions = workbench.activityBar;
+        this._primarySideBarOptions = workbench.primarySideBar;
+        this._secondarySideBarOptions = workbench.secondarySideBar;
         this._addSideRegions();
 
-        if (options.panel) {
-            this._panelOptions = options.panel;
-            this._panelPosition = options.panel.position ?? 'bottom';
-            this._panelAlignment = options.panel.alignment ?? 'center';
-            this._addPanel();
-            if (options.panel.visible === false) {
-                this._setPanelVisible(WORKBENCH_IDS.panel, false);
+        if (workbench.toolPanel) {
+            this._toolPanelOptions = workbench.toolPanel;
+            this._toolPanelPosition = workbench.toolPanel.position ?? 'bottom';
+            this._toolPanelAlignment =
+                workbench.toolPanel.alignment ?? 'center';
+            this._addToolPanel();
+            if (workbench.toolPanel.visible === false) {
+                this._setPanelVisible(WORKBENCH_IDS.toolPanel, false);
             }
         }
     }
 
     /**
      * Add the activity bar and side bars in the flat body arrangement (beside
-     * the editor). A `left`/`right`-aligned panel later pulls the same-side
+     * the editor). A `left`/`right`-aligned tool panel later pulls the same-side
      * bars into the editor column so the panel spans them; this method always
      * produces the un-nested baseline, so it is also the reset step of a
-     * panel re-alignment.
+     * tool-panel re-alignment.
      */
     private _addSideRegions(): void {
         const primarySide = this._primarySideBarPosition;
@@ -371,8 +369,8 @@ export class WorkbenchComponent extends CompositeDisposable {
 
     /**
      * The body-row side-bar ids sitting on the given side of the editor, in
-     * visual left-to-right order, that a `left`/`right`-aligned panel can span
-     * by pulling into the editor column.
+     * visual left-to-right order, that a `left`/`right`-aligned tool panel can
+     * span by pulling into the editor column.
      *
      * When the activity bar is stacked (top/bottom) it shares a vertical branch
      * with the primary side bar; that column can't be pulled into the editor
@@ -426,7 +424,7 @@ export class WorkbenchComponent extends CompositeDisposable {
             position,
         });
         if (options.visible === false) {
-            this.setBandVisible(band, false);
+            this.setRegionVisible(band, false);
         }
     }
 
@@ -483,27 +481,27 @@ export class WorkbenchComponent extends CompositeDisposable {
 
     /**
      * Root-level index the body row occupies (the header, if present, always
-     * sits above it). A `justify` panel is inserted at the root, just below or
-     * above the body, so it spans the full width past the side bars.
+     * sits above it). A `justify` tool panel is inserted at the root, just below
+     * or above the body, so it spans the full width past the side bars.
      */
     private _rootBodyIndex(): number {
         return this._gridview.getPanel(WORKBENCH_IDS.header) ? 1 : 0;
     }
 
-    private _addPanel(): void {
-        const options = this._panelOptions;
+    private _addToolPanel(): void {
+        const options = this._toolPanelOptions;
         if (!options) {
             return;
         }
 
-        const position = this._panelPosition;
-        const alignment = this._panelAlignment;
-        const size = options.size ?? DEFAULT_PANEL_SIZE;
-        const minimum = options.minimumSize ?? DEFAULT_PANEL_MINIMUM_SIZE;
+        const position = this._toolPanelPosition;
+        const alignment = this._toolPanelAlignment;
+        const size = options.size ?? DEFAULT_TOOL_PANEL_SIZE;
+        const minimum = options.minimumSize ?? DEFAULT_TOOL_PANEL_MINIMUM_SIZE;
         const horizontal = position === 'left' || position === 'right';
 
         const add: AddGridviewComponentOptions = {
-            id: WORKBENCH_IDS.panel,
+            id: WORKBENCH_IDS.toolPanel,
             component: options.component,
             params: options.params,
             priority: LayoutPriority.Low,
@@ -542,18 +540,19 @@ export class WorkbenchComponent extends CompositeDisposable {
             (position === 'bottom' || position === 'top') &&
             (alignment === 'left' || alignment === 'right')
         ) {
-            this._spanPanelOverSide(alignment);
+            this._spanToolPanelOverSide(alignment);
         }
     }
 
     /**
-     * Extend a centred top/bottom panel to span the editor plus the side bars
-     * on `side`, by pulling those bars into the editor's column (so the panel,
-     * which sits below/above that column, spans them too). The opposite side's
-     * bars stay full height. Uses `moveGroup`, which re-resolves the reference
-     * after removing the moved bar, so these cross-branch moves are index-safe.
+     * Extend a centred top/bottom tool panel to span the editor plus the side
+     * bars on `side`, by pulling those bars into the editor's column (so the
+     * panel, which sits below/above that column, spans them too). The opposite
+     * side's bars stay full height. Uses `moveGroup`, which re-resolves the
+     * reference after removing the moved bar, so these cross-branch moves are
+     * index-safe.
      */
-    private _spanPanelOverSide(side: SideBarPosition): void {
+    private _spanToolPanelOverSide(side: SideBarPosition): void {
         const bars = this._sideBarsOnSide(side);
         // 'left': pull bars to the left of the editor, right-to-left, chaining
         //   the reference so the final order stays [bars..., editor].
@@ -571,20 +570,20 @@ export class WorkbenchComponent extends CompositeDisposable {
     }
 
     /** Move the tool panel to a different side of the editor. */
-    setPanelPosition(position: PanelPosition): void {
-        if (position === this._panelPosition || !this._panelOptions) {
+    setToolPanelPosition(position: ToolPanelPosition): void {
+        if (position === this._toolPanelPosition || !this._toolPanelOptions) {
             return;
         }
-        this._panelPosition = position;
+        this._toolPanelPosition = position;
         this._rebuildBody();
     }
 
     /** Change how a top/bottom tool panel spans horizontally. */
-    setPanelAlignment(alignment: PanelAlignment): void {
-        if (alignment === this._panelAlignment || !this._panelOptions) {
+    setToolPanelAlignment(alignment: ToolPanelAlignment): void {
+        if (alignment === this._toolPanelAlignment || !this._toolPanelOptions) {
             return;
         }
-        this._panelAlignment = alignment;
+        this._toolPanelAlignment = alignment;
         this._rebuildBody();
     }
 
@@ -601,8 +600,8 @@ export class WorkbenchComponent extends CompositeDisposable {
     }
 
     /** Toggle the tool panel between maximized and its previous layout. */
-    toggleMaximizedPanel(): void {
-        this.setPanelMaximized(!this._panelMaximized);
+    toggleMaximizedToolPanel(): void {
+        this.setToolPanelMaximized(!this._toolPanelMaximized);
     }
 
     /**
@@ -614,18 +613,18 @@ export class WorkbenchComponent extends CompositeDisposable {
      * mode: it is not serialized, and any layout change (position, alignment,
      * activity-bar move or flip) restores first.
      */
-    setPanelMaximized(maximized: boolean): void {
-        if (maximized === this._panelMaximized || !this._panelOptions) {
+    setToolPanelMaximized(maximized: boolean): void {
+        if (maximized === this._toolPanelMaximized || !this._toolPanelOptions) {
             return;
         }
-        const panel = this._gridview.getPanel(WORKBENCH_IDS.panel);
+        const panel = this._gridview.getPanel(WORKBENCH_IDS.toolPanel);
         if (!panel) {
             return;
         }
 
         if (maximized) {
-            // reveal the panel itself, then collapse everything around it
-            this._setPanelVisible(WORKBENCH_IDS.panel, true);
+            // reveal the tool panel itself, then collapse everything around it
+            this._setPanelVisible(WORKBENCH_IDS.toolPanel, true);
             this._maximizeRestore = [];
             for (const id of [
                 WORKBENCH_IDS.editor,
@@ -649,49 +648,49 @@ export class WorkbenchComponent extends CompositeDisposable {
             this._maximizeRestore = [];
         }
 
-        this._panelMaximized = maximized;
-        this._onDidChangePanelMaximized.fire(maximized);
+        this._toolPanelMaximized = maximized;
+        this._onDidChangeToolPanelMaximized.fire(maximized);
     }
 
     /**
      * Rebuild the body's side regions and tool panel in place. Used after a
-     * panel position/alignment change, an activity-bar reposition, or a flip
-     * that the flat-row reversal can't express: a `left`/`right` span nests the
-     * same-side bars into the editor column and a stacked activity bar nests
+     * tool-panel position/alignment change, an activity-bar reposition, or a
+     * flip that the flat-row reversal can't express: a `left`/`right` span nests
+     * the same-side bars into the editor column and a stacked activity bar nests
      * into the primary side bar column, so those structures must be torn down
      * and re-added. The editor is never touched, so the dockview is preserved;
-     * the side bar / panel / activity bar components are re-created (their
+     * the side bar / tool panel / activity bar components are re-created (their
      * content re-initialises). Per-region visibility is captured and restored.
      */
     private _rebuildBody(): void {
         // A layout change exits maximize first, so the captured visibility below
         // reflects the real per-region state rather than the collapsed one.
-        this.setPanelMaximized(false);
+        this.setToolPanelMaximized(false);
 
         const wasVisible = (region: WorkbenchRegion): boolean =>
             this.isRegionVisible(region);
         const visibility = {
-            panel: wasVisible('panel'),
+            toolPanel: wasVisible('toolPanel'),
             activityBar: wasVisible('activityBar'),
             primarySideBar: wasVisible('primarySideBar'),
             secondarySideBar: wasVisible('secondarySideBar'),
         };
 
-        const existing = this._gridview.getPanel(WORKBENCH_IDS.panel);
+        const existing = this._gridview.getPanel(WORKBENCH_IDS.toolPanel);
         if (existing) {
             this._gridview.removePanel(existing);
         }
         this._removeSideRegions();
 
         this._addSideRegions();
-        this._addPanel();
+        this._addToolPanel();
 
         // Restore any regions that were hidden before the rebuild.
         for (const region of [
             'activityBar',
             'primarySideBar',
             'secondarySideBar',
-            'panel',
+            'toolPanel',
         ] as const) {
             if (!visibility[region]) {
                 this.setRegionVisible(region, false);
@@ -708,32 +707,34 @@ export class WorkbenchComponent extends CompositeDisposable {
      * editor column. A flip cannot be expressed as a flat body-row reversal
      * while the panel is in the body, so those cases rebuild instead.
      */
-    private _panelIsInBody(): boolean {
-        if (!this._panelOptions) {
+    private _toolPanelIsInBody(): boolean {
+        if (!this._toolPanelOptions) {
             return false;
         }
         const topOrBottom =
-            this._panelPosition === 'bottom' || this._panelPosition === 'top';
-        return !(topOrBottom && this._panelAlignment === 'justify');
+            this._toolPanelPosition === 'bottom' ||
+            this._toolPanelPosition === 'top';
+        return !(topOrBottom && this._toolPanelAlignment === 'justify');
     }
 
     /**
      * Flip the primary side bar (and the activity bar that tracks it) to the
      * given side. The secondary side bar mirrors to the opposite side.
      *
-     * With no body panel (or only a full-width `justify` panel at the root) the
-     * body is a flat `[bars…, editor, bars…]` row, so the flip is a reversal of
-     * that row done with a sequence of "move to the front" operations: each move
-     * sends a panel to the far left, which never crosses its own removal point,
-     * so it sidesteps the stale-index hazard of a single right-crossing move.
-     * Side bars are moved, not recreated, so their contents and widths survive.
+     * With no body tool panel (or only a full-width `justify` panel at the root)
+     * the body is a flat `[bars…, editor, bars…]` row, so the flip is a reversal
+     * of that row done with a sequence of "move to the front" operations: each
+     * move sends a panel to the far left, which never crosses its own removal
+     * point, so it sidesteps the stale-index hazard of a single right-crossing
+     * move. Side bars are moved, not recreated, so their contents and widths
+     * survive.
      *
-     * When the row is no longer flat — a body panel is present
-     * ({@link _panelIsInBody}: a centred/aligned panel nested into the editor
+     * When the row is no longer flat — a body tool panel is present
+     * ({@link _toolPanelIsInBody}: a centred/aligned panel nested into the editor
      * column, or a left/right panel as an extra sibling), or the activity bar
      * is stacked into the primary side bar column
      * ({@link _activityBarIsStacked}) — the reversal cannot express the flip, so
-     * those cases rebuild the body (like a panel re-alignment does), which
+     * those cases rebuild the body (like a tool-panel re-alignment does), which
      * re-creates the side bar components.
      */
     setPrimarySideBarPosition(position: SideBarPosition): void {
@@ -742,12 +743,12 @@ export class WorkbenchComponent extends CompositeDisposable {
         }
         // A flip is a layout change; exit maximize so the reversal below runs
         // against the real (visible) body rather than the collapsed one.
-        this.setPanelMaximized(false);
+        this.setToolPanelMaximized(false);
 
         const oldPosition = this._primarySideBarPosition;
         this._primarySideBarPosition = position;
 
-        if (this._panelIsInBody() || this._activityBarIsStacked()) {
+        if (this._toolPanelIsInBody() || this._activityBarIsStacked()) {
             this._rebuildBody();
             return;
         }
@@ -805,34 +806,6 @@ export class WorkbenchComponent extends CompositeDisposable {
         }
     }
 
-    /**
-     * Select the active view container shown in the primary side bar (the
-     * view an activity-bar item maps to). Reveals the primary side bar if it is
-     * hidden, and fires {@link onDidChangeActiveViewContainer} so the side bar
-     * component can render the selected view. Selecting the already-active
-     * container while the side bar is visible toggles it shut, matching VS
-     * Code's activity-bar behaviour.
-     */
-    setActiveViewContainer(id: string): void {
-        const sideBarVisible = this.isRegionVisible('primarySideBar');
-
-        if (id === this._activeViewContainer && sideBarVisible) {
-            this.setRegionVisible('primarySideBar', false);
-            return;
-        }
-
-        const changed = id !== this._activeViewContainer;
-        this._activeViewContainer = id;
-
-        if (!sideBarVisible) {
-            this.setRegionVisible('primarySideBar', true);
-        }
-
-        if (changed) {
-            this._onDidChangeActiveViewContainer.fire(id);
-        }
-    }
-
     setRegionVisible(region: WorkbenchRegion, visible: boolean): void {
         this._setPanelVisible(WORKBENCH_IDS[region], visible);
     }
@@ -840,14 +813,6 @@ export class WorkbenchComponent extends CompositeDisposable {
     isRegionVisible(region: WorkbenchRegion): boolean {
         const panel = this._gridview.getPanel(WORKBENCH_IDS[region]);
         return panel?.api.isVisible ?? false;
-    }
-
-    setBandVisible(band: WorkbenchBand, visible: boolean): void {
-        this.setRegionVisible(band, visible);
-    }
-
-    isBandVisible(band: WorkbenchBand): boolean {
-        return this.isRegionVisible(band);
     }
 
     layout(width: number, height: number): void {
@@ -858,34 +823,32 @@ export class WorkbenchComponent extends CompositeDisposable {
         // Maximize is a transient mode and is not serialized. If it is active
         // the editor and side bars are collapsed, so restore them for the
         // snapshot and re-maximize afterwards, capturing the real layout.
-        const wasMaximized = this._panelMaximized;
+        const wasMaximized = this._toolPanelMaximized;
         if (wasMaximized) {
-            this.setPanelMaximized(false);
+            this.setToolPanelMaximized(false);
         }
         const json: SerializedWorkbench = {
             grid: this._gridview.toJSON(),
             dockview: this._editorPanel?.dockview.toJSON(),
             primarySideBarPosition: this._primarySideBarPosition,
             activityBarPosition: this._activityBarPosition,
-            panelPosition: this._panelPosition,
-            panelAlignment: this._panelAlignment,
-            activeViewContainer: this._activeViewContainer,
+            toolPanelPosition: this._toolPanelPosition,
+            toolPanelAlignment: this._toolPanelAlignment,
         };
         if (wasMaximized) {
-            this.setPanelMaximized(true);
+            this.setToolPanelMaximized(true);
         }
         return json;
     }
 
     fromJSON(data: SerializedWorkbench): void {
         // The serialized grid tree already encodes the flipped side-bar order
-        // and the panel placement; keep our tracked state in sync so later
+        // and the tool-panel placement; keep our tracked state in sync so later
         // flips/re-alignments start from the right structure.
         this._primarySideBarPosition = data.primarySideBarPosition ?? 'left';
         this._activityBarPosition = data.activityBarPosition ?? 'default';
-        this._panelPosition = data.panelPosition ?? 'bottom';
-        this._panelAlignment = data.panelAlignment ?? 'center';
-        this._activeViewContainer = data.activeViewContainer;
+        this._toolPanelPosition = data.toolPanelPosition ?? 'bottom';
+        this._toolPanelAlignment = data.toolPanelAlignment ?? 'center';
         // Rebuilds the outer grid, which re-creates the editor panel (and a
         // fresh dockview) through createComponent, repointing _editorPanel.
         this._gridview.fromJSON(data.grid);

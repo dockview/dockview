@@ -1,6 +1,6 @@
 import 'dockview/dist/styles/dockview.css';
 import {
-    createWorkbench,
+    createDockview,
     GridviewPanel,
     IContentRenderer,
     IFrameworkPart,
@@ -46,12 +46,12 @@ class HeaderPanel extends GridviewPanel {
 
         const align = document.createElement('button');
         const sync = () => {
-            align.textContent = `Panel: ${workbench?.panelAlignment ?? 'center'}`;
+            align.textContent = `Panel: ${workbench?.toolPanelAlignment ?? 'center'}`;
         };
         align.addEventListener('click', () => {
             if (!workbench) return;
-            workbench.setPanelAlignment(
-                workbench.panelAlignment === 'center' ? 'justify' : 'center'
+            workbench.setToolPanelAlignment(
+                workbench.toolPanelAlignment === 'center' ? 'justify' : 'center'
             );
             sync();
         });
@@ -96,36 +96,40 @@ const bandHtml: Record<string, string> = {
     status: '<div style="display:flex;align-items:center;gap:16px;height:100%;padding:0 12px;background:#007acc;color:#fff;font-size:12px;box-sizing:border-box"><span>⎇ main</span><span style="flex:1"></span><span>UTF-8</span><span>TypeScript</span></div>',
 };
 
-const api = createWorkbench(document.getElementById('app')!, {
-    header: { component: 'header' },
-    statusBar: { component: 'status' },
-    activityBar: { component: 'activity' },
-    primarySideBar: { component: 'explorer' },
-    secondarySideBar: { component: 'outline' },
-    panel: { component: 'terminal', position: 'bottom', alignment: 'center' },
-    createComponent: (options) => {
-        if (options.name === 'header') {
-            return new HeaderPanel(options.id, options.name);
-        }
-        return new BandPanel(
-            options.id,
-            options.name,
-            bandHtml[options.name] ?? ''
-        );
-    },
-    dockview: {
-        theme:
-            (window as any).__dockviewColorMode === 'light'
-                ? themeLight
-                : themeAbyss,
-        createComponent: () => new EditorPanel(),
+const api = createDockview(document.getElementById('app')!, {
+    theme:
+        (window as any).__dockviewColorMode === 'light'
+            ? themeLight
+            : themeAbyss,
+    createComponent: () => new EditorPanel(),
+    workbench: {
+        header: { component: 'header' },
+        statusBar: { component: 'status' },
+        activityBar: { component: 'activity' },
+        primarySideBar: { component: 'explorer' },
+        secondarySideBar: { component: 'outline' },
+        toolPanel: {
+            component: 'terminal',
+            position: 'bottom',
+            alignment: 'center',
+        },
+        createComponent: (options) => {
+            if (options.name === 'header') {
+                return new HeaderPanel(options.id, options.name);
+            }
+            return new BandPanel(
+                options.id,
+                options.name,
+                bandHtml[options.name] ?? ''
+            );
+        },
     },
 });
 
-workbench = api;
+workbench = api.workbench;
 
-api.dockview.addPanel({ id: 'index.ts', component: 'editor', title: 'index.ts' });
-api.dockview.addPanel({
+api.addPanel({ id: 'index.ts', component: 'editor', title: 'index.ts' });
+api.addPanel({
     id: 'readme.md',
     component: 'editor',
     title: 'readme.md',

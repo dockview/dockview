@@ -28,6 +28,7 @@ import { FloatingGroupOptions } from './dockviewComponent';
 import { Constraints } from '../gridview/gridviewPanel';
 import { AcceptableEvent, IAcceptableEvent } from '../events';
 import { DockviewTheme } from './theme';
+import type { WorkbenchOptions } from '../workbench/options';
 import { ITabGroup } from './tabGroup';
 import { CspNonceProvider } from '../dom';
 export { type CspNonceProvider };
@@ -852,6 +853,13 @@ export interface DockviewFrameworkOptions {
     createContextMenuItemComponent?: (
         options: CreateContextMenuItemComponentOptions
     ) => IContextMenuItemRenderer | undefined;
+    /**
+     * Opt in to VS Code-style workbench chrome around the dockview: fixed
+     * header/status bands, activity bar, primary and secondary side bars, and a
+     * tool panel. Omit to render a plain dockview. When set, {@link createDockview}
+     * wraps the dockview in the frame and exposes the chrome through `api.workbench`.
+     */
+    workbench?: WorkbenchOptions;
 }
 
 export type DockviewComponentOptions = DockviewOptions &

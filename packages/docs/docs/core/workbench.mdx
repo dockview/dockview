@@ -5,7 +5,7 @@ description: "Wrap a dockview editor in a VS Code-style shell: header, status ba
 
 import { CodeRunner } from '@site/src/components/ui/codeRunner';
 
-The workbench wraps a dockview editor in a VS Code-style frame: fixed chrome bands (header, status bar), an activity bar, primary and secondary side bars, and a tool panel. The editor in the centre is a full dockview instance, so tabs, splitting, floating groups, popout windows and edge groups all keep working inside it.
+The workbench is opt-in chrome around a dockview editor, giving it a VS Code-style frame: fixed bands (header, status bar), an activity bar, primary and secondary side bars, and a tool panel. Pass a `workbench` option to `createDockview` to turn it on; omit it and you get a plain dockview. The editor in the centre is the dockview itself, so tabs, splitting, floating groups, popout windows and edge groups all keep working. The chrome is reached at runtime through `api.workbench`.
 
 <CodeRunner id="dockview/workbench" height={540} />
 
@@ -20,72 +20,58 @@ A workbench is built from an outer grid of regions around the editor:
 | `activityBar` | Fixed-size icon strip: a vertical rail next to the primary side bar, or a top/bottom strip stacked into its column. |
 | `primarySideBar` | Resizable side bar (VS Code's Explorer side). |
 | `secondarySideBar` | Resizable side bar, always mounted opposite the primary. |
-| `panel` | The tool panel (terminal / problems / output). |
+| `toolPanel` | The tool panel (terminal / problems / output). |
 
-Every region is optional. Each names a `component` that the workbench resolves through `createComponent`, the same contract used by gridview. The editor is always present.
+Every region is optional. Each names a `component` that the workbench resolves through the `workbench.createComponent` factory, the same contract used by gridview. The editor is always present and uses the dockview's own top-level `createComponent`.
 
 ## Creating a workbench
 
 ```ts
 // JavaScript
-const api = createWorkbench(element, {
-    header: { component: 'header' },
-    statusBar: { component: 'status' },
-    activityBar: { component: 'activity' },
-    primarySideBar: { component: 'explorer' },
-    secondarySideBar: { component: 'outline' },
-    panel: { component: 'terminal', position: 'bottom', alignment: 'center' },
+const api = createDockview(element, {
+    // the editor is the dockview itself
     createComponent: (options) => {
-        /* return a GridviewPanel for the bands / side bars / panel */
+        /* return an IContentRenderer for the editor panels */
     },
-    dockview: {
-        // options for the embedded editor (theme, dnd, ...)
+    // opt-in chrome
+    workbench: {
         createComponent: (options) => {
-            /* return an IContentRenderer for the editor panels */
+            /* return a GridviewPanel for the bands / side bars / tool panel */
         },
+        header: { component: 'header' },
+        statusBar: { component: 'status' },
+        activityBar: { component: 'activity' },
+        primarySideBar: { component: 'explorer' },
+        secondarySideBar: { component: 'outline' },
+        toolPanel: { component: 'terminal', position: 'bottom', alignment: 'center' },
     },
 });
 
 // the editor is a normal dockview
-api.dockview.addPanel({ id: 'file.ts', component: 'editor', title: 'file.ts' });
+api.addPanel({ id: 'file.ts', component: 'editor', title: 'file.ts' });
+
+// the chrome hangs off api.workbench
+api.workbench?.togglePrimarySideBar();
 ```
 
-In React, Vue and Angular the same regions are set as props / inputs. Bands, side bars and the panel come from a `components` map; the editor panels come from an `editorComponents` map.
+In React, Vue and Angular the same regions are set through a `workbench` prop / input. The chrome components come from `workbench.components`; the editor panels come from the dockview's own `components` map.
+
+`api.workbench` is `undefined` when no `workbench` option was supplied, so a plain dockview is unaffected.
 
 ## Side bar side
 
 The primary side bar and the activity bar move together and can sit on either side. The secondary side bar always mirrors to the opposite side. Flip them at runtime:
 
 ```ts
-api.setPrimarySideBarPosition('right'); // activity bar follows; secondary mirrors
-const side = api.primarySideBarPosition; // 'left' | 'right'
+api.workbench.setPrimarySideBarPosition('right'); // activity bar follows; secondary mirrors
+const side = api.workbench.primarySideBarPosition; // 'left' | 'right'
 ```
 
 Set the starting side with the `primarySideBarPosition` option.
 
 Flipping normally just moves the side bars, preserving their widths and contents. The exception is when a tool panel currently sits in the body (a top/bottom panel with `center`, `left` or `right` alignment, or a `left`/`right` panel): the flip re-places the panel against the mirrored side bars and the side bar components are re-created (their content re-initialises). A `justify` panel or no panel flips without re-creating anything.
 
-## Activity bar and view containers
-
-The activity bar selects which view the primary side bar shows. The workbench tracks an active view container id and fires an event when it changes; the side bar component renders the selected view.
-
-```ts
-// an activity-bar item was clicked
-api.setActiveViewContainer('search'); // reveals the side bar if hidden
-
-// clicking the already-active item again toggles the side bar shut
-api.setActiveViewContainer('search');
-
-const active = api.activeViewContainer; // 'search'
-
-api.onDidChangeActiveViewContainer((id) => {
-    // swap the primary side bar content to the view for `id`
-});
-```
-
-Set the initial view with the `activeViewContainer` option. The active view container is serialized.
-
-### Activity bar placement
+## Activity bar placement
 
 By default the activity bar is a fixed-width vertical rail on the outer edge of the primary side bar, following it when the side bar flips. It can instead sit as a fixed-height horizontal strip at the top or bottom of the primary side bar column:
 
@@ -94,13 +80,13 @@ By default the activity bar is a fixed-width vertical rail on the outer edge of 
 activityBar: { component: 'activity', position: 'top' }, // 'default' | 'top' | 'bottom'
 
 // or at runtime
-api.setActivityBarPosition('top');
-const where = api.activityBarPosition; // 'default' | 'top' | 'bottom'
+api.workbench.setActivityBarPosition('top');
+const where = api.workbench.activityBarPosition; // 'default' | 'top' | 'bottom'
 ```
 
 `position` is serialized. Switching it at runtime re-creates the side bar components (their content re-initialises), as does flipping the side bar while the activity bar is stacked. Alignment note: a `left`/`right`-aligned tool panel spans the editor only on the side that holds a stacked activity bar (the stacked column can't be pulled under the panel); the opposite side spans as usual.
 
-## Panel position and alignment
+## Tool panel position and alignment
 
 The tool panel can sit on any side of the editor, and a top or bottom panel can span either the editor column or the full width.
 
@@ -112,8 +98,8 @@ The tool panel can sit on any side of the editor, and a top or bottom panel can 
   - `'right'` spans the editor plus the side bars to its right; the left side bars stay full height.
 
 ```ts
-api.setPanelPosition('right');
-api.setPanelAlignment('justify');
+api.workbench.setToolPanelPosition('right');
+api.workbench.setToolPanelAlignment('justify');
 ```
 
 ## Visibility
@@ -121,35 +107,35 @@ api.setPanelAlignment('justify');
 Every region can be shown or hidden, which redistributes the space to the editor:
 
 ```ts
-api.setHeaderVisible(false);
-api.togglePrimarySideBar();
-api.toggleSecondarySideBar();
-api.togglePanel();
-api.setActivityBarVisible(false);
+api.workbench.setHeaderVisible(false);
+api.workbench.togglePrimarySideBar();
+api.workbench.toggleSecondarySideBar();
+api.workbench.toggleToolPanel();
+api.workbench.setActivityBarVisible(false);
 ```
 
-## Maximizing the panel
+## Maximizing the tool panel
 
 The tool panel can be maximized to fill the body, hiding the editor and side regions, then restored to the previous layout:
 
 ```ts
-api.toggleMaximizedPanel();
-api.setPanelMaximized(true);
-const maxed = api.isPanelMaximized; // boolean
+api.workbench.toggleMaximizedToolPanel();
+api.workbench.setToolPanelMaximized(true);
+const maxed = api.workbench.isToolPanelMaximized; // boolean
 
-api.onDidChangePanelMaximized((maximized) => {
-    // update the panel's maximize button, etc.
+api.workbench.onDidChangeToolPanelMaximized((maximized) => {
+    // update the tool panel's maximize button, etc.
 });
 ```
 
-Restoring returns the editor and side bars to their previous sizes, and a region that was already hidden stays hidden. Maximize is a transient mode: it is not serialized, and any layout change (panel position or alignment, an activity-bar move, or a side bar flip) restores first.
+Restoring returns the editor and side bars to their previous sizes, and a region that was already hidden stays hidden. Maximize is a transient mode: it is not serialized, and any layout change (tool panel position or alignment, an activity-bar move, or a side bar flip) restores first.
 
 ## Theming
 
-Each region's container carries a class (`dv-workbench-header`, `dv-workbench-activity-bar`, `dv-workbench-primary-side-bar`, `dv-workbench-panel`, and so on), and the workbench root carries `dv-workbench`. The bundled stylesheet gives these a themed surface derived from the active dockview theme, so a band component that sets no background of its own sits on the right colour automatically. Pass the theme class through the workbench `className` (React/Vue/Angular) so the tokens resolve:
+Each region's container carries a class (`dv-workbench-header`, `dv-workbench-activity-bar`, `dv-workbench-primary-side-bar`, `dv-workbench-tool-panel`, and so on), and the workbench root carries `dv-workbench`. The bundled stylesheet gives these a themed surface derived from the active dockview theme, so a band component that sets no background of its own sits on the right colour automatically. Pass the theme class through the workbench `className` so the tokens resolve:
 
-```tsx
-<WorkbenchReact className="dockview-theme-abyss" ... />
+```ts
+workbench: { className: 'dockview-theme-abyss', /* ... */ }
 ```
 
 Restyle any region by overriding its token:
@@ -165,4 +151,4 @@ Restyle any region by overriding its token:
 
 ## Serialization
 
-`api.toJSON()` captures the outer grid (region sizes and visibility), the side bar side, the panel position and alignment, and the embedded dockview state (edge groups included). `api.fromJSON(state)` restores all of it.
+`api.workbench.toJSON()` captures the outer grid (region sizes and visibility), the side bar side, the activity bar placement, the tool panel position and alignment, and the embedded dockview state (edge groups included). `api.workbench.fromJSON(state)` restores all of it.

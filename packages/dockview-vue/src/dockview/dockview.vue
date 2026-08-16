@@ -26,6 +26,7 @@ import {
     findComponent,
     resolveComponent,
 } from '../utils';
+import { VueGridviewPanelView } from '../gridview/view';
 import DockviewPortals from '../dockviewPortals.vue';
 import type { IDockviewVueProps, VueEvents } from './types';
 
@@ -366,9 +367,40 @@ onMounted(() => {
         };
     }
 
+    const workbenchProps = props.workbench;
+
     const api = createDockview(el.value, {
         ...coreOptions,
         ...frameworkOptions,
+        ...(workbenchProps
+            ? {
+                  workbench: {
+                      createComponent: (options) => {
+                          const component = findComponent(
+                              inst,
+                              options.name!,
+                              workbenchProps.components
+                          );
+                          return new VueGridviewPanelView(
+                              options.id,
+                              options.name,
+                              component! as any,
+                              inst,
+                              registry
+                          );
+                      },
+                      header: workbenchProps.header,
+                      statusBar: workbenchProps.statusBar,
+                      activityBar: workbenchProps.activityBar,
+                      primarySideBar: workbenchProps.primarySideBar,
+                      secondarySideBar: workbenchProps.secondarySideBar,
+                      toolPanel: workbenchProps.toolPanel,
+                      primarySideBarPosition:
+                          workbenchProps.primarySideBarPosition,
+                      className: workbenchProps.className,
+                  },
+              }
+            : {}),
     });
 
     const { clientWidth, clientHeight } = el.value;

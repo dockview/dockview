@@ -13,7 +13,6 @@ export * from './lib/dockview/dockview-angular.component';
 export * from './lib/gridview/gridview-angular.component';
 export * from './lib/paneview/paneview-angular.component';
 export * from './lib/splitview/splitview-angular.component';
-export * from './lib/workbench/workbench-angular.component';
 
 // Types
 export {
@@ -41,11 +40,6 @@ export {
     SplitviewAngularEvents,
     SplitviewAngularReadyEvent,
 } from './lib/splitview/types';
-export {
-    WorkbenchAngularOptions,
-    WorkbenchAngularEvents,
-    WorkbenchAngularReadyEvent,
-} from './lib/workbench/types';
 
 // Utilities
 export * from './lib/utils/angular-renderer';

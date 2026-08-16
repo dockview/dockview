@@ -7,8 +7,8 @@ import {
     DEFAULT_ACTIVITY_BAR_SIZE,
     DEFAULT_HEADER_SIZE,
     DEFAULT_STATUS_BAR_SIZE,
-    type PanelAlignment,
-    type PanelPosition,
+    type ToolPanelAlignment,
+    type ToolPanelPosition,
     type SideBarPosition,
     WORKBENCH_IDS,
 } from '../../workbench/options';
@@ -74,31 +74,34 @@ function createWorkbench(
         secondarySideBar?: boolean;
         primarySideBarPosition?: SideBarPosition;
         panel?: {
-            position?: PanelPosition;
-            alignment?: PanelAlignment;
+            position?: ToolPanelPosition;
+            alignment?: ToolPanelAlignment;
             size?: number;
             visible?: boolean;
         };
     } = {}
 ): WorkbenchComponent {
     return new WorkbenchComponent(container, {
-        header: opts.header ? { component: 'header' } : undefined,
-        statusBar: opts.statusBar ? { component: 'status' } : undefined,
-        activityBar: opts.activityBar
-            ? { component: 'activity', position: opts.activityBarPosition }
-            : undefined,
-        primarySideBar: opts.primarySideBar
-            ? { component: 'primary' }
-            : undefined,
-        secondarySideBar: opts.secondarySideBar
-            ? { component: 'secondary' }
-            : undefined,
-        panel: opts.panel ? { component: 'panel', ...opts.panel } : undefined,
-        primarySideBarPosition: opts.primarySideBarPosition,
-        createComponent: (options) => new TestBand(options.id, options.name),
-        dockview: {
+        createComponent: (options) =>
+            new TestEditorPanel(options.id, options.name),
+        workbench: {
             createComponent: (options) =>
-                new TestEditorPanel(options.id, options.name),
+                new TestBand(options.id, options.name),
+            header: opts.header ? { component: 'header' } : undefined,
+            statusBar: opts.statusBar ? { component: 'status' } : undefined,
+            activityBar: opts.activityBar
+                ? { component: 'activity', position: opts.activityBarPosition }
+                : undefined,
+            primarySideBar: opts.primarySideBar
+                ? { component: 'primary' }
+                : undefined,
+            secondarySideBar: opts.secondarySideBar
+                ? { component: 'secondary' }
+                : undefined,
+            toolPanel: opts.panel
+                ? { component: 'panel', ...opts.panel }
+                : undefined,
+            primarySideBarPosition: opts.primarySideBarPosition,
         },
     });
 }
@@ -162,8 +165,8 @@ describe('WorkbenchComponent', () => {
         workbench.layout(1000, 800);
 
         // no header/status requested
-        expect(workbench.isBandVisible('header')).toBe(false);
-        expect(workbench.isBandVisible('statusBar')).toBe(false);
+        expect(workbench.isRegionVisible('header')).toBe(false);
+        expect(workbench.isRegionVisible('statusBar')).toBe(false);
 
         workbench.dispose();
     });
@@ -178,8 +181,8 @@ describe('WorkbenchComponent', () => {
         expect(container.querySelector('.test-band-header')).toBeTruthy();
         expect(container.querySelector('.test-band-status')).toBeTruthy();
 
-        expect(workbench.isBandVisible('header')).toBe(true);
-        expect(workbench.isBandVisible('statusBar')).toBe(true);
+        expect(workbench.isRegionVisible('header')).toBe(true);
+        expect(workbench.isRegionVisible('statusBar')).toBe(true);
 
         workbench.dispose();
     });
@@ -208,28 +211,28 @@ describe('WorkbenchComponent', () => {
         const workbench = createWorkbench(container, { header: true });
         workbench.layout(1000, 800);
 
-        expect(workbench.isBandVisible('header')).toBe(true);
-        workbench.setBandVisible('header', false);
-        expect(workbench.isBandVisible('header')).toBe(false);
-        workbench.setBandVisible('header', true);
-        expect(workbench.isBandVisible('header')).toBe(true);
+        expect(workbench.isRegionVisible('header')).toBe(true);
+        workbench.setRegionVisible('header', false);
+        expect(workbench.isRegionVisible('header')).toBe(false);
+        workbench.setRegionVisible('header', true);
+        expect(workbench.isRegionVisible('header')).toBe(true);
 
         workbench.dispose();
     });
 
     test('a band can start hidden', () => {
         const workbench = new WorkbenchComponent(container, {
-            header: { component: 'header', visible: false },
             createComponent: (options) =>
-                new TestBand(options.id, options.name),
-            dockview: {
+                new TestEditorPanel(options.id, options.name),
+            workbench: {
                 createComponent: (options) =>
-                    new TestEditorPanel(options.id, options.name),
+                    new TestBand(options.id, options.name),
+                header: { component: 'header', visible: false },
             },
         });
         workbench.layout(1000, 800);
 
-        expect(workbench.isBandVisible('header')).toBe(false);
+        expect(workbench.isRegionVisible('header')).toBe(false);
 
         workbench.dispose();
     });
@@ -258,8 +261,8 @@ describe('WorkbenchComponent', () => {
             'panel_1',
             'panel_2',
         ]);
-        expect(restored.isBandVisible('header')).toBe(true);
-        expect(restored.isBandVisible('statusBar')).toBe(true);
+        expect(restored.isRegionVisible('header')).toBe(true);
+        expect(restored.isRegionVisible('statusBar')).toBe(true);
 
         restored.dispose();
         workbench.dispose();
@@ -423,12 +426,15 @@ describe('WorkbenchComponent', () => {
 
         test('a side bar can start hidden', () => {
             const workbench = new WorkbenchComponent(container, {
-                secondarySideBar: { component: 'secondary', visible: false },
                 createComponent: (options) =>
-                    new TestBand(options.id, options.name),
-                dockview: {
+                    new TestEditorPanel(options.id, options.name),
+                workbench: {
                     createComponent: (options) =>
-                        new TestEditorPanel(options.id, options.name),
+                        new TestBand(options.id, options.name),
+                    secondarySideBar: {
+                        component: 'secondary',
+                        visible: false,
+                    },
                 },
             });
             workbench.layout(1000, 800);
@@ -621,13 +627,13 @@ describe('WorkbenchComponent', () => {
                 primarySideBar: true,
                 secondarySideBar: true,
                 panel: panel as {
-                    position?: PanelPosition;
-                    alignment?: PanelAlignment;
+                    position?: ToolPanelPosition;
+                    alignment?: ToolPanelAlignment;
                 },
             });
             workbench.layout(1000, 800);
 
-            expect(workbench.isRegionVisible('panel')).toBe(true);
+            expect(workbench.isRegionVisible('toolPanel')).toBe(true);
             expect(railOf(workbench).maximumHeight).toBe(
                 DEFAULT_ACTIVITY_BAR_SIZE
             );
@@ -635,7 +641,7 @@ describe('WorkbenchComponent', () => {
             // and it still flips without throwing
             workbench.setPrimarySideBarPosition('right');
             expect(workbench.primarySideBarPosition).toBe('right');
-            expect(workbench.isRegionVisible('panel')).toBe(true);
+            expect(workbench.isRegionVisible('toolPanel')).toBe(true);
 
             workbench.dispose();
         });
@@ -674,20 +680,20 @@ describe('WorkbenchComponent', () => {
             const workbench = createWorkbench(container, {
                 ...allBars,
                 panel: panel as {
-                    position?: PanelPosition;
-                    alignment?: PanelAlignment;
+                    position?: ToolPanelPosition;
+                    alignment?: ToolPanelAlignment;
                 },
             });
             workbench.layout(1000, 800);
 
-            expect(workbench.isRegionVisible('panel')).toBe(true);
+            expect(workbench.isRegionVisible('toolPanel')).toBe(true);
 
             workbench.setPrimarySideBarPosition('right');
 
             expect(workbench.primarySideBarPosition).toBe('right');
             barsAreFlipped(workbench);
             // the panel survives the flip in every configuration
-            expect(workbench.isRegionVisible('panel')).toBe(true);
+            expect(workbench.isRegionVisible('toolPanel')).toBe(true);
             expect(regionEl(workbench.element, 'panel')).toBeTruthy();
 
             workbench.dispose();
@@ -700,13 +706,13 @@ describe('WorkbenchComponent', () => {
             });
             workbench.layout(1000, 800);
 
-            workbench.setRegionVisible('panel', false);
-            expect(workbench.isRegionVisible('panel')).toBe(false);
+            workbench.setRegionVisible('toolPanel', false);
+            expect(workbench.isRegionVisible('toolPanel')).toBe(false);
 
             workbench.setPrimarySideBarPosition('right');
 
             barsAreFlipped(workbench);
-            expect(workbench.isRegionVisible('panel')).toBe(false);
+            expect(workbench.isRegionVisible('toolPanel')).toBe(false);
 
             workbench.dispose();
         });
@@ -730,7 +736,7 @@ describe('WorkbenchComponent', () => {
             expect(precedes(activity, primary)).toBe(true);
             expect(precedes(primary, editor)).toBe(true);
             expect(precedes(editor, secondary)).toBe(true);
-            expect(workbench.isRegionVisible('panel')).toBe(true);
+            expect(workbench.isRegionVisible('toolPanel')).toBe(true);
 
             workbench.dispose();
         });
@@ -741,7 +747,9 @@ describe('WorkbenchComponent', () => {
             (workbench as unknown as { _gridview: GridviewComponent })
                 ._gridview;
         const panelOf = (workbench: WorkbenchComponent): GridviewPanel =>
-            gridOf(workbench).getPanel(WORKBENCH_IDS.panel) as GridviewPanel;
+            gridOf(workbench).getPanel(
+                WORKBENCH_IDS.toolPanel
+            ) as GridviewPanel;
         const editorOf = (workbench: WorkbenchComponent): GridviewPanel =>
             gridOf(workbench).getPanel(WORKBENCH_IDS.editor) as GridviewPanel;
 
@@ -749,9 +757,9 @@ describe('WorkbenchComponent', () => {
             const workbench = createWorkbench(container, { panel: {} });
             workbench.layout(1000, 800);
 
-            expect(workbench.isRegionVisible('panel')).toBe(true);
-            expect(workbench.panelPosition).toBe('bottom');
-            expect(workbench.panelAlignment).toBe('center');
+            expect(workbench.isRegionVisible('toolPanel')).toBe(true);
+            expect(workbench.toolPanelPosition).toBe('bottom');
+            expect(workbench.toolPanelAlignment).toBe('center');
 
             workbench.dispose();
         });
@@ -856,19 +864,19 @@ describe('WorkbenchComponent', () => {
 
             expect(panelOf(workbench).width).toBe(editorOf(workbench).width);
 
-            workbench.setPanelAlignment('left');
-            expect(workbench.panelAlignment).toBe('left');
+            workbench.setToolPanelAlignment('left');
+            expect(workbench.toolPanelAlignment).toBe('left');
             expect(panelOf(workbench).width).toBeGreaterThan(
                 editorOf(workbench).width
             );
             expect(panelOf(workbench).width).toBeLessThan(1000);
 
             // back to center: the pulled-in bars are un-nested again
-            workbench.setPanelAlignment('center');
+            workbench.setToolPanelAlignment('center');
             expect(panelOf(workbench).width).toBe(editorOf(workbench).width);
 
             // and out to full width
-            workbench.setPanelAlignment('justify');
+            workbench.setToolPanelAlignment('justify');
             expect(panelOf(workbench).width).toBe(1000);
 
             workbench.dispose();
@@ -910,7 +918,7 @@ describe('WorkbenchComponent', () => {
             workbench.dispose();
         });
 
-        test('setPanelAlignment switches centre <-> justify', () => {
+        test('setToolPanelAlignment switches centre <-> justify', () => {
             const workbench = createWorkbench(container, {
                 primarySideBar: true,
                 secondarySideBar: true,
@@ -920,9 +928,9 @@ describe('WorkbenchComponent', () => {
 
             expect(panelOf(workbench).width).toBe(editorOf(workbench).width);
 
-            workbench.setPanelAlignment('justify');
+            workbench.setToolPanelAlignment('justify');
 
-            expect(workbench.panelAlignment).toBe('justify');
+            expect(workbench.toolPanelAlignment).toBe('justify');
             expect(panelOf(workbench).width).toBeGreaterThan(
                 editorOf(workbench).width
             );
@@ -930,15 +938,15 @@ describe('WorkbenchComponent', () => {
             workbench.dispose();
         });
 
-        test('setPanelPosition moves the panel to the side', () => {
+        test('setToolPanelPosition moves the panel to the side', () => {
             const workbench = createWorkbench(container, {
                 panel: { position: 'bottom' },
             });
             workbench.layout(1000, 800);
 
-            workbench.setPanelPosition('left');
+            workbench.setToolPanelPosition('left');
 
-            expect(workbench.panelPosition).toBe('left');
+            expect(workbench.toolPanelPosition).toBe('left');
             expect(
                 precedes(
                     regionEl(workbench.element, 'panel'),
@@ -954,11 +962,11 @@ describe('WorkbenchComponent', () => {
             const workbench = createWorkbench(container, { panel: {} });
             workbench.layout(1000, 800);
 
-            expect(workbench.isRegionVisible('panel')).toBe(true);
-            workbench.setRegionVisible('panel', false);
-            expect(workbench.isRegionVisible('panel')).toBe(false);
-            workbench.setRegionVisible('panel', true);
-            expect(workbench.isRegionVisible('panel')).toBe(true);
+            expect(workbench.isRegionVisible('toolPanel')).toBe(true);
+            workbench.setRegionVisible('toolPanel', false);
+            expect(workbench.isRegionVisible('toolPanel')).toBe(false);
+            workbench.setRegionVisible('toolPanel', true);
+            expect(workbench.isRegionVisible('toolPanel')).toBe(true);
 
             workbench.dispose();
         });
@@ -972,8 +980,8 @@ describe('WorkbenchComponent', () => {
             workbench.layout(1000, 800);
 
             const state = workbench.toJSON();
-            expect(state.panelPosition).toBe('bottom');
-            expect(state.panelAlignment).toBe('justify');
+            expect(state.toolPanelPosition).toBe('bottom');
+            expect(state.toolPanelAlignment).toBe('justify');
 
             const restored = createWorkbench(container, {
                 header: true,
@@ -983,13 +991,15 @@ describe('WorkbenchComponent', () => {
             restored.layout(1000, 800);
             restored.fromJSON(state);
 
-            expect(restored.panelPosition).toBe('bottom');
-            expect(restored.panelAlignment).toBe('justify');
+            expect(restored.toolPanelPosition).toBe('bottom');
+            expect(restored.toolPanelAlignment).toBe('justify');
             // justify preserved: panel spans wider than the editor
             const rGrid = (
                 restored as unknown as { _gridview: GridviewComponent }
             )._gridview;
-            const rPanel = rGrid.getPanel(WORKBENCH_IDS.panel) as GridviewPanel;
+            const rPanel = rGrid.getPanel(
+                WORKBENCH_IDS.toolPanel
+            ) as GridviewPanel;
             const rEditor = rGrid.getPanel(
                 WORKBENCH_IDS.editor
             ) as GridviewPanel;
@@ -1019,16 +1029,18 @@ describe('WorkbenchComponent', () => {
             workbench.layout(1000, 800);
 
             const seen: boolean[] = [];
-            const d = workbench.onDidChangePanelMaximized((m) => seen.push(m));
+            const d = workbench.onDidChangeToolPanelMaximized((m) =>
+                seen.push(m)
+            );
 
-            workbench.setPanelMaximized(true);
+            workbench.setToolPanelMaximized(true);
 
-            expect(workbench.isPanelMaximized).toBe(true);
+            expect(workbench.isToolPanelMaximized).toBe(true);
             expect(editorVisible(workbench)).toBe(false);
             expect(workbench.isRegionVisible('activityBar')).toBe(false);
             expect(workbench.isRegionVisible('primarySideBar')).toBe(false);
             expect(workbench.isRegionVisible('secondarySideBar')).toBe(false);
-            expect(workbench.isRegionVisible('panel')).toBe(true);
+            expect(workbench.isRegionVisible('toolPanel')).toBe(true);
             expect(seen).toEqual([true]);
 
             d.dispose();
@@ -1039,10 +1051,10 @@ describe('WorkbenchComponent', () => {
             const workbench = fullWorkbench();
             workbench.layout(1000, 800);
 
-            workbench.setPanelMaximized(true);
-            workbench.setPanelMaximized(false);
+            workbench.setToolPanelMaximized(true);
+            workbench.setToolPanelMaximized(false);
 
-            expect(workbench.isPanelMaximized).toBe(false);
+            expect(workbench.isToolPanelMaximized).toBe(false);
             expect(editorVisible(workbench)).toBe(true);
             expect(workbench.isRegionVisible('activityBar')).toBe(true);
             expect(workbench.isRegionVisible('primarySideBar')).toBe(true);
@@ -1056,8 +1068,8 @@ describe('WorkbenchComponent', () => {
             workbench.layout(1000, 800);
 
             workbench.setRegionVisible('secondarySideBar', false);
-            workbench.setPanelMaximized(true);
-            workbench.setPanelMaximized(false);
+            workbench.setToolPanelMaximized(true);
+            workbench.setToolPanelMaximized(false);
 
             expect(workbench.isRegionVisible('secondarySideBar')).toBe(false);
             expect(workbench.isRegionVisible('primarySideBar')).toBe(true);
@@ -1065,14 +1077,14 @@ describe('WorkbenchComponent', () => {
             workbench.dispose();
         });
 
-        test('toggleMaximizedPanel flips the state', () => {
+        test('toggleMaximizedToolPanel flips the state', () => {
             const workbench = fullWorkbench();
             workbench.layout(1000, 800);
 
-            workbench.toggleMaximizedPanel();
-            expect(workbench.isPanelMaximized).toBe(true);
-            workbench.toggleMaximizedPanel();
-            expect(workbench.isPanelMaximized).toBe(false);
+            workbench.toggleMaximizedToolPanel();
+            expect(workbench.isToolPanelMaximized).toBe(true);
+            workbench.toggleMaximizedToolPanel();
+            expect(workbench.isToolPanelMaximized).toBe(false);
 
             workbench.dispose();
         });
@@ -1083,9 +1095,9 @@ describe('WorkbenchComponent', () => {
             });
             workbench.layout(1000, 800);
 
-            workbench.setPanelMaximized(true);
+            workbench.setToolPanelMaximized(true);
 
-            expect(workbench.isPanelMaximized).toBe(false);
+            expect(workbench.isToolPanelMaximized).toBe(false);
             expect(editorVisible(workbench)).toBe(true);
 
             workbench.dispose();
@@ -1095,10 +1107,10 @@ describe('WorkbenchComponent', () => {
             const workbench = fullWorkbench();
             workbench.layout(1000, 800);
 
-            workbench.setPanelMaximized(true);
+            workbench.setToolPanelMaximized(true);
             workbench.setPrimarySideBarPosition('right');
 
-            expect(workbench.isPanelMaximized).toBe(false);
+            expect(workbench.isToolPanelMaximized).toBe(false);
             expect(editorVisible(workbench)).toBe(true);
             expect(workbench.isRegionVisible('primarySideBar')).toBe(true);
 
@@ -1109,10 +1121,10 @@ describe('WorkbenchComponent', () => {
             const workbench = fullWorkbench();
             workbench.layout(1000, 800);
 
-            workbench.setPanelMaximized(true);
-            workbench.setPanelPosition('right');
+            workbench.setToolPanelMaximized(true);
+            workbench.setToolPanelPosition('right');
 
-            expect(workbench.isPanelMaximized).toBe(false);
+            expect(workbench.isToolPanelMaximized).toBe(false);
             expect(editorVisible(workbench)).toBe(true);
 
             workbench.dispose();
@@ -1121,18 +1133,18 @@ describe('WorkbenchComponent', () => {
         test('serializing while maximized captures the restored layout', () => {
             const workbench = fullWorkbench();
             workbench.layout(1000, 800);
-            workbench.setPanelMaximized(true);
+            workbench.setToolPanelMaximized(true);
 
             const state = workbench.toJSON();
             // the source workbench stays maximized after serializing
-            expect(workbench.isPanelMaximized).toBe(true);
+            expect(workbench.isToolPanelMaximized).toBe(true);
 
             const restored = fullWorkbench();
             restored.layout(1000, 800);
             restored.fromJSON(state);
 
             // the restored workbench is not maximized; the editor is visible
-            expect(restored.isPanelMaximized).toBe(false);
+            expect(restored.isToolPanelMaximized).toBe(false);
             expect(editorVisible(restored)).toBe(true);
 
             restored.dispose();
@@ -1172,7 +1184,7 @@ describe('WorkbenchComponent', () => {
                 )
             ).toBe(true);
             expect(
-                cls(WORKBENCH_IDS.panel).contains('dv-workbench-panel')
+                cls(WORKBENCH_IDS.toolPanel).contains('dv-workbench-tool-panel')
             ).toBe(true);
             // every region also carries the shared marker class
             expect(
@@ -1223,7 +1235,7 @@ describe('WorkbenchComponent', () => {
                     WORKBENCH_IDS.secondarySideBar,
                     'dv-workbench-secondary-side-bar',
                 ],
-                [WORKBENCH_IDS.panel, 'dv-workbench-panel'],
+                [WORKBENCH_IDS.toolPanel, 'dv-workbench-tool-panel'],
             ] as const) {
                 expect(cls(id).contains('dv-workbench-region')).toBe(true);
                 expect(cls(id).contains(className)).toBe(true);
@@ -1241,80 +1253,6 @@ describe('WorkbenchComponent', () => {
                 true
             );
 
-            workbench.dispose();
-        });
-    });
-
-    describe('view containers', () => {
-        test('setActiveViewContainer sets the active id and fires the event', () => {
-            const workbench = createWorkbench(container, {
-                primarySideBar: true,
-            });
-            workbench.layout(1000, 800);
-
-            const seen: (string | undefined)[] = [];
-            const disposable = workbench.onDidChangeActiveViewContainer((id) =>
-                seen.push(id)
-            );
-
-            workbench.setActiveViewContainer('search');
-
-            expect(workbench.activeViewContainer).toBe('search');
-            expect(seen).toEqual(['search']);
-
-            disposable.dispose();
-            workbench.dispose();
-        });
-
-        test('selecting a container reveals a hidden side bar', () => {
-            const workbench = createWorkbench(container, {
-                primarySideBar: true,
-            });
-            workbench.layout(1000, 800);
-
-            workbench.setRegionVisible('primarySideBar', false);
-            workbench.setActiveViewContainer('search');
-
-            expect(workbench.isRegionVisible('primarySideBar')).toBe(true);
-            expect(workbench.activeViewContainer).toBe('search');
-
-            workbench.dispose();
-        });
-
-        test('selecting the active container again toggles the side bar shut', () => {
-            const workbench = createWorkbench(container, {
-                primarySideBar: true,
-            });
-            workbench.layout(1000, 800);
-
-            workbench.setActiveViewContainer('explorer');
-            expect(workbench.isRegionVisible('primarySideBar')).toBe(true);
-
-            workbench.setActiveViewContainer('explorer');
-            expect(workbench.isRegionVisible('primarySideBar')).toBe(false);
-
-            workbench.dispose();
-        });
-
-        test('active view container round-trips through serialization', () => {
-            const workbench = createWorkbench(container, {
-                primarySideBar: true,
-            });
-            workbench.layout(1000, 800);
-            workbench.setActiveViewContainer('search');
-
-            const state = workbench.toJSON();
-            expect(state.activeViewContainer).toBe('search');
-
-            const restored = createWorkbench(container, {
-                primarySideBar: true,
-            });
-            restored.layout(1000, 800);
-            restored.fromJSON(state);
-
-            expect(restored.activeViewContainer).toBe('search');
-
-            restored.dispose();
             workbench.dispose();
         });
     });

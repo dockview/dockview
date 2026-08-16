@@ -197,7 +197,6 @@ export {
     createGridview,
     createPaneview,
     createSplitview,
-    createWorkbench,
 } from './api/entryPoints';
 export {
     WorkbenchComponent,
@@ -207,18 +206,16 @@ export {
 export { WorkbenchApi } from './workbench/workbench.api';
 export {
     type ActivityBarPosition,
-    type PanelAlignment,
-    type PanelPosition,
     type SideBarPosition,
+    type ToolPanelAlignment,
+    type ToolPanelPosition,
     type WorkbenchActivityBarOptions,
     type WorkbenchBand,
     type WorkbenchBandOptions,
-    type WorkbenchComponentOptions,
-    type WorkbenchFrameworkOptions,
     type WorkbenchOptions,
-    type WorkbenchPanelOptions,
     type WorkbenchRegion,
     type WorkbenchSideBarOptions,
+    type WorkbenchToolPanelOptions,
 } from './workbench/options';
 export {
     registerModules,

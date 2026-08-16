@@ -38,6 +38,11 @@ import {
     DockviewPanelRenderer,
     DockviewTheme,
     DroptargetOverlayModel,
+    SideBarPosition,
+    WorkbenchActivityBarOptions,
+    WorkbenchBandOptions,
+    WorkbenchSideBarOptions,
+    WorkbenchToolPanelOptions,
 } from 'dockview';
 import { AngularFrameworkComponentFactory } from '../utils/component-factory';
 import { AngularRenderer } from '../utils/angular-renderer';
@@ -56,6 +61,24 @@ export interface DockviewAngularOptions extends DockviewOptions {
     getTabContextMenuItems?: (
         params: GetTabContextMenuItemsParams
     ) => (ContextMenuItem | { component: Type<any> })[];
+}
+
+/**
+ * Opt-in VS Code-style chrome around the dockview editor, supplied on the
+ * `workbench` input of `DockviewAngularComponent`. Reached at runtime through
+ * `api.workbench`.
+ */
+export interface DockviewAngularWorkbenchOptions {
+    /** Components for the chrome bands, side bars and tool panel. */
+    components: Record<string, Type<any> | TemplateRef<any>>;
+    header?: WorkbenchBandOptions;
+    statusBar?: WorkbenchBandOptions;
+    activityBar?: WorkbenchActivityBarOptions;
+    primarySideBar?: WorkbenchSideBarOptions;
+    secondarySideBar?: WorkbenchSideBarOptions;
+    toolPanel?: WorkbenchToolPanelOptions;
+    primarySideBarPosition?: SideBarPosition;
+    className?: string;
 }
 
 @Component({
@@ -91,6 +114,8 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
     @Input() prefixHeaderActionsComponent?: Type<any> | TemplateRef<any>;
     @Input() tabGroupChipComponent?: Type<any>;
     @Input() groupDragGhostComponent?: Type<any>;
+    /** Opt in to VS Code-style workbench chrome. Reached via `api.workbench`. */
+    @Input() workbench?: DockviewAngularWorkbenchOptions;
 
     // Core dockview options as inputs
     @Input() className?: string;
@@ -251,10 +276,12 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
 
         const coreOptions = this.extractCoreOptions();
         const frameworkOptions = this.createFrameworkOptions();
+        const workbenchOptions = this.createWorkbenchOptions();
 
         this.dockviewApi = createDockview(this.containerRef.nativeElement, {
             ...coreOptions,
             ...frameworkOptions,
+            ...(workbenchOptions ? { workbench: workbenchOptions } : {}),
         });
 
         this.setupEventListeners();
@@ -381,6 +408,35 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
                 });
                 return renderer;
             },
+        };
+    }
+
+    private createWorkbenchOptions():
+        | NonNullable<DockviewComponentOptions['workbench']>
+        | undefined {
+        if (!this.workbench) {
+            return undefined;
+        }
+
+        // The chrome bands are gridview panels resolved through their own
+        // factory; the editor panels use the dockview factory above.
+        const bandFactory = new AngularFrameworkComponentFactory(
+            this.workbench.components,
+            this.injector,
+            this.environmentInjector
+        );
+
+        return {
+            createComponent: (options) =>
+                bandFactory.createGridviewComponent(options),
+            header: this.workbench.header,
+            statusBar: this.workbench.statusBar,
+            activityBar: this.workbench.activityBar,
+            primarySideBar: this.workbench.primarySideBar,
+            secondarySideBar: this.workbench.secondarySideBar,
+            toolPanel: this.workbench.toolPanel,
+            primarySideBarPosition: this.workbench.primarySideBarPosition,
+            className: this.workbench.className,
         };
     }
 

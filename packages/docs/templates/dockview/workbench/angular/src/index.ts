@@ -6,8 +6,8 @@ import { BrowserModule } from '@angular/platform-browser';
 import {
     DockviewAngularModule,
     DockviewPanelApi,
+    DockviewReadyEvent,
     WorkbenchApi,
-    WorkbenchReadyEvent,
     themeAbyss,
     themeLight,
 } from 'dockview-angular';
@@ -39,10 +39,10 @@ export class HeaderComponent {
     }
     toggleAlign() {
         if (!workbench) return;
-        workbench.setPanelAlignment(
-            workbench.panelAlignment === 'center' ? 'justify' : 'center'
+        workbench.setToolPanelAlignment(
+            workbench.toolPanelAlignment === 'center' ? 'justify' : 'center'
         );
-        this.alignment = workbench.panelAlignment;
+        this.alignment = workbench.toolPanelAlignment;
     }
 }
 
@@ -123,42 +123,46 @@ export class EditorComponent {
 @Component({
     selector: 'app-root',
     template: `
-        <dv-workbench
+        <dv-dockview
             style="width:100%;height:100%"
-            [components]="components"
-            [editorComponents]="editorComponents"
-            [editorProps]="editorProps"
-            [header]="{ component: 'header' }"
-            [statusBar]="{ component: 'status' }"
-            [activityBar]="{ component: 'activity' }"
-            [primarySideBar]="{ component: 'explorer' }"
-            [secondarySideBar]="{ component: 'outline' }"
-            [panel]="{ component: 'terminal', position: 'bottom', alignment: 'center' }"
+            [components]="editorComponents"
+            [theme]="theme"
+            [workbench]="workbenchOptions"
             (ready)="onReady($event)"
         >
-        </dv-workbench>
+        </dv-dockview>
     `,
 })
 export class AppComponent {
-    components: Record<string, Type<any>> = {
-        header: HeaderComponent,
-        activity: ActivityBarComponent,
-        explorer: ExplorerComponent,
-        outline: OutlineComponent,
-        terminal: TerminalComponent,
-        status: StatusBarComponent,
-    };
     editorComponents: Record<string, Type<any>> = { editor: EditorComponent };
-    editorProps = {
-        theme:
-            (window as any).__dockviewColorMode === 'light'
-                ? themeLight
-                : themeAbyss,
+    theme =
+        (window as any).__dockviewColorMode === 'light'
+            ? themeLight
+            : themeAbyss;
+    workbenchOptions = {
+        components: {
+            header: HeaderComponent,
+            activity: ActivityBarComponent,
+            explorer: ExplorerComponent,
+            outline: OutlineComponent,
+            terminal: TerminalComponent,
+            status: StatusBarComponent,
+        },
+        header: { component: 'header' },
+        statusBar: { component: 'status' },
+        activityBar: { component: 'activity' },
+        primarySideBar: { component: 'explorer' },
+        secondarySideBar: { component: 'outline' },
+        toolPanel: {
+            component: 'terminal',
+            position: 'bottom' as const,
+            alignment: 'center' as const,
+        },
     };
 
-    onReady(event: WorkbenchReadyEvent) {
-        workbench = event.api;
-        const dv = event.api.dockview;
+    onReady(event: DockviewReadyEvent) {
+        workbench = event.api.workbench;
+        const dv = event.api;
         dv.addPanel({ id: 'index.ts', component: 'editor', title: 'index.ts' });
         dv.addPanel({
             id: 'readme.md',

@@ -1,7 +1,4 @@
-import type {
-    CreateComponentOptions,
-    DockviewComponentOptions,
-} from '../dockview/options';
+import type { CreateComponentOptions } from '../dockview/options';
 import type { GridviewPanel } from '../gridview/gridviewPanel';
 import type { Parameters } from '../panel/types';
 
@@ -72,7 +69,7 @@ export interface WorkbenchActivityBarOptions {
 }
 
 /** Where the tool panel sits relative to the editor. */
-export type PanelPosition = 'bottom' | 'top' | 'left' | 'right';
+export type ToolPanelPosition = 'bottom' | 'top' | 'left' | 'right';
 
 /**
  * How a top/bottom tool panel spans horizontally.
@@ -83,9 +80,9 @@ export type PanelPosition = 'bottom' | 'top' | 'left' | 'right';
  * - `right`: spans the editor plus the side bars to its right; the left side
  *   bars stay full height.
  *
- * Alignment is ignored when the panel `position` is `left` or `right`.
+ * Alignment is ignored when the tool panel `position` is `left` or `right`.
  */
-export type PanelAlignment = 'center' | 'justify' | 'left' | 'right';
+export type ToolPanelAlignment = 'center' | 'justify' | 'left' | 'right';
 
 /**
  * The tool panel (VS Code's bottom panel: terminal, problems, output). A
@@ -93,70 +90,63 @@ export type PanelAlignment = 'center' | 'justify' | 'left' | 'right';
  * top/bottom, span either the editor column (`center`) or the full width
  * (`justify`).
  */
-export interface WorkbenchPanelOptions {
+export interface WorkbenchToolPanelOptions {
     /** The component name resolved via `createComponent`. */
     component: string;
-    /** Side of the editor the panel occupies. Defaults to `'bottom'`. */
-    position?: PanelPosition;
-    /** Horizontal span for a top/bottom panel. Defaults to `'center'`. */
-    alignment?: PanelAlignment;
+    /** Side of the editor the tool panel occupies. Defaults to `'bottom'`. */
+    position?: ToolPanelPosition;
+    /** Horizontal span for a top/bottom tool panel. Defaults to `'center'`. */
+    alignment?: ToolPanelAlignment;
     /** Initial size (height for top/bottom, width for left/right). */
     size?: number;
-    /** Minimum size before the sash snaps the panel shut. */
+    /** Minimum size before the sash snaps the tool panel shut. */
     minimumSize?: number;
     /** Start hidden. Toggle later via the api. Defaults to visible. */
     visible?: boolean;
-    /** Parameters forwarded to the panel component. */
+    /** Parameters forwarded to the tool panel component. */
     params?: Parameters;
 }
 
 /**
- * Options that describe the workbench chrome. The editor itself is a full
- * dockview instance (edge groups included) configured via `dockview`.
+ * Opt-in VS Code-style chrome for a dockview. Pass this as the `workbench`
+ * option to {@link createDockview}: the dockview becomes the editor at the
+ * centre of a frame of fixed bands (header, status bar) and side regions
+ * (activity bar, primary and secondary side bars, tool panel). Omit it and the
+ * dockview renders exactly as before. The chrome is controlled at runtime
+ * through `api.workbench`.
  */
 export interface WorkbenchOptions {
+    /**
+     * Factory for the chrome components (header/status bar, the side bars and
+     * the tool panel). Mirrors the gridview `createComponent` contract. The
+     * editor panels come from the dockview's own top-level `createComponent`.
+     */
+    createComponent: (options: CreateComponentOptions) => GridviewPanel;
     /** Fixed band pinned to the top of the workbench. */
     header?: WorkbenchBandOptions;
     /** Fixed band pinned to the bottom of the workbench. */
     statusBar?: WorkbenchBandOptions;
-    /** Thin icon rail next to the primary side bar. */
+    /** Thin icon strip next to the primary side bar. */
     activityBar?: WorkbenchActivityBarOptions;
     /** Primary side bar (VS Code's Explorer side). */
     primarySideBar?: WorkbenchSideBarOptions;
     /** Secondary side bar, always mounted opposite the primary. */
     secondarySideBar?: WorkbenchSideBarOptions;
     /** Tool panel (terminal / problems / output). */
-    panel?: WorkbenchPanelOptions;
+    toolPanel?: WorkbenchToolPanelOptions;
     /** Which side the primary side bar starts on. Defaults to `'left'`. */
     primarySideBarPosition?: SideBarPosition;
-    /** The view container shown in the primary side bar on creation. */
-    activeViewContainer?: string;
     /** CSS class applied to the workbench root element. */
     className?: string;
 }
-
-export interface WorkbenchFrameworkOptions {
-    /**
-     * Factory for the chrome band components (header/status bar, the side bars
-     * and the tool panel). Mirrors the gridview
-     * `createComponent` contract. The reserved editor component is created by
-     * the workbench itself and never passed here.
-     */
-    createComponent: (options: CreateComponentOptions) => GridviewPanel;
-    /** Options for the embedded dockview that backs the editor area. */
-    dockview: DockviewComponentOptions;
-}
-
-export type WorkbenchComponentOptions = WorkbenchOptions &
-    WorkbenchFrameworkOptions;
 
 export const DEFAULT_HEADER_SIZE = 35;
 export const DEFAULT_STATUS_BAR_SIZE = 22;
 export const DEFAULT_ACTIVITY_BAR_SIZE = 48;
 export const DEFAULT_SIDE_BAR_SIZE = 240;
 export const DEFAULT_SIDE_BAR_MINIMUM_SIZE = 170;
-export const DEFAULT_PANEL_SIZE = 200;
-export const DEFAULT_PANEL_MINIMUM_SIZE = 80;
+export const DEFAULT_TOOL_PANEL_SIZE = 200;
+export const DEFAULT_TOOL_PANEL_MINIMUM_SIZE = 80;
 
 /** Reserved component name for the editor panel that hosts the dockview. */
 export const WORKBENCH_EDITOR_COMPONENT = '__dv_workbench_editor__';
@@ -169,7 +159,7 @@ export const WORKBENCH_IDS = {
     activityBar: '__dv_workbench_activity_bar__',
     primarySideBar: '__dv_workbench_primary_side_bar__',
     secondarySideBar: '__dv_workbench_secondary_side_bar__',
-    panel: '__dv_workbench_panel__',
+    toolPanel: '__dv_workbench_tool_panel__',
 } as const;
 
 /** Fixed-height chrome bands stacked above/below the body row. */
@@ -181,4 +171,4 @@ export type WorkbenchRegion =
     | 'activityBar'
     | 'primarySideBar'
     | 'secondarySideBar'
-    | 'panel';
+    | 'toolPanel';

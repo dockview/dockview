@@ -22,9 +22,18 @@ import {
     GetTabGroupChipContextMenuItemsParams,
     IContextMenuItemComponentProps,
     IChipContextMenuItemComponentProps,
+    GridviewApi,
+    GridviewPanelApi,
+    SideBarPosition,
+    WorkbenchActivityBarOptions,
+    WorkbenchBandOptions,
+    WorkbenchSideBarOptions,
+    WorkbenchToolPanelOptions,
 } from 'dockview';
 import { ReactPanelContentPart } from './reactContentPart';
 import { ReactPanelHeaderPart } from './reactHeaderPart';
+import { ReactGridPanelView } from '../gridview/view';
+import { PanelParameters } from '../types';
 import { ReactPortalStore, usePortalsLifecycle } from '../react';
 import { ReactWatermarkPart } from './reactWatermarkPart';
 import { ReactHeaderActionsRendererPart } from './headerActionsRenderer';
@@ -60,6 +69,37 @@ export interface ReactContextMenuItemConfig
     component?: React.FunctionComponent<IContextMenuItemComponentProps>;
 }
 
+/**
+ * Props for a workbench chrome component (header, status bar, activity bar,
+ * side bars, tool panel). These render as panels in the workbench's outer
+ * gridview, so they receive a {@link GridviewPanelApi} and the outer grid's
+ * {@link GridviewApi}.
+ */
+export interface IWorkbenchPanelProps<T extends { [index: string]: any } = any>
+    extends PanelParameters<T> {
+    api: GridviewPanelApi;
+    containerApi: GridviewApi;
+}
+
+/**
+ * Opt-in VS Code-style chrome around the dockview editor. Supply this on
+ * {@link DockviewReact} to wrap the editor in header/status bands, activity
+ * bar, primary and secondary side bars, and a tool panel. Reached at runtime
+ * through `api.workbench` (see the `onReady` event's `api`).
+ */
+export interface IDockviewReactWorkbenchProps {
+    /** Components for the chrome bands, side bars and tool panel. */
+    components: Record<string, React.FunctionComponent<IWorkbenchPanelProps>>;
+    header?: WorkbenchBandOptions;
+    statusBar?: WorkbenchBandOptions;
+    activityBar?: WorkbenchActivityBarOptions;
+    primarySideBar?: WorkbenchSideBarOptions;
+    secondarySideBar?: WorkbenchSideBarOptions;
+    toolPanel?: WorkbenchToolPanelOptions;
+    primarySideBarPosition?: SideBarPosition;
+    className?: string;
+}
+
 export interface IDockviewReactProps extends DockviewOptions {
     tabComponents?: Record<
         string,
@@ -88,6 +128,11 @@ export interface IDockviewReactProps extends DockviewOptions {
      * before the browser snapshots it.
      */
     groupDragGhostComponent?: React.FunctionComponent<IDockviewGroupDragGhostProps>;
+    /**
+     * Opt in to VS Code-style workbench chrome around the editor. Reached at
+     * runtime through `api.workbench`.
+     */
+    workbench?: IDockviewReactWorkbenchProps;
     onReady: (event: DockviewReadyEvent) => void;
     onDidDrop?: (event: DockviewDidDropEvent) => void;
     onWillDrop?: (event: DockviewWillDropEvent) => void;
@@ -112,6 +157,12 @@ export const DockviewReact = React.forwardRef(
         const domRef = React.useRef<HTMLDivElement>(null);
         const dockviewRef = React.useRef<DockviewApi | undefined>(undefined);
         const [portals, addPortal] = usePortalsLifecycle();
+
+        // Keep the latest workbench components available to the (stable) region
+        // factory so swapping a component definition takes effect on the next
+        // render without tearing down the workbench.
+        const latestWorkbench = React.useRef(props.workbench);
+        latestWorkbench.current = props.workbench;
 
         React.useImperativeHandle(ref, () => domRef.current!, []);
 
@@ -233,9 +284,35 @@ export const DockviewReact = React.forwardRef(
                 };
             }
 
+            const workbenchProps = latestWorkbench.current;
+
             const api = createDockview(domRef.current, {
                 ...coreOptions,
                 ...frameworkOptions,
+                ...(workbenchProps
+                    ? {
+                          workbench: {
+                              createComponent: (options) =>
+                                  new ReactGridPanelView(
+                                      options.id,
+                                      options.name,
+                                      latestWorkbench.current!.components[
+                                          options.name
+                                      ],
+                                      { addPortal }
+                                  ),
+                              header: workbenchProps.header,
+                              statusBar: workbenchProps.statusBar,
+                              activityBar: workbenchProps.activityBar,
+                              primarySideBar: workbenchProps.primarySideBar,
+                              secondarySideBar: workbenchProps.secondarySideBar,
+                              toolPanel: workbenchProps.toolPanel,
+                              primarySideBarPosition:
+                                  workbenchProps.primarySideBarPosition,
+                              className: workbenchProps.className,
+                          },
+                      }
+                    : {}),
             });
 
             const { clientWidth, clientHeight } = domRef.current;
