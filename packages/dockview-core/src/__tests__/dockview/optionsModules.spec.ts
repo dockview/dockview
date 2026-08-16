@@ -107,6 +107,17 @@ describe('validateOptionModules', () => {
         expect(consoleError.mock.calls[0][0]).toMatch(/AutoEdgeGroup/);
     });
 
+    test('screenAdapter requires ScreenManagement, a paid feature end to end', () => {
+        validateOptionModules(
+            options({ screenAdapter: { getScreens: () => [] } }),
+            nothingRegistered
+        );
+        expect(consoleError.mock.calls[0][0]).toMatch(/ScreenManagement/);
+        expect(consoleError.mock.calls[0][0]).toMatch(
+            /npm install dockview-enterprise/
+        );
+    });
+
     test('edgeGroupPeek alone does not demand enterprise', () => {
         validateOptionModules(
             options({ edgeGroupPeek: { animate: false } }),

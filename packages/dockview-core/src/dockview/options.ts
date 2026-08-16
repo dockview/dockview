@@ -33,6 +33,7 @@ import { CspNonceProvider } from '../dom';
 export { type CspNonceProvider };
 import { PopoutWindowFactory } from '../popoutWindow';
 import { DockviewTabGroupColorEntry } from './tabGroupAccent';
+import { DockviewScreenAdapter } from './screenManager';
 
 export interface IHeaderActionsRenderer extends IDisposable {
     readonly element: HTMLElement;
@@ -692,6 +693,15 @@ export interface DockviewOptions {
      * module; dormant unless `enabled` is set.
      */
     pinnedTabs?: PinnedTabsOptions;
+    /**
+     * Host-supplied screen source replacing the Window Management API as the
+     * source of truth for screen discovery, placement, and fullscreen — e.g.
+     * an Electron preload bridge to the main process `screen` module. No
+     * permission machinery is involved and the snapshot populates eagerly.
+     * Requires the ScreenManagement module (dockview-enterprise). Read at
+     * construction; not honoured via `updateOptions`.
+     */
+    screenAdapter?: DockviewScreenAdapter;
 }
 
 export interface PinnedTabsOptions {
@@ -860,6 +870,7 @@ export const PROPERTY_KEYS_DOCKVIEW: (keyof DockviewOptions)[] = (() => {
         tabGroupColors: undefined,
         tabGroupAccent: undefined,
         pinnedTabs: undefined,
+        screenAdapter: undefined,
     };
 
     return Object.keys(properties) as (keyof DockviewOptions)[];

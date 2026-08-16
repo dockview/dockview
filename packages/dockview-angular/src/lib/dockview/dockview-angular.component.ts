@@ -138,6 +138,7 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
     @Input() dropPositionResolver?: DockviewOptions['dropPositionResolver'];
     @Input() popoutWindowFactory?: DockviewOptions['popoutWindowFactory'];
     @Input() popoutWindowFeatures?: DockviewOptions['popoutWindowFeatures'];
+    @Input() screenAdapter?: DockviewOptions['screenAdapter'];
 
     @Output() ready = new EventEmitter<DockviewReadyEvent>();
     @Output() didDrop = new EventEmitter<DockviewDidDropEvent>();
