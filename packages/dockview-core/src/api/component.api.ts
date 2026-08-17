@@ -608,17 +608,19 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
     }
 
     /**
-     * Width of the component.
+     * Width of the component. Reports the outer workbench frame when one wraps
+     * this dockview, so it stays consistent with what `layout()` sizes.
      */
     get width(): number {
-        return this.component.width;
+        return this._workbench ? this._workbench.width : this.component.width;
     }
 
     /**
-     * Height of the component.
+     * Height of the component. Reports the outer workbench frame when one wraps
+     * this dockview, so it stays consistent with what `layout()` sizes.
      */
     get height(): number {
-        return this.component.height;
+        return this._workbench ? this._workbench.height : this.component.height;
     }
 
     /**
@@ -951,8 +953,11 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
         return this._workbench;
     }
 
-    /** @internal Attach the workbench frame that wraps this dockview. */
+    /** @internal Attach the workbench frame that wraps this dockview. Set once. */
     setWorkbench(workbench: WorkbenchApi): void {
+        if (this._workbench) {
+            throw new Error('dockview: workbench is already attached');
+        }
         this._workbench = workbench;
     }
 
@@ -980,7 +985,7 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
         // this dockview through the editor cell; sizing the dockview alone would
         // leave the frame unlaid-out.
         if (this._workbench) {
-            this._workbench.layout(width, height);
+            this._workbench.layout(width, height, force);
             return;
         }
         this.component.layout(width, height, force);

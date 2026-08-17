@@ -27,6 +27,16 @@ export class WorkbenchApi implements IDisposable {
         return this._component.element;
     }
 
+    /** Width of the outer workbench frame. */
+    get width(): number {
+        return this._component.width;
+    }
+
+    /** Height of the outer workbench frame. */
+    get height(): number {
+        return this._component.height;
+    }
+
     setHeaderVisible(visible: boolean): void {
         this._component.setRegionVisible('header', visible);
     }
@@ -139,8 +149,8 @@ export class WorkbenchApi implements IDisposable {
         return this._component.isRegionVisible(region);
     }
 
-    layout(width: number, height: number): void {
-        this._component.layout(width, height);
+    layout(width: number, height: number, force = false): void {
+        this._component.layout(width, height, force);
     }
 
     toJSON(): SerializedWorkbench {

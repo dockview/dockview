@@ -1010,6 +1010,45 @@ describe('WorkbenchComponent', () => {
         });
     });
 
+    describe('frame sizing', () => {
+        test('width/height report the outer frame, not the editor cell', () => {
+            const workbench = createWorkbench(container, {
+                header: true,
+                statusBar: true,
+                primarySideBar: true,
+            });
+            workbench.layout(1000, 800);
+
+            // the whole frame, matching what layout() sizes (a header + status
+            // bar would otherwise shrink an editor-cell-based reading)
+            expect(workbench.width).toBe(1000);
+            expect(workbench.height).toBe(800);
+
+            workbench.dispose();
+        });
+
+        test('disableAutoResizing is forwarded to the outer frame', () => {
+            const workbench = new WorkbenchComponent(container, {
+                disableAutoResizing: true,
+                createComponent: (options) =>
+                    new TestEditorPanel(options.id, options.name),
+                workbench: {
+                    createComponent: (options) =>
+                        new TestBand(options.id, options.name),
+                    primarySideBar: { component: 'primary' },
+                },
+            });
+            workbench.layout(1000, 800);
+
+            const grid = (
+                workbench as unknown as { _gridview: GridviewComponent }
+            )._gridview;
+            expect(grid.disableResizing).toBe(true);
+
+            workbench.dispose();
+        });
+    });
+
     describe('panel maximize', () => {
         const editorVisible = (workbench: WorkbenchComponent): boolean =>
             (
@@ -1101,6 +1140,72 @@ describe('WorkbenchComponent', () => {
             expect(editorVisible(workbench)).toBe(true);
 
             workbench.dispose();
+        });
+
+        test('a tool panel hidden before maximize returns to hidden on restore', () => {
+            const workbench = createWorkbench(container, {
+                primarySideBar: true,
+                panel: { visible: false },
+            });
+            workbench.layout(1000, 800);
+
+            expect(workbench.isRegionVisible('toolPanel')).toBe(false);
+
+            workbench.setToolPanelMaximized(true);
+            expect(workbench.isRegionVisible('toolPanel')).toBe(true);
+
+            workbench.setToolPanelMaximized(false);
+            // restored to its prior hidden state, not left visible
+            expect(workbench.isRegionVisible('toolPanel')).toBe(false);
+            expect(editorVisible(workbench)).toBe(true);
+
+            workbench.dispose();
+        });
+
+        test('serializing while maximized fires no maximize event and keeps state', () => {
+            const workbench = fullWorkbench();
+            workbench.layout(1000, 800);
+            workbench.setToolPanelMaximized(true);
+
+            const seen: boolean[] = [];
+            const d = workbench.onDidChangeToolPanelMaximized((m) =>
+                seen.push(m)
+            );
+
+            workbench.toJSON();
+
+            // no phantom false/true toggle from serialization
+            expect(seen).toEqual([]);
+            expect(workbench.isToolPanelMaximized).toBe(true);
+            expect(editorVisible(workbench)).toBe(false);
+
+            d.dispose();
+            workbench.dispose();
+        });
+
+        test('fromJSON clears a stale maximize state', () => {
+            const source = fullWorkbench();
+            source.layout(1000, 800);
+            const state = source.toJSON();
+
+            const restored = fullWorkbench();
+            restored.layout(1000, 800);
+            // put the target into a maximized state before restoring
+            restored.setToolPanelMaximized(true);
+            expect(restored.isToolPanelMaximized).toBe(true);
+
+            restored.fromJSON(state);
+
+            // the restored layout is not maximized; the flag no longer lies and
+            // the next toggle maximizes rather than being swallowed
+            expect(restored.isToolPanelMaximized).toBe(false);
+            expect(editorVisible(restored)).toBe(true);
+            restored.toggleMaximizedToolPanel();
+            expect(restored.isToolPanelMaximized).toBe(true);
+            expect(editorVisible(restored)).toBe(false);
+
+            restored.dispose();
+            source.dispose();
         });
 
         test('a flip exits maximize and restores the layout', () => {

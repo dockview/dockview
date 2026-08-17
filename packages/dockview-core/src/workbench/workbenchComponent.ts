@@ -144,6 +144,8 @@ export class WorkbenchComponent extends CompositeDisposable {
     private _toolPanelMaximized = false;
     /** Ids hidden by the current maximize, to re-show on restore. */
     private _maximizeRestore: string[] = [];
+    /** Whether the tool panel was hidden before the current maximize. */
+    private _toolPanelHiddenBeforeMaximize = false;
 
     private readonly _onDidChangeToolPanelMaximized = new Emitter<boolean>();
     /** Fires when the tool panel is maximized or restored. */
@@ -152,6 +154,16 @@ export class WorkbenchComponent extends CompositeDisposable {
 
     get element(): HTMLElement {
         return this._element;
+    }
+
+    /** Width of the outer frame (the whole workbench, not the editor cell). */
+    get width(): number {
+        return this._gridview.width;
+    }
+
+    /** Height of the outer frame (the whole workbench, not the editor cell). */
+    get height(): number {
+        return this._gridview.height;
     }
 
     get primarySideBarPosition(): SideBarPosition {
@@ -216,6 +228,9 @@ export class WorkbenchComponent extends CompositeDisposable {
         this._gridview = new GridviewComponent(this._element, {
             orientation: Orientation.VERTICAL,
             proportionalLayout: false,
+            // Honour the caller's sizing choice on the outer frame, not just the
+            // inner editor dockview.
+            disableAutoResizing: options.disableAutoResizing,
             createComponent: (viewOptions) => {
                 if (viewOptions.name === WORKBENCH_EDITOR_COMPONENT) {
                     const panel = new WorkbenchEditorPanel(
@@ -617,13 +632,27 @@ export class WorkbenchComponent extends CompositeDisposable {
         if (maximized === this._toolPanelMaximized || !this._toolPanelOptions) {
             return;
         }
-        const panel = this._gridview.getPanel(WORKBENCH_IDS.toolPanel);
-        if (!panel) {
+        if (!this._gridview.getPanel(WORKBENCH_IDS.toolPanel)) {
             return;
         }
 
+        this._applyMaximize(maximized);
+        this._toolPanelMaximized = maximized;
+        this._onDidChangeToolPanelMaximized.fire(maximized);
+    }
+
+    /**
+     * Show/hide the regions for a maximize transition, without touching the
+     * `_toolPanelMaximized` flag or firing the change event. Used by
+     * {@link setToolPanelMaximized} (which owns the flag/event) and by
+     * {@link toJSON} to snapshot the un-maximized layout silently.
+     */
+    private _applyMaximize(maximized: boolean): void {
         if (maximized) {
-            // reveal the tool panel itself, then collapse everything around it
+            // reveal the tool panel itself, remembering whether it was hidden so
+            // restore can put it back; then collapse everything around it.
+            const toolPanel = this._gridview.getPanel(WORKBENCH_IDS.toolPanel);
+            this._toolPanelHiddenBeforeMaximize = !toolPanel?.api.isVisible;
             this._setPanelVisible(WORKBENCH_IDS.toolPanel, true);
             this._maximizeRestore = [];
             for (const id of [
@@ -646,10 +675,12 @@ export class WorkbenchComponent extends CompositeDisposable {
                 }
             }
             this._maximizeRestore = [];
+            // a tool panel that was hidden before maximizing returns to hidden
+            if (this._toolPanelHiddenBeforeMaximize) {
+                this._setPanelVisible(WORKBENCH_IDS.toolPanel, false);
+            }
+            this._toolPanelHiddenBeforeMaximize = false;
         }
-
-        this._toolPanelMaximized = maximized;
-        this._onDidChangeToolPanelMaximized.fire(maximized);
     }
 
     /**
@@ -815,17 +846,19 @@ export class WorkbenchComponent extends CompositeDisposable {
         return panel?.api.isVisible ?? false;
     }
 
-    layout(width: number, height: number): void {
-        this._gridview.layout(width, height);
+    layout(width: number, height: number, force = false): void {
+        this._gridview.layout(width, height, force);
     }
 
     toJSON(): SerializedWorkbench {
         // Maximize is a transient mode and is not serialized. If it is active
         // the editor and side bars are collapsed, so restore them for the
-        // snapshot and re-maximize afterwards, capturing the real layout.
+        // snapshot and re-maximize afterwards, capturing the real layout. Use
+        // the silent `_applyMaximize` so serialization fires no change event and
+        // leaves `_toolPanelMaximized` untouched.
         const wasMaximized = this._toolPanelMaximized;
         if (wasMaximized) {
-            this.setToolPanelMaximized(false);
+            this._applyMaximize(false);
         }
         const json: SerializedWorkbench = {
             grid: this._gridview.toJSON(),
@@ -836,7 +869,7 @@ export class WorkbenchComponent extends CompositeDisposable {
             toolPanelAlignment: this._toolPanelAlignment,
         };
         if (wasMaximized) {
-            this.setToolPanelMaximized(true);
+            this._applyMaximize(true);
         }
         return json;
     }
@@ -849,6 +882,11 @@ export class WorkbenchComponent extends CompositeDisposable {
         this._activityBarPosition = data.activityBarPosition ?? 'default';
         this._toolPanelPosition = data.toolPanelPosition ?? 'bottom';
         this._toolPanelAlignment = data.toolPanelAlignment ?? 'center';
+        // The restored grid is always un-maximized (fromJSON rebuilds every
+        // region visible), so clear the transient maximize bookkeeping to match.
+        this._toolPanelMaximized = false;
+        this._maximizeRestore = [];
+        this._toolPanelHiddenBeforeMaximize = false;
         // Rebuilds the outer grid, which re-creates the editor panel (and a
         // fresh dockview) through createComponent, repointing _editorPanel.
         this._gridview.fromJSON(data.grid);

@@ -159,10 +159,14 @@ export const DockviewReact = React.forwardRef(
         const [portals, addPortal] = usePortalsLifecycle();
 
         // Keep the latest workbench components available to the (stable) region
-        // factory so swapping a component definition takes effect on the next
-        // render without tearing down the workbench.
+        // factory. Regions created after a component-map swap (a rebuild, flip
+        // or fromJSON) pick up the new map; already-mounted region components
+        // are not re-created. Only overwrite while `workbench` is present so the
+        // frozen-at-mount factory never dereferences a later `undefined`.
         const latestWorkbench = React.useRef(props.workbench);
-        latestWorkbench.current = props.workbench;
+        if (props.workbench) {
+            latestWorkbench.current = props.workbench;
+        }
 
         React.useImperativeHandle(ref, () => domRef.current!, []);
 

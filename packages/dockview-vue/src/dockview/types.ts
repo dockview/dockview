@@ -29,7 +29,7 @@ export interface IWorkbenchVuePanelProps<T extends Record<string, any> = any> {
  */
 export interface IDockviewVueWorkbenchProps {
     /** Components for the chrome bands, side bars and tool panel. */
-    components?: Record<string, VueComponent>;
+    components: Record<string, VueComponent>;
     header?: WorkbenchBandOptions;
     statusBar?: WorkbenchBandOptions;
     activityBar?: WorkbenchActivityBarOptions;
