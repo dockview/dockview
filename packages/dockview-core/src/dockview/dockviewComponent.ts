@@ -2046,6 +2046,11 @@ export class DockviewComponent
                                 referenceGroup.model.removePanel(itemToPopout);
                             group.model.openPanel(panel);
                         });
+                        // When the last panel is popped out of a group, remove
+                        // the now-empty group so onDidRemoveGroup fires.
+                        if (referenceGroup.model.size === 0) {
+                            this.removeGroup(referenceGroup);
+                        }
                     } else {
                         this.movingLock(() =>
                             moveGroupWithoutDestroying({
