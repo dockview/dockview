@@ -26,17 +26,17 @@ const Panel = defineComponent({
     data() {
         return {
             title: '',
+            disposable: undefined as { dispose(): void } | undefined,
         };
     },
     mounted() {
-        const disposable = this.params.api.onDidTitleChange(() => {
+        this.disposable = this.params.api.onDidTitleChange(() => {
             this.title = this.params.api.title;
         });
         this.title = this.params.api.title;
-
-        return () => {
-            disposable.dispose();
-        };
+    },
+    unmounted() {
+        this.disposable?.dispose();
     },
     template: `
       <div class="example-panel">{{title}}</div>`,

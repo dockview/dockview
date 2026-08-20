@@ -6,8 +6,6 @@ sidebar_custom_props:
     enterprise: true
 ---
 
-import { DocRef } from '@site/src/components/ui/reference/docRef';
-
 The **ScreenManagement** module makes popout windows monitor-aware: enumerate the user's screens, open a popout on a chosen monitor, move it between monitors, open it fullscreen, and recover automatically when a monitor is unplugged. It is built on the browser's [Window Management API](https://developer.mozilla.org/en-US/docs/Web/API/Window_Management_API), with an adapter seam for Electron apps that prefer native screen data.
 
 The module ships in `dockview-enterprise`. Importing the package registers it; without the module every option below degrades to the standard popout behaviour and logs a single console message naming the missing module.
@@ -136,7 +134,7 @@ const toDockviewScreen = (display: Electron.Display) => ({
     label: display.label,
     isPrimary: display.id === screen.getPrimaryDisplay().id,
     isInternal: display.internal,
-    isCurrent: false, // resolve against the window that asks
+    isCurrent: false, // the renderer fills this in, see below
     bounds: {
         left: display.bounds.x,
         top: display.bounds.y,
@@ -158,12 +156,29 @@ ipcMain.handle('screens:list', () =>
 ```
 
 ```ts title="renderer.ts"
+// The main process cannot know which display is "current" for this window,
+// so mark it here: the current screen is the one containing this window's
+// centre. Targets such as screen: 'current' and screen-less fullscreen
+// popouts rely on exactly one screen having isCurrent set.
+const markCurrent = (screens) => {
+    const x = window.screenX + window.innerWidth / 2;
+    const y = window.screenY + window.innerHeight / 2;
+    return screens.map((s) => ({
+        ...s,
+        isCurrent:
+            x >= s.bounds.left &&
+            x < s.bounds.left + s.bounds.width &&
+            y >= s.bounds.top &&
+            y < s.bounds.top + s.bounds.height,
+    }));
+};
+
 const dockview = createDockview(element, {
     // ...
     screenAdapter: {
-        getScreens: () => window.screens.list(),
+        getScreens: async () => markCurrent(await window.screens.list()),
         subscribe: (listener) => {
-            window.screens.onChange(listener);
+            window.screens.onChange((s) => listener(markCurrent(s)));
             return () => {/* remove the listener */};
         },
         // optional: native placement and fullscreen instead of moveTo/resizeTo
