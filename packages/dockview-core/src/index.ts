@@ -112,9 +112,20 @@ export {
     type DockviewScreenAdapter,
     type IScreenManager,
     type IScreenManagerHost,
+    // Exporting the module from the free package is a deliberate trade
+    // (DV-94): dockview-enterprise imports it from here to register it, and
+    // core owns the implementation because it is the popout machinery's
+    // neighbour. A determined free user can therefore self-register it; the
+    // gate is convenience-not-capability (free `position: Box` already
+    // allows DIY cross-screen placement), matching the design doc's §11
+    // rationale.
     ScreenManager,
     ScreenManagerModule,
 } from './dockview/screenManager';
+export {
+    type ScreenDetailed,
+    type ScreenDetails,
+} from './types/windowManagement';
 export {
     type EdgeGroupOptions,
     type AddEdgeGroupOptions,

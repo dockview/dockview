@@ -198,6 +198,33 @@ describe('popout screen placement (Phase 2)', () => {
             consoleError.mockRestore();
         });
 
+        test('an explicit position wins over a screen target', async () => {
+            const consoleWarn = jest
+                .spyOn(console, 'warn')
+                .mockImplementation(() => undefined);
+            const dockview = createComponent({
+                modules: [...AllModules, ScreenManagerModule],
+                screenAdapter: { getScreens: () => adapterScreens() },
+            });
+            await flush();
+
+            const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+            await dockview.addPopoutGroup(panel, {
+                position: { left: 50, top: 60, width: 300, height: 200 },
+                screen: 1,
+            });
+
+            expect(parseFeatures(openSpy.mock.calls[0][2])).toMatchObject({
+                left: '50',
+                top: '60',
+                width: '300',
+                height: '200',
+            });
+            expect(consoleWarn).not.toHaveBeenCalled();
+            dockview.dispose();
+            consoleWarn.mockRestore();
+        });
+
         test('unresolvable target on a live snapshot warns and falls back', async () => {
             const consoleWarn = jest
                 .spyOn(console, 'warn')

@@ -2,6 +2,7 @@ import { Emitter, Event } from '../events';
 import { CompositeDisposable, Disposable } from '../lifecycle';
 import { Box } from '../types';
 import { defineModule } from './modules';
+import { ScreenDetailed, ScreenDetails } from '../types/windowManagement';
 
 /**
  * Facade over the Window Management API (design doc:
@@ -332,9 +333,15 @@ export class ScreenManager
             this.updateSnapshot(this.mapScreens(this._details), true);
             return this._screens;
         } catch {
-            // NotAllowedError: the user denied the prompt (or policy blocks
-            // the API). Remember it so later calls don't re-prompt.
-            this._denied = true;
+            // A rejection is ambiguous: NotAllowedError covers a real denial
+            // AND a prompt that could not be shown (no transient activation,
+            // e.g. getScreens() called outside a gesture). Ask the permission
+            // silently which it was, and latch only an actual denial —
+            // otherwise a later gesture-bound call must still be able to
+            // prompt.
+            if ((await this.permissionState()) === 'denied') {
+                this._denied = true;
+            }
             return this.useFallback();
         }
     }
@@ -579,7 +586,14 @@ export class ScreenManager
     }
 
     private watchPermission(status: PermissionStatusLike): void {
-        if (this._detachPermissionListener || !status.addEventListener) {
+        // isDisposed guard: an in-flight permissions.query() can resolve
+        // after dispose(), when the disposer has already run — attaching
+        // then would leak the listener for the page lifetime.
+        if (
+            this.isDisposed ||
+            this._detachPermissionListener ||
+            !status.addEventListener
+        ) {
             return;
         }
         const onChange = (): void => {
@@ -654,11 +668,16 @@ export const ScreenManagerModule = defineModule<
                 } catch {
                     continue;
                 }
+                // Outer sizes where available: screenX/screenY are the OUTER
+                // origin and moveTo/resizeTo operate on the outer box, so
+                // pairing them with inner sizes would shrink the window by
+                // its chrome on every clamp (and bias the centre). Test
+                // mocks without outerWidth fall back to inner.
                 const rect = {
                     left: win.screenX,
                     top: win.screenY,
-                    width: win.innerWidth,
-                    height: win.innerHeight,
+                    width: win.outerWidth || win.innerWidth,
+                    height: win.outerHeight || win.innerHeight,
                 };
                 const screen = service.screenAtPoint(
                     rect.left + rect.width / 2,
@@ -687,29 +706,14 @@ export const ScreenManagerModule = defineModule<
                     // its new work area. Only screens from `changed` are
                     // touched so unrelated topology events (a monitor added
                     // elsewhere) never yank deliberately-placed windows.
-                    const wa = screen.workArea;
-                    const width = Math.min(rect.width, wa.width);
-                    const height = Math.min(rect.height, wa.height);
-                    const left = Math.min(
-                        Math.max(rect.left, wa.left),
-                        wa.left + wa.width - width
-                    );
-                    const top = Math.min(
-                        Math.max(rect.top, wa.top),
-                        wa.top + wa.height - height
-                    );
+                    const clamped = clampToWorkArea(rect, screen.workArea);
                     if (
-                        left !== rect.left ||
-                        top !== rect.top ||
-                        width !== rect.width ||
-                        height !== rect.height
+                        clamped.left !== rect.left ||
+                        clamped.top !== rect.top ||
+                        clamped.width !== rect.width ||
+                        clamped.height !== rect.height
                     ) {
-                        void service.moveWindowTo(win, {
-                            left,
-                            top,
-                            width,
-                            height,
-                        });
+                        void service.moveWindowTo(win, clamped);
                     }
                 }
             }
