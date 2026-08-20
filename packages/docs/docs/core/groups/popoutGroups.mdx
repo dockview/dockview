@@ -51,6 +51,40 @@ From within a panel you may say
 props.containerApi.addPopoutGroup(props.api.group);
 ```
 
+## Choosing a screen
+
+With the ScreenManagement module (`dockview-enterprise`) a popout can target a specific monitor, open fullscreen, move between monitors and survive a monitor being unplugged:
+
+```tsx
+api.addPopoutGroup(panel, { screen: 1, placement: { type: 'fill' } });
+group.api.moveToScreen('primary');
+```
+
+See [Multiple monitors](/docs/core/groups/multiWindow) for screen discovery, the permission model, fullscreen and the Electron integration. Without the module these options are ignored with a single console message.
+
+## Intercepting window creation
+
+Two options, available to every user, let a host application shape or own the `window.open` call. Both are aimed at Electron-style hosts but work anywhere.
+
+`extraWindowFeatures` appends entries to the features string, for example a marker an Electron `setWindowOpenHandler` can match on (booleans serialize as `1`/`0`):
+
+```tsx
+api.addPopoutGroup(panel, {
+    extraWindowFeatures: { dockviewPopout: true },
+});
+```
+
+`popoutWindowFactory` replaces the `window.open` call entirely. Return the `Window` to use, or `null` to signal the popout was blocked (dockview then runs its normal blocked-popout recovery). The returned window must be same-process and same-origin; the same-origin URL check still applies.
+
+```tsx
+const api = createDockview(element, {
+    popoutWindowFactory: (request) => {
+        // request: { id, url, box, features }
+        return window.open(request.url, request.id, request.features);
+    },
+});
+```
+
 ## Closing the popout group
 
 To programmatically move the popout group back into the main grid you can use the `moveTo` method in many ways, one of the following would suffice

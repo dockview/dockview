@@ -1,0 +1,204 @@
+---
+title: Multiple monitors
+description: Target screens, open fullscreen popouts and keep layouts monitor-aware with the ScreenManagement module.
+enterprise: true
+sidebar_custom_props:
+    enterprise: true
+---
+
+import { DocRef } from '@site/src/components/ui/reference/docRef';
+
+The **ScreenManagement** module makes popout windows monitor-aware: enumerate the user's screens, open a popout on a chosen monitor, move it between monitors, open it fullscreen, and recover automatically when a monitor is unplugged. It is built on the browser's [Window Management API](https://developer.mozilla.org/en-US/docs/Web/API/Window_Management_API), with an adapter seam for Electron apps that prefer native screen data.
+
+The module ships in `dockview-enterprise`. Importing the package registers it; without the module every option below degrades to the standard popout behaviour and logs a single console message naming the missing module.
+
+```ts
+import 'dockview-enterprise';
+```
+
+## Browser support
+
+| Environment | Behaviour |
+| --- | --- |
+| Chrome, Edge and other Chromium browsers (100+) | Full screen enumeration and placement once the `window-management` permission is granted |
+| Chromium 132+ | Additionally supports opening popouts truly fullscreen |
+| Firefox, Safari | No Window Management API. Dockview uses a single-screen fallback: every option below silently behaves as if the machine had one monitor |
+| Electron | Grant the permission in the main process, or skip the browser API entirely with a [`screenAdapter`](#electron) |
+
+## Permission
+
+Screen enumeration needs the `window-management` browser permission.
+
+- `api.getScreens()` resolves the screen list. If the permission is undecided it shows the browser prompt, so call it from a user gesture such as a click. If the permission is denied or the API is unavailable it resolves to the single-screen fallback, never rejecting.
+- `api.screens`, `api.hasWindowManagement` and `api.getWindowManagementPermission()` never prompt. Use them to decide what UI to show.
+- When the permission is already granted, dockview resolves the screen list eagerly at startup, so screen-aware behaviour works without any prior `getScreens()` call.
+
+```ts
+const state = await api.getWindowManagementPermission();
+// 'granted' | 'prompt' | 'denied' | 'unsupported'
+
+button.addEventListener('click', async () => {
+    // May prompt, so it runs inside a click handler.
+    const screens = await api.getScreens();
+    console.log(screens.map((screen) => screen.label));
+});
+```
+
+You do not need to wait for the permission before opening a screen-targeted popout. Dockview never awaits between your gesture and `window.open` (awaiting would trip the popup blocker). If the screen list is not resolved yet, the window opens at the default position, the prompt shows, and the window moves to the requested screen once the user grants it.
+
+## Targeting a screen
+
+`addPopoutGroup` accepts a `screen` target and an optional `placement`:
+
+```ts
+api.addPopoutGroup(panel, {
+    screen: 1, // index into api.screens, a DockviewScreen, 'primary' or 'current'
+    placement: { type: 'fill' }, // or { type: 'center', width, height }
+                                 // or { type: 'box', box } relative to the work area
+});
+```
+
+Placement is always clamped to the screen's work area (its bounds minus taskbars and docks), so a window never opens with its title bar out of reach.
+
+If the target cannot be honoured, dockview falls back rather than failing: an unknown target logs a warning and uses the default position; without the module one console message is logged and the popout opens as normal.
+
+## Moving between screens
+
+Each group resolves the screen it currently occupies, and popout groups can be moved:
+
+```ts
+group.api.getScreen(); // DockviewScreen | undefined
+await group.api.moveToScreen('primary'); // resolves false if it could not move
+```
+
+`moveToScreen` is the primitive for a "Move to screen" menu. Unlike opening a popout it may safely await a first-time permission prompt, because the window already exists.
+
+`api.getPopouts()` entries and the `onDidPopoutGroupPositionChange` event carry the resolved `screen`, so UI can follow popouts as users drag them between monitors.
+
+<CodeRunner id="dockview/move-to-screen" />
+
+## Fullscreen popouts
+
+```ts
+api.addPopoutGroup(panel, { screen: 1, fullscreen: true });
+```
+
+On Chromium 132+ with the permission granted, the window opens truly fullscreen on the target screen. Elsewhere the request degrades to a `{ type: 'fill' }` placement covering the work area: visually fullscreen minus the window chrome.
+
+Groups also expose `isFullscreen()` and `setFullscreen(value)`.
+
+:::warning
+`setFullscreen(true)` uses element fullscreen, which browsers only allow from a user interaction in the same window. Call it from a control rendered inside the popout window itself; a click in the main window cannot fullscreen a popout. With an Electron `screenAdapter` this restriction disappears, because fullscreen goes through the adapter instead.
+:::
+
+## Monitor changes
+
+When the screen arrangement changes, dockview reacts automatically:
+
+- a popout whose monitor was unplugged is re-placed onto the current screen instead of being lost off-screen;
+- a popout whose monitor was resized is clamped back into the new work area if it no longer fits;
+- windows on unaffected monitors are never touched.
+
+Observe changes yourself through `api.onDidChangeScreens`, which reports the new list plus `added`, `removed` and `changed` diffs.
+
+## Saving and restoring layouts
+
+`toJSON()` and `fromJSON()` are screen-aware without changing the serialized format:
+
+- Restore never shows a permission prompt.
+- A saved position that still lands on a live screen restores exactly.
+- A saved position pointing at a monitor that no longer exists is re-placed onto the current screen, never into dead space.
+- With a `screenAdapter` (stable native screen ids), an opaque `screenId` is written per popout, so a layout finds its monitor again even after the arrangement of the virtual desktop changes. Without an adapter nothing new is serialized: layouts stay byte-identical and portable between machines, and no hardware names are written to disk.
+
+## Electron
+
+Electron apps have two independent integration levels.
+
+### Native screens with `screenAdapter` {#electron}
+
+Skip the browser permission model entirely and feed dockview from the main process `screen` module. Dockview has no Electron dependency; the adapter is a plain object you implement over your preload bridge:
+
+```ts title="preload.ts"
+import { contextBridge, ipcRenderer } from 'electron';
+
+contextBridge.exposeInMainWorld('screens', {
+    list: () => ipcRenderer.invoke('screens:list'),
+    onChange: (cb) => ipcRenderer.on('screens:changed', (_, s) => cb(s)),
+    moveWindow: (name, box) => ipcRenderer.invoke('screens:move', name, box),
+});
+```
+
+```ts title="main.ts"
+import { screen, ipcMain } from 'electron';
+
+const toDockviewScreen = (display: Electron.Display) => ({
+    id: String(display.id), // stable across sessions
+    label: display.label,
+    isPrimary: display.id === screen.getPrimaryDisplay().id,
+    isInternal: display.internal,
+    isCurrent: false, // resolve against the window that asks
+    bounds: {
+        left: display.bounds.x,
+        top: display.bounds.y,
+        width: display.bounds.width,
+        height: display.bounds.height,
+    },
+    workArea: {
+        left: display.workArea.x,
+        top: display.workArea.y,
+        width: display.workArea.width,
+        height: display.workArea.height,
+    },
+    devicePixelRatio: display.scaleFactor,
+});
+
+ipcMain.handle('screens:list', () =>
+    screen.getAllDisplays().map(toDockviewScreen)
+);
+```
+
+```ts title="renderer.ts"
+const dockview = createDockview(element, {
+    // ...
+    screenAdapter: {
+        getScreens: () => window.screens.list(),
+        subscribe: (listener) => {
+            window.screens.onChange(listener);
+            return () => {/* remove the listener */};
+        },
+        // optional: native placement and fullscreen instead of moveTo/resizeTo
+        moveWindow: (win, box) => window.screens.moveWindow(win.name, box),
+    },
+});
+```
+
+With an adapter there are no prompts, screen ids are stable (`Display.id`), labels are always populated, and saved layouts can follow monitors across sessions.
+
+### Owning window creation
+
+Two free options (no module required) let the host shape or own popout creation:
+
+```ts
+const dockview = createDockview(element, {
+    // Tag the window.open call so setWindowOpenHandler can match it.
+    popoutWindowFactory: (request) => {
+        // request: { id, url, box, features }
+        return window.open(request.url, request.id, request.features);
+    },
+});
+
+api.addPopoutGroup(panel, {
+    extraWindowFeatures: { dockviewPopout: true },
+});
+```
+
+In the main process, match the marker in `setWindowOpenHandler` to control frame, transparency, always-on-top and other `BrowserWindow` options for popout windows.
+
+## Tauri and multi-webview hosts
+
+Dockview popouts move live DOM into the child window, which requires `window.open` to return a same-process, same-origin `Window`. That holds in browsers and Electron. It does not hold in Tauri, OpenFin views or other multi-webview hosts, where every window is an isolated JavaScript context; a `screenAdapter` can still supply screen data there, but the popout mechanism itself cannot work. Supporting those hosts needs a state-transfer protocol rather than DOM transfer, which is a planned, separate piece of work.
+
+## See also
+
+- [Popout windows](/docs/core/groups/popoutGroups): the underlying popout mechanics
+- [Events](/docs/core/events#popout-window): popout lifecycle events
