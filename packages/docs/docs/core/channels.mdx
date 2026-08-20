@@ -1,0 +1,144 @@
+---
+title: Channels
+description: Link panels by colour channel so a user can decide at runtime which panels share context.
+sidebar_position: 13
+---
+
+Panels that talk to each other without knowing about each other.
+
+Normally, wiring one panel to another is the developer's job: a shared store, a
+callback threaded through `params`, a context provider. That fixes the
+relationship at build time. Channels move the decision to the user. A panel
+broadcasts context onto whichever channel it is on, and any panel on the same
+channel receives it. Neither panel refers to the other, and the user chooses
+what is connected by picking a colour on the tab.
+
+This is off by default. Set `channels.enabled` to turn it on.
+
+<CodeRunner id="dockview/channels" />
+
+## Enabling channels
+
+<FrameworkSpecific framework="React">
+    ```tsx
+    <DockviewReact
+        channels={{ enabled: true }}
+        onReady={onReady}
+        components={components}
+    />
+    ```
+</FrameworkSpecific>
+
+<FrameworkSpecific framework='Vue'>
+```html
+<dockview-vue
+    :channels="{ enabled: true }"
+    :components="components"
+    @ready="onReady">
+</dockview-vue>
+```
+</FrameworkSpecific>
+
+<FrameworkSpecific framework='Angular'>
+```html
+<dv-dockview
+    [channels]="{ enabled: true }"
+    [components]="components"
+    (ready)="onReady($event)">
+</dv-dockview>
+```
+</FrameworkSpecific>
+
+Each tab gains a small coloured dot. Clicking it opens a picker listing the
+available channels plus `None`.
+
+## Sending and receiving
+
+A panel broadcasts through `api.channels`, identifying itself by panel id:
+
+```tsx
+props.containerApi.channels.broadcast(props.api.id, { ticker: 'AAPL' });
+```
+
+and listens the same way:
+
+```tsx
+const disposable = props.containerApi.channels.addContextListener(
+    props.api.id,
+    (context) => setTicker(context.ticker)
+);
+```
+
+Dispose the listener when the panel unmounts.
+
+The context is whatever you want it to be. Dockview does not inspect it, so
+agree a shape across your panels. If you plan to interoperate with FDC3 apps
+later, using FDC3 context types now costs nothing.
+
+A broadcast reaches every other panel on the same channel. It does not come
+back to the sender, and a panel on no channel neither sends nor receives.
+
+## Context is replayed when a panel joins
+
+Each channel retains the last context broadcast on it. When a panel joins a
+channel, its listeners are called straight away with that retained value.
+
+This matters more than it sounds. Without it, linking a chart to a blotter
+would appear to do nothing until somebody clicked the blotter again, which
+reads as a bug. Joining a channel shows you what is already on it.
+
+## Membership
+
+Membership belongs to the panel, not the group, so it follows a panel when it
+moves between groups, becomes a floating group, or is popped out into another
+window. Nothing needs re-wiring.
+
+It is also saved. `toJSON` records each panel's channel and `fromJSON` restores
+it, so a saved workspace comes back with its links intact. If a restored
+channel id is not in the current set, that panel loads with no channel rather
+than failing.
+
+You can drive membership programmatically:
+
+```ts
+api.channels.setChannel('chart-1', 'red');
+api.channels.getChannel('chart-1'); // 'red'
+api.channels.setChannel('chart-1', undefined); // leave
+api.channels.panelsOnChannel('red'); // IDockviewPanel[]
+
+api.channels.onDidChangeChannel((event) => {
+    console.log(event.panelId, event.from, event.to);
+});
+```
+
+## Defining your own channels
+
+The default set mirrors the FDC3 user channels: red, orange, yellow, green,
+blue and purple. Replace it with your own:
+
+```ts
+channels: {
+    enabled: true,
+    channels: [
+        { id: 'trading', name: 'Trading', color: '#e5484d' },
+        { id: 'research', name: 'Research', color: '#0091ff' },
+    ],
+}
+```
+
+Each channel needs an `id`, a `name` and a `color`. `glyph` is optional, a
+short marker rendered inside the indicator when `indicatorGlyph` is set.
+
+Colour is never the only signal. The indicator's accessible name and tooltip
+carry the channel name, and the picker lists names alongside swatches, so
+membership is readable without colour vision. Turn on `indicatorGlyph` if you
+want a visible non-colour marker as well.
+
+## Options
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `enabled` | `false` | Turns the feature on. Nothing renders and nothing is serialized until this is set. |
+| `channels` | FDC3 user channels | The selectable channels. |
+| `tabIndicator` | `true` | Show the per-tab indicator. Turn it off to drive membership entirely from your own UI. |
+| `indicatorGlyph` | `false` | Render the channel's `glyph` inside the indicator. |

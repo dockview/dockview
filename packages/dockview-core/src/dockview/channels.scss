@@ -40,28 +40,41 @@
     display: flex;
     flex-direction: column;
     min-width: 140px;
-    padding: 4px;
-    border-radius: 4px;
-    background-color: var(--dv-group-view-background-color);
-    box-shadow: 0 2px 8px rgb(0 0 0 / 25%);
-    font-size: var(--dv-tab-font-size, 13px);
+    overflow: hidden;
+    padding: 4px 0;
+    // Mirrors `.dv-context-menu` so the picker themes with the other popovers
+    // rather than inheriting whatever the anchor happens to sit on.
+    background: var(
+        --dv-context-menu-background-color,
+        var(--dv-activegroup-hiddenpanel-tab-background-color)
+    );
+    color: var(
+        --dv-context-menu-color,
+        var(--dv-activegroup-hiddenpanel-tab-color)
+    );
+    border: 1px solid var(--dv-tab-divider-color);
+    border-radius: var(--dv-border-radius);
+    box-shadow: var(--dv-floating-box-shadow);
+    font-size: var(--dv-tabs-and-actions-container-font-size);
 }
 
 .dv-channel-picker-item {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 4px 8px;
+    height: 25px;
+    padding: 0 12px;
     border: none;
-    border-radius: 2px;
     background: transparent;
     color: inherit;
     font: inherit;
     text-align: left;
+    white-space: nowrap;
+    user-select: none;
     cursor: pointer;
 
     &:hover {
-        background-color: var(--dv-icon-hover-background-color);
+        background: var(--dv-icon-hover-background-color);
     }
 
     &.dv-channel-picker-item--selected {

@@ -176,7 +176,10 @@ export class ChannelsService
 
         this._retained.set(channel, context);
 
-        for (const [otherId] of this._listeners) {
+        // `Array.from(keys())` rather than iterating the Map directly: the ES5
+        // target needs downlevelIteration for the latter, and a listener
+        // unsubscribing mid-dispatch must not perturb the walk.
+        for (const otherId of Array.from(this._listeners.keys())) {
             if (
                 otherId !== panelId &&
                 this._membership.get(otherId) === channel
