@@ -106,7 +106,7 @@ Observe changes yourself through `api.onDidChangeScreens`, which reports the new
 - Restore never shows a permission prompt.
 - A saved position that still lands on a live screen restores exactly.
 - A saved position pointing at a monitor that no longer exists is re-placed onto the current screen, never into dead space.
-- With a `screenAdapter` (stable native screen ids), an opaque `screenId` is written per popout, so a layout finds its monitor again even after the arrangement of the virtual desktop changes. Without an adapter nothing new is serialized: layouts stay byte-identical and portable between machines, and no hardware names are written to disk.
+- With a `screenAdapter` that declares `stableIds: true` (native ids that survive restarts, such as Electron's `Display.id`), an opaque `screenId` is written per popout, so a layout finds its monitor again even after the arrangement of the virtual desktop changes. Otherwise nothing new is serialized: layouts stay byte-identical and portable between machines, and no hardware names are written to disk.
 
 ## Electron
 
@@ -181,6 +181,10 @@ const dockview = createDockview(element, {
             window.screens.onChange((s) => listener(markCurrent(s)));
             return () => {/* remove the listener */};
         },
+        // Electron Display.id survives restarts, so declare it. This is
+        // what lets saved layouts write a screen identity per popout and
+        // find the same monitor again in a later session.
+        stableIds: true,
         // optional: native placement and fullscreen instead of moveTo/resizeTo
         moveWindow: (win, box) => window.screens.moveWindow(win.name, box),
     },
