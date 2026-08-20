@@ -2138,9 +2138,20 @@ export class DockviewComponent
                 (screen) => screen.id === screenId
             );
             if (saved) {
-                return containing?.id === saved.id
-                    ? position
-                    : centerOn(saved);
+                // Intersection, not centre containment: the serialized
+                // position pairs an outer origin with inner sizes, so a
+                // window straddling two screens can have its id computed
+                // from one and its centre resolve to the other. As long as
+                // the saved box still touches the saved screen, restore it
+                // verbatim; re-place only when the box is genuinely
+                // elsewhere (the arrangement changed under it).
+                const touchesSaved =
+                    position.left <
+                        saved.bounds.left + saved.bounds.width &&
+                    position.left + position.width > saved.bounds.left &&
+                    position.top < saved.bounds.top + saved.bounds.height &&
+                    position.top + position.height > saved.bounds.top;
+                return touchesSaved ? position : centerOn(saved);
             }
         }
 
@@ -2148,10 +2159,7 @@ export class DockviewComponent
             return position;
         }
 
-        const target =
-            service.resolveTarget('current') ??
-            service.resolveTarget('primary') ??
-            service.screens[0];
+        const target = service.rehomeTarget();
         return target ? centerOn(target) : position;
     }
 
@@ -4401,13 +4409,18 @@ export class DockviewComponent
             return popoutService.scheduleRestoration(
                 index * DESERIALIZATION_POPOUT_DELAY_MS,
                 () => {
-                    this.addPopoutGroup(group, {
-                        // Resolved here, inside the delayed restoration, so a
-                        // snapshot primed during init() is available by now.
-                        position: this.resolveRestoredPopoutPosition(
-                            position ?? undefined,
-                            serializedPopoutGroup.screenId
-                        ),
+                    // Resolved inside the delayed restoration; when the
+                    // init-time prime has landed by now (later indices, or a
+                    // synchronous adapter) this is already screen-aware.
+                    const resolved = this.resolveRestoredPopoutPosition(
+                        position ?? undefined,
+                        serializedPopoutGroup.screenId
+                    );
+                    const screenService = this._screenManagerService;
+                    const snapshotWasLive =
+                        screenService?.hasResolvedScreens === true;
+                    void this.addPopoutGroup(group, {
+                        position: resolved,
                         overridePopoutGroup: gridReferenceGroup
                             ? group
                             : undefined,
@@ -4416,6 +4429,49 @@ export class DockviewComponent
                             ? this.getPanel(gridReferenceGroup)
                             : undefined,
                         popoutUrl: url,
+                    }).then((opened) => {
+                        // Late-snapshot rescue: the first popout's 0ms timer
+                        // can beat the async prime() (permissions query, or
+                        // an adapter IPC round-trip), in which case the
+                        // window opened at the saved position verbatim.
+                        // Re-resolve once the snapshot lands (prime never
+                        // prompts) and move the window if the answer
+                        // differs — e.g. off a now-unplugged monitor.
+                        if (
+                            !opened ||
+                            !position ||
+                            snapshotWasLive ||
+                            !screenService?.isSupported
+                        ) {
+                            return;
+                        }
+                        void screenService.prime().then(() => {
+                            if (
+                                this.isDisposed ||
+                                !screenService.hasResolvedScreens ||
+                                group.api.location.type !== 'popout'
+                            ) {
+                                return;
+                            }
+                            const better = this.resolveRestoredPopoutPosition(
+                                position,
+                                serializedPopoutGroup.screenId
+                            );
+                            if (
+                                !better ||
+                                (better.left === position.left &&
+                                    better.top === position.top &&
+                                    better.width === position.width &&
+                                    better.height === position.height)
+                            ) {
+                                return;
+                            }
+                            const win = group.api.getWindow();
+                            if (!win || win.closed) {
+                                return;
+                            }
+                            void screenService.moveWindowTo(win, better);
+                        });
                     });
                 },
                 () => {

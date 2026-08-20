@@ -128,6 +128,15 @@ export interface DockviewScreenAdapter {
      * from Phase 3 onward.)
      */
     setFullscreen?(window: Window, value: boolean): boolean | Promise<boolean>;
+    /**
+     * Declare that this adapter's screen ids are stable across sessions
+     * (e.g. Electron's `Display.id`). Serialization writes a per-popout
+     * screen identity only when this is true — an explicit opt-in, because
+     * an id that merely LOOKS stable (label-derived) would make restore
+     * follow the wrong monitor after physically identical monitors swap
+     * ports. Default: false.
+     */
+    readonly stableIds?: boolean;
 }
 
 export interface IScreenManager {
@@ -143,11 +152,11 @@ export interface IScreenManager {
      */
     readonly hasResolvedScreens: boolean;
     /**
-     * True when screen ids survive across sessions — an adapter source whose
-     * ids are genuinely stable (e.g. Electron's `Display.id`). Web-API ids
-     * are best-effort within a session only, so this is false without an
-     * adapter; serialization uses it to decide whether a screen identity is
-     * worth writing.
+     * True when screen ids survive across sessions — an adapter that opted
+     * in via `stableIds: true` (e.g. Electron's `Display.id`). Web-API ids
+     * are best-effort within a session only and adapters must declare
+     * stability explicitly, so this is false otherwise; serialization uses
+     * it to decide whether a screen identity is worth writing.
      */
     readonly hasStableScreenIds: boolean;
     readonly currentScreen: DockviewScreen | undefined;
@@ -171,6 +180,12 @@ export interface IScreenManager {
     resolveTarget(target: DockviewScreenTarget): DockviewScreen | undefined;
     /** The screen whose full bounds contain the point, if any. */
     screenAtPoint(x: number, y: number): DockviewScreen | undefined;
+    /**
+     * The screen a homeless window is re-placed onto: current, else primary,
+     * else the first in the snapshot. Shared by topology rehoming and
+     * restore so the two policies cannot drift.
+     */
+    rehomeTarget(): DockviewScreen | undefined;
     /**
      * Compute a window.open placement Box on `screen`, clamped to its work
      * area so a window can never open with its titlebar off the usable area.
@@ -270,7 +285,7 @@ export class ScreenManager
     }
 
     get hasStableScreenIds(): boolean {
-        return !!this._adapter;
+        return this._adapter?.stableIds === true;
     }
 
     get currentScreen(): DockviewScreen | undefined {
@@ -383,6 +398,14 @@ export class ScreenManager
                 x < screen.bounds.left + screen.bounds.width &&
                 y >= screen.bounds.top &&
                 y < screen.bounds.top + screen.bounds.height
+        );
+    }
+
+    rehomeTarget(): DockviewScreen | undefined {
+        return (
+            this.resolveTarget('current') ??
+            this.resolveTarget('primary') ??
+            this._screens[0]
         );
     }
 
@@ -698,10 +721,7 @@ export const ScreenManagerModule = defineModule<
                 if (!screen) {
                     // The window's screen is gone (or it sits in dead space):
                     // re-place it onto the current/primary screen at its size.
-                    const target =
-                        service.resolveTarget('current') ??
-                        service.resolveTarget('primary') ??
-                        service.screens[0];
+                    const target = service.rehomeTarget();
                     if (!target) {
                         continue;
                     }
