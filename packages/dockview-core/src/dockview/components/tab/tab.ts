@@ -26,6 +26,7 @@ import {
 import { LongPressDetector } from '../../../dnd/pointer/longPress';
 import { IDockviewPanel } from '../../dockviewPanel';
 import { DockviewHeaderDirection } from '../../options';
+import type { ITabDecoration } from '../../modules';
 import { resolveDndCapabilities } from '../../dndCapabilities';
 
 let _tabId = 0;
@@ -43,6 +44,11 @@ export class Tab extends CompositeDisposable {
         LocalSelectionTransfer.getInstance<PanelTransfer>();
     private _direction: DockviewHeaderDirection = 'horizontal';
     private _pinIndicator: HTMLElement | undefined = undefined;
+    /** Decoration key -> the element that decoration last returned. */
+    private readonly _decorationElements = new Map<string, HTMLElement>();
+    private readonly _decorationContainers: Partial<
+        Record<'before' | 'after', HTMLElement>
+    > = {};
 
     private readonly _onPointDown = new Emitter<MouseEvent>();
     readonly onPointerDown: Event<MouseEvent> = this._onPointDown.event;
@@ -284,6 +290,156 @@ export class Tab extends CompositeDisposable {
             this.pointerDropTarget,
             this.pointerDragSource
         );
+
+        for (const decoration of this.accessor.tabDecorations ?? []) {
+            const onDidChange = decoration.onDidChangeTabDecoration;
+            if (onDidChange === undefined) {
+                continue;
+            }
+            this.addDisposables(
+                onDidChange((event) => {
+                    const panelId =
+                        event && typeof event === 'object'
+                            ? event.panelId
+                            : undefined;
+                    // A void event, or one without a panel id, re-renders every
+                    // tab; a narrowed one only the tab it names.
+                    if (panelId === undefined || panelId === this.panel.id) {
+                        this._renderDecorations();
+                    }
+                })
+            );
+        }
+
+        this._renderDecorations();
+    }
+
+    /**
+     * Render every registered decoration into the container on its side of the
+     * tab content. Decorations update in place (they are handed back the
+     * element they last returned) and are only re-ordered in the DOM when the
+     * desired order actually changed, so an open popover inside one isn't torn
+     * down by an unrelated re-render.
+     */
+    private _renderDecorations(): void {
+        const decorations = this.accessor.tabDecorations ?? [];
+
+        if (decorations.length === 0 && this._decorationElements.size === 0) {
+            return;
+        }
+
+        // A custom tabComponent owns its markup, so a decoration only appears
+        // there if it explicitly opts in (see `renderWithCustomTab`).
+        const hasCustomTab = !!this.panel.api?.tabComponent;
+        const desired: Record<'before' | 'after', HTMLElement[]> = {
+            before: [],
+            after: [],
+        };
+
+        for (const decoration of decorations) {
+            const key = decoration.decorationKey;
+            const existing = this._decorationElements.get(key);
+            const permitted =
+                decoration.renderWithCustomTab === true || !hasCustomTab;
+
+            const next = permitted
+                ? decoration.renderTabDecoration(this.panel, existing)
+                : null;
+
+            if (next === null) {
+                existing?.remove();
+                this._decorationElements.delete(key);
+                continue;
+            }
+
+            if (next !== existing) {
+                existing?.remove();
+                this._decorationElements.set(key, next);
+                if (decoration.interactive) {
+                    this._isolatePointerEvents(next);
+                }
+            }
+
+            desired[decoration.placement ?? 'before'].push(next);
+        }
+
+        for (const placement of ['before', 'after'] as const) {
+            const elements = desired[placement];
+
+            if (elements.length === 0) {
+                this._decorationContainers[placement]?.remove();
+                continue;
+            }
+
+            const container = this._positionDecorationContainer(placement);
+            const current = Array.from(container.children);
+            const ordered =
+                current.length === elements.length &&
+                elements.every((element, i) => current[i] === element);
+
+            if (!ordered) {
+                // appendChild moves existing nodes, so appending in sorted
+                // order is enough to fix the sequence.
+                for (const element of elements) {
+                    container.appendChild(element);
+                }
+            }
+        }
+    }
+
+    /** Create the container if needed and put it on the right side of content. */
+    private _positionDecorationContainer(
+        placement: 'before' | 'after'
+    ): HTMLElement {
+        let container = this._decorationContainers[placement];
+
+        if (container === undefined) {
+            container = document.createElement('div');
+            container.className = `dv-tab-decorations dv-tab-decorations--${placement}`;
+            this._decorationContainers[placement] = container;
+        }
+
+        if (placement === 'after') {
+            if (this._element.lastChild !== container) {
+                this._element.appendChild(container);
+            }
+            return container;
+        }
+
+        // Anchor to the content element rather than `firstChild` so the
+        // container sits after the pin glyph (which owns the leading slot) and
+        // before the tab's content. `insertBefore(_, null)` appends, which is
+        // corrected when `setContent` re-renders.
+        const anchor = this.content?.element ?? null;
+        if (
+            container.parentElement !== this._element ||
+            container.nextSibling !== anchor
+        ) {
+            this._element.insertBefore(container, anchor);
+        }
+
+        return container;
+    }
+
+    /**
+     * Stop a decoration's pointer events reaching the tab, so clicking it
+     * neither activates the tab nor starts a drag.
+     */
+    private _isolatePointerEvents(element: HTMLElement): void {
+        element.draggable = false;
+
+        for (const type of [
+            'pointerdown',
+            'mousedown',
+            'click',
+            'dragstart',
+        ] as const) {
+            this.addDisposables(
+                addDisposableListener(element, type, (event) => {
+                    event.stopPropagation();
+                })
+            );
+        }
     }
 
     private _updatePinnedClasses(): void {
@@ -332,6 +488,9 @@ export class Tab extends CompositeDisposable {
         }
         this.content = part;
         this._element.appendChild(this.content.element);
+        // Content was just appended past the decoration containers; re-render
+        // to put them back on their correct side of it.
+        this._renderDecorations();
     }
 
     private _buildOverlayModel(): DroptargetOverlayModel {

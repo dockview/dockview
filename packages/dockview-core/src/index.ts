@@ -204,9 +204,11 @@ export {
     clearRegisteredModules,
     defineModule,
     isPanelStateContributor,
+    isTabDecoration,
     type DockviewModule,
     type ServiceCollection,
     type IPanelStateContributor,
+    type ITabDecoration,
 } from './dockview/modules';
 export {
     type IKeyboardNavigationHost,

@@ -292,6 +292,35 @@
     }
 }
 
+// Tab decorations (module-contributed elements, e.g. a channel indicator).
+// Presentation only and inert for the default free layout: the containers are
+// never created unless a registered module actually renders a decoration.
+// Deliberately no `pointer-events` rule here - a decoration declares whether it
+// is interactive, and a passive one is expected to opt out itself.
+.dv-tab {
+    // Only lay the tab out as a flex row once a decoration exists, so a tab
+    // with none keeps whatever layout it had.
+    &:has(.dv-tab-decorations) {
+        display: flex;
+        align-items: center;
+    }
+
+    .dv-tab-decorations {
+        display: inline-flex;
+        align-items: center;
+        flex-shrink: 0;
+        gap: 2px;
+    }
+
+    .dv-tab-decorations--before {
+        margin-right: 4px;
+    }
+
+    .dv-tab-decorations--after {
+        margin-left: 4px;
+    }
+}
+
 // Pinned tabs (PinnedTabs module). Presentation only: the classes are inert
 // unless a panel is pinned (nothing pins panels without the module), so this is
 // a no-op for the default free layout. `--pinned` marks a pinned tab and shows

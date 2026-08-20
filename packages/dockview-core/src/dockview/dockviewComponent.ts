@@ -85,6 +85,7 @@ import {
     assertModule,
     DockviewModule,
     IPanelStateContributor,
+    ITabDecoration,
     getRegisteredModules,
     missingModuleMessage,
     ModuleRegistry,
@@ -1458,6 +1459,14 @@ export class DockviewComponent
      */
     get panelStateContributors(): readonly IPanelStateContributor[] {
         return this._moduleRegistry.panelStateContributors;
+    }
+
+    /**
+     * The registered services contributing an element into every tab, in
+     * render order. Empty when no such module is registered.
+     */
+    get tabDecorations(): readonly ITabDecoration[] {
+        return this._moduleRegistry.tabDecorations;
     }
 
     get advancedOverflowService(): IAdvancedOverflowService | undefined {

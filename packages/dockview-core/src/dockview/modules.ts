@@ -10,6 +10,7 @@
  */
 
 import { IDisposable } from '../lifecycle';
+import type { Event } from '../events';
 import type { IDockviewPanel } from './dockviewPanel';
 import { IFloatingGroupService } from './floatingGroupService';
 import { IPopoutWindowService } from './popoutWindowService';
@@ -95,6 +96,62 @@ export function isPanelStateContributor(
         typeof candidate.panelStateKey === 'string' &&
         typeof candidate.serializePanelState === 'function' &&
         typeof candidate.hydratePanelState === 'function'
+    );
+}
+
+/**
+ * A module service that contributes an element into every tab.
+ *
+ * The alternative is what core still does for the pin glyph: hardcode the
+ * markup in `Tab` on a module's behalf. A decoration owns its own element,
+ * its own listeners and its own re-render signal instead.
+ *
+ * Decorations sit in a container either side of the tab's content renderer,
+ * so they compose with each other and survive `setContent`.
+ */
+export interface ITabDecoration {
+    /** Unique key identifying this decoration. */
+    readonly decorationKey: string;
+    /** Which side of the tab content. Defaults to `'before'`. */
+    readonly placement?: 'before' | 'after';
+    /** Ascending sort within a placement. Defaults to `0`. */
+    readonly order?: number;
+    /**
+     * Set when the decoration handles its own clicks (a picker, a toggle).
+     * Pointer events on it are then stopped from reaching the tab, so it
+     * cannot activate the tab or begin a drag. Passive indicators leave this
+     * unset and remain click-through.
+     */
+    readonly interactive?: boolean;
+    /**
+     * Render even when the panel uses a custom `tabComponent`. Defaults to
+     * `false`, matching the pin glyph: a custom renderer owns its own markup.
+     * Set it when the decoration is the only way to reach a feature, and so
+     * must survive a custom tab.
+     */
+    readonly renderWithCustomTab?: boolean;
+    /**
+     * Build or update this decoration for `panel`. `element` is whatever was
+     * previously returned for that panel, so a decoration can update in place
+     * rather than rebuild. Return `null` to render nothing for this panel.
+     */
+    renderTabDecoration(
+        panel: IDockviewPanel,
+        element: HTMLElement | undefined
+    ): HTMLElement | null;
+    /**
+     * Fires when a re-render is needed. `panelId` narrows it to one tab;
+     * omitted (or a void event) re-renders every tab.
+     */
+    readonly onDidChangeTabDecoration?: Event<{ panelId?: string } | void>;
+}
+
+export function isTabDecoration(service: unknown): service is ITabDecoration {
+    const candidate = service as Partial<ITabDecoration> | undefined;
+    return (
+        !!candidate &&
+        typeof candidate.decorationKey === 'string' &&
+        typeof candidate.renderTabDecoration === 'function'
     );
 }
 
@@ -311,6 +368,7 @@ export class ModuleRegistry<THost> implements IDisposable {
     private readonly _services: ServiceCollection = {};
     private readonly _initDisposables: IDisposable[] = [];
     private _panelStateContributors: IPanelStateContributor[] | undefined;
+    private _tabDecorations: ITabDecoration[] | undefined;
 
     get services(): ServiceCollection {
         return this._services;
@@ -345,6 +403,44 @@ export class ModuleRegistry<THost> implements IDisposable {
         }
 
         return this._panelStateContributors;
+    }
+
+    /**
+     * The registered services contributing a tab decoration, in render order.
+     * Resolved once after `initialize`.
+     */
+    get tabDecorations(): readonly ITabDecoration[] {
+        if (this._tabDecorations === undefined) {
+            const decorations: ITabDecoration[] = [];
+            const seen = new Set<string>();
+
+            for (const service of Object.values(this._services)) {
+                if (!isTabDecoration(service)) {
+                    continue;
+                }
+                if (seen.has(service.decorationKey)) {
+                    // Two decorations under one key would fight over the same
+                    // slot on every tab; fail loudly instead.
+                    throw new Error(
+                        `dockview: duplicate tab decoration key '${service.decorationKey}'`
+                    );
+                }
+                seen.add(service.decorationKey);
+                decorations.push(service);
+            }
+
+            // Stable order: by `order`, then by key so registration sequence
+            // never decides what a user sees.
+            decorations.sort(
+                (a, b) =>
+                    (a.order ?? 0) - (b.order ?? 0) ||
+                    a.decorationKey.localeCompare(b.decorationKey)
+            );
+
+            this._tabDecorations = decorations;
+        }
+
+        return this._tabDecorations;
     }
 
     register<H>(module: DockviewModule<H>): void {
