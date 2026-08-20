@@ -5,6 +5,10 @@ import {
     ScreenManager,
     ScreenManagerWindow,
 } from '../../dockview/screenManager';
+import {
+    ScreenDetailed,
+    ScreenDetails,
+} from '../../types/windowManagement';
 
 interface FakeScreenDetailedInit {
     left?: number;
@@ -211,8 +215,11 @@ describe('screenManager', () => {
         test('denied prompt: falls back and remembers, no re-prompt', async () => {
             const error = new Error('denied');
             error.name = 'NotAllowedError';
+            // permission must actually report denied for the latch: a bare
+            // rejection is ambiguous (it also covers a missing gesture).
             const { window, getScreenDetails } = fakeWindow({
                 rejectDetailsWith: error,
+                permission: 'denied',
             });
             const manager = new ScreenManager(window);
 
@@ -702,6 +709,31 @@ describe('screenManager', () => {
             expect(manager.hasResolvedScreens).toBe(true);
             manager.dispose();
         });
+    });
+
+    describe('denied latching', () => {
+        test('a rejection while the permission is still prompt does not latch denial', async () => {
+            const fake = fakeWindow({ permission: 'prompt' });
+            fake.getScreenDetails.mockRejectedValue(
+                new DOMException('no transient activation', 'NotAllowedError')
+            );
+
+            const manager = new ScreenManager(fake.window);
+            // e.g. called on mount, outside a gesture: falls back...
+            await expect(manager.getScreens()).resolves.toHaveLength(1);
+            expect(manager.hasResolvedScreens).toBe(false);
+
+            // ...but a later gesture-bound call must still be able to prompt
+            // (here: the user accepts, so getScreenDetails resolves).
+            fake.getScreenDetails.mockImplementation(
+                async () => fake.details.details
+            );
+            await manager.getScreens();
+            expect(manager.hasResolvedScreens).toBe(true);
+            expect(fake.getScreenDetails).toHaveBeenCalledTimes(2);
+            manager.dispose();
+        });
+
     });
 
     describe('moveWindowTo', () => {

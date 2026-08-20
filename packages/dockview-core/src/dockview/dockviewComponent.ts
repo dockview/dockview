@@ -232,7 +232,9 @@ export interface DockviewPopoutGroupOptions {
      * coordinates otherwise. If the snapshot isn't ready but the API is
      * available, the window opens at the fallback position and is rehomed to
      * the target once the screen list resolves. Without the module: one
-     * deduped console diagnostic, then behaves as if unset.
+     * deduped console diagnostic, then behaves as if unset. Ignored when an
+     * explicit `position` is provided — a position is already absolute
+     * multi-screen coordinates and fully determines placement.
      */
     screen?: DockviewScreenTarget;
     /**
@@ -2065,9 +2067,11 @@ export class DockviewComponent
         if (!win || !this._screenManagerService?.hasResolvedScreens) {
             return undefined;
         }
+        // screenX/screenY are the OUTER origin, so pair them with outer
+        // sizes for an unbiased centre (inner as the mock-friendly fallback).
         return this.screenAtPoint(
-            win.screenX + (win.innerWidth ?? 0) / 2,
-            win.screenY + (win.innerHeight ?? 0) / 2
+            win.screenX + (win.outerWidth || win.innerWidth || 0) / 2,
+            win.screenY + (win.outerHeight || win.innerHeight || 0) / 2
         );
     }
 
@@ -2103,9 +2107,11 @@ export class DockviewComponent
         const box = service.placementFor(
             screen,
             placement ?? {
+                // moveWindowTo resizes the OUTER box, so preserve the outer
+                // size (inner as the mock-friendly fallback).
                 type: 'center',
-                width: win.innerWidth || undefined,
-                height: win.innerHeight || undefined,
+                width: win.outerWidth || win.innerWidth || undefined,
+                height: win.outerHeight || win.innerHeight || undefined,
             }
         );
         return service.moveWindowTo(win, box);
@@ -2220,10 +2226,16 @@ export class DockviewComponent
         if (wantsFullscreen && !screenService) {
             logMissingModule('ScreenManagement', 'addPopoutGroup: fullscreen');
         }
-        const requestedScreen = options?.overridePopoutGroup
-            ? undefined
-            : (options?.screen ??
-              (wantsFullscreen && screenService ? 'current' : undefined));
+        // An explicit `position` is already absolute multi-screen
+        // coordinates and fully determines placement, so it wins over
+        // `screen` (which would otherwise silently discard the caller's
+        // box). The restore path relies on this: it resolves its own
+        // position and passes it here.
+        const requestedScreen =
+            options?.overridePopoutGroup || options?.position
+                ? undefined
+                : (options?.screen ??
+                  (wantsFullscreen && screenService ? 'current' : undefined));
         if (requestedScreen !== undefined) {
             if (!screenService) {
                 logMissingModule('ScreenManagement', 'addPopoutGroup: screen');
@@ -2244,6 +2256,21 @@ export class DockviewComponent
                     )
                     .catch(() => undefined);
             }
+        }
+        if (
+            wantsFullscreen &&
+            screenService &&
+            !targetScreen &&
+            !options?.position
+        ) {
+            // Fullscreen's documented graceful fallback: even without a live
+            // snapshot (API unsupported/denied, or the prompt not yet
+            // answered) fill the synthetic fallback screen's work area
+            // (window.screen avail*). When a rehome is in flight it corrects
+            // onto the real target after the screens resolve.
+            targetScreen =
+                screenService.resolveTarget('current') ??
+                screenService.screens[0];
         }
 
         // Default placement on a target screen: centred, sized like the
@@ -2621,8 +2648,10 @@ export class DockviewComponent
                         const target = screenService.placementFor(
                             screen,
                             placementOf({
-                                width: win.innerWidth ?? 0,
-                                height: win.innerHeight ?? 0,
+                                // outer size: moveWindowTo resizes the outer
+                                // box (inner as the mock-friendly fallback)
+                                width: win.outerWidth || win.innerWidth || 0,
+                                height: win.outerHeight || win.innerHeight || 0,
                             })
                         );
                         void screenService.moveWindowTo(win, target);

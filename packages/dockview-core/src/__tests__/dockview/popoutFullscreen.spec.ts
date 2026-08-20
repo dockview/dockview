@@ -208,6 +208,49 @@ describe('popout fullscreen (Phase 3)', () => {
             dockview.dispose();
         });
 
+        test('no Window Management API: fill of the synthetic fallback screen', async () => {
+            // The documented graceful fallback for e.g. Firefox: module
+            // present, no web API, no adapter. The fallback screen mirrors
+            // window.screen, so give jsdom's zero-sized one real geometry.
+            const originalScreen = Object.getOwnPropertyDescriptor(
+                window,
+                'screen'
+            );
+            Object.defineProperty(window, 'screen', {
+                configurable: true,
+                value: {
+                    width: 1920,
+                    height: 1080,
+                    availWidth: 1900,
+                    availHeight: 1000,
+                },
+            });
+            try {
+                const dockview = createComponent({
+                    modules: [...AllModules, ScreenManagerModule],
+                });
+                const panel = dockview.addPanel({
+                    id: 'p1',
+                    component: 'default',
+                });
+                await dockview.addPopoutGroup(panel, { fullscreen: true });
+
+                expect(parseFeatures(openSpy.mock.calls[0][2])).toMatchObject({
+                    popup: '1',
+                    fullscreen: '1',
+                    left: '0',
+                    top: '0',
+                    width: '1900',
+                    height: '1000',
+                });
+                dockview.dispose();
+            } finally {
+                if (originalScreen) {
+                    Object.defineProperty(window, 'screen', originalScreen);
+                }
+            }
+        });
+
         test('missing module: deduped diagnostic, no fullscreen features', async () => {
             const consoleError = jest
                 .spyOn(console, 'error')
