@@ -274,6 +274,16 @@ export interface SerializedPopoutGroup {
     url?: string;
     gridReferenceGroup?: string;
     position: Box | null;
+    /**
+     * Opaque identity of the screen hosting the window at save time (design
+     * doc §5). Emitted only when screen ids are stable across sessions — a
+     * `screenAdapter` source, e.g. Electron's `Display.id` — and never a
+     * human-readable hardware string. Restore follows it when a matching
+     * screen exists, so a layout finds its monitor again even after the
+     * virtual-desktop arrangement changes. Layouts written without it (or on
+     * machines without stable ids) are byte-identical to before.
+     */
+    screenId?: string;
 }
 
 export interface SerializedDockview {
@@ -2076,6 +2086,73 @@ export class DockviewComponent
      *  narrow surface accessibility services need to mirror per-window state. */
     getPopoutWindows(): Window[] {
         return this.getPopouts().map((popout) => popout.window);
+    }
+
+    /**
+     * `IPopoutWindowHost` seam: the screen identity to serialize for a
+     * popout window (design doc §5). Emitted only when ids are stable
+     * across sessions (an adapter source) — the web API's best-effort ids
+     * and human-readable labels never reach saved layouts.
+     */
+    screenIdForSerialization(win: Window): string | undefined {
+        const service = this._screenManagerService;
+        if (!service?.hasResolvedScreens || !service.hasStableScreenIds) {
+            return undefined;
+        }
+        return this.screenForWindow(win)?.id;
+    }
+
+    /**
+     * Screen-aware restore resolution (design doc §5). Never prompts: it
+     * consults only the live snapshot (an adapter, or a permission primed at
+     * init) — without one, the saved position is returned verbatim, which is
+     * today's behaviour. Cascade: follow a saved stable screen id when that
+     * screen still exists (even if it moved in virtual-desktop coordinates);
+     * else keep a position that still lands on a live screen; else rehome to
+     * the current/primary screen at the saved size, mirroring the topology
+     * handling — a window is never restored into dead space when the data
+     * exists to know better.
+     */
+    private resolveRestoredPopoutPosition(
+        position: Box | undefined,
+        screenId: string | undefined
+    ): Box | undefined {
+        const service = this._screenManagerService;
+        if (!position || !service?.hasResolvedScreens) {
+            return position;
+        }
+
+        const centerOn = (screen: DockviewScreen): Box =>
+            service.placementFor(screen, {
+                type: 'center',
+                width: position.width || undefined,
+                height: position.height || undefined,
+            });
+        const containing = service.screenAtPoint(
+            position.left + position.width / 2,
+            position.top + position.height / 2
+        );
+
+        if (screenId !== undefined) {
+            const saved = service.screens.find(
+                (screen) => screen.id === screenId
+            );
+            if (saved) {
+                return containing?.id === saved.id
+                    ? position
+                    : centerOn(saved);
+            }
+        }
+
+        if (containing) {
+            return position;
+        }
+
+        const target =
+            service.resolveTarget('current') ??
+            service.resolveTarget('primary') ??
+            service.screens[0];
+        return target ? centerOn(target) : position;
     }
 
     private _doAddPopoutGroup(
@@ -4325,7 +4402,12 @@ export class DockviewComponent
                 index * DESERIALIZATION_POPOUT_DELAY_MS,
                 () => {
                     this.addPopoutGroup(group, {
-                        position: position ?? undefined,
+                        // Resolved here, inside the delayed restoration, so a
+                        // snapshot primed during init() is available by now.
+                        position: this.resolveRestoredPopoutPosition(
+                            position ?? undefined,
+                            serializedPopoutGroup.screenId
+                        ),
                         overridePopoutGroup: gridReferenceGroup
                             ? group
                             : undefined,

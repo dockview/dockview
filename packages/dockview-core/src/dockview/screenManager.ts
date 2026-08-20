@@ -142,6 +142,14 @@ export interface IScreenManager {
      * placing against made-up geometry.
      */
     readonly hasResolvedScreens: boolean;
+    /**
+     * True when screen ids survive across sessions — an adapter source whose
+     * ids are genuinely stable (e.g. Electron's `Display.id`). Web-API ids
+     * are best-effort within a session only, so this is false without an
+     * adapter; serialization uses it to decide whether a screen identity is
+     * worth writing.
+     */
+    readonly hasStableScreenIds: boolean;
     readonly currentScreen: DockviewScreen | undefined;
     readonly onDidChangeScreens: Event<DockviewScreensChangeEvent>;
 
@@ -259,6 +267,10 @@ export class ScreenManager
 
     get hasResolvedScreens(): boolean {
         return this._hasResolvedScreens;
+    }
+
+    get hasStableScreenIds(): boolean {
+        return !!this._adapter;
     }
 
     get currentScreen(): DockviewScreen | undefined {

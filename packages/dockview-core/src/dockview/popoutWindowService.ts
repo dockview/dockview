@@ -48,6 +48,13 @@ export interface PopoutGroupEntry {
  */
 export interface IPopoutWindowHost {
     readonly isDisposed: boolean;
+    /**
+     * The opaque screen identity to serialize for a popout window, or
+     * undefined to write none (design doc §5). Implementations must return
+     * an id only when it is stable across sessions and contains no
+     * human-readable hardware strings.
+     */
+    screenIdForSerialization?(window: Window): string | undefined;
 }
 
 export interface IPopoutWindowService extends IDisposable {
@@ -239,10 +246,15 @@ export class PopoutWindowService implements IPopoutWindowService {
                     ? entry.popoutGroup.api.location.popoutUrl
                     : undefined;
 
+            const screenId = this._host.screenIdForSerialization?.(
+                entry.getWindow()
+            );
             const base = {
                 gridReferenceGroup: entry.referenceGroup,
                 position: entry.window.dimensions(),
                 url,
+                // conditional so layouts stay byte-identical when absent
+                ...(screenId !== undefined ? { screenId } : {}),
             };
 
             // Single-group window keeps the legacy `data` shape so layouts
