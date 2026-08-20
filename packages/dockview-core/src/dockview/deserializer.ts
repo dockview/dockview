@@ -77,6 +77,13 @@ export class DefaultDockviewDeserialzier implements IPanelDeserializer {
             panel.setPinned(true);
         }
 
+        // Hand each registered contributor its slice (and retain the slices of
+        // any module that isn't registered, so re-saving preserves them).
+        // Inline here, as `setPinned` above is: the panel knows its group, but
+        // the group is not yet in the grid, so contributors must not depend on
+        // final layout position.
+        panel.applyModuleState(panelData.moduleState);
+
         return panel;
     }
 }

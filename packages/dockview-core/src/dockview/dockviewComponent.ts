@@ -84,6 +84,7 @@ import { FloatingTitleBar } from './components/titlebar/floatingTitleBar';
 import {
     assertModule,
     DockviewModule,
+    IPanelStateContributor,
     getRegisteredModules,
     missingModuleMessage,
     ModuleRegistry,
@@ -1449,6 +1450,14 @@ export class DockviewComponent
         // Owned by PinnedTabsModule; undefined when the module is not
         // registered, so callers must `?.`-guard.
         return this._moduleRegistry.services.pinnedTabsService;
+    }
+
+    /**
+     * The registered services owning a slice of panel state. Empty when no
+     * such module is registered, which is the common case.
+     */
+    get panelStateContributors(): readonly IPanelStateContributor[] {
+        return this._moduleRegistry.panelStateContributors;
     }
 
     get advancedOverflowService(): IAdvancedOverflowService | undefined {

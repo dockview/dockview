@@ -203,8 +203,10 @@ export {
     getRegisteredModules,
     clearRegisteredModules,
     defineModule,
+    isPanelStateContributor,
     type DockviewModule,
     type ServiceCollection,
+    type IPanelStateContributor,
 } from './dockview/modules';
 export {
     type IKeyboardNavigationHost,

@@ -10,6 +10,7 @@
  */
 
 import { IDisposable } from '../lifecycle';
+import type { IDockviewPanel } from './dockviewPanel';
 import { IFloatingGroupService } from './floatingGroupService';
 import { IPopoutWindowService } from './popoutWindowService';
 import { IWatermarkService } from './watermarkService';
@@ -54,6 +55,47 @@ export interface ServiceCollection {
     multiRowTabsService?: IMultiRowTabsService;
     pinnedTabsService?: IPinnedTabsService;
     advancedOverflowService?: IAdvancedOverflowService;
+}
+
+/**
+ * A module service that owns a slice of each panel's serialized state.
+ *
+ * Modules that need per-panel persistence implement this on their service
+ * rather than core carrying a field on their behalf (as it still does for
+ * `GroupviewPanelState.pinned`). Each contributor owns one namespaced key
+ * under `GroupviewPanelState.moduleState`.
+ *
+ * Slices must be JSON-serializable and are written into every saved layout,
+ * so keep them small.
+ */
+export interface IPanelStateContributor<T = unknown> {
+    /** The `moduleState` key this contributor owns. Must be unique. */
+    readonly panelStateKey: string;
+    /**
+     * The slice to persist, or `undefined` to omit the key entirely. Returning
+     * `undefined` for the common case keeps layouts byte-stable for apps that
+     * never use the feature.
+     */
+    serializePanelState(panel: IDockviewPanel): T | undefined;
+    /**
+     * Apply a loaded slice. Called for every contributor on every load with
+     * `undefined` when the layout carries no slice for this key, so
+     * deserialization *replaces* rather than merges - matching the params
+     * semantics in `updateFromStateModel`.
+     */
+    hydratePanelState(panel: IDockviewPanel, state: T | undefined): void;
+}
+
+export function isPanelStateContributor(
+    service: unknown
+): service is IPanelStateContributor {
+    const candidate = service as Partial<IPanelStateContributor> | undefined;
+    return (
+        !!candidate &&
+        typeof candidate.panelStateKey === 'string' &&
+        typeof candidate.serializePanelState === 'function' &&
+        typeof candidate.hydratePanelState === 'function'
+    );
 }
 
 export interface DockviewModule<THost = unknown> {
@@ -268,9 +310,41 @@ export class ModuleRegistry<THost> implements IDisposable {
     private readonly _modules = new Map<string, DockviewModule<any>>();
     private readonly _services: ServiceCollection = {};
     private readonly _initDisposables: IDisposable[] = [];
+    private _panelStateContributors: IPanelStateContributor[] | undefined;
 
     get services(): ServiceCollection {
         return this._services;
+    }
+
+    /**
+     * The registered services that own a slice of panel state. Resolved once
+     * after `initialize`; the service set doesn't change afterwards.
+     */
+    get panelStateContributors(): readonly IPanelStateContributor[] {
+        if (this._panelStateContributors === undefined) {
+            const contributors: IPanelStateContributor[] = [];
+            const seen = new Set<string>();
+
+            for (const service of Object.values(this._services)) {
+                if (!isPanelStateContributor(service)) {
+                    continue;
+                }
+                if (seen.has(service.panelStateKey)) {
+                    // Two modules writing one key would silently clobber each
+                    // other in every saved layout; fail loudly at construction
+                    // instead of corrupting persistence.
+                    throw new Error(
+                        `dockview: duplicate panel state key '${service.panelStateKey}'`
+                    );
+                }
+                seen.add(service.panelStateKey);
+                contributors.push(service);
+            }
+
+            this._panelStateContributors = contributors;
+        }
+
+        return this._panelStateContributors;
     }
 
     register<H>(module: DockviewModule<H>): void {

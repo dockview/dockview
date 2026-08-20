@@ -71,6 +71,21 @@ export interface GroupviewPanelState {
     maximumWidth?: number;
     maximumHeight?: number;
     /** Pinned tab state (PinnedTabs module). Emitted only when `true`; absent
-     *  layouts load unpinned. */
+     *  layouts load unpinned.
+     *
+     *  Predates `moduleState` and stays here deliberately: it lives in layouts
+     *  customers have already persisted, so moving it would stop older
+     *  dockview reading newer layouts for no user benefit. New module state
+     *  belongs in `moduleState`. */
     pinned?: boolean;
+    /**
+     * Namespaced per-module state, one key per `IPanelStateContributor`
+     * (see `./modules`). Absent when no module contributed, so layouts from
+     * apps using none of them stay byte-stable.
+     *
+     * Keys owned by a module that isn't registered are preserved verbatim
+     * across a load/save round-trip rather than dropped, so opening a layout
+     * in a build without that module and re-saving doesn't discard state.
+     */
+    moduleState?: Record<string, unknown>;
 }

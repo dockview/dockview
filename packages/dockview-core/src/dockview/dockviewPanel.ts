@@ -30,6 +30,7 @@ export interface IDockviewPanel extends IDisposable, IPanel {
         options?: { skipSetActive?: boolean }
     ): void;
     updateFromStateModel(state: GroupviewPanelState): void;
+    applyModuleState(state: Record<string, unknown> | undefined): void;
     init(params: IGroupPanelInitParameters): void;
     toJSON(): GroupviewPanelState;
     setTitle(title: string): void;
@@ -48,6 +49,7 @@ export class DockviewPanel
     private _title: string | undefined;
     private _renderer: DockviewPanelRenderer | undefined;
     private _pinned = false;
+    private _moduleState: Record<string, unknown> | undefined;
 
     private _minimumWidth: number | undefined;
     private _minimumHeight: number | undefined;
@@ -173,7 +175,62 @@ export class DockviewPanel
             maximumWidth: this._maximumWidth,
             // Emit only when pinned so existing layouts stay byte-stable.
             pinned: this._pinned ? true : undefined,
+            moduleState: this._serializeModuleState(),
         };
+    }
+
+    /**
+     * Merge the live contributors' slices over the slices this panel was
+     * loaded with. A key a registered contributor owns takes that
+     * contributor's value - including `undefined`, which drops the key, so
+     * state can actually be cleared. A key no registered contributor owns is
+     * passed through verbatim, so loading a layout in a build without that
+     * module and re-saving preserves it rather than silently discarding it.
+     */
+    private _serializeModuleState(): Record<string, unknown> | undefined {
+        // `?? []` for the mock accessors used widely in tests; the real
+        // component always provides the getter.
+        const contributors = this.accessor.panelStateContributors ?? [];
+
+        if (contributors.length === 0) {
+            // Nothing live to claim any key: preserve whatever was loaded.
+            return this._moduleState;
+        }
+
+        const claimed = new Set(contributors.map((c) => c.panelStateKey));
+        const result: Record<string, unknown> = {};
+
+        for (const [key, value] of Object.entries(this._moduleState ?? {})) {
+            if (!claimed.has(key)) {
+                result[key] = value;
+            }
+        }
+
+        for (const contributor of contributors) {
+            const slice = contributor.serializePanelState(this);
+            if (slice !== undefined) {
+                result[contributor.panelStateKey] = slice;
+            }
+        }
+
+        return Object.keys(result).length > 0 ? result : undefined;
+    }
+
+    /**
+     * Retain the loaded slices and hand each registered contributor its own.
+     * Every contributor is called, with `undefined` when the layout carries no
+     * slice for it, so a load replaces rather than merges - matching the
+     * params handling in {@link updateFromStateModel}.
+     */
+    applyModuleState(state: Record<string, unknown> | undefined): void {
+        this._moduleState = state;
+
+        for (const contributor of this.accessor.panelStateContributors ?? []) {
+            contributor.hydratePanelState(
+                this,
+                state?.[contributor.panelStateKey]
+            );
+        }
     }
 
     setTitle(title: string): void {
@@ -258,6 +315,10 @@ export class DockviewPanel
             (state.pinned ?? false) &&
                 !!this.accessor.options.pinnedTabs?.enabled
         );
+
+        // Replaces rather than merges, for the same reason as params above: a
+        // reused panel must not keep module state the saved layout dropped.
+        this.applyModuleState(state.moduleState);
 
         // state.contentComponent;
         // state.tabComponent;
