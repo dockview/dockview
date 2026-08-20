@@ -66,13 +66,15 @@ See [Multiple monitors](/docs/core/groups/multiWindow) for screen discovery, the
 
 Two options, available to every user, let a host application shape or own the `window.open` call. Both are aimed at Electron-style hosts but work anywhere.
 
-`extraWindowFeatures` appends entries to the features string, for example a marker an Electron `setWindowOpenHandler` can match on (booleans serialize as `1`/`0`):
+`popoutWindowFeatures` (a component option) appends entries to the features string of every popout this component opens, including popouts recreated by `fromJSON`. This is the right home for a host-level marker an Electron `setWindowOpenHandler` matches on. Booleans serialize as `1`/`0`; the geometry keys and values containing `,` or `=` are ignored with a warning.
 
 ```tsx
-api.addPopoutGroup(panel, {
-    extraWindowFeatures: { dockviewPopout: true },
+const api = createDockview(element, {
+    popoutWindowFeatures: { dockviewPopout: true },
 });
 ```
+
+A per-call `extraWindowFeatures` on `addPopoutGroup` merges over the component-level entries. Per-call entries are not replayed when a layout is restored, so use them for one-off tweaks, not for markers the host depends on.
 
 `popoutWindowFactory` replaces the `window.open` call entirely. Return the `Window` to use, or `null` to signal the popout was blocked (dockview then runs its normal blocked-popout recovery). The returned window must be same-process and same-origin; the same-origin URL check still applies.
 

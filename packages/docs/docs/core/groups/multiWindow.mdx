@@ -199,15 +199,14 @@ Two free options (no module required) let the host shape or own popout creation:
 
 ```ts
 const dockview = createDockview(element, {
-    // Tag the window.open call so setWindowOpenHandler can match it.
+    // Tag every popout's window.open call, including popouts recreated by
+    // fromJSON, so setWindowOpenHandler can match it.
+    popoutWindowFeatures: { dockviewPopout: true },
+    // Or own the window.open call entirely.
     popoutWindowFactory: (request) => {
-        // request: { id, url, box, features }
+        // request: { id, url, box, features }; url is resolved and absolute
         return window.open(request.url, request.id, request.features);
     },
-});
-
-api.addPopoutGroup(panel, {
-    extraWindowFeatures: { dockviewPopout: true },
 });
 ```
 
