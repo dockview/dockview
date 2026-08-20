@@ -25,9 +25,10 @@ class TestPanel implements IContentRenderer {
     }
 }
 
-/** Popout mock with stable geometry (screenX/screenY/inner sizes fixed). */
+/** Popout mock with stable geometry and moveTo/resizeTo capture. */
 function placementMockWindow(init: { screenX?: number; screenY?: number } = {}) {
     const listeners: Record<string, (() => void)[]> = {};
+    const calls = { moveTo: [] as number[][], resizeTo: [] as number[][] };
     const win = fromPartial<Window>({
         addEventListener: (type: string, listener: () => void) => {
             (listeners[type] ??= []).push(listener);
@@ -41,14 +42,18 @@ function placementMockWindow(init: { screenX?: number; screenY?: number } = {}) 
         close: () => {
             listeners['beforeunload']?.forEach((f) => f());
         },
-        moveTo: () => undefined,
-        resizeTo: () => undefined,
+        moveTo: (x: number, y: number) => {
+            calls.moveTo.push([x, y]);
+        },
+        resizeTo: (w: number, h: number) => {
+            calls.resizeTo.push([w, h]);
+        },
         screenX: init.screenX ?? 0,
         screenY: init.screenY ?? 0,
         innerWidth: 500,
         innerHeight: 400,
     });
-    return win;
+    return { win, calls };
 }
 
 const SCREEN_1: DockviewScreen = {
@@ -133,9 +138,13 @@ const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 describe('screen-aware popout serialization & restore (Phase 5)', () => {
     const originalOpen = window.open;
     let openSpy: jest.Mock;
+    let lastPopout: ReturnType<typeof placementMockWindow>;
 
     function stubOpen(init: { screenX?: number; screenY?: number } = {}) {
-        openSpy = jest.fn(() => placementMockWindow(init));
+        openSpy = jest.fn(() => {
+            lastPopout = placementMockWindow(init);
+            return lastPopout.win;
+        });
         window.open = openSpy as typeof window.open;
     }
 
@@ -152,7 +161,10 @@ describe('screen-aware popout serialization & restore (Phase 5)', () => {
     function withAdapter() {
         return createComponent({
             modules: [...AllModules, ScreenManagerModule],
-            screenAdapter: { getScreens: () => [SCREEN_1, SCREEN_2] },
+            screenAdapter: {
+                getScreens: () => [SCREEN_1, SCREEN_2],
+                stableIds: true,
+            },
         });
     }
 
@@ -177,6 +189,23 @@ describe('screen-aware popout serialization & restore (Phase 5)', () => {
 
             const popouts = dockview.toJSON().popoutGroups!;
             expect(popouts[0].screenId).toBe('native-2');
+            dockview.dispose();
+        });
+
+        test('adapter without the stableIds opt-in: no screenId is written', async () => {
+            stubOpen({ screenX: 2000, screenY: 100 });
+            const dockview = createComponent({
+                modules: [...AllModules, ScreenManagerModule],
+                screenAdapter: { getScreens: () => [SCREEN_1, SCREEN_2] },
+            });
+            await flush();
+
+            const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+            await dockview.addPopoutGroup(panel);
+
+            expect('screenId' in dockview.toJSON().popoutGroups![0]).toBe(
+                false
+            );
             dockview.dispose();
         });
 
@@ -306,6 +335,60 @@ describe('screen-aware popout serialization & restore (Phase 5)', () => {
                 width: '500',
                 height: '400',
             });
+            dockview.dispose();
+        });
+
+        test('a box straddling onto its saved screen restores verbatim', async () => {
+            const dockview = withAdapter();
+            await flush();
+            // centre on native-1 (1850), but the box overlaps native-2: the
+            // saved id merely confirms an on-screen straddler — no re-place.
+            dockview.fromJSON(
+                layoutWithPopout({
+                    position: { left: 1600, top: 100, width: 500, height: 400 },
+                    screenId: 'native-2',
+                }) as never
+            );
+            await flush();
+
+            expect(parseFeatures(openSpy.mock.calls[0][2])).toMatchObject({
+                left: '1600',
+                top: '100',
+            });
+            dockview.dispose();
+        });
+
+        test('late snapshot: opens verbatim, then is rescued once screens resolve', async () => {
+            let resolveScreens!: (screens: DockviewScreen[]) => void;
+            const pending = new Promise<DockviewScreen[]>((resolve) => {
+                resolveScreens = resolve;
+            });
+            const dockview = createComponent({
+                modules: [...AllModules, ScreenManagerModule],
+                screenAdapter: { getScreens: () => pending, stableIds: true },
+            });
+
+            // adapter has not answered yet: the 0ms restoration timer wins
+            dockview.fromJSON(
+                layoutWithPopout({
+                    position: { left: 5000, top: 2000, width: 500, height: 400 },
+                }) as never
+            );
+            await flush();
+
+            // opened verbatim into (what will turn out to be) dead space
+            expect(parseFeatures(openSpy.mock.calls[0][2])).toMatchObject({
+                left: '5000',
+                top: '2000',
+            });
+
+            resolveScreens([SCREEN_1, SCREEN_2]);
+            await flush();
+            await flush();
+
+            // rescued: re-homed to the current screen at the saved size
+            expect(lastPopout.calls.moveTo).toEqual([[710, 360]]);
+            expect(lastPopout.calls.resizeTo).toEqual([[500, 400]]);
             dockview.dispose();
         });
 
