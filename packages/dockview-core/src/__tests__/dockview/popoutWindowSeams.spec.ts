@@ -21,12 +21,12 @@ class TestPanel implements IContentRenderer {
  * pipeline resolves inside the load handler) and honours `close()` →
  * `beforeunload` so teardown mirrors a real window.
  */
-function mockPopoutWindow(): Window {
+function mockPopoutWindow(init: { autoLoad?: boolean } = {}): Window {
     const listeners: Record<string, (() => void)[]> = {};
     return fromPartial<Window>({
         addEventListener: (type: string, listener: () => void) => {
             (listeners[type] ??= []).push(listener);
-            if (type === 'load') {
+            if (type === 'load' && init.autoLoad !== false) {
                 listener();
             }
         },
@@ -127,7 +127,9 @@ describe('popout window seams', () => {
             expect(requests).toHaveLength(1);
             const request = requests[0];
             expect(request.id).toContain(dockview.id);
-            expect(request.url).toBe('/popout.html');
+            // resolved absolute, so a factory forwarding the request to
+            // another process gets a usable URL
+            expect(request.url).toBe(`${window.location.origin}/popout.html`);
             // jsdom rects are 0x0 at 0,0 → the request box and features agree
             expect(request.box).toEqual({
                 top: 0,
@@ -180,6 +182,40 @@ describe('popout window seams', () => {
             consoleError.mockRestore();
         });
 
+        test('a throwing factory runs the blocked-popout recovery', async () => {
+            const consoleError = jest
+                .spyOn(console, 'error')
+                .mockImplementation(() => undefined);
+            const dockview = createComponent({
+                popoutWindowFactory: () => {
+                    throw new Error('ipc down');
+                },
+            });
+            const failures = jest.fn();
+            dockview.onDidOpenPopoutWindowFail(failures);
+
+            const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+            await expect(dockview.addPopoutGroup(panel)).resolves.toBe(false);
+
+            expect(failures).toHaveBeenCalledTimes(1);
+            expect(panel.api.location.type).toBe('grid');
+            dockview.dispose();
+            consoleError.mockRestore();
+        });
+
+        test('a pre-opened, already-loaded window works: no hang waiting for load', async () => {
+            // load never re-fires on an already-loaded window; the pipeline
+            // must attach immediately instead of waiting forever.
+            const dockview = createComponent({
+                popoutWindowFactory: () => mockPopoutWindow({ autoLoad: false }),
+            });
+
+            const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+            await expect(dockview.addPopoutGroup(panel)).resolves.toBe(true);
+            expect(panel.api.location.type).toBe('popout');
+            dockview.dispose();
+        });
+
         test('honoured live: a factory set via updateOptions intercepts the next popout', async () => {
             const dockview = createComponent();
             const factory = jest.fn(() => mockPopoutWindow());
@@ -211,6 +247,73 @@ describe('popout window seams', () => {
                 dockviewPopout: '1',
             });
             dockview.dispose();
+        });
+    });
+
+    describe('feature sanitisation', () => {
+        test('geometry overrides and delimiter-carrying values are ignored with a warning', async () => {
+            const consoleWarn = jest
+                .spyOn(console, 'warn')
+                .mockImplementation(() => undefined);
+            const dockview = createComponent();
+            const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+            await dockview.addPopoutGroup(panel, {
+                extraWindowFeatures: {
+                    width: 9999,
+                    evil: 'a,popup=yes',
+                    ok: 'fine',
+                },
+            });
+
+            const features: string = openSpy.mock.calls[0][2];
+            const parsed = parseFeatures(features);
+            expect(parsed.ok).toBe('fine');
+            expect(features).not.toContain('9999');
+            expect(features).not.toContain('popup=yes');
+            expect(consoleWarn).toHaveBeenCalledTimes(2);
+            dockview.dispose();
+            consoleWarn.mockRestore();
+        });
+    });
+
+    describe('popoutWindowFeatures (component-level)', () => {
+        test('applies to every popout; per-call entries merge over it', async () => {
+            const dockview = createComponent({
+                popoutWindowFeatures: { dockviewPopout: true, frame: true },
+            });
+            const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+            await dockview.addPopoutGroup(panel, {
+                extraWindowFeatures: { frame: false },
+            });
+
+            expect(parseFeatures(openSpy.mock.calls[0][2])).toMatchObject({
+                dockviewPopout: '1',
+                frame: '0',
+            });
+            dockview.dispose();
+        });
+
+        test('is replayed on fromJSON restore, unlike per-call features', async () => {
+            const dockview = createComponent({
+                popoutWindowFeatures: { dockviewPopout: true },
+            });
+            const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+            await dockview.addPopoutGroup(panel);
+            const layout = dockview.toJSON();
+            dockview.dispose();
+
+            openSpy.mockClear();
+            const restored = createComponent({
+                popoutWindowFeatures: { dockviewPopout: true },
+            });
+            restored.fromJSON(layout);
+            await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+            expect(openSpy).toHaveBeenCalledTimes(1);
+            expect(parseFeatures(openSpy.mock.calls[0][2])).toMatchObject({
+                dockviewPopout: '1',
+            });
+            restored.dispose();
         });
     });
 });

@@ -48,9 +48,11 @@ export type PopoutWindowOptions = {
  * Reject popout URLs that aren't same-origin http(s). Blocks `javascript:`,
  * `data:`, `blob:`, `vbscript:`, and cross-origin URLs that would otherwise
  * execute in a context the browser still associates with the opener via
- * `window.opener`.
+ * `window.opener`. Returns the resolved absolute URL, so consumers (e.g. a
+ * `popoutWindowFactory` forwarding the request to another process) receive a
+ * string that is meaningful outside this document's base-URL context.
  */
-export function assertSameOriginPopoutUrl(url: string): void {
+export function assertSameOriginPopoutUrl(url: string): string {
     let resolved: URL;
     try {
         resolved = new URL(url, globalThis.location.href);
@@ -65,7 +67,16 @@ export function assertSameOriginPopoutUrl(url: string): void {
             `dockview: popout URL must be same-origin http(s); got: ${url}`
         );
     }
+    return resolved.href;
 }
+
+/** Feature keys derived from the placement box; not overridable. */
+const GEOMETRY_FEATURE_KEYS: ReadonlySet<string> = new Set([
+    'top',
+    'left',
+    'width',
+    'height',
+]);
 
 export class PopoutWindow extends CompositeDisposable {
     private readonly _onWillClose = new Emitter<void>();
@@ -128,39 +139,72 @@ export class PopoutWindow extends CompositeDisposable {
             throw new Error('instance of popout window is already open');
         }
 
-        const url = `${this.options.url}`;
-        assertSameOriginPopoutUrl(url);
+        const url = assertSameOriginPopoutUrl(`${this.options.url}`);
 
-        const features = Object.entries({
-            top: this.options.top,
-            left: this.options.left,
-            width: this.options.width,
-            height: this.options.height,
-            ...this.options.extraFeatures,
-        })
-            .map(([key, value]) =>
+        const featureEntries = [
+            `top=${this.options.top}`,
+            `left=${this.options.left}`,
+            `width=${this.options.width}`,
+            `height=${this.options.height}`,
+        ];
+        for (const [key, value] of Object.entries(
+            this.options.extraFeatures ?? {}
+        )) {
+            // The geometry keys come from the placement box; an override here
+            // would make the features string disagree with the box a factory
+            // receives. ','/'=' are the features-string delimiters; a value
+            // containing them would corrupt or inject entries.
+            if (GEOMETRY_FEATURE_KEYS.has(key)) {
+                console.warn(
+                    `dockview: ignoring extra window feature '${key}': geometry keys come from the placement box`
+                );
+                continue;
+            }
+            if (/[,=]/.test(key) || /[,=]/.test(String(value))) {
+                console.warn(
+                    `dockview: ignoring extra window feature '${key}': ',' and '=' cannot appear in a feature`
+                );
+                continue;
+            }
+            featureEntries.push(
                 typeof value === 'boolean'
                     ? `${key}=${value ? 1 : 0}`
                     : `${key}=${value}`
-            )
-            .join(',');
+            );
+        }
+        const features = featureEntries.join(',');
 
         /**
          * @see https://developer.mozilla.org/en-US/docs/Web/API/Window/open
          */
-        const externalWindow = this.options.windowFactory
-            ? await this.options.windowFactory({
-                  id: this.target,
-                  url,
-                  box: {
-                      top: this.options.top,
-                      left: this.options.left,
-                      width: this.options.width,
-                      height: this.options.height,
-                  },
-                  features,
-              })
-            : window.open(url, this.target, features);
+        let externalWindow: Window | null;
+        if (this.options.windowFactory) {
+            try {
+                externalWindow = await this.options.windowFactory({
+                    id: this.target,
+                    url,
+                    box: {
+                        top: this.options.top,
+                        left: this.options.left,
+                        width: this.options.width,
+                        height: this.options.height,
+                    },
+                    features,
+                });
+            } catch (err) {
+                // A throwing factory follows the same recovery as returning
+                // null: the blocked-popout path fires
+                // onDidOpenPopoutWindowFail and re-docks the group, instead
+                // of a silent failure that would orphan a restored group.
+                console.error(
+                    'dockview: popoutWindowFactory threw; treating the popout as blocked',
+                    err
+                );
+                externalWindow = null;
+            }
+        } else {
+            externalWindow = window.open(url, this.target, features);
+        }
 
         if (!externalWindow) {
             /**
@@ -200,18 +244,9 @@ export class PopoutWindow extends CompositeDisposable {
         });
 
         return new Promise<HTMLElement | null>((resolve, reject) => {
-            externalWindow.addEventListener('unload', (e) => {
-                // if page fails to load before unloading
-                // this.close();
-            });
-
-            externalWindow.addEventListener('load', () => {
-                /**
-                 * @see https://developer.mozilla.org/en-US/docs/Web/API/Window/load_event
-                 */
-
+            const attach = () => {
                 try {
-                    const externalDocument = externalWindow.document;
+                    const externalDocument = externalWindow!.document;
                     externalDocument.title = document.title;
 
                     externalDocument.body.appendChild(container);
@@ -229,7 +264,7 @@ export class PopoutWindow extends CompositeDisposable {
                      * otherwise the beforeunload event will not fire when the window is closed
                      */
                     addDisposableListener(
-                        externalWindow,
+                        externalWindow!,
                         'beforeunload',
                         () => {
                             /**
@@ -244,6 +279,41 @@ export class PopoutWindow extends CompositeDisposable {
                     // only except this is the DOM isn't setup. e.g. in a in correctly configured test
                     reject(err as Error);
                 }
+            };
+
+            // A factory may hand over a window that has ALREADY loaded
+            // (pre-opened / reused windows are an advertised use); 'load'
+            // never re-fires there, so waiting would hang forever. Attach
+            // immediately — but only when the document is the real
+            // same-origin one, not a fresh window's initial about:blank
+            // (which also reports readyState 'complete' while its navigation
+            // is still in flight; that is why the window.open path always
+            // waits for 'load').
+            if (this.options.windowFactory) {
+                try {
+                    const doc = externalWindow.document;
+                    if (
+                        doc?.readyState === 'complete' &&
+                        doc.location?.href !== 'about:blank'
+                    ) {
+                        attach();
+                        return;
+                    }
+                } catch {
+                    // fall through to the load listener
+                }
+            }
+
+            externalWindow.addEventListener('unload', (e) => {
+                // if page fails to load before unloading
+                // this.close();
+            });
+
+            externalWindow.addEventListener('load', () => {
+                /**
+                 * @see https://developer.mozilla.org/en-US/docs/Web/API/Window/load_event
+                 */
+                attach();
             });
         });
     }

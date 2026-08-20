@@ -1938,7 +1938,17 @@ export class DockviewComponent
                 onDidOpen: options?.onDidOpen,
                 onWillClose: options?.onWillClose,
                 nonce: this.options?.nonce,
-                extraFeatures: options?.extraWindowFeatures,
+                // Component-level features apply to every popout (including
+                // fromJSON-restored ones, which replay no per-call options);
+                // per-call entries merge over them.
+                extraFeatures:
+                    this.options?.popoutWindowFeatures ||
+                    options?.extraWindowFeatures
+                        ? {
+                              ...this.options?.popoutWindowFeatures,
+                              ...options?.extraWindowFeatures,
+                          }
+                        : undefined,
                 windowFactory: this.options?.popoutWindowFactory,
             }
         );

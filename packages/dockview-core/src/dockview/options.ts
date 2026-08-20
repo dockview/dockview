@@ -411,6 +411,17 @@ export interface DockviewOptions {
      * `updateOptions`; the factory is consulted each time a popout opens.
      */
     popoutWindowFactory?: PopoutWindowFactory;
+    /**
+     * Extra window.open feature entries applied to EVERY popout window this
+     * component opens, including popouts recreated by `fromJSON` — the
+     * right home for a host-level marker such as `{ dockviewPopout: 1 }`
+     * that an Electron `setWindowOpenHandler` matches on (a per-call
+     * `extraWindowFeatures` is not replayed on layout restore). Per-call
+     * entries are merged over these. Booleans serialize as 1/0; the
+     * geometry keys (top/left/width/height) and values containing ',' or
+     * '=' are ignored with a warning.
+     */
+    popoutWindowFeatures?: Record<string, string | number | boolean>;
     nonce?: CspNonceProvider;
     defaultRenderer?: DockviewPanelRenderer;
     defaultHeaderPosition?: DockviewHeaderPosition;
@@ -801,6 +812,7 @@ export const PROPERTY_KEYS_DOCKVIEW: (keyof DockviewOptions)[] = (() => {
         floatingGroupDragHandle: undefined,
         popoutUrl: undefined,
         popoutWindowFactory: undefined,
+        popoutWindowFeatures: undefined,
         nonce: undefined,
         defaultRenderer: undefined,
         defaultHeaderPosition: undefined,
