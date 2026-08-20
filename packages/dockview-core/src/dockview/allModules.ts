@@ -8,6 +8,7 @@ import { HeaderActionsModule } from './headerActionsService';
 import { LiveRegionModule } from './liveRegionService';
 import { AdvancedDnDModule } from './advancedDnDService';
 import { TabGroupChipsModule } from './tabGroupChipsService';
+import { ChannelsModule } from './channelsService';
 
 /**
  * Internal list of the built-in modules that ship with the core. Registered
@@ -25,4 +26,5 @@ export const AllModules: DockviewModule<any>[] = [
     LiveRegionModule,
     AdvancedDnDModule,
     TabGroupChipsModule,
+    ChannelsModule,
 ];

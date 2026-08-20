@@ -123,6 +123,7 @@ describe('DockviewAngularComponent', () => {
             ['dndStrategy', 'pointer'],
             ['noPanelsOverlay', 'emptyGroup'],
             ['theme', { name: 't', className: 'dv-t' }],
+            ['channels', { enabled: true }],
         ];
 
         for (const [key, value] of cases) {

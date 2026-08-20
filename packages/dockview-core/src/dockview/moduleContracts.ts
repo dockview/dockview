@@ -723,3 +723,66 @@ export interface IAdvancedOverflowService extends IDisposable {
     /** Build AND open the advanced overflow popover for a group. */
     renderOverflow(params: AdvancedOverflowRenderParams): void;
 }
+
+// --- Channels ---
+
+/**
+ * A linkable channel. Colour is the primary cue but never the only one: `name`
+ * carries the accessible label and `glyph` an optional non-colour marker, so
+ * membership is legible without colour vision.
+ */
+export interface ChannelDefinition {
+    readonly id: string;
+    readonly name: string;
+    readonly color: string;
+    readonly glyph?: string;
+}
+
+export interface ChannelChangeEvent {
+    readonly panelId: string;
+    readonly from: string | undefined;
+    readonly to: string | undefined;
+}
+
+/**
+ * The narrow surface the channels service needs from the host. It never
+ * reaches for layout structure: membership is keyed by panel id, so it follows
+ * a panel across groups, floats and popouts without doing anything.
+ */
+export interface IChannelsHost {
+    readonly options: DockviewComponentOptions;
+    readonly panels: IDockviewPanel[];
+    getPanel(id: string): IDockviewPanel | undefined;
+    readonly onDidRemovePanel: Event<IDockviewPanel>;
+    /** The popover host for a group; correct for popout windows too. */
+    getPopupServiceForGroup(group: DockviewGroupPanel): PopupService;
+}
+
+/**
+ * Colour-channel linking between panels. Panels broadcast context and listen
+ * for it without knowing about each other; the *user* decides which panels are
+ * connected by putting them on the same channel.
+ *
+ * Membership is local truth held here rather than read back from anywhere
+ * else, so an FDC3 agent can later be attached as a sink without the model
+ * changing.
+ */
+export interface IChannelsService extends IDisposable {
+    readonly channels: readonly ChannelDefinition[];
+    getChannel(panelId: string): string | undefined;
+    setChannel(panelId: string, channelId: string | undefined): void;
+    panelsOnChannel(channelId: string): IDockviewPanel[];
+    readonly onDidChangeChannel: Event<ChannelChangeEvent>;
+    /** Send context to every *other* panel on this panel's channel. */
+    broadcast(panelId: string, context: unknown): void;
+    /**
+     * Listen for context on whatever channel this panel is on. The listener is
+     * called immediately with the channel's retained context on join, so
+     * linking two panels takes effect at once rather than on the next
+     * broadcast.
+     */
+    addContextListener(
+        panelId: string,
+        listener: (context: unknown) => void
+    ): IDisposable;
+}

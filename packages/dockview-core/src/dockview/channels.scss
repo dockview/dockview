@@ -1,0 +1,82 @@
+// Channels module. Presentation only, and inert for the default layout: the
+// module ships in core but renders nothing unless `channels.enabled` is set,
+// so none of these selectors match until a host opts in.
+
+.dv-channel-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: 10px;
+    height: 10px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    background: var(--dv-channel-color, transparent);
+    // The glyph is opt-in (`channels.indicatorGlyph`) and tiny; the accessible
+    // name and tooltip always carry the channel name regardless.
+    font-size: 7px;
+    font-weight: 600;
+    line-height: 1;
+    color: #fff;
+
+    // Unset reads as an outline rather than a filled dot, so an unlinked tab
+    // is visibly different from one linked to a pale channel.
+    &.dv-channel-indicator--unset {
+        background: transparent;
+        border: 1px solid currentColor;
+        opacity: 0.4;
+    }
+
+    &:hover {
+        opacity: 1;
+        outline: 1px solid var(--dv-icon-hover-background-color, transparent);
+    }
+}
+
+.dv-channel-picker {
+    display: flex;
+    flex-direction: column;
+    min-width: 140px;
+    padding: 4px;
+    border-radius: 4px;
+    background-color: var(--dv-group-view-background-color);
+    box-shadow: 0 2px 8px rgb(0 0 0 / 25%);
+    font-size: var(--dv-tab-font-size, 13px);
+}
+
+.dv-channel-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    border: none;
+    border-radius: 2px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+        background-color: var(--dv-icon-hover-background-color);
+    }
+
+    &.dv-channel-picker-item--selected {
+        font-weight: 600;
+    }
+}
+
+.dv-channel-picker-swatch {
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+    border-radius: 50%;
+
+    &.dv-channel-picker-swatch--none {
+        border: 1px solid currentColor;
+        opacity: 0.4;
+    }
+}

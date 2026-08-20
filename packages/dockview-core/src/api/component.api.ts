@@ -1,3 +1,4 @@
+import type { IChannelsService } from '../dockview/moduleContracts';
 import {
     DockviewActivePanelChangeEvent,
     DockviewPanelPinnedChangeEvent,
@@ -1058,6 +1059,14 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
      * to undo, when `layoutHistory.enabled` is not set, or when the
      * LayoutHistory module is absent.
      */
+    /**
+     * Colour-channel linking between panels: membership, the context bus, and
+     * the `onDidChangeChannel` event. Inert until `channels.enabled` is set.
+     */
+    get channels(): IChannelsService {
+        return this.component.channelsService;
+    }
+
     undo(): void {
         this.component.undo();
     }

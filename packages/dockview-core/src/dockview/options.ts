@@ -1,3 +1,4 @@
+import type { ChannelsOptions } from './channelsService';
 import { DockviewApi } from '../api/component.api';
 import { Direction } from '../gridview/baseComponentGridview';
 import { IGridView } from '../gridview/gridview';
@@ -593,6 +594,16 @@ export interface DockviewOptions {
      */
     layoutHistory?: LayoutHistoryOptions;
     /**
+     * Colour-channel linking between panels (the Channels module). Panels
+     * broadcast and listen for context without referencing each other; the user
+     * decides what is connected by putting panels on the same channel.
+     *
+     * Off by default - the module ships in core but stays inert, adding no
+     * markup and no serialized state, until `enabled: true`. Honoured live via
+     * `updateOptions`.
+     */
+    channels?: ChannelsOptions;
+    /**
      * VS Code-style "auto hide" for edge groups: render clickable activators in
      * a collapsed edge group's strip so it can be pinned back. Off by default →
      * today's baseline (an empty collapsed strip) is unchanged.
@@ -811,6 +822,7 @@ export const PROPERTY_KEYS_DOCKVIEW: (keyof DockviewOptions)[] = (() => {
         messages: undefined,
         keyboardNavigation: undefined,
         layoutHistory: undefined,
+        channels: undefined,
         autoHideEdgeGroups: undefined,
         dockToEdgeGroups: undefined,
         edgeGroupPeek: undefined,

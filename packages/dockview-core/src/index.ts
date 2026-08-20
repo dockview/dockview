@@ -199,6 +199,12 @@ export {
     createSplitview,
 } from './api/entryPoints';
 export {
+    ChannelsService,
+    ChannelsModule,
+    DEFAULT_CHANNELS,
+    type ChannelsOptions,
+} from './dockview/channelsService';
+export {
     registerModules,
     getRegisteredModules,
     clearRegisteredModules,

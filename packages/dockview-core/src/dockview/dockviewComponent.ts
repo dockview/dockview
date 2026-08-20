@@ -97,6 +97,7 @@ import { IPopoutWindowHost, PopoutGroupEntry } from './popoutWindowService';
 import { IWatermarkHost } from './watermarkService';
 import { IEdgeGroupServiceHost } from './edgeGroupService';
 import {
+    IChannelsService,
     IKeyboardNavigationHost,
     IAdvancedDnDHost,
     IAutoHideEdgeGroupHost,
@@ -431,6 +432,7 @@ export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
     moveGroupOrPanel(options: MoveGroupOrPanelOptions): void;
     moveGroup(options: MoveGroupOptions): void;
     setPanelPinned(panel: DockviewPanel, pinned: boolean): void;
+    readonly channelsService: IChannelsService;
     doSetGroupActive: (group: DockviewGroupPanel, skipFocus?: boolean) => void;
     removeGroup: (group: DockviewGroupPanel) => void;
     addPanel<T extends object = Parameters>(
@@ -1457,6 +1459,14 @@ export class DockviewComponent
      * The registered services owning a slice of panel state. Empty when no
      * such module is registered, which is the common case.
      */
+    /**
+     * The Channels module service. Always present: the module ships in core,
+     * and stays inert until `channels.enabled` is set.
+     */
+    get channelsService(): IChannelsService {
+        return this._moduleRegistry.services.channelsService!;
+    }
+
     get panelStateContributors(): readonly IPanelStateContributor[] {
         return this._moduleRegistry.panelStateContributors;
     }

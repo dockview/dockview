@@ -33,6 +33,7 @@ import {
     IPinnedTabsService,
     ISmartGuidesService,
     ITabGroupChipsService,
+    IChannelsService,
 } from './moduleContracts';
 
 export interface ServiceCollection {
@@ -56,6 +57,7 @@ export interface ServiceCollection {
     multiRowTabsService?: IMultiRowTabsService;
     pinnedTabsService?: IPinnedTabsService;
     advancedOverflowService?: IAdvancedOverflowService;
+    channelsService?: IChannelsService;
 }
 
 /**
