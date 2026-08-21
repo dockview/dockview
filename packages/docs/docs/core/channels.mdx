@@ -17,6 +17,19 @@ This is off by default. Set `channels.enabled` to turn it on.
 
 <CodeRunner id="dockview/channels" />
 
+:::info Channels are local to one Dockview instance
+
+Context is delivered between panels in the same Dockview. Channels do not
+currently connect to an FDC3 Desktop Agent, so a panel on `red` here and an
+FDC3 app on the red user channel elsewhere are not linked, even under a
+container such as OpenFin or io.Connect.
+
+The channel ids match the FDC3 user channels and the model is built around
+per-panel identity, so binding to an agent later will not change how you write
+panels. Until then, treat this as linking within your own application.
+
+:::
+
 ## Enabling channels
 
 <FrameworkSpecific framework="React">
@@ -72,8 +85,8 @@ const disposable = props.containerApi.channels.addContextListener(
 Dispose the listener when the panel unmounts.
 
 The context is whatever you want it to be. Dockview does not inspect it, so
-agree a shape across your panels. If you plan to interoperate with FDC3 apps
-later, using FDC3 context types now costs nothing.
+agree a shape across your panels. Using FDC3 context types costs nothing now
+and saves a migration if these panels ever need to speak to an FDC3 estate.
 
 A broadcast reaches every other panel on the same channel. It does not come
 back to the sender, and a panel on no channel neither sends nor receives.
@@ -113,8 +126,9 @@ api.channels.onDidChangeChannel((event) => {
 
 ## Defining your own channels
 
-The default set mirrors the FDC3 user channels: red, orange, yellow, green,
-blue and purple. Replace it with your own:
+The default set uses the FDC3 user channel ids: red, orange, yellow, green,
+blue and purple. That is for forward compatibility, not interoperability (see
+the note above). Replace it with your own:
 
 ```ts
 channels: {
