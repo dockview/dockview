@@ -999,4 +999,76 @@ describe('splitview', () => {
             { left: '464px', top: '0px' },
         ]);
     });
+
+    test('sash drag uses setPointerCapture during drag and releases it on end', () => {
+        // In jsdom, HTMLElement does not have setPointerCapture natively, so we
+        // add sinon-style spies directly on the sash element created by addView.
+        let setCaptureSpy: jest.Mock | null = null;
+        let releaseCaptureSpy: jest.Mock | null = null;
+
+        const originalCreateElement = document.createElement.bind(document);
+        const createElementSpy = jest.spyOn(document, 'createElement');
+        createElementSpy.mockImplementation(
+            (tagName: string, options?: ElementCreationOptions) => {
+                const el = originalCreateElement(tagName, options);
+                if (tagName === 'div' && options?.is === undefined) {
+                    // Intercepting all divs is too broad, so we wait until
+                    // the sash is created and then inject spies.
+                    // Instead, we'll inspect the DOM after addView.
+                }
+                return el;
+            }
+        );
+
+        const splitview = new Splitview(container, {
+            orientation: Orientation.HORIZONTAL,
+            proportionalLayout: false,
+        });
+        splitview.layout(400, 500);
+
+        const view1 = new Testview(0, 1000);
+        const view2 = new Testview(0, 1000);
+
+        splitview.addView(view1);
+        splitview.addView(view2);
+
+        const sashElement = container
+            .getElementsByClassName('dv-sash')
+            .item(0) as HTMLElement;
+
+        expect(sashElement).toBeTruthy();
+
+        // Inject setPointerCapture / releasePointerCapture spies on the sash
+        setCaptureSpy = jest.fn();
+        releaseCaptureSpy = jest.fn();
+        (sashElement as any).setPointerCapture = setCaptureSpy;
+        (sashElement as any).releasePointerCapture = releaseCaptureSpy;
+
+        fireEvent(
+            sashElement,
+            new MouseEvent('pointerdown', {
+                clientX: 50,
+                clientY: 100,
+                pointerId: 7,
+            })
+        );
+
+        // setPointerCapture should have been called once with the pointerId
+        expect(setCaptureSpy).toHaveBeenCalledTimes(1);
+        expect(setCaptureSpy).toHaveBeenCalledWith(7);
+
+        // end the drag
+        const doc = sashElement.ownerDocument;
+        fireEvent(
+            doc,
+            new MouseEvent('pointerup', { clientX: 70, clientY: 110 })
+        );
+
+        // releasePointerCapture should have been called once with the pointerId
+        expect(releaseCaptureSpy).toHaveBeenCalledTimes(1);
+        expect(releaseCaptureSpy).toHaveBeenCalledWith(7);
+
+        splitview.dispose();
+        createElementSpy.mockRestore();
+    });
 });

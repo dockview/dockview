@@ -451,10 +451,25 @@ export class Splitview {
                     item.enabled = false;
                 }
 
-                // The sash may live in a popout document; bind the drag to that
-                // document so pointermove/up are heard there, not on the opener.
-                const doc = sash.ownerDocument ?? document;
-                const iframes = disableIframePointEvents(doc);
+                // Capture the pointer on the sash so subsequent pointermove/up
+                // events are retargeted to the sash even when the cursor moves
+                // into a different window (e.g. a popout's own document). Relying
+                // on document-level listeners alone breaks splitter dragging
+                // inside a popout: pointer events emitted in the popout document
+                // are never heard by listeners bound to the opener document, so
+                // the drag only reacts while the pointer stays in the opener.
+                if (
+                    typeof event.pointerId === 'number' &&
+                    typeof sash.setPointerCapture === 'function'
+                ) {
+                    try {
+                        sash.setPointerCapture(event.pointerId);
+                    } catch {
+                        // ignore: non-fatal if the browser refuses capture
+                    }
+                }
+
+                const iframes = disableIframePointEvents(sash.ownerDocument);
 
                 const start =
                     this._orientation === Orientation.HORIZONTAL
@@ -565,20 +580,41 @@ export class Splitview {
 
                     iframes.release();
 
+                    // Release the pointer capture so subsequent pointer events
+                    // return to normal dispatch. Must be called before the
+                    // document-level listeners are removed because
+                    // releasePointerCapture may fire a pointermove event.
+                    if (
+                        typeof event.pointerId === 'number' &&
+                        typeof sash.releasePointerCapture === 'function'
+                    ) {
+                        try {
+                            sash.releasePointerCapture(event.pointerId);
+                        } catch {
+                            // ignore: pointer may already be released
+                        }
+                    }
+
                     this.saveProportions();
 
-                    doc.removeEventListener('pointermove', onPointerMove);
-                    doc.removeEventListener('pointerup', end);
-                    doc.removeEventListener('pointercancel', end);
-                    doc.removeEventListener('contextmenu', end);
+                    const doc = sash.ownerDocument;
+                    if (doc) {
+                        doc.removeEventListener('pointermove', onPointerMove);
+                        doc.removeEventListener('pointerup', end);
+                        doc.removeEventListener('pointercancel', end);
+                        doc.removeEventListener('contextmenu', end);
+                    }
 
                     this._onDidSashEnd.fire(undefined);
                 };
 
-                doc.addEventListener('pointermove', onPointerMove);
-                doc.addEventListener('pointerup', end);
-                doc.addEventListener('pointercancel', end);
-                doc.addEventListener('contextmenu', end);
+                const doc = sash.ownerDocument;
+                if (doc) {
+                    doc.addEventListener('pointermove', onPointerMove);
+                    doc.addEventListener('pointerup', end);
+                    doc.addEventListener('pointercancel', end);
+                    doc.addEventListener('contextmenu', end);
+                }
             };
 
             sash.addEventListener('pointerdown', onPointerStart);
