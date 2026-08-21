@@ -250,6 +250,10 @@ export {
     type IAdvancedOverflowRenderContext,
     type AdvancedOverflowRenderParams,
     type IOverflowRow,
+    type IChannelsHost,
+    type IChannelsService,
+    type ChannelDefinition,
+    type ChannelChangeEvent,
 } from './dockview/moduleContracts';
 export { resolveMessages } from './dockview/accessibilityMessages';
 export {
