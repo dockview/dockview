@@ -95,11 +95,8 @@ api.addPanel({
 ```tsx
 // don't forget the stylesheet
 import 'dockview-react/dist/styles/dockview.css';
-import {
-    DockviewReact,
-    DockviewReadyEvent,
-    IDockviewPanelProps,
-} from 'dockview-react';
+import { DockviewReact } from 'dockview-react';
+import type { DockviewReadyEvent, IDockviewPanelProps } from 'dockview-react';
 
 const MyPanel = (props: IDockviewPanelProps) => {
     return <div style={{ padding: 16 }}>{props.api.title}</div>;
@@ -123,12 +120,14 @@ export default function App() {
     };
 
     return (
-        <DockviewReact
-            className="dockview-theme-abyss"
-            style={{ width: '100%', height: '100%' }}
-            onReady={onReady}
-            components={components}
-        />
+        <div style={{ width: '100%', height: '100vh' }}>
+            <DockviewReact
+                className="dockview-theme-abyss"
+                style={{ width: '100%', height: '100%' }}
+                onReady={onReady}
+                components={components}
+            />
+        </div>
     );
 }
 ```
@@ -175,12 +174,14 @@ function onReady(event: DockviewReadyEvent) {
 </script>
 
 <template>
-    <DockviewVue
-        style="width:100%;height:100%"
-        class="dockview-theme-abyss"
-        :components="{ 'my-panel': MyPanel }"
-        @ready="onReady"
-    />
+    <div style="width:100%;height:100vh">
+        <DockviewVue
+            style="width:100%;height:100%"
+            class="dockview-theme-abyss"
+            :components="{ 'my-panel': MyPanel }"
+            @ready="onReady"
+        />
+    </div>
 </template>
 ```
 
@@ -206,12 +207,15 @@ export class MyPanelComponent {
 @Component({
     selector: 'app-root',
     template: `
-        <dv-dockview
-            [components]="components"
-            class="dockview-theme-abyss"
-            (ready)="onReady($event)"
-        >
-        </dv-dockview>
+        <div style="width:100%;height:100vh">
+            <dv-dockview
+                style="width:100%;height:100%"
+                [components]="components"
+                class="dockview-theme-abyss"
+                (ready)="onReady($event)"
+            >
+            </dv-dockview>
+        </div>
     `,
 })
 export class AppComponent {

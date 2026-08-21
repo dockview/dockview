@@ -63,14 +63,17 @@ npm install dockview-angular  # Angular
 
 ```tsx
 import { DockviewReact, themeDark } from 'dockview-react';
+import type { DockviewReadyEvent } from 'dockview-react';
 import 'dockview-react/dist/styles/dockview.css';
 
 const components = {
-  default: (props) => <div>Hello {props.params.title}</div>,
+  default: (props: { params: { title: string } }) => (
+    <div>Hello {props.params.title}</div>
+  ),
 };
 
 function App() {
-  const onReady = (event) => {
+  const onReady = (event: DockviewReadyEvent) => {
     event.api.addPanel({
       id: 'panel_1',
       component: 'default',
@@ -79,11 +82,13 @@ function App() {
   };
 
   return (
-    <DockviewReact
-      theme={themeDark}
-      onReady={onReady}
-      components={components}
-    />
+    <div style={{ width: '100%', height: '100vh' }}>
+      <DockviewReact
+        theme={themeDark}
+        onReady={onReady}
+        components={components}
+      />
+    </div>
   );
 }
 ```
