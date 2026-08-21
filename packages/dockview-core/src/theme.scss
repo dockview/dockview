@@ -122,14 +122,17 @@
 
 .dockview-theme-dark {
     @include dockview-theme-dark-mixin();
+    color-scheme: dark;
 }
 
 .dockview-theme-light {
     @include dockview-theme-light-mixin();
+    color-scheme: light;
 }
 
 .dockview-theme-vs {
     @include dockview-theme-dark-mixin();
+    color-scheme: dark;
 
     --dv-tabs-and-actions-container-background-color: #2d2d30;
 
@@ -306,10 +309,12 @@
 
 .dockview-theme-abyss {
     @include dockview-theme-abyss-mixin();
+    color-scheme: dark;
 }
 
 .dockview-theme-dracula {
     @include dockview-theme-dracula-mixin();
+    color-scheme: dark;
 }
 
 // ─── Nord ────────────────────────────────────────────────────────────────────
@@ -396,10 +401,12 @@
 
 .dockview-theme-nord {
     @include dockview-theme-nord-mixin();
+    color-scheme: dark;
 }
 
 .dockview-theme-nord-spaced {
     @include dockview-theme-core-mixin();
+    color-scheme: dark;
     @include dockview-design-space-mixin();
 
     --dv-color-nord-polar-0: #2e3440;
@@ -525,10 +532,12 @@
 
 .dockview-theme-catppuccin-mocha {
     @include dockview-theme-catppuccin-mocha-mixin();
+    color-scheme: dark;
 }
 
 .dockview-theme-catppuccin-mocha-spaced {
     @include dockview-theme-core-mixin();
+    color-scheme: dark;
     @include dockview-design-space-mixin();
 
     --dv-color-mocha-crust: #11111b;
@@ -647,6 +656,7 @@
 
 .dockview-theme-monokai {
     @include dockview-theme-monokai-mixin();
+    color-scheme: dark;
 }
 
 // ─── Solarized Light ─────────────────────────────────────────────────────────
@@ -772,11 +782,13 @@
 
 .dockview-theme-github-dark {
     @include dockview-theme-github-dark-mixin();
+    color-scheme: dark;
 }
 
 .dockview-theme-github-dark-spaced {
     @include dockview-theme-core-mixin();
     @include dockview-design-space-mixin();
+    color-scheme: dark;
 
     --dv-color-gh-canvas-default: #0d1117;
     --dv-color-gh-canvas-subtle: #161b22;
@@ -921,6 +933,7 @@
 .dockview-theme-abyss-spaced {
     @include dockview-theme-core-mixin();
     @include dockview-design-space-mixin();
+    color-scheme: dark;
 
     //  stylesheet
     --dv-color-abyss-dark: rgb(11, 6, 17);
