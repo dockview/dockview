@@ -15,6 +15,8 @@ import {
     themeMonokai,
     themeNord,
     themeNordSpaced,
+    themeSlate,
+    themeSlateDark,
     themeSolarizedLight,
     themeSolarizedLightSpaced,
     themeVisualStudio,
@@ -112,6 +114,16 @@ describe('theme', () => {
             name: 'githubLightSpaced',
             className: 'dockview-theme-github-light-spaced',
         },
+        {
+            theme: themeSlate,
+            name: 'slate',
+            className: 'dockview-theme-slate',
+        },
+        {
+            theme: themeSlateDark,
+            name: 'slateDark',
+            className: 'dockview-theme-slate-dark',
+        },
     ];
 
     test.each(allThemes)('theme $name has the expected name and className', ({
@@ -154,6 +166,7 @@ describe('theme', () => {
                 themeMonokai,
                 themeGithubDark,
                 themeGithubDarkSpaced,
+                themeSlateDark,
             ];
             for (const theme of darkThemes) {
                 expect(theme.colorScheme).toBe('dark');
@@ -168,6 +181,7 @@ describe('theme', () => {
                 themeSolarizedLightSpaced,
                 themeGithubLight,
                 themeGithubLightSpaced,
+                themeSlate,
             ];
             for (const theme of lightThemes) {
                 expect(theme.colorScheme).toBe('light');
@@ -213,7 +227,9 @@ describe('theme', () => {
         test('share the common spaced configuration', () => {
             for (const theme of spacedThemes) {
                 expect(theme.gap).toBe(10);
-                expect(theme.edgeGroupCollapsedSize).toBe(44);
+                // Matches the compact spaced tab-strip height
+                // (--dv-tabs-and-actions-container-height in the space mixin).
+                expect(theme.edgeGroupCollapsedSize).toBe(28);
                 expect(theme.dndOverlayMounting).toBe('absolute');
                 expect(theme.dndPanelOverlay).toBe('group');
                 expect(theme.dndTabIndicator).toBe('line');
