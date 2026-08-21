@@ -1,18 +1,17 @@
+import { findRelativeZIndexParent } from '../dom';
+import { DockviewGroupPanel } from './dockviewGroupPanel';
+import { IDockviewPanel } from './dockviewPanel';
 import {
-    findRelativeZIndexParent,
-    DockviewGroupPanel,
-    IDockviewPanel,
     BuiltInChipContextMenuItem,
     ContextMenuItemConfig,
     ContextMenuItem,
-    ITabGroup,
-    TabGroupColorPalette,
-    defineModule,
-    IContextMenuHost,
-    IContextMenuService,
     IContextMenuItemComponentProps,
     IChipContextMenuItemComponentProps,
-} from 'dockview';
+} from './options';
+import { ITabGroup } from './tabGroup';
+import { TabGroupColorPalette } from './tabGroupAccent';
+import { defineModule } from './modules';
+import { IContextMenuHost, IContextMenuService } from './moduleContracts';
 
 function popoverZIndexFor(
     target: EventTarget | null,
@@ -487,10 +486,10 @@ export const ContextMenuModule = defineModule<
     IContextMenuHost
 >({
     name: 'ContextMenu',
-    // `createContextMenuItemComponent` is intentionally absent: it is an inert
-    // framework-render bridge the wrappers set unconditionally, so a rule for it
-    // would warn consumers that never asked for a menu. The getters carry intent.
-    options: ['getTabContextMenuItems', 'getTabGroupChipContextMenuItems'],
+    // No `options` declaration: that field exists so an *enterprise* module can
+    // be held in sync with core's `OPTION_MODULE_RULES`. This module ships in
+    // the free package and is always registered, so the getters can never go
+    // unserved and there is nothing to report.
     serviceKey: 'contextMenuService',
     create: (host) => new ContextMenuController(host),
 });

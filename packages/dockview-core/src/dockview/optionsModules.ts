@@ -5,10 +5,9 @@
  *
  * This is the "declared intent" diagnostic. It fires when the user asks for a
  * feature via options, at construction and on every `updateOptions`. It
- * deliberately does *not* fire on user interaction: right-clicking without the
- * ContextMenu module stays silent (the browser's own menu shows), because the
- * `?.` service-slot call sites can't tell a missing module from a feature the
- * app never wanted.
+ * deliberately does *not* fire on user interaction: an interaction reaching an
+ * absent module stays silent, because the `?.` service-slot call sites can't
+ * tell a missing module from a feature the app never wanted.
  *
  * Rules are a flat list rather than a `Record<keyof DockviewOptions, ...>`
  * because dockview's options are nested and value-gated: `overflow.mode:
@@ -136,23 +135,10 @@ export const OPTION_MODULE_RULES: OptionModuleRule[] = [
     // read solely by AutoHideEdgeGroupService. Alone it is inert even *with*
     // the module, so it can't justify a message of its own; alongside
     // `autoHideEdgeGroups` the rule above already covers it.
-    {
-        optionKey: 'getTabContextMenuItems',
-        reason: 'getTabContextMenuItems',
-        moduleName: 'ContextMenu',
-        when: (o) => o.getTabContextMenuItems != null,
-    },
-    {
-        optionKey: 'getTabGroupChipContextMenuItems',
-        reason: 'getTabGroupChipContextMenuItems',
-        moduleName: 'ContextMenu',
-        when: (o) => o.getTabGroupChipContextMenuItems != null,
-    },
-    // No rule for `createContextMenuItemComponent`: like `edgeGroupPeek` above,
-    // it is inert alone. It only renders a menu item whose config carries a
-    // `component`, supplied via the getters above, whose rules already name
-    // ContextMenu. The framework wrappers also set it unconditionally, so a rule
-    // here would warn consumers that never asked for a menu.
+    // No rules for the context-menu options (`getTabContextMenuItems`,
+    // `getTabGroupChipContextMenuItems`, `createContextMenuItemComponent`): the
+    // ContextMenu module ships free in dockview-core and is always registered,
+    // so the getters can never go unserved.
     {
         optionKey: 'dndCompass',
         reason: 'dndCompass',

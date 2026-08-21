@@ -23,8 +23,10 @@ BuiltInContextMenuItem
 CommonApi
 Constraints
 ContentContainer
+ContextMenuController
 ContextMenuItem
 ContextMenuItemConfig
+ContextMenuModule
 CreateComponentOptions
 CreateContextMenuItemComponentOptions
 CspNonceProvider

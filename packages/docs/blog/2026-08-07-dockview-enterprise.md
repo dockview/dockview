@@ -43,12 +43,13 @@ The first release covers:
 
 - **Multi-row tabs** and **pinned tabs**: wrap a tab strip onto extra rows, or pin the tabs that matter so they sort first and never overflow
 - **Advanced overflow**: the overflow dropdown becomes a command-palette style switcher, with search, most-recently-used ordering and keyboard navigation
-- **Context menus** for tabs and tab group chips
 - **DnD compass**: an explicit set of drop targets to aim at while dragging, instead of resolving the drop from whichever quadrant the cursor is over
 - **Smart guides**: alignment lines and magnetic snapping while dragging floating groups
 - **Auto-hide edge groups** and **dock to edge**: collapsed edges that peek open as an overlay without reflowing the grid, and edges that take up zero space until you drop a panel on them
 - **Layout history**: a bounded undo/redo stack for layout changes, so a mis-drag or an accidental close is recoverable
 - **Keyboard docking** and spatial navigation: move and dock panels without a mouse
+
+_Update: this list originally included context menus for tabs and tab group chips. Those shipped free in v6 and v7, so moving them into the enterprise package was a mistake ([#1610](https://github.com/dockview/dockview/issues/1610)). They are back in the free `dockview` package and the list above has been corrected._
 
 Deciding what went where was the hardest part. Dockview Enterprise is for enterprises, and it should never come at the expense of Dockview being a great free layout manager.
 

@@ -1,12 +1,19 @@
 import { fireEvent } from '@testing-library/dom';
 import { fromPartial } from '@total-typescript/shoehorn';
-import { ContextMenuController, ContextMenuModule } from '../contextMenu';
-import { DockviewComponent } from 'dockview-core';
-import { DockviewGroupPanel } from 'dockview-core';
-import { IDockviewPanel } from 'dockview-core';
-import { PopupService } from 'dockview-core';
-import { DEFAULT_TAB_GROUP_COLORS, TabGroupColorPalette } from 'dockview-core';
-import { ITabGroup } from 'dockview-core';
+import {
+    ContextMenuController,
+    ContextMenuModule,
+} from '../../dockview/contextMenuService';
+import { DockviewComponent } from '../../dockview/dockviewComponent';
+import { DockviewGroupPanel } from '../../dockview/dockviewGroupPanel';
+import { IDockviewPanel } from '../../dockview/dockviewPanel';
+import { PopupService } from '../../dockview/components/popupService';
+import {
+    DEFAULT_TAB_GROUP_COLORS,
+    TabGroupColorPalette,
+} from '../../dockview/tabGroupAccent';
+import { ITabGroup } from '../../dockview/tabGroup';
+import { DockviewComponentOptions } from '../../dockview/options';
 
 function makeAccessor(
     overrides: {
@@ -2124,12 +2131,92 @@ describe('ContextMenuController', () => {
             expect(Object.keys(ContextMenuModule.services ?? {})).toContain(
                 'contextMenuService'
             );
-            // `createContextMenuItemComponent` is excluded (inert framework
-            // bridge); see the module's `options` comment.
-            expect(ContextMenuModule.options).toEqual([
-                'getTabContextMenuItems',
-                'getTabGroupChipContextMenuItems',
-            ]);
+            // The module ships free and is always registered, so it declares
+            // no `options`; see the module's `options` comment.
+            expect(ContextMenuModule.options).toBeUndefined();
         });
+    });
+});
+
+/**
+ * #1610: the controller specs above all drive a hand-built accessor, so they
+ * pass whichever package the module ships in. This is the part that regressed
+ * in 8.0.0: `ContextMenuModule` moved out of the free entry point, so a real
+ * component built from `dockview` alone silently had no `contextMenuService`
+ * and a right-click did nothing. These tests construct the component the way an
+ * app does, with no module registration of their own, so they fail if the
+ * module ever leaves core's built-in set again.
+ */
+describe('the free package serves context menus (#1610)', () => {
+    let container: HTMLElement;
+    let component: DockviewComponent | undefined;
+
+    const create = (options: Partial<DockviewComponentOptions>) => {
+        component = new DockviewComponent(container, {
+            createComponent: () => ({
+                element: document.createElement('div'),
+                init: () => {
+                    // noop
+                },
+                dispose: () => {
+                    // noop
+                },
+            }),
+            ...options,
+        } as DockviewComponentOptions);
+        component.layout(1000, 1000);
+        return component;
+    };
+
+    beforeEach(() => {
+        container = document.createElement('div');
+        document.body.appendChild(container);
+    });
+
+    afterEach(() => {
+        component?.dispose();
+        component = undefined;
+        container.remove();
+    });
+
+    test('right-clicking a tab opens the menu the app asked for', () => {
+        const api = create({
+            getTabContextMenuItems: () => [
+                'close',
+                'separator',
+                { label: 'Log panel id', action: () => undefined },
+            ],
+        }).api;
+
+        api.addPanel({ id: 'panel_1', component: 'default' });
+
+        const tab = container.querySelector('.dv-tab');
+        expect(tab).toBeTruthy();
+
+        fireEvent.contextMenu(tab!);
+
+        const labels = Array.from(
+            container.querySelectorAll('.dv-context-menu-item')
+        ).map((el) => el.textContent);
+        expect(labels).toEqual(['Close', 'Log panel id']);
+        expect(
+            container.querySelectorAll('.dv-context-menu-separator')
+        ).toHaveLength(1);
+    });
+
+    test('the context menu options log no missing-module error', () => {
+        const consoleError = jest
+            .spyOn(console, 'error')
+            .mockImplementation(() => undefined);
+
+        try {
+            create({
+                getTabContextMenuItems: () => ['close'],
+                getTabGroupChipContextMenuItems: () => ['rename'],
+            });
+            expect(consoleError).not.toHaveBeenCalled();
+        } finally {
+            consoleError.mockRestore();
+        }
     });
 });

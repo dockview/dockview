@@ -73,14 +73,16 @@ with the new `tabGroupColors` and `tabGroupAccent` options.
 
 See [Tab groups](/docs/core/panels/tabGroups).
 
-### Context menus
+### Context menus (free)
 
-Dockview can now show a context menu when you right-click a tab or a tab group
-chip. Menus are opt-in: nothing appears unless you supply a builder through the
-new `getTabContextMenuItems` or `getTabGroupChipContextMenuItems`, which returns
-a list mixing built-in string shortcuts (such as the new `'pin'` item) with your
-own label or component items. Return an empty array to suppress the menu for a
-particular tab. See [Context menus](/docs/core/panels/contextMenus).
+The tab context menu, opt-in through `getTabContextMenuItems` since v6, gains
+new built-in shortcuts alongside the existing `'close'`, `'closeOthers'`,
+`'closeAll'` and `'separator'`: `'closeLeft'`, `'closeRight'`, `'maximize'`,
+`'float'`, `'popout'` and `'pin'`. Tab group chips have a menu of their own
+through `getTabGroupChipContextMenuItems`, with `'rename'`, `'colorPicker'`,
+`'collapse'` and `'close'`. Both builders mix these shortcuts with your own
+label or component items, and returning an empty array suppresses the menu for
+a particular tab or chip. See [Context menus](/docs/core/panels/contextMenus).
 
 ### DnD compass
 

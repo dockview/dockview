@@ -115,22 +115,20 @@ describe('validateOptionModules', () => {
         expect(consoleError).not.toHaveBeenCalled();
     });
 
-    test('createContextMenuItemComponent alone does not demand enterprise', () => {
-        // #1594: the wrappers set this bridge unconditionally; inert on its own.
+    test('the context menu options never demand enterprise', () => {
+        // #1610: ContextMenu ships free in dockview-core and is always
+        // registered, so none of these can go unserved. (#1594 covers the
+        // `createContextMenuItemComponent` half: the wrappers set that bridge
+        // unconditionally, so it never carried intent in the first place.)
         validateOptionModules(
-            options({ createContextMenuItemComponent: () => undefined }),
+            options({
+                getTabContextMenuItems: () => [],
+                getTabGroupChipContextMenuItems: () => [],
+                createContextMenuItemComponent: () => undefined,
+            }),
             nothingRegistered
         );
         expect(consoleError).not.toHaveBeenCalled();
-    });
-
-    test('getTabContextMenuItems still reports ContextMenu', () => {
-        // The getters carry the real intent, so they still report ContextMenu.
-        validateOptionModules(
-            options({ getTabContextMenuItems: () => [] }),
-            nothingRegistered
-        );
-        expect(consoleError.mock.calls[0][0]).toMatch(/ContextMenu/);
     });
 
     test('an explicitly disabled feature is silent', () => {
