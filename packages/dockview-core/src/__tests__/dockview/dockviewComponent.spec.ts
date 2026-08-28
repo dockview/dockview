@@ -12463,6 +12463,156 @@ describe('dockviewComponent', () => {
             dv.dispose();
         });
 
+        describe('setSize (#1613)', () => {
+            function edgeSize(
+                dv: DockviewComponent,
+                position: 'left' | 'right' | 'top' | 'bottom'
+            ): number {
+                const shell = (dv as any)._shellManager;
+                if (position === 'left' || position === 'right') {
+                    return shell._outerSplitview.getViewSize(
+                        position === 'left'
+                            ? shell._leftIndex
+                            : shell._rightIndex
+                    );
+                }
+                return shell._middleColumn.getViewSize(position);
+            }
+
+            test('setSize({ width }) resizes a left edge group', () => {
+                const c = document.createElement('div');
+                const dv = createFixedDockview(c, ['left'], {
+                    left: { id: 'left-group', initialSize: 260 },
+                });
+                dv.layout(1200, 600);
+                dv.addPanel({
+                    id: 'side',
+                    component: 'default',
+                    position: { referenceGroup: 'left-group' },
+                });
+
+                expect(edgeSize(dv, 'left')).toBe(260);
+
+                dv.getEdgeGroup('left')!.setSize({ width: 420 });
+
+                expect(edgeSize(dv, 'left')).toBe(420);
+                expect(dv.getEdgeGroupExpandedSize('left')).toBe(420);
+
+                dv.dispose();
+            });
+
+            test('setSize({ height }) resizes a top edge group', () => {
+                const c = document.createElement('div');
+                const dv = createFixedDockview(c, ['top'], {
+                    top: { id: 'top-group', initialSize: 150 },
+                });
+                dv.layout(1200, 600);
+                dv.addPanel({
+                    id: 'header',
+                    component: 'default',
+                    position: { referenceGroup: 'top-group' },
+                });
+
+                dv.getEdgeGroup('top')!.setSize({ height: 300 });
+
+                expect(edgeSize(dv, 'top')).toBe(300);
+
+                dv.dispose();
+            });
+
+            test('the cross-axis value is ignored, the primary axis wins', () => {
+                const c = document.createElement('div');
+                const dv = createFixedDockview(c, ['left'], {
+                    left: { id: 'left-group', initialSize: 260 },
+                });
+                dv.layout(1200, 600);
+
+                // height alone means nothing to a left edge group
+                dv.getEdgeGroup('left')!.setSize({ height: 400 });
+                expect(edgeSize(dv, 'left')).toBe(260);
+
+                dv.getEdgeGroup('left')!.setSize({ width: 420, height: 600 });
+                expect(edgeSize(dv, 'left')).toBe(420);
+
+                dv.dispose();
+            });
+
+            test('initialSize is honoured for a group added before the first layout', () => {
+                const c = document.createElement('div');
+                const dv = createFixedDockview(c, ['left'], {
+                    left: { id: 'left-group', initialSize: 260 },
+                });
+
+                dv.layout(1200, 600);
+
+                expect(edgeSize(dv, 'left')).toBe(260);
+
+                dv.dispose();
+            });
+
+            test('setSize on a collapsed edge group applies when it expands', () => {
+                const c = document.createElement('div');
+                const dv = createFixedDockview(c, ['left'], {
+                    left: { id: 'left-group', initialSize: 260 },
+                });
+                dv.layout(1200, 600);
+                dv.addPanel({
+                    id: 'side',
+                    component: 'default',
+                    position: { referenceGroup: 'left-group' },
+                });
+
+                const api = dv.getEdgeGroup('left')!;
+                api.collapse();
+                const collapsedSize = edgeSize(dv, 'left');
+
+                api.setSize({ width: 420 });
+                expect(edgeSize(dv, 'left')).toBe(collapsedSize);
+
+                api.expand();
+                expect(edgeSize(dv, 'left')).toBe(420);
+
+                dv.dispose();
+            });
+
+            test('a panel api setSize resizes the edge group hosting it', () => {
+                const c = document.createElement('div');
+                const dv = createFixedDockview(c, ['left'], {
+                    left: { id: 'left-group', initialSize: 260 },
+                });
+                dv.layout(1200, 600);
+                const panel = dv.addPanel({
+                    id: 'side',
+                    component: 'default',
+                    position: { referenceGroup: 'left-group' },
+                });
+
+                panel.api.setSize({ width: 420 });
+
+                expect(edgeSize(dv, 'left')).toBe(420);
+
+                dv.dispose();
+            });
+
+            test('setSize no longer reaches the shell once the edge group is removed', () => {
+                const c = document.createElement('div');
+                const dv = createFixedDockview(c, ['left', 'right'], {
+                    left: { id: 'left-group', initialSize: 260 },
+                    right: { id: 'right-group', initialSize: 260 },
+                });
+                dv.layout(1200, 600);
+
+                const api = dv.getEdgeGroup('left')!;
+                dv.removeEdgeGroup('left');
+
+                const rightSize = edgeSize(dv, 'right');
+                expect(() => api.setSize({ width: 420 })).not.toThrow();
+                expect(edgeSize(dv, 'right')).toBe(rightSize);
+
+                dv.dispose();
+            });
+        });
+
         test('addEdgeGroup can re-add a position after removeEdgeGroup', () => {
             const c = document.createElement('div');
             const dv = createFixedDockview(c, ['left']);

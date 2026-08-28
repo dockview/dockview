@@ -94,6 +94,19 @@ export interface DockviewGroupPanelApi extends GridviewPanelApi {
     exitMaximized(): void;
     close(): void;
     /**
+     * Resize this group. A grid group is resized within the grid and a
+     * floating group's overlay is resized, both honouring `width` and
+     * `height`. An **edge group** is sized along its own axis only - `width`
+     * for `left`/`right`, `height` for `top`/`bottom` - and the value for the
+     * other axis is ignored. Sizes are clamped by the group's constraints and
+     * by the space the layout has to give.
+     *
+     * For an edge group the size given is also the size the group expands to,
+     * so calling this on a collapsed group leaves the strip in place until the
+     * group is next expanded.
+     */
+    setSize(event: SizeEvent): void;
+    /**
      * Collapse this group (edge groups only). No-op for non-edge groups.
      */
     collapse(): void;
