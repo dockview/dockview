@@ -172,8 +172,86 @@ NX handles build ordering automatically via `dependsOn: ["^build"]`. The depende
 ### Coding Conventions
 
 -   When fixing a bug, write a failing test that reproduces it first, then make it pass.
--   Code comments describe the current state of the code, not its history. Don't reference the fix, PR, or what changed unless that context is critical to understanding the code as it stands.
--   Keep comments brief and concise.
+
+### Code Comments
+
+Comments here are sparse by default. Assume the reader knows TypeScript and has
+the surrounding code in front of them; write only what that reader cannot get
+from reading it.
+
+**The default is no comment.** Every comment has to earn its place, so add one
+only when you can say what a reader would get wrong without it. If the answer is
+"nothing", delete it. Prefer making the code say it: a clearer name, a named
+constant, or a small extracted function beats a comment explaining an unclear
+one.
+
+**Comments that earn their place** are the ones carrying knowledge that is not
+in the file:
+
+-   A non-obvious invariant or ordering constraint (why this must run before
+    that, why a generation counter is taken here).
+-   A workaround for browser, framework or DOM behaviour, naming the behaviour
+    being worked around.
+-   Why the obvious approach was not taken, when a reader would otherwise
+    "simplify" it back and reintroduce a bug.
+-   TSDoc on exported API: types, options and public methods. This is reference
+    documentation for consumers and is held to the docs standard, not to the
+    brevity budget below.
+
+**Comments that do not** are the bulk of what gets written, so check for these
+before committing:
+
+-   Restating what the next line already says. `// take a fresh generation`
+    above `mapEntry.generation = ++this._generation;` is noise.
+-   Narrating the change or its reasoning process. Comments describe the code
+    as it stands, not the fix, the PR, the bug, or what it used to do. "used
+    to", "previously", "now also" and "note that" are the usual tells.
+-   Explaining the test framework or the mechanics of an assertion. The test
+    name states the intent; the assertion states the expectation.
+-   The same explanation repeated across sibling cases. If four tests in a file
+    need the same caveat, state it once at the top of the `describe` block, or
+    not at all.
+
+**Budget.** One or two lines is the norm. Four is a lot. Beyond that, you are
+writing prose that belongs either in the TSDoc of the thing it describes or in
+nothing at all, and the useful sentence in it is usually the first one. Multi
+paragraph comments explaining a mechanism are almost never right; if a mechanism
+genuinely needs that much explanation, document it once on the declaration that
+owns it and reference that from the call sites rather than repeating it.
+
+**Style.** Write plainly, in the same register as the docs package:
+
+-   No em dashes (`—`). Use a comma, colon, parentheses or a full stop.
+-   No rhetorical scaffolding: "deliberately", "crucially", "importantly",
+    "it is worth noting", "which only shows up when", trailing "...". Say the
+    thing.
+-   No emphasis markup for tone (`*change*`, `*not*`). If a distinction matters,
+    it should be clear from the wording.
+-   British spelling (behaviour, initialise), matching the rest of the repo.
+
+**Worked example.** Rationale for a real invariant, cut to what a reader cannot
+infer:
+
+```ts
+// Before, 9 lines of prose:
+/**
+ * A *change* of reference container supersedes the previous `attach`: take a
+ * fresh generation so its `resize` closure can no longer run, and drop the
+ * frame it queued against the old container. During
+ * `fromJSON({ reuseExistingPanels: true })` that old container is a detached
+ * staging group measuring 0x0, so leaving its frame in flight both wastes the
+ * update and delays the reposition against the real one. Re-attaching over the
+ * *same* container deliberately leaves scheduled work alone, because ...
+ */
+
+// After, 3 lines:
+// A change of container supersedes the previous attach, so fence off its
+// closures and drop the frame queued against the old one. Re-attaching the
+// same container must not, or it discards the auto-hide peek's sticky state.
+```
+
+The second still stops a reader from "simplifying" the branch away, which was
+the only thing the first one was needed for.
 
 ### Public Documentation
 
