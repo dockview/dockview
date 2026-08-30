@@ -3,6 +3,7 @@ import { DockviewGroupPanel } from './dockviewGroupPanel';
 import { IDockviewPanel } from './dockviewPanel';
 import {
     BuiltInChipContextMenuItem,
+    BuiltInContextMenuItem,
     ContextMenuItemConfig,
     ContextMenuItem,
     IContextMenuItemComponentProps,
@@ -276,6 +277,118 @@ export class ContextMenuController implements IContextMenuService {
         menuEl.appendChild(renderer.element);
     }
 
+    /**
+     * The element for one built-in tab item, or `undefined` for a token this
+     * version doesn't know (an app on a newer typings version, or plain JS):
+     * an unrecognised token renders nothing rather than throwing.
+     */
+    private buildBuiltInTabItem(
+        item: BuiltInContextMenuItem,
+        panel: IDockviewPanel,
+        group: DockviewGroupPanel,
+        close: () => void
+    ): HTMLElement | undefined {
+        switch (item) {
+            case 'separator':
+                return buildSeparator();
+            case 'close':
+                return buildItem('Close', close, () => panel.api.close());
+            case 'closeOthers':
+                return buildItem('Close Others', close, () => {
+                    group.panels
+                        .filter((p) => p !== panel)
+                        .forEach((p) => p.api.close());
+                });
+            case 'closeAll':
+                return buildItem('Close All', close, () => {
+                    [...group.panels].forEach((p) => p.api.close());
+                });
+            case 'closeLeft': {
+                const index = group.panels.indexOf(panel);
+                return buildItem(
+                    'Close to the Left',
+                    close,
+                    () => {
+                        group.panels
+                            .filter((_, i) => i < index)
+                            .forEach((p) => p.api.close());
+                    },
+                    index <= 0
+                );
+            }
+            case 'closeRight': {
+                const index = group.panels.indexOf(panel);
+                return buildItem(
+                    'Close to the Right',
+                    close,
+                    () => {
+                        group.panels
+                            .filter((_, i) => i > index)
+                            .forEach((p) => p.api.close());
+                    },
+                    index === -1 || index >= group.panels.length - 1
+                );
+            }
+            case 'maximize':
+                return this.buildMaximizeItem(panel, close);
+            case 'float':
+                return buildItem(
+                    'Float',
+                    close,
+                    () => this.accessor.api.addFloatingGroup(panel),
+                    panel.api.location.type === 'floating'
+                );
+            case 'popout':
+                return buildItem(
+                    'Open in New Window',
+                    close,
+                    () => {
+                        this.accessor.api.addPopoutGroup(panel);
+                    },
+                    panel.api.location.type === 'popout'
+                );
+            case 'pin':
+                return buildItem(
+                    panel.api.isPinned ? 'Unpin tab' : 'Pin tab',
+                    close,
+                    () => panel.api.setPinned(!panel.api.isPinned)
+                );
+            default:
+                return undefined;
+        }
+    }
+
+    /**
+     * Append one app-supplied item. A raw `element` is used as-is, a
+     * `component` goes through the framework renderer, and a `label` builds the
+     * default row; an item carrying none of the three renders nothing. Shared
+     * by both menus, which differ only in `identity`.
+     */
+    private appendConfigItem(
+        menuEl: HTMLElement,
+        item: ContextMenuItemConfig,
+        identity:
+            | Pick<IContextMenuItemComponentProps, 'panel'>
+            | Pick<IChipContextMenuItemComponentProps, 'tabGroup'>,
+        group: DockviewGroupPanel,
+        close: () => void
+    ): void {
+        if (item.element) {
+            menuEl.appendChild(item.element);
+        } else if (item.component) {
+            this.appendComponentItem(menuEl, item, identity, group, close);
+        } else if (item.label) {
+            menuEl.appendChild(
+                buildItem(
+                    item.label,
+                    close,
+                    () => item.action?.(),
+                    item.disabled
+                )
+            );
+        }
+    }
+
     show(
         panel: IDockviewPanel,
         group: DockviewGroupPanel,
@@ -300,97 +413,13 @@ export class ContextMenuController implements IContextMenuService {
         menuEl.setAttribute('role', 'menu');
 
         for (const item of items) {
-            if (item === 'separator') {
-                menuEl.appendChild(buildSeparator());
-            } else if (item === 'close') {
-                menuEl.appendChild(
-                    buildItem('Close', close, () => panel.api.close())
-                );
-            } else if (item === 'closeOthers') {
-                menuEl.appendChild(
-                    buildItem('Close Others', close, () => {
-                        group.panels
-                            .filter((p) => p !== panel)
-                            .forEach((p) => p.api.close());
-                    })
-                );
-            } else if (item === 'closeAll') {
-                menuEl.appendChild(
-                    buildItem('Close All', close, () => {
-                        [...group.panels].forEach((p) => p.api.close());
-                    })
-                );
-            } else if (item === 'closeLeft') {
-                const index = group.panels.indexOf(panel);
-                menuEl.appendChild(
-                    buildItem(
-                        'Close to the Left',
-                        close,
-                        () => {
-                            group.panels
-                                .filter((_, i) => i < index)
-                                .forEach((p) => p.api.close());
-                        },
-                        index <= 0
-                    )
-                );
-            } else if (item === 'closeRight') {
-                const index = group.panels.indexOf(panel);
-                menuEl.appendChild(
-                    buildItem(
-                        'Close to the Right',
-                        close,
-                        () => {
-                            group.panels
-                                .filter((_, i) => i > index)
-                                .forEach((p) => p.api.close());
-                        },
-                        index === -1 || index >= group.panels.length - 1
-                    )
-                );
-            } else if (item === 'maximize') {
-                menuEl.appendChild(this.buildMaximizeItem(panel, close));
-            } else if (item === 'float') {
-                menuEl.appendChild(
-                    buildItem(
-                        'Float',
-                        close,
-                        () => this.accessor.api.addFloatingGroup(panel),
-                        panel.api.location.type === 'floating'
-                    )
-                );
-            } else if (item === 'popout') {
-                menuEl.appendChild(
-                    buildItem(
-                        'Open in New Window',
-                        close,
-                        () => {
-                            this.accessor.api.addPopoutGroup(panel);
-                        },
-                        panel.api.location.type === 'popout'
-                    )
-                );
-            } else if (item === 'pin') {
-                menuEl.appendChild(
-                    buildItem(
-                        panel.api.isPinned ? 'Unpin tab' : 'Pin tab',
-                        close,
-                        () => panel.api.setPinned(!panel.api.isPinned)
-                    )
-                );
-            } else if (isItemConfig(item) && item.element) {
-                menuEl.appendChild(item.element);
-            } else if (isItemConfig(item) && item.component) {
-                this.appendComponentItem(menuEl, item, { panel }, group, close);
-            } else if (isItemConfig(item) && item.label) {
-                menuEl.appendChild(
-                    buildItem(
-                        item.label,
-                        close,
-                        () => item.action?.(),
-                        item.disabled
-                    )
-                );
+            if (isItemConfig(item)) {
+                this.appendConfigItem(menuEl, item, { panel }, group, close);
+                continue;
+            }
+            const el = this.buildBuiltInTabItem(item, panel, group, close);
+            if (el) {
+                menuEl.appendChild(el);
             }
         }
 
@@ -451,25 +480,8 @@ export class ContextMenuController implements IContextMenuService {
                             .forEach((p) => p.api.close());
                     })
                 );
-            } else if (isItemConfig(item) && item.element) {
-                menuEl.appendChild(item.element);
-            } else if (isItemConfig(item) && item.component) {
-                this.appendComponentItem(
-                    menuEl,
-                    item,
-                    { tabGroup },
-                    group,
-                    close
-                );
-            } else if (isItemConfig(item) && item.label) {
-                menuEl.appendChild(
-                    buildItem(
-                        item.label,
-                        close,
-                        () => item.action?.(),
-                        item.disabled
-                    )
-                );
+            } else if (isItemConfig(item)) {
+                this.appendConfigItem(menuEl, item, { tabGroup }, group, close);
             }
         }
 

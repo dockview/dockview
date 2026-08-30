@@ -112,6 +112,26 @@ describe('ContextMenuController', () => {
             expect(spy).not.toHaveBeenCalled();
         });
 
+        test('renders nothing for an unrecognised built-in item', () => {
+            const { accessor, openPopover } = makeAccessor({
+                getTabContextMenuItems: jest
+                    .fn()
+                    .mockReturnValue(['close', 'someFutureItem']),
+            });
+            const controller = new ContextMenuController(accessor);
+
+            controller.show(
+                makePanel(),
+                makeGroup(),
+                new MouseEvent('contextmenu')
+            );
+
+            const menuEl = openPopover.mock.calls[0][0] as HTMLElement;
+            expect(
+                menuEl.querySelectorAll('.dv-context-menu-item')
+            ).toHaveLength(1);
+        });
+
         test('calls popupService.openPopover with correct coordinates', () => {
             const { accessor, openPopover } = makeAccessor({
                 getTabContextMenuItems: jest.fn().mockReturnValue(['close']),
@@ -1232,6 +1252,25 @@ describe('ContextMenuController', () => {
             });
             return { accessor, openPopover };
         }
+
+        test('renders nothing for an unrecognised chip item', () => {
+            const { accessor, openPopover } = makeChipAccessor([
+                'collapse',
+                'someFutureItem',
+            ]);
+            const controller = new ContextMenuController(accessor);
+
+            controller.showForChip(
+                fromPartial<ITabGroup>({ collapsed: false, toggle: jest.fn() }),
+                makeGroup(),
+                new MouseEvent('contextmenu', { cancelable: true })
+            );
+
+            const menuEl = openPopover.mock.calls[0][0] as HTMLElement;
+            expect(
+                menuEl.querySelectorAll('.dv-context-menu-item')
+            ).toHaveLength(1);
+        });
 
         test('renders "Collapse" and toggles when expanded', () => {
             const toggle = jest.fn();
