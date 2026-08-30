@@ -29,15 +29,16 @@ class TestContentPart implements IContentRenderer {
 
 /**
  * The group lays panels out with the *content-area* dimensions: the group box
- * minus the header along its axis. That way panels (and `onDidDimensionsChange`)
- * receive the real space they occupy, not the header-inclusive group box.
+ * minus the header along its axis. That way panels (and
+ * `onDidDimensionsChange`) receive the real space they occupy, not the header-
+ * inclusive group box.
  *
  * The header extent is measured once and cached (reading `offset*` on every
  * layout forced a synchronous reflow per group per frame); it is re-measured
  * when the header element's size actually changes, which the group observes via
  * a `ResizeObserver`. jsdom performs no layout, so these tests stub the header
  * element's `offsetHeight`/`offsetWidth` and then fire the observer to model the
- * browser detecting the new size — the same path production takes.
+ * browser detecting the new size: the same path production takes.
  */
 describe('group content sizing (header-aware)', () => {
     interface FakeObserver {
@@ -264,7 +265,7 @@ describe('group content sizing (header-aware)', () => {
 
         // the window narrows: tabs wrap to a second row, so the header grows.
         // the browser fires the ResizeObserver on the header element, which the
-        // group uses to re-measure and re-lay-out the content — no explicit
+        // group uses to re-measure and re-lay-out the content: no explicit
         // relayout() call from the resize path itself.
         group.layout(200, 100);
         stubOffset(header, 'offsetHeight', 60);

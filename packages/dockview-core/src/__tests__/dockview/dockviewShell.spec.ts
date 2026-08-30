@@ -901,7 +901,7 @@ describe('ShellManager', () => {
             const shell = makeSizedShell('left', 250);
             expect(shell.toJSON().left!.size).toBe(250);
 
-            // offsetParent stays truthy but the element leaves the document —
+            // offsetParent stays truthy but the element leaves the document,
             // still a hidden/meaningless (0, 0) measurement.
             shell.element.remove();
             fireResize(0, 0);

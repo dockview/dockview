@@ -902,7 +902,7 @@ describe('dockviewGroupPanelModel', () => {
         // Regression (#989): when a popout group is moved back into the main
         // grid the render container is swapped via `set renderContainer`. That
         // path re-attaches the active panel's content but, unlike
-        // `doSetActivePanel`, used to skip `layout()` — so the content element
+        // `doSetActivePanel`, used to skip `layout()`, so the content element
         // kept stale dimensions and rendered blank until another view change.
         const dockviewComponent = new DockviewComponent(
             document.createElement('div'),

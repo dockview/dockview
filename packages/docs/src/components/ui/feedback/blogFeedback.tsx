@@ -8,11 +8,11 @@ import React from 'react';
 // box locks both (see the subscriber registry below).
 //
 // Both talk to the licensing worker's feedback API (the same worker that serves
-// /enterprise), and both are gated by Cloudflare Turnstile using interaction-only
-// widgets that stay invisible and mint a token in the background, only surfacing
-// if a visitor actually has to be challenged. So a vote stays one click and the
-// message box has no visible bot-check. Each action keeps its own widget (tokens
-// are single-use, so one can't cover both).
+// /enterprise), and both are gated by Cloudflare Turnstile using interaction-
+// only widgets that stay invisible and mint a token in the background, only
+// surfacing if a visitor actually has to be challenged. So a vote stays one
+// click and the message box has no visible bot-check. Each action keeps its own
+// widget (tokens are single-use, so one can't cover both).
 //
 // The running score is private: nothing here reads or displays the tallies, which
 // are visible only on the worker's /admin dashboard. All a visitor sees is
@@ -253,7 +253,7 @@ function Votes({ id }: { id: string }): JSX.Element {
                     landed = true;
                 }
             } catch {
-                /* swallow — the buttons unlock and the visitor can retry */
+                /* swallow: the buttons unlock and the visitor can retry */
             } finally {
                 // The token is spent either way. Once the vote lands this browser
                 // is locked out, so retire the widget rather than have it solve

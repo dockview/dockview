@@ -29,12 +29,12 @@ export class BranchNode extends CompositeDisposable implements IView {
      * `minimumSize`/`maximumSize`/`priority` are aggregates over all children,
      * read repeatedly per frame inside `Splitview.resize` / `layoutViews`.
      * Because a grid is splitviews-of-splitviews, recomputing them on every
-     * getter access (with array allocations) would make a sash drag O(children²)
-     * with per-read allocation. These values only change on a structural
-     * mutation, a visibility toggle, or a child's own constraints changing (which
-     * surfaces as the child's `onDidChange`) — none of which fire during a plain
-     * sash drag — so we cache them and invalidate on exactly those signals.
-     * `undefined` means "dirty; recompute on read".
+     * getter access (with array allocations) would make a sash drag
+     * O(children²) with per-read allocation. These values only change on a
+     * structural mutation, a visibility toggle, or a child's own constraints
+     * changing (which surfaces as the child's `onDidChange`), none of which
+     * fire during a plain sash drag, so they are cached and invalidated on
+     * exactly those signals. `undefined` means "dirty; recompute on read".
      */
     private _cachedMinimumSize: number | undefined;
     private _cachedMaximumSize: number | undefined;
@@ -395,8 +395,8 @@ export class BranchNode extends CompositeDisposable implements IView {
         this._childrenDisposable = new CompositeDisposable(
             Event.any(...this.children.map((c) => c.onDidChange))((e) => {
                 /**
-                 * indicate a change has occured to allows any re-rendering but don't bubble
-                 * event because that was specific to this branch
+                 * indicate a change has occured to allows any re-rendering but
+                 * don't bubble event because that was specific to this branch
                  */
                 // a child's size or constraints changed; our cached aggregate
                 // min/max/priority may no longer be valid

@@ -531,17 +531,16 @@ export class ShellManager implements IDisposable {
         this._disposables.addDisposables(
             watchElementResize(this._shellElement, (entry) => {
                 /**
-                 * When the shell (or an ancestor) becomes hidden — e.g. a
-                 * nested dockview whose `onlyWhenVisible` host panel is
-                 * deactivated — the element collapses to (0, 0) or is detached
-                 * from the DOM. Propagating that zero size would relayout the
-                 * edge-group splitview at 0, clamping the low-priority edge
-                 * groups down to their minimum size and destroying the user's
-                 * sizing. Skip these cases so sizes are preserved while hidden;
-                 * mirrors the guard in the `Resizable` base class. See #1495.
+                 * A hidden shell, such as a nested dockview whose
+                 * `onlyWhenVisible` host panel is deactivated, collapses to (0,
+                 * 0) or detaches from the DOM. Propagating that would relayout
+                 * the edge-group splitview at 0, clamping low-priority edge
+                 * groups to their minimum and destroying the user's sizing, so
+                 * sizes are preserved while hidden. Mirrors the guard in the
+                 * `Resizable` base class.
                  *
-                 * offsetParent === null is equivalent to display: none on the
-                 * element or one of its ancestors.
+                 * `offsetParent === null` is equivalent to `display: none` on
+                 * the element or an ancestor.
                  * @see https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/offsetParent
                  */
                 if (!this._shellElement.offsetParent) {

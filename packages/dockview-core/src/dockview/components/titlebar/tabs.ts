@@ -698,6 +698,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
     }
 
     /** DOM id of the tab element for a panel, used for the tabpanel's `aria-labelledby`. */
+    /** DOM id of the tab element for a panel, used for the tabpanel's `aria-labelledby`. */
     getTabId(panelId: string): string | undefined {
         return this._tabMap.get(panelId)?.value.element.id;
     }
@@ -798,6 +799,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
     }
 
     /** Move the roving focus to the tab at `index` (updates tabindex + DOM focus). */
+    /** Move the roving focus to the tab at `index` (updates tabindex + DOM focus). */
     private _focusTab(index: number): void {
         for (let i = 0; i < this._tabs.length; i++) {
             this._tabs[i].value.element.tabIndex = i === index ? 0 : -1;
@@ -874,7 +876,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
      * With the HTML5 drag backend the tab is natively `draggable`, and a native
      * drag arms from the same pointerdown+move gesture. Firefox aborts that
      * pending drag if the pointerdown also moves focus / relayouts the tab strip
-     * synchronously — which `openPanel` does — so a drag started on an inactive
+     * synchronously (which `openPanel` does) so a drag started on an inactive
      * tab never begins (issue #932). Defer the activation past the frame so
      * `dragstart` arms first; a plain click (no drag) still activates on the
      * next frame, which is imperceptible. The pointer backend has no native drag

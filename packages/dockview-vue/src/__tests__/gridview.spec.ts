@@ -78,7 +78,7 @@ describe('GridviewVue Component', () => {
                 ),
         });
 
-        // Update proportional layout — should not throw
+        // Update proportional layout: should not throw
         expect(() =>
             api.updateOptions({ proportionalLayout: true })
         ).not.toThrow();

@@ -196,7 +196,7 @@ describe('droptarget', () => {
         test('an edge cell clears an anchored overlay', () => {
             // Moving from an inner cell out to an outer (edge) cell: the target
             // renders nothing for an edge cell, so the anchored group overlay
-            // from the previous frame must go — otherwise it double-highlights
+            // from the previous frame must go, otherwise it double-highlights
             // alongside the consumer's whole-layout-edge preview.
             let resolved: { position: Position; edge: boolean } = {
                 position: 'left',
@@ -220,7 +220,7 @@ describe('droptarget', () => {
                 getPositionResolver: () => ({ resolve: () => resolved }),
             });
 
-            // over the inner left cell — the group overlay is anchored
+            // over the inner left cell: the group overlay is anchored
             fireEvent.dragEnter(element);
             fireEvent(
                 element,
@@ -259,7 +259,7 @@ describe('droptarget', () => {
     describe('anchored overlay ownership', () => {
         // With `dndOverlayMounting: 'absolute'` every drop target in the
         // component shares one anchor container. A target that renders nothing
-        // this frame must reset its own state — but must NOT clear the shared
+        // this frame must reset its own state, but must NOT clear the shared
         // container unless it owns what is in it. The root edge target declines
         // `center` on every frame in the middle of the layout purely so the
         // event falls through to the group beneath it.
@@ -298,7 +298,7 @@ describe('droptarget', () => {
             });
             droptarget.onDrop((e) => drops.push(e.position));
 
-            // into the left edge band — the target renders and latches 'left'
+            // into the left edge band: the target renders and latches 'left'
             fireEvent.dragEnter(element);
             fireEvent(
                 element,
@@ -349,7 +349,7 @@ describe('droptarget', () => {
         });
 
         test('leaving the target unlatches it so dragend cannot commit', () => {
-            // `onDragEnd` commits `_state` when this is the actual target — the
+            // `onDragEnd` commits `_state` when this is the actual target: the
             // anchored path's normal commit route. A drag that leaves the
             // layout and is released outside must not drop at the last hovered
             // position.
@@ -378,7 +378,7 @@ describe('droptarget', () => {
 
             fireEvent.dragLeave(element);
             expect(droptarget.state).toBeUndefined();
-            // the container is left alone — the overlay slides to whichever
+            // the container is left alone: the overlay slides to whichever
             // target comes next, and dragend/drop tear it down
             expect(cleared).toEqual([]);
 
@@ -420,8 +420,8 @@ describe('droptarget', () => {
     describe('getOverlayOutline', () => {
         // A theme with `dndPanelOverlay: 'group'` outlines the whole group while
         // the drop target listens on the content container, which sits below the
-        // tab header. The pointer must be measured against the outline — the box
-        // `width`/`height` describe — or every resolved position is shifted by
+        // tab header. The pointer must be measured against the outline: the box
+        // `width`/`height` describe, or every resolved position is shifted by
         // the header offset.
         test('the pointer is measured against the outline, not the listener element', () => {
             const outline = document.createElement('div');
@@ -478,7 +478,7 @@ describe('droptarget', () => {
                 createOffsetDragOverEvent({ clientX: 100, clientY: 50 })
             );
 
-            // outline-relative (100, 50) — the centre of the 200x100 outline.
+            // outline-relative (100, 50): the centre of the 200x100 outline.
             // Measured against the content container it would be (100, 15).
             expect(calls[0]).toMatchObject({
                 x: 100,

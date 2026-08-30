@@ -315,6 +315,7 @@ export interface DockviewMaximizedGroupChangeEvent {
 }
 
 /** The coarse kind of a structural layout mutation (see `onWillMutateLayout`). */
+/** The coarse kind of a structural layout mutation (see `onWillMutateLayout`). */
 export type DockviewLayoutMutationKind =
     | 'add'
     | 'remove'
@@ -816,7 +817,7 @@ export class DockviewComponent
 
     /**
      * Resolve the floating window hosting `group`, matched by membership so it
-     * finds nested (non-anchor) members too — a floating window can host a
+     * finds nested (non-anchor) members too: a floating window can host a
      * whole nested gridview, not just its anchor group. Returns `undefined`
      * when the group isn't in any floating window. `floatingGroups` alone only
      * exposes each window's anchor, so consumers that must act on any member
@@ -920,6 +921,7 @@ export class DockviewComponent
         return this._smartGuidesService?.enabled ?? false;
     }
 
+    /** Toggle Smart Guides snapping at runtime (no-op if the module is absent). */
     /** Toggle Smart Guides snapping at runtime (no-op if the module is absent). */
     setSmartGuidesEnabled(enabled: boolean): void {
         assertModule(
@@ -1300,20 +1302,21 @@ export class DockviewComponent
         return this._advancedDnDService?.resolveOverlayModel(location, group);
     }
 
-    // IKeyboardNavigationHost: keyboard docking reaches the AdvancedDnD preview +
-    // LiveRegion announcer through these so the service stays decoupled.
-    /** Outermost element: the shell (incl. edge groups) once built, else the gridview. */
+    // IKeyboardNavigationHost: keyboard docking reaches the AdvancedDnD preview
+    // + LiveRegion announcer through these so the service stays decoupled.
+    /** Outermost element: the shell once built, else the gridview. */
     get rootElement(): HTMLElement {
         return this._shellManager?.element ?? this.element;
     }
 
     /**
      * Does this dock own `node`, in any of its windows? True when the node is
-     * inside the main shell, or inside one of this component's popout documents.
-     * A popout window hosts only this component's content, so whole-document
-     * membership is sufficient there; the main document may hold sibling docks,
-     * so it must be a containment check. A same-document popout (the jsdom mock)
-     * is already covered by the main check and contributes nothing.
+     * inside the main shell, or inside one of this component's popout
+     * documents. A popout window hosts only this component's content, so whole-
+     * document membership is sufficient there; the main document may hold
+     * sibling docks, so it must be a containment check. A same-document popout
+     * (the jsdom mock) is already covered by the main check and contributes
+     * nothing.
      */
     ownsElement(node: Node): boolean {
         if (this.rootElement.contains(node)) {
@@ -1632,16 +1635,17 @@ export class DockviewComponent
             this.floatingDropTargetContainer,
             // Safety net for a stale anchored drop overlay after an HTML5 drag.
             // `dragend` fires only on the drag *source* element, and each drop
-            // target clears only its own group's container. When a drag shows an
-            // overlay in one shell-level container but ends via a source bound to
-            // a different one — e.g. dragging a grid tab (whose disabled root
-            // container renders in-place) over a floating group's tab (anchored
-            // in `floatingDropTargetContainer`), then releasing over the grid —
-            // nothing clears the first container and its overlay lingers.
-            // `dragend` fires at the end of every HTML5 drag (drop or cancel),
-            // so clearing both shell containers here guarantees no overlay
-            // survives the drag. The pointer backend clears on drag-leave already
-            // and doesn't emit `dragend`, so this is HTML5-only by construction.
+            // target clears only its own group's container. When a drag shows
+            // an overlay in one shell-level container but ends via a source
+            // bound to a different one: e.g. dragging a grid tab (whose
+            // disabled root container renders in-place) over a floating group's
+            // tab (anchored in `floatingDropTargetContainer`), then releasing
+            // over the grid, nothing clears the first container and its overlay
+            // lingers. `dragend` fires at the end of every HTML5 drag (drop or
+            // cancel), so clearing both shell containers here guarantees no
+            // overlay survives the drag. The pointer backend clears on drag-
+            // leave already and doesn't emit `dragend`, so this is HTML5-only
+            // by construction.
             addDisposableListener(
                 this._shellManager.element,
                 'dragend',
@@ -2043,8 +2047,8 @@ export class DockviewComponent
                     _window.window!.innerHeight
                 );
 
-                // Guarded so the teardown's re-entrant paths (window close
-                // re-enters via the anchor's doRemoveGroup) never double-dispose.
+                // Guarded so the teardown's re-entrant paths (window close re-
+                // enters via the anchor's doRemoveGroup) never double-dispose.
                 let popoutGridviewDisposed = false;
                 const disposePopoutGridview = () => {
                     if (!popoutGridviewDisposed) {
@@ -2531,10 +2535,11 @@ export class DockviewComponent
                 return;
             }
 
-            // Re-float only restores the pre-popout state of a SINGLE popped-out
-            // group. A multi-group window must not be split (anchor re-floats
-            // while the rest dock to the grid), so dock the anchor to the grid
-            // alongside the other members once they're no longer alone.
+            // Re-float only restores the pre-popout state of a SINGLE popped-
+            // out group. A multi-group window must not be split (anchor re-
+            // floats while the rest dock to the grid), so dock the anchor to
+            // the grid alongside the other members once they're no longer
+            // alone.
             if (floatingBox && anchorIsSoleMember) {
                 // the re-float path reports the moves itself
                 this.addFloatingGroup(group, {
@@ -2865,9 +2870,9 @@ export class DockviewComponent
 
         // Surface the start + end of a move drag so the Smart Guides module can
         // (re)build then tear down its per-drag guides. Start (re)sets a clean
-        // slate even if a prior drag aborted without an end (redock long-press);
-        // end fires on pointerup/cancel (and harmlessly on resize-end). No-ops
-        // when the module is absent.
+        // slate even if a prior drag aborted without an end (redock long-
+        // press); end fires on pointerup/cancel (and harmlessly on resize-end).
+        // No-ops when the module is absent.
         floatingGroupPanel.addDisposables(
             overlay.onDidStartMoving(() =>
                 this._onDidStartFloatingGroupDrag.fire(anchorGroup)
@@ -3139,19 +3144,14 @@ export class DockviewComponent
 
     /**
      * Reveal (create-or-fill) the edge group at `position` and move the dragged
-     * item described by `data` into it. A newly created edge group is created
-     * collapsed, flagged `autoReveal` so it tears down to zero footprint when
-     * later emptied, and takes its auto-hide state from `options.autoHide`. If an
-     * edge group already exists there it is reused: the panel is added to its
-     * tabs and its collapsed/toggled *and auto-hide* state are left as-is (never
-     * re-created; `addEdgeGroup` throws on a duplicate position). This keeps a
-     * drag-reveal from silently converting a static edge group into an
-     * auto-hiding one; to change an existing group's auto-hide, call
-     * `api.getEdgeGroup(position)?.setAutoHide(...)` directly. No-op if the
-     * EdgeGroup module is absent.
+     * item described by `data` into it. A new edge group is created collapsed,
+     * flagged `autoReveal` so it tears down to zero footprint when emptied, and
+     * takes its auto-hide state from `options.autoHide`.
      *
-     * This is the primitive behind the dock-to-edge groups: the two-band
-     * drag-reveal affordance routes its outer-band drops here.
+     * An existing edge group is reused with its collapsed and auto-hide state
+     * left as-is, so a drag-reveal cannot silently convert a static edge group
+     * into an auto-hiding one; use `api.getEdgeGroup(position)?.setAutoHide()`
+     * for that. No-op if the EdgeGroup module is absent.
      */
     revealEdgeGroupWithData(
         position: EdgeGroupPosition,
@@ -3608,8 +3608,8 @@ export class DockviewComponent
          * grid, so nothing else will ever tear them down.
          *
          * `dispose()` reaches consumer `IContentRenderer.dispose()`, so one
-         * throwing renderer must not abort the rest of the cleanup — that would
-         * re-introduce the very leak this reclaims — nor replace the
+         * throwing renderer must not abort the rest of the cleanup: that would
+         * re-introduce the very leak this reclaims, nor replace the
          * deserialization error the caller is being given. Draining the list
          * also makes this safe to call more than once.
          */
@@ -3645,7 +3645,7 @@ export class DockviewComponent
                  * staging group leaks its `ResizeObserver`, its
                  * `onDidOptionsChange` subscription (retained by this
                  * component's emitter) and the watermark its model mounts when
-                 * the group empties — once per reused panel, per `fromJSON`.
+                 * the group empties, once per reused panel, per `fromJSON`.
                  */
                 const record = this._groups.get(temporaryGroup.api.id);
                 this._groups.delete(temporaryGroup.api.id);
@@ -3656,7 +3656,7 @@ export class DockviewComponent
                          * Staging is driven by the ids in `data.panels` while
                          * reclaiming is driven by the group `views` that
                          * reference them, so a panel whose state is present but
-                         * unreferenced is still staged here — and `dispose()`
+                         * unreferenced is still staged here, and `dispose()`
                          * on a non-empty group reaches the consumer's
                          * `IContentRenderer.dispose()`. Emptying the group
                          * first leaves those panels exactly as they were before
@@ -3666,7 +3666,7 @@ export class DockviewComponent
                          */
                         this.movingLock(() => {
                             // `panels` is the group's live array and
-                            // `removePanel` splices it, so iterate a copy —
+                            // `removePanel` splices it, so iterate a copy,
                             // walking the live array skips every other entry
                             // and strands panels for `dispose()` to destroy.
                             for (const panel of temporaryGroup.panels.slice()) {
@@ -3687,9 +3687,9 @@ export class DockviewComponent
              * the staging groups already created.
              *
              * The creation loop is inside the guard too, not just the moves and
-             * the clear: `createGroup()` reaches consumer code of its own —
+             * the clear: `createGroup()` reaches consumer code of its own,
              * `initialize()` mounts the watermark through
-             * `createWatermarkComponent()` — so a throw on the n-th panel would
+             * `createWatermarkComponent()`, so a throw on the n-th panel would
              * otherwise strand the n-1 staging groups already built.
              */
             try {
@@ -4037,7 +4037,7 @@ export class DockviewComponent
                      * would honour `reuseExistingPanels` everywhere except edge
                      * groups: the live panel keeps sitting in its staging group
                      * while a second panel is built under the same id, so the
-                     * consumer's renderer for the original is orphaned — never
+                     * consumer's renderer for the original is orphaned, never
                      * disposed, and its element left inside the id-keyed
                      * overlay entry the replacement now shares.
                      */
@@ -4064,7 +4064,7 @@ export class DockviewComponent
                     const isActive = activeView === panel.id;
 
                     // A reclaimed panel is being re-homed, not added, so keep
-                    // its add/remove events internal — as the grid path does.
+                    // its add/remove events internal: as the grid path does.
                     if (existingPanels.has(panel.api.id)) {
                         this.movingLock(() => {
                             edgeGroup.model.openPanel(panel, {
@@ -4936,14 +4936,11 @@ export class DockviewComponent
      * called exactly once.
      *
      * Both ends key off the depth counter reaching zero rather than off which
-     * bracket opened first. For synchronous nesting the two are the same thing
-     * - brackets close in the order they opened - but asynchronous transactions
-     * can *overlap* rather than nest (two `addPopoutGroup` calls in flight at
-     * once, or a restore staggering several), and there the first to open is
-     * not the last to close. Reporting on the opener would fire `didMutate`
-     * while the other transaction was still doing structural work, which is the
-     * very thing the async bracket exists to prevent. Overlapping transactions
-     * therefore report as one, tagged with the kind of the last to finish.
+     * bracket opened first, because asynchronous transactions can overlap
+     * rather than nest (two `addPopoutGroup` calls in flight at once, or a
+     * restore staggering several). Firing on the opener would report while
+     * another transaction was still doing structural work. Overlapping
+     * transactions report as one, tagged with the kind of the last to finish.
      */
     private openMutation(kind: DockviewLayoutMutationKind): () => void {
         const origin = this._origin;
@@ -4963,22 +4960,18 @@ export class DockviewComponent
 
     /**
      * Coalesce a panel's `onDidLocationChange` to the end of the enclosing
-     * transaction, or fire it immediately when no transaction is in flight.
+     * transaction, or fire immediately when no transaction is in flight.
      *
-     * Relocating a panel touches its location twice: once as it is reparented
-     * into the destination group - which, when that group has just been created
-     * for a floating or popout window, has not been told where it lives yet -
-     * and once as the group is tagged with its final location. Reporting each
-     * signal as it happens therefore leaks an intermediate `grid` location the
-     * panel was never in, at a moment when it belongs to neither group's panel
-     * list and so is missing from `api.panels`.
+     * Relocating a panel touches its location twice, once as it is reparented
+     * into the destination group and once as that group is tagged with its
+     * final location. Reporting each signal leaks an intermediate `grid`
+     * location the panel was never in, at a point where it belongs to neither
+     * group's panel list and is missing from `api.panels`.
      *
-     * Deferring collapses those signals into a single event carrying the
-     * settled location. Note the signals are deliberately *not* compared
-     * against the panel's previous location: a panel can move between two
-     * floating windows without its location type changing, and this event is
-     * the only signal `OverlayRenderContainer` has to re-resolve the panel's
-     * z-index against its new host window.
+     * The signals are not compared against the panel's previous location: a
+     * panel can move between two floating windows without its location type
+     * changing, and this event is the only signal `OverlayRenderContainer` has
+     * to re-resolve the panel's z-index against its new host window.
      */
     deferLocationChange(key: object, fire: () => void): void {
         if (this._mutationDepth === 0) {
@@ -5212,18 +5205,17 @@ export class DockviewComponent
                     this.nestedWindowMembers(sourceGroup).length <= 1
                 ) {
                     /**
-                     * the source group is the only group in a popout window and
-                     * has a single panel
+                     * The source group is the only group in its popout window
+                     * and has a single panel:
                      *
                      * 1. remove the panel from the group without triggering any events
-                     * 2. remove the popout group; this may cascade-remove the empty
-                     *    reference group it left behind in the main grid (see
-                     *    doRemoveGroup for popout groups), which can shift grid indices
-                     * 3. recompute the target location now that the grid is stable
-                     * 4. create a new group at the recomputed location and add that panel
+                     * 2. remove the popout group, which may cascade-remove the empty
+                     *    reference group it left behind and so shift grid indices
+                     * 3. recompute the target location now the grid is stable
+                     * 4. create a group at that location and add the panel
                      *
-                     * Multi-group popout windows fall through to the generic
-                     * detach-and-re-add path so the window stays alive.
+                     * Multi-group windows fall through to the generic detach-
+                     * and-re-add path so the window stays alive.
                      */
 
                     const popoutGroup =

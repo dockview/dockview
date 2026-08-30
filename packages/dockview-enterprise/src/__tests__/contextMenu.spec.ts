@@ -313,7 +313,7 @@ describe('ContextMenuController', () => {
         // stacking context but anchors earlier in DOM order, so at the default
         // overlay z-index it renders *behind* the peek. The clicked strip tab
         // isn't inside the peek overlay, so the ancestor walk can't find its
-        // z-index — the menu must key off the peek state and lift clear of it.
+        // z-index: the menu must key off the peek state and lift clear of it.
         function dispatchContextMenu(target: HTMLElement): MouseEvent {
             const event = new MouseEvent('contextmenu', {
                 bubbles: true,

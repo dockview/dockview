@@ -1656,11 +1656,11 @@ describe('dockviewComponent', () => {
 
     // Regression tests for #1410. A within-group tab-group move disposes the
     // dragged chip's drag sources (`disposeChipDrag`) so the transfer
-    // singleton is cleared synchronously — but, unlike a cross-group move,
+    // singleton is cleared synchronously but, unlike a cross-group move,
     // the chip element itself survives the reorder. If the sources aren't
     // re-armed by the following `updateTabGroups()`, the chip keeps
     // `draggable=true` and fires a native `dragstart`, but no longer sets a
-    // transfer payload — leaving the group undraggable after its first move.
+    // transfer payload, leaving the group undraggable after its first move.
     //
     // `setupTwoTabGroups` builds one group holding two tab groups (Feature +
     // Monitoring), so relocating one is a within-group reorder, and returns
@@ -2069,7 +2069,7 @@ describe('dockviewComponent', () => {
         /**
          * Identify the staging groups a `reuseExistingPanels` restore creates.
          * They are all created before the layout `clear()`, so that boundary
-         * names them exactly — unlike "absent from `dockview.groups`", which
+         * names them exactly, unlike "absent from `dockview.groups`", which
          * also matches ordinary groups observed mid-`clear()`.
          *
          * Pass `onClear` to make the clear phase fail instead of running.
@@ -2169,7 +2169,7 @@ describe('dockviewComponent', () => {
             // skips them, which also means nothing else will ever tear them
             // down. Left undisposed each one leaks a ResizeObserver, an
             // `onDidOptionsChange` subscription held by this component's
-            // emitter and a watermark — once per reused always-rendered panel.
+            // emitter and a watermark, once per reused always-rendered panel.
             dockview.layout(1000, 1000);
 
             const panel1 = dockview.addPanel({
@@ -2210,7 +2210,7 @@ describe('dockviewComponent', () => {
             // driven by the group `views` that reference them. A panel whose
             // state is present while nothing references it is therefore staged
             // and never reclaimed, and is still inside its staging group when
-            // the teardown runs — the case the teardown has to empty rather
+            // the teardown runs: the case the teardown has to empty rather
             // than dispose through.
             //
             // (Edge panels used to land here too, before
@@ -2220,8 +2220,8 @@ describe('dockviewComponent', () => {
 
             dockview.addPanel({ id: 'panel1', component: 'default' });
             // Two panels, not one: the teardown empties the staging group by
-            // iterating it, and a live-array walk would skip every other entry
-            // — which only shows up with more than one staged panel.
+            // iterating it, and a live-array walk would skip every other
+            // entry.
             const orphaned = ['orphanA', 'orphanB'].map((id) =>
                 dockview.addPanel({ id, component: 'default' })
             );
@@ -2250,7 +2250,7 @@ describe('dockviewComponent', () => {
 
             dockview.fromJSON(state, { reuseExistingPanels: true });
 
-            // Both were genuinely staged — neither survives in the layout...
+            // Both were genuinely staged: neither survives in the layout...
             for (const panel of orphaned) {
                 expect(dockview.getGroupPanel(panel.id)).toBeUndefined();
             }
@@ -2362,8 +2362,8 @@ describe('dockviewComponent', () => {
         });
 
         test('reuseExistingPanels disposes the staging groups built before one fails to be created', () => {
-            // `createGroup()` runs consumer code of its own — `initialize()`
-            // mounts the watermark through `createWatermarkComponent()` — so
+            // `createGroup()` runs consumer code of its own: `initialize()`
+            // mounts the watermark through `createWatermarkComponent()`, so
             // the n-th staging group can fail after n-1 are already built. The
             // creation loop therefore has to sit inside the same guard as the
             // staging moves and the clear; outside it, those n-1 escape
@@ -2399,7 +2399,7 @@ describe('dockviewComponent', () => {
         test('reuseExistingPanels disposes the staging groups when deserialization throws', () => {
             // Staging and the clear succeed here, so the teardown runs through
             // the deserialization `try`'s `finally` rather than the staging
-            // `catch` — the other of the two paths that reclaim these groups.
+            // `catch`: the other of the two paths that reclaim these groups.
             dockview.layout(1000, 1000);
             addTwoAlwaysRenderedPanels();
 
@@ -2493,7 +2493,7 @@ describe('dockviewComponent', () => {
         test('reuseExistingPanels does not orphan the renderer of a reused edge panel', () => {
             // The consequence of rebuilding rather than reclaiming: the
             // original panel is left owned by nobody. It is removed from its
-            // staging group (so the teardown cannot dispose it — that would
+            // staging group (so the teardown cannot dispose it: that would
             // destroy a live id) and never disposed by anything else, so the
             // consumer's renderer survives even the component's own dispose.
             dockview.layout(1000, 1000);

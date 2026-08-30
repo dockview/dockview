@@ -276,18 +276,15 @@ export class DockviewGroupPanelModel
     private _location: DockviewGroupLocation = { type: 'grid' };
     /**
      * The header (`dv-tabs-and-actions-container`) extent along its occupied
-     * axis — `offsetHeight` for a top/bottom header, `offsetWidth` for a
-     * left/right one — which `contentDimensions` subtracts from the group box.
+     * axis, `offsetHeight` for a top/bottom header and `offsetWidth` for a
+     * left/right one, which `contentDimensions` subtracts from the group box.
      *
-     * This was read via `offset*` on *every* `layout()`. Because the read comes
-     * after the group's container styles were written, it forces a synchronous
-     * reflow, and with N groups a single window-resize frame flushed layout N
-     * times (measured: 24 forced reflows/frame at 24 groups, ~68% of resize
-     * cost). The extent only changes when the header's tabs change (add/remove/
-     * wrap), its axis flips, or it's hidden/shown — never during a plain
-     * resize — so we cache it and invalidate on exactly those signals (plus a
-     * `ResizeObserver` that also catches CSS/theme-driven height changes and
-     * display:none transitions). `undefined` means "dirty; measure on read".
+     * Cached because reading `offset*` after the container styles are written
+     * forces a synchronous reflow, once per group per `layout()`. The extent
+     * changes only when the header's tabs change, its axis flips, or it is
+     * hidden or shown, so it is invalidated on those signals plus a
+     * `ResizeObserver` covering CSS-driven and `display: none` changes.
+     * `undefined` means dirty, measure on read.
      */
     private _cachedHeaderSize: number | undefined;
 
@@ -411,10 +408,12 @@ export class DockviewGroupPanelModel
     }
 
     /** DOM id of the content container (the group's tabpanel), referenced by each tab's `aria-controls`. */
+    /** DOM id of the content container (the group's tabpanel), referenced by each tab's `aria-controls`. */
     get contentContainerId(): string {
         return this.contentContainer.element.id;
     }
 
+    /** The group's content drop target; lets keyboard docking preview a drop here. */
     /** The group's content drop target; lets keyboard docking preview a drop here. */
     get contentDropTarget(): Droptarget {
         return this.contentContainer.dropTarget;
@@ -615,9 +614,9 @@ export class DockviewGroupPanelModel
         this.addDisposables(
             // Keep the cached header extent fresh without reading `offset*` on
             // every layout: re-measure only when the header element actually
-            // changes size (tabs wrapping, hide/show — ResizeObserver fires on
-            // display:none transitions too — theme-driven height), and relayout
-            // the content if the extent moved.
+            // changes size: tabs wrapping, hide/show, and the CSS-driven
+            // changes a ResizeObserver also catches. Relayout the content if
+            // the extent moved.
             watchElementResize(this.tabsContainer.element, () => {
                 // `watchElementResize` defers via requestAnimationFrame, so a
                 // frame queued just before disposal can still fire; don't run
@@ -1311,7 +1310,7 @@ export class DockviewGroupPanelModel
                 asActive: true,
             });
             // Also re-run layout() so the panel content is sized after the
-            // container switch — matching doSetActivePanel(). Without it the
+            // container switch: matching doSetActivePanel(). Without it the
             // content element keeps stale dimensions when a group is moved back
             // from a popout window and renders blank (fixes #989).
             const { width, height } = this.contentDimensions();
@@ -1657,8 +1656,8 @@ export class DockviewGroupPanelModel
      */
     /**
      * Measure the header's extent along its occupied axis. This is the single
-     * forced-reflow read; it now runs only on a cache miss (first layout after
-     * a header change) and inside the header's ResizeObserver — not on every
+     * forced-reflow read, and runs only on a cache miss (the first layout after
+     * a header change) and inside the header's ResizeObserver, never on every
      * layout frame.
      */
     private measureHeaderSize(): number {
@@ -1829,6 +1828,7 @@ export class DockviewGroupPanelModel
         this.updateAccessibleLabel();
     }
 
+    /** Label the group region with its active panel's title (the WAI-ARIA region name). */
     /** Label the group region with its active panel's title (the WAI-ARIA region name). */
     private updateAccessibleLabel(): void {
         const title = this._activePanel?.title;

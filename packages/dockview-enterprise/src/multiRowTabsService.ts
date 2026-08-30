@@ -19,6 +19,7 @@ const VERTICAL_TABS_CLASS = 'dv-tabs-container-vertical';
 const TAB_CLASS = 'dv-tab';
 const HEADER_CLASS = 'dv-tabs-and-actions-container';
 /** The per-line thickness var (row height / column width) core sizes tabs by. */
+/** The per-line thickness var (row height / column width) core sizes tabs by. */
 const LINE_SIZE_VARIABLE = '--dv-tabs-and-actions-container-height';
 
 /**
@@ -66,8 +67,8 @@ export function findVerticalNeighbour(
 
 /**
  * The row cap from `overflow.maxRows`, normalised to a positive integer, or
- * `undefined` for unbounded wrap (the default, and any non-positive / non-finite
- * value). Only meaningful in wrap mode.
+ * `undefined` for unbounded wrap (the default, and any non-positive / non-
+ * finite value). Only meaningful in wrap mode.
  */
 function resolveMaxRows(
     overflow: DockviewOverflowOptions | undefined
@@ -186,9 +187,9 @@ function tighterCap(
 }
 
 /**
- * Drives wrap layout for one group. The wrap itself is CSS (the inert
- * `.dv-tabs-container--wrap` rules in core); this controller toggles that class
- * on the group's tab list and, when the wrapped row count changes, asks the host
+ * Drives wrap layout for one group. The wrap itself is CSS (the inert `.dv-
+ * tabs-container--wrap` rules in core); this controller toggles that class on
+ * the group's tab list and, when the wrapped row count changes, asks the host
  * to relayout so the now-taller header shrinks the content area (the free
  * header-aware content-sizing seam does the subtraction).
  *
@@ -264,9 +265,9 @@ class WrapController extends CompositeDisposable {
             list.classList.add(WRAP_CLASS);
 
             // Sync the explicit row cap (may change without a wrap on/off
-            // transition, e.g. a runtime `overflow.maxRows` update). The CSS clip
-            // is applied in `measure`, which combines this with the space-derived
-            // cap and runs at the end of `apply`.
+            // transition, e.g. a runtime `overflow.maxRows` update). The CSS
+            // clip is applied in `measure`, which combines this with the space-
+            // derived cap and runs at the end of `apply`.
             this._maxRows = resolveMaxRows(this.host.options.overflow);
 
             if (first) {
@@ -359,14 +360,14 @@ class WrapController extends CompositeDisposable {
     }
 
     /**
-     * The number of wrapped lines that fit within the group's cross-size — the
+     * The number of wrapped lines that fit within the group's cross-size: the
      * axis the header grows along (height for a horizontal header, width for a
      * vertical one). Beyond this the header would grow past the group box and
      * push its surplus tabs off-screen (unreachable: the wrapped strip doesn't
      * scroll), so it bounds the effective cap even without an explicit
      * `overflow.maxRows`. One line is reserved for content so the panel never
      * collapses to nothing. `undefined` when the size can't be measured (no
-     * group box or unresolved line thickness — e.g. jsdom, whose `clientWidth`/
+     * group box or unresolved line thickness: e.g. jsdom, whose `clientWidth`/
      * `clientHeight` are 0), leaving wrap unbounded there.
      */
     private spaceCap(list: HTMLElement): number | undefined {
@@ -522,12 +523,13 @@ class WrapController extends CompositeDisposable {
      * when a resize reflows the tabs into more columns. The surplus columns then
      * overflow the header and render over the panel content.
      *
-     * Setting the width explicitly to `columns x lineThickness` makes the header
-     * contain its columns; core's content sizing (group width minus the header's
-     * now-correct width) follows. Capped wrap passes the capped column count, so
-     * the header stops growing at the cap exactly as the CSS max-width does. A
-     * horizontal header clears the property (its height stays CSS-driven), which
-     * also undoes any width left over from a runtime orientation flip.
+     * Setting the width explicitly to `columns x lineThickness` makes the
+     * header contain its columns; core's content sizing (group width minus the
+     * header's now-correct width) follows. Capped wrap passes the capped column
+     * count, so the header stops growing at the cap exactly as the CSS max-
+     * width does. A horizontal header clears the property (its height stays
+     * CSS-driven), which also undoes any width left over from a runtime
+     * orientation flip.
      */
     private sizeVerticalHeader(list: HTMLElement, columns: number): void {
         const header = list.closest<HTMLElement>(`.${HEADER_CLASS}`);

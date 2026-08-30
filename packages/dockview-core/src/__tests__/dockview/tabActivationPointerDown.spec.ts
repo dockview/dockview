@@ -18,7 +18,7 @@ class TestPanel implements IContentRenderer {
 }
 
 /**
- * DV-37 / #932 — with the HTML5 drag backend a tab is natively `draggable`, and
+ * DV-37 / #932, with the HTML5 drag backend a tab is natively `draggable`, and
  * Firefox aborts a pending native drag if the same pointerdown that could start
  * it also moves focus / relayouts the tab strip synchronously. Activating an
  * inactive tab on pointerdown does exactly that, so a drag begun on an inactive
@@ -26,7 +26,7 @@ class TestPanel implements IContentRenderer {
  * (so `dragstart` arms first) while keeping the pointer backend synchronous.
  *
  * jsdom cannot drive a real native drag, so these assert the observable
- * *contract* of that fix — activation is deferred one frame under html5 and
+ * *contract* of that fix: activation is deferred one frame under html5 and
  * still lands, and stays synchronous under the pointer backend. Real Firefox
  * drag behaviour is verified manually.
  */
@@ -67,7 +67,7 @@ describe('DV-37: pointerdown tab activation timing', () => {
         const p2 = dockview.addPanel({ id: 'p2', component: 'default' });
         expect(dockview.activePanel?.id).toBe('p2'); // last added is active
 
-        // pointerdown on the inactive tab must NOT synchronously activate it —
+        // pointerdown on the inactive tab must NOT synchronously activate it,
         // otherwise the focus/relayout would pre-empt a native drag in Firefox.
         pointerDown(tabElements()[0]); // p1's tab
         expect(dockview.activePanel?.id).toBe('p2');
@@ -96,7 +96,7 @@ describe('DV-37: pointerdown tab activation timing', () => {
         dockview.addPanel({ id: 'p2', component: 'default' });
 
         pointerDown(tabElements()[0]);
-        // tear down before the frame fires — the queued activation must not run
+        // tear down before the frame fires: the queued activation must not run
         // against a disposed group.
         expect(() => {
             dockview.dispose();

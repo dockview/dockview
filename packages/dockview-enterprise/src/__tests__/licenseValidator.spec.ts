@@ -17,7 +17,7 @@ const GOLDEN_BODY = GOLDEN_KEY.slice(0, GOLDEN_KEY.lastIndexOf('__'));
 
 // Independent oracle: FNV-1a 64-bit computed over Node's own canonical UTF-8
 // encoding, using BigInt (a different arithmetic path than the verifier's
-// two-32-bit-halves impl). Lets us assert `fnv1a` — and therefore `utf8Bytes` —
+// two-32-bit-halves impl). Lets us assert `fnv1a`, and therefore `utf8Bytes`,
 // is byte-identical to a standard encoder across the 1/2/3/4-byte ranges,
 // including surrogate pairs, without needing an issuer-minted fixture.
 function fnv1aReference(input: string): string {

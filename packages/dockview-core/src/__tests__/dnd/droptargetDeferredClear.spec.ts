@@ -7,7 +7,7 @@ import { createOffsetDragOverEvent } from '../__test_utils__/utils';
  * The HTML5 backend renders anchored drop overlays into a shared container and
  * does not clear on `dragleave` (that would kill the overlay's slide between
  * adjacent targets). Instead it *schedules* a clear that a subsequent render
- * cancels — so the overlay slides between targets but is torn down when the
+ * cancels, so the overlay slides between targets but is torn down when the
  * drag leaves to somewhere that doesn't re-render into the container.
  */
 describe('Droptarget: deferred anchor-overlay clear on dragleave', () => {
@@ -95,7 +95,7 @@ describe('Droptarget: deferred anchor-overlay clear on dragleave', () => {
     test('leaving a floating-container target for an in-place (other-container) target clears it — no dragend needed', async () => {
         // This is the #1534 scenario (grid tab whose own container is disabled
         // renders in-place; floating tab anchors in a separate container),
-        // resolved purely by the leave-scheduled clear — no `dragend` involved.
+        // resolved purely by the leave-scheduled clear: no `dragend` involved.
         const floatHost = document.createElement('div');
         document.body.appendChild(floatHost);
         const floatContainer = new DropTargetAnchorContainer(floatHost, {

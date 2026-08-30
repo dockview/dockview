@@ -25,12 +25,12 @@ export interface AngularRendererOptions<T = unknown> {
  * `ViewContainerRef`. Each panel view is attached to the application for change
  * detection; without this boundary every panel would be fully checked on every
  * CD tick, so a dockview resize/drag (which triggers ticks via zone.js) ran
- * change detection across *all* panels — O(panels) per event.
+ * change detection across *all* panels: O(panels) per event.
  *
  * Because the boundary is `OnPush`, a global tick that didn't touch this panel
  * finds it clean and skips it (and its hosted component) entirely. The panel is
  * still fully interactive: a DOM event inside it, an `@Input` change, or an
- * `async` pipe all mark the hosted component — and, walking up, this boundary —
+ * `async` pipe all mark the hosted component, and, walking up, this boundary,
  * dirty, so the next tick checks it. Panel content of any change-detection
  * strategy works, including components created outside the Angular zone.
  */
@@ -173,7 +173,7 @@ export class AngularRenderer<T = unknown>
         // Set initial parameters. NOTE: this runs before `viewRef` is assigned
         // below, so update()'s markForCheck is a no-op here; the initial render
         // is instead driven by the explicit detectChanges() at the end of this
-        // method. Keep that ordering — assigning viewRef first would make
+        // method. Keep that ordering: assigning viewRef first would make
         // update() mark-for-check without a following tick and paint stale.
         this.update(parameters);
 

@@ -31,6 +31,7 @@ export interface PointerDropTargetOptions {
     acceptedTargetZones: Position[];
     overlayModel?: DroptargetOverlayModel;
     /** Render into an external anchor container (floating groups, layout root). */
+    /** Render into an external anchor container (floating groups, layout root). */
     getOverrideTarget?: () => DropTargetTargetModel | undefined;
     /** Outline element for positioning; falls back to the drop element. */
     getOverlayOutline?: () => HTMLElement | null;
@@ -308,18 +309,11 @@ export class PointerDropTarget
     }
 
     /**
-     * Tear down whatever this target is showing, on any frame it resolves to no
-     * overlay. Two things make this more than `_removeOverlay`:
-     *
-     * - With `dndOverlayMounting: 'absolute'` the overlay lives in an anchor
-     *   container shared by every drop target in the component, and
-     *   `_removeOverlay` only owns the in-place dropzone — so the container
-     *   needs clearing explicitly or the last frame's highlight lingers.
-     * - It must only clear the container when this target actually put
-     *   something there. The root edge target sits over every group and
-     *   declines `center` on each frame in the middle of the layout purely so
-     *   the event falls through; clearing from there would destroy and rebuild
-     *   the group's overlay every frame, killing its move transition.
+     * Tear down whatever this target is showing, on any frame it resolves to
+     * no overlay. The `DropTarget` equivalent documents the reasoning; in
+     * short, the shared anchor container used by `dndOverlayMounting:
+     * 'absolute'` needs clearing explicitly, but only when this target put
+     * something there.
      */
     private _clearOwnOverlay(): void {
         const owned = this._state !== undefined;

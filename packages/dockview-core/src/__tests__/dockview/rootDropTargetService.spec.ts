@@ -78,7 +78,7 @@ describe('RootDropTargetService', () => {
         service.dispose();
     });
 
-    // Propagation only — that the flag actually stops a target resolving is
+    // Propagation only: that the flag actually stops a target resolving is
     // covered per-backend in `dnd/droptarget.spec.ts`. This assertion passed
     // for the whole time `Droptarget` ignored the flag it was handed.
     test('`dndEdges: false` sets the disabled flag on both backends', () => {

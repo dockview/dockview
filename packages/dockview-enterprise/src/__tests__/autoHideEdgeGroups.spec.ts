@@ -254,7 +254,7 @@ describe('auto-hide edge groups', () => {
     test('the title bar takes the tab-bar colour, the backdrop the group frame', () => {
         const d = make(true);
         collapsedEdgeWithPanel(d);
-        // Distinct frame (group) vs tab-bar (tab strip) colours — in dark/spaced
+        // Distinct frame (group) vs tab-bar (tab strip) colours: in dark/spaced
         // themes the frame is the near-black inter-group gap colour, so the title
         // bar must take the lighter tab-bar colour rather than reading as black.
         strip(d).style.backgroundColor = 'rgb(11, 6, 17)'; // frame

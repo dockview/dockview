@@ -16,7 +16,7 @@ export class DropTargetAnchorContainer extends CompositeDisposable {
      * churn the shared overlay and kill its slide transition on every crossing
      * between adjacent targets). Instead it *schedules* a clear, which a
      * subsequent `getElements` (the next target rendering into this container)
-     * cancels — so the overlay slides between targets, but is torn down when the
+     * cancels, so the overlay slides between targets, but is torn down when the
      * drag genuinely leaves to somewhere that doesn't re-render here.
      */
     private _pendingClear: ReturnType<typeof setTimeout> | undefined;

@@ -677,7 +677,7 @@ describe('splitview', () => {
     test("dnd: sash drag follows pointer events in the element's own document", () => {
         // A popout window (api.addPopoutGroup) has its own document, and the
         // group's element is moved into it. The sash's pointer events are then
-        // dispatched into THAT document — so listeners bound to the global
+        // dispatched into THAT document, so listeners bound to the global
         // document never fire and the sash cannot be dragged.
         const otherDocument = document.implementation.createHTMLDocument();
         const otherContainer = otherDocument.createElement('div');

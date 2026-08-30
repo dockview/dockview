@@ -69,21 +69,16 @@ export interface DockviewModule<THost = unknown> {
     init?: (host: THost, services: ServiceCollection) => IDisposable;
     dependsOn?: DockviewModule<any>[];
     /**
-     * Top-level option keys that must report *this* module when it isn't
+     * Top-level option keys that must report this module when it isn't
      * registered: the module's half of the contract with core's
      * `OPTION_MODULE_RULES`, which core cannot derive because it can't import
-     * the modules it might be missing.
+     * the modules it might be missing. `enterpriseModuleNames.spec.ts` fails if
+     * the two drift.
      *
-     * Declared here rather than inferred so a test can hold the two in sync:
-     * see `enterpriseModuleNames.spec.ts`, which fails if an option listed here
-     * has no rule (the user would get silence) or a rule names this module for
-     * an option not listed here.
-     *
-     * List an option only if it should produce a diagnostic naming this module.
-     * Options this module merely *reads* don't belong here: `edgeGroupPeek` only
-     * tunes `autoHideEdgeGroups` and is inert alone, and where one opt-in gates
-     * two modules in the same package (`keyboardNavigation`) only the module the
-     * message should name declares it: one mistake, one message.
+     * List an option only if the diagnostic should name this module. Options
+     * the module merely reads do not belong (`edgeGroupPeek` only tunes
+     * `autoHideEdgeGroups`), and where one opt-in gates two modules in a
+     * package only the module the message should name declares it.
      */
     options?: string[];
 }
@@ -212,45 +207,20 @@ export function logMissingModule(
 
 /**
  * Returns the service if its module is registered, otherwise logs a
- * deduplicated console error and returns `undefined`. This function never
- * throws: the affected feature degrades to a no-op so consuming applications
- * don't crash in production.
+ * deduplicated console error and returns `undefined`. Never throws: the
+ * affected feature degrades to a no-op rather than crashing the host
+ * application.
  *
- * The one exception is an entry point that must return a value it cannot
- * synthesise: `addEdgeGroup(): DockviewGroupPanelApi` has no group to hand
- * back and no `undefined` in its return type, so it throws
- * `missingModuleMessage(...)` directly instead of calling this. Don't route
- * such a caller through here: it would log *and* throw, reporting twice.
+ * Guard public-API commands that are reachable without their gating option,
+ * such as `api.undo()` on a component that never set `layoutHistory`. Leave
+ * queries unguarded, since `false` or a never-firing event is a truthful
+ * answer, along with commands the option rule already covers
+ * (`setPanelPinned` returns early unless `pinnedTabs.enabled`) and internal
+ * lifecycle paths, which use plain `?.` for a silent no-op.
  *
- * Use at public-API entry points where the caller wants to surface which
- * module is missing. For internal/lifecycle paths, plain `?.` chaining on
- * the service slot is preferred: no log, a silent no-op.
- *
- * Two rules decide whether an entry point guards:
- *
- * 1. **Commands, not queries.** `api.undo()` asked for something to happen, so
- *    silence is a bug report waiting to happen; `canUndo` asked a question, and
- *    `false` is a truthful answer that shouldn't log. Same for event getters
- *    falling back to a never-firing event, and for idempotent cleanup
- *    (`clearHistory()` on an absent history has genuinely nothing to do).
- *
- * 2. **Only if the option rule can't already have fired.** A command reachable
- *    without its gating option (`api.undo()` works on a component that never
- *    set `layoutHistory`) needs this, because no rule will have run. A command
- *    that can't be reached until the option is set doesn't: `setPanelPinned`
- *    returns early unless `pinnedTabs.enabled`, so by the time it could warn,
- *    the option rule has already named the same module. Guarding it too would
- *    report one mistake twice.
- *
- * Rule 2 tolerates one overlap: setting `layoutHistory.enabled` *and* calling
- * `api.undo()` without the module reports both, since the reasons differ and
- * dedup is per module+reason. That's the price of covering the far more likely
- * case: calling `undo()` having never set the option at all.
- *
- * Interaction handlers are queries in this sense too: a right-click reaching an
- * absent ContextMenu module means the app never asked for one, so it stays
- * silent (`?.`) and the browser's own menu shows. Options are where intent is
- * declared; see `optionsModules.ts`.
+ * `addEdgeGroup` throws `missingModuleMessage` rather than calling this: it
+ * has no group to hand back and no `undefined` in its return type, and
+ * routing it here would both log and throw.
  */
 export function assertModule<T>(
     service: T | undefined,

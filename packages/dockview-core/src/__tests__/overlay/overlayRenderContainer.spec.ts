@@ -608,7 +608,7 @@ describe('overlayRenderContainer', () => {
             element: document.createElement('div'),
             dropTarget: fromPartial<Droptarget>({}),
         };
-        // Both containers measure 0x0 — nothing has been laid out yet.
+        // Both containers measure 0x0: nothing has been laid out yet.
         jest.spyOn(
             replacementContainer.element,
             'getBoundingClientRect'
@@ -638,7 +638,7 @@ describe('overlayRenderContainer', () => {
     test('reposition against a new reference container is not swallowed by the superseded attach', async () => {
         // `pendingUpdates` is keyed by panel id only, so a frame queued by an
         // earlier `attach` (during `fromJSON` that is a detached staging group
-        // measuring 0x0) used to block every later `resize` until it fired —
+        // measuring 0x0) used to block every later `resize` until it fired,
         // pushing the first correct paint out to `debouncedUpdateAllPositions`.
         const cut = new OverlayRenderContainer(
             parentContainer,
@@ -801,7 +801,7 @@ describe('overlayRenderContainer', () => {
         // after a detatch the map entry is re-created, and if the panel is
         // re-attached to the same container the stale closure's container still
         // matches. It would then claim the update slot, position the removed
-        // element, and mark the live entry as positioned — leaving the real
+        // element, and mark the live entry as positioned, leaving the real
         // overlay unpositioned and, on the next attach, revealed at 100%/100%.
         const cut = new OverlayRenderContainer(
             parentContainer,
@@ -903,7 +903,7 @@ describe('overlayRenderContainer', () => {
         expect(overlay.style.width).toBe('300px');
 
         // Re-attach over the same container (re-open / active panel change),
-        // and let the container collapse before the next frame runs — so the
+        // and let the container collapse before the next frame runs, so the
         // flag is still armed when the 0x0 box is measured.
         cut.attach({ panel, referenceContainer });
         rect.mockReturnValue(
@@ -1005,7 +1005,7 @@ describe('overlayRenderContainer', () => {
 
     test('re-attaching over the same container keeps a pending peek reposition', async () => {
         // `repositionPanelOverlay` schedules a frame carrying the sticky
-        // `forceVisible`/`clip` peek state, and `attach` does not re-apply it —
+        // `forceVisible`/`clip` peek state, and `attach` does not re-apply it,
         // a peeked panel's `api.isVisible` is false, so `visibilityChanged`
         // hides the overlay and only that frame brings it back. Cancelling
         // scheduled work on a same-container re-attach therefore blanks the

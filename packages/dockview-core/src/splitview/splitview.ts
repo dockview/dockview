@@ -762,7 +762,7 @@ export class Splitview {
         }
         let emptyDelta = this.size - contentSize;
 
-        // nothing to redistribute — bail before allocating any index bookkeeping
+        // nothing to redistribute: bail before allocating any index bookkeeping
         // (the loop below would no-op anyway). Common on frames where the
         // content already fills the container exactly.
         if (emptyDelta === 0) {
@@ -774,7 +774,7 @@ export class Splitview {
         // Only partition by priority when some view actually declares a
         // non-Normal priority. The common case has none, so we skip the two
         // `.filter` allocations and the reorder passes and keep `indexes` in
-        // its natural order — behaviourally identical to filtering out nothing.
+        // its natural order: behaviourally identical to filtering out nothing.
         let hasPriority = false;
         for (const item of this.viewItems) {
             if (
@@ -906,7 +906,7 @@ export class Splitview {
                 }
             }
 
-            // calculate view position (diffed against the last write — most
+            // calculate view position (diffed against the last write: most
             // views don't move on a given frame)
             if (this._orientation === Orientation.HORIZONTAL) {
                 view.setContainerGeometry('width', `${size}px`);
@@ -961,7 +961,7 @@ export class Splitview {
 
     private updateSashEnablement(): void {
         // nothing to enable/disable when there are no sashes (e.g. a splitview
-        // holding a single view — very common for single-tab groups). Bailing
+        // holding a single view: very common for single-tab groups). Bailing
         // here avoids building the collapses/expands arrays every layout frame.
         if (this.sashes.length === 0) {
             return;
@@ -1079,7 +1079,7 @@ export class Splitview {
         }
         // The delta loops below index `viewItems`/`sizes` through
         // `upIndexes`/`downIndexes` inline rather than materialising
-        // `upItems`/`upSizes`/`downItems`/`downSizes` as four parallel arrays —
+        // `upItems`/`upSizes`/`downItems`/`downSizes` as four parallel arrays,
         // this runs on every sash-drag pointermove and resize frame, so it avoids
         // four allocations per call.
         const minDeltaUp = upIndexes.reduce(

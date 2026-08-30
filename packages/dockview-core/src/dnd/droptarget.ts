@@ -92,6 +92,7 @@ export function positionToDirection(position: Position): Direction {
 export type Position = 'top' | 'bottom' | 'left' | 'right' | 'center';
 
 /** The pointer location within a drop target, handed to a {@link PositionResolver}. */
+/** The pointer location within a drop target, handed to a {@link PositionResolver}. */
 export interface PositionResolverArgs {
     /** Pointer X within the target element (px from its left edge). */
     readonly x: number;
@@ -217,6 +218,7 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
     private targetElement: HTMLElement | undefined;
     private overlayElement: HTMLElement | undefined;
     private _state: Position | undefined;
+    /** The current state was resolved as an `edge` cell (see DroptargetEvent). */
     /** The current state was resolved as an `edge` cell (see DroptargetEvent). */
     private _edge = false;
     private _acceptedTargetZonesSet: Set<Position>;
@@ -349,10 +351,11 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
                 this.markAsUsed(e);
 
                 // An `edge` cell reports its position but renders nothing. The
-                // consumer (e.g. the layout-edge dock) owns the preview + commit.
-                // The anchored overlay from the previous frame (the inner cell
-                // crossed on the way out) has to go, or it double-highlights
-                // alongside the consumer's own whole-layout-edge preview.
+                // consumer (e.g. the layout-edge dock) owns the preview +
+                // commit. The anchored overlay from the previous frame (the
+                // inner cell crossed on the way out) has to go, or it double-
+                // highlights alongside the consumer's own whole-layout-edge
+                // preview.
                 if (resolved.edge) {
                     this.clearOwnOverlay();
                     this._state = quadrant;
@@ -381,22 +384,15 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
                 const target = this.options.getOverrideTarget?.();
 
                 if (target) {
-                    // Don't clear the shared anchor container immediately: the
-                    // overlay must slide to whichever target the cursor reaches
-                    // next, and HTML5 fires `dragleave` spuriously when crossing
-                    // between a target's own child elements — clearing on every
-                    // one would churn the container and kill its move transition.
+                    // Schedule a clear rather than clearing now: the overlay
+                    // must slide to whichever target the cursor reaches next,
+                    // and HTML5 fires `dragleave` when crossing between a
+                    // target's own children. The next target rendering into
+                    // this container cancels the clear, while a drag leaving to
+                    // dead space does not, so the overlay doesn't linger.
                     //
-                    // Instead *schedule* a clear: the next target rendering into
-                    // this container (its `getElements`) cancels it, so the
-                    // overlay slides; but if the drag leaves to somewhere that
-                    // doesn't re-render here (dead space, or a target in another
-                    // container), the clear fires and the overlay doesn't linger.
-                    //
-                    // The latched state must still go now: `onDragEnd` commits
-                    // `_state` when this is the actual target, so a drag that
-                    // leaves the layout and is released outside would otherwise
-                    // drop at the last hovered position.
+                    // The latched state still goes now, or a drag released
+                    // outside the layout drops at the last hovered position.
                     this._state = undefined;
                     this._edge = false;
                     target.scheduleClear?.();
@@ -589,22 +585,17 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
     }
 
     /**
-     * Tear down whatever this target is showing, on any frame it resolves to no
-     * overlay. Two things make this more than `removeDropTarget`:
+     * Tear down whatever this target is showing, on any frame it resolves to
+     * no overlay. Beyond `removeDropTarget`: with `dndOverlayMounting:
+     * 'absolute'` the overlay lives in an anchor container shared by every drop
+     * target, so the container needs clearing explicitly, but only when this
+     * target put something there. The root edge target declines `center` on
+     * each frame over the middle of the layout so the event falls through, and
+     * clearing from there would rebuild the group's overlay every frame and
+     * kill its move transition.
      *
-     * - With `dndOverlayMounting: 'absolute'` the overlay lives in an anchor
-     *   container shared by every drop target in the component, and
-     *   `removeDropTarget` only owns the in-place dropzone — so the container
-     *   needs clearing explicitly or the last frame's highlight lingers.
-     * - It must only clear the container when this target actually put
-     *   something there. The root edge target sits over every group and
-     *   declines `center` on each frame in the middle of the layout purely so
-     *   the event falls through; clearing from there would destroy and rebuild
-     *   the group's overlay every frame, killing its move transition.
-     *
-     * Resetting `_state` unconditionally is the other half: a target that
-     * resolves to nothing must not stay latched, or a later drop commits a
-     * position the cursor left long ago.
+     * `_state` resets unconditionally so a target resolving to nothing cannot
+     * stay latched and commit a position the cursor has left.
      */
     private clearOwnOverlay(): void {
         const owned = this._state !== undefined;
@@ -651,6 +642,7 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
         this._state = position;
     }
 
+    /** Clear an overlay shown via {@link showOverlay} (in-place or anchored). */
     /** Clear an overlay shown via {@link showOverlay} (in-place or anchored). */
     clearOverlay(): void {
         this.removeDropTarget();

@@ -12,7 +12,7 @@ import { DockviewComponent } from '../../dockview/dockviewComponent';
  * to the minimum.
  *
  * jsdom neither fires ResizeObserver nor computes offsetParent, so both are
- * driven explicitly here — the same technique used in resizable.spec.ts.
+ * driven explicitly here: the same technique used in resizable.spec.ts.
  */
 class TestPanel {
     readonly element = document.createElement('div');
@@ -105,7 +105,7 @@ describe('edge group size preservation when the host shell is hidden (#1495)', (
         dockview.layout(1000, 800);
         dockview.addPanel({ id: 'main', component: 'default' });
 
-        // A right edge group, expanded and visible, sized to 300 — well above
+        // A right edge group, expanded and visible, sized to 300: well above
         // its ~85 expanded minimum, so a clamp would be plainly visible. Adding
         // it into the already-laid-out 1000px shell leaves it at exactly 300.
         dockview.addEdgeGroup('right', { id: 'edge', initialSize: 300 });
@@ -121,7 +121,7 @@ describe('edge group size preservation when the host shell is hidden (#1495)', (
         expect(sizeBefore).toBe(300);
 
         // Prime the shell observer with a real measurement while visible, so its
-        // cached width/height are non-zero — otherwise the later 0x0 event is
+        // cached width/height are non-zero, otherwise the later 0x0 event is
         // absorbed by the unchanged-size early-return before reaching the guard.
         const shell = dockview.rootElement;
         setOffsetParent(shell, document.body);
@@ -135,7 +135,7 @@ describe('edge group size preservation when the host shell is hidden (#1495)', (
 
         expect(dockview.toJSON().edgeGroups?.right?.size).toBe(300);
 
-        // Reactivating lays the shell back out at its real size — still 300.
+        // Reactivating lays the shell back out at its real size: still 300.
         setOffsetParent(shell, document.body);
         fireResizeFor(shell, 1000, 800);
         expect(dockview.toJSON().edgeGroups?.right?.size).toBe(300);

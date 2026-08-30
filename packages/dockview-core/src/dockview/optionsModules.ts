@@ -1,35 +1,21 @@
 /**
  * Maps dockview options to the modules that implement them, so setting an
  * option for an absent module reports which module is missing instead of
- * silently doing nothing.
- *
- * This is the "declared intent" diagnostic. It fires when the user asks for a
- * feature via options, at construction and on every `updateOptions`. It
- * deliberately does *not* fire on user interaction: right-clicking without the
- * ContextMenu module stays silent (the browser's own menu shows), because the
- * `?.` service-slot call sites can't tell a missing module from a feature the
- * app never wanted.
+ * silently doing nothing. Rules run at construction and on every
+ * `updateOptions`. User interaction stays silent by contrast: the `?.`
+ * service-slot call sites cannot tell a missing module from a feature the app
+ * never wanted.
  *
  * Rules are a flat list rather than a `Record<keyof DockviewOptions, ...>`
- * because dockview's options are nested and value-gated: `overflow.mode:
- * 'wrap'` needs MultiRowTabs while `overflow.search` needs AdvancedOverflow,
- * so one top-level key maps to several modules depending on its contents. A
- * rule per gated thing also lets `reason` name the exact path the user set,
- * which is the whole point of the message.
+ * because options are nested and value-gated: `overflow.mode: 'wrap'` needs
+ * MultiRowTabs while `overflow.search` needs AdvancedOverflow. One rule per
+ * gated thing also lets `reason` name the exact path the user set.
  *
- * ## Adding a rule
- *
- * A rule is just "this option needs that module". Whether that makes it paid is
- * not a judgement call: a module is enterprise iff it ships in
- * `dockview-enterprise`'s `Modules` list. {@link ENTERPRISE_MODULE_NAMES}
- * mirrors that list, and a test in dockview-enterprise fails if the two drift,
- * so naming the right module is the only thing you have to get right here.
- *
- * The one trap is picking the module. Don't infer it from what core does at
- * runtime: a core fallback that hands a paid feature to free builds would read
- * as "the option is free" and turn one bug into two. Pick the module that
- * *implements the documented feature*; if core also does it, that is a leak to
- * fix in core, not a reason to drop the rule.
+ * When adding a rule, name the module that implements the documented feature
+ * rather than whatever core does at runtime; a core fallback handing a paid
+ * feature to free builds is a leak to fix in core, not a reason to drop the
+ * rule. {@link ENTERPRISE_MODULE_NAMES} mirrors dockview-enterprise's
+ * `Modules` list and a test fails if the two drift.
  */
 
 import { logMissingModule } from './modules';

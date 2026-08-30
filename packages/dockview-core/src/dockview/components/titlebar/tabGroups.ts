@@ -67,7 +67,7 @@ interface ChipRendererEntry {
     /**
      * Created by the manager so it can be toggled live on strategy changes.
      * Undefined between an in-flight drag being torn down by
-     * `disposeChipDrag` and the following `update()` re-arming it — the chip
+     * `disposeChipDrag` and the following `update()` re-arming it: the chip
      * element outlives a within-group move even though its drag sources do
      * not. (#1410)
      */
@@ -225,9 +225,10 @@ export class TabGroupManager {
             children[i].remove();
         }
 
-        // Wrap the clone in a minimal ancestor chain so that CSS
-        // selectors like `.dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-tabs-container > .dv-tab`
-        // match the cloned tabs and apply correct color/background.
+        // Wrap the clone in a minimal ancestor chain so that CSS selectors like
+        // `.dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-
+        // tabs-container > .dv-tab` match the cloned tabs and apply correct
+        // color/background.
         const wrapper = document.createElement('div');
         wrapper.className = 'dv-groupview dv-active-group';
         wrapper.style.position = 'fixed';
@@ -292,20 +293,17 @@ export class TabGroupManager {
     }
 
     /**
-     * Synchronously dispose the chip drag sources for an in-flight chip
-     * drag. Called from `_commitGroupMove` so the transfer payload +
-     * iframe shield are released before the cross-group move detaches
-     * the chip (chip dispose is scheduled on a microtask via
-     * `_scheduleTabGroupUpdate`, which is too late for callers that read
-     * `getPanelData()` synchronously after the move).
+     * Synchronously dispose the chip drag sources for an in-flight chip drag,
+     * releasing the transfer payload and iframe shield before a cross-group
+     * move detaches the chip. Chip dispose is scheduled on a microtask by
+     * `_scheduleTabGroupUpdate`, too late for callers reading `getPanelData()`
+     * synchronously after the move.
      *
-     * A cross-group move dissolves the source chip entirely, but a
-     * within-group reorder keeps the same chip element — so the sources are
-     * cleared to `undefined` here and the subsequent `update()` re-arms them
-     * via `_ensureChipForGroup`. Without that re-arm the chip would fire a
-     * native `dragstart` (the element keeps `draggable=true`) but never set
-     * a transfer payload, leaving the group permanently undraggable after
-     * its first move. (#1410)
+     * A within-group reorder keeps the same chip element, so the sources are
+     * cleared here and re-armed by the following `update()` via
+     * `_ensureChipForGroup`. Without the re-arm the chip keeps
+     * `draggable=true` and fires `dragstart` without ever setting a payload,
+     * leaving the group undraggable after its first move.
      */
     disposeChipDrag(tabGroupId: string): void {
         const entry = this._chipRenderers.get(tabGroupId);
@@ -505,7 +503,7 @@ export class TabGroupManager {
             // `disposeChipDrag`, but a within-group reorder keeps the same
             // chip element alive. Re-arm the sources so the group stays
             // draggable; without this the chip is stuck after its first
-            // move — `dragstart` still fires (the element keeps
+            // move: `dragstart` still fires (the element keeps
             // `draggable=true`) but no transfer payload is set. (#1410)
             if (!existing.html5DragSource) {
                 const sources = this._createChipDragSources(

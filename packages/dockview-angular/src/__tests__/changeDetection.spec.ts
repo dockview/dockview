@@ -15,7 +15,7 @@ import { DockviewApi } from 'dockview';
  *
  * The renderer attaches each panel view to the application; if the panels were
  * checked on every CD tick, a dockview resize/drag (which triggers ticks via
- * zone.js) would run change detection across every panel — O(panels) per event.
+ * zone.js) would run change detection across every panel: O(panels) per event.
  * These tests assert the fan-out is bounded, while proving that panels remain
  * interactive (clicks/inputs still update them), including panels created from
  * outside the Angular zone (the drag/drop creation path).
@@ -93,7 +93,7 @@ describe('dockview-angular change detection', () => {
         const checkedByResize = total() - before;
 
         // Baseline (unfixed) is 30 (every attached panel checked). The fix must
-        // bring this to 0 — the resize dirties no panel.
+        // bring this to 0: the resize dirties no panel.
         expect(checkedByResize).toBe(0);
     });
 

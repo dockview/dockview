@@ -222,11 +222,12 @@ owns it and reference that from the call sites rather than repeating it.
 **Style.** Write plainly, in the same register as the docs package:
 
 -   No em dashes (`—`). Use a comma, colon, parentheses or a full stop.
--   No rhetorical scaffolding: "deliberately", "crucially", "importantly",
-    "it is worth noting", "which only shows up when", trailing "...". Say the
-    thing.
--   No emphasis markup for tone (`*change*`, `*not*`). If a distinction matters,
-    it should be clear from the wording.
+-   Cut empty intensifiers and hedges: "very", "simply", "essentially", "of
+    course", "importantly", "it is worth noting", "note that". They add length
+    without adding information. Words that carry a real claim stay: calling a
+    surprising choice deliberate tells a reader not to "fix" it.
+-   Use `*emphasis*` only where the sentence turns on a genuine contrast
+    ("fires *before* the group exists"), never for insistence.
 -   British spelling (behaviour, initialise), matching the rest of the repo.
 
 **Worked example.** Rationale for a real invariant, cut to what a reader cannot

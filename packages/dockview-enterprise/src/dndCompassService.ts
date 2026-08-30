@@ -37,6 +37,7 @@ interface CompassCell {
 }
 
 /** Half-of-the-layout band along each edge, keyed by the outer cell's direction. */
+/** Half-of-the-layout band along each edge, keyed by the outer cell's direction. */
 const EDGE_PREVIEW_INSETS: Record<Position, Partial<CSSStyleDeclaration>> = {
     center: {},
     top: { inset: '0 0 auto 0', width: '100%', height: '50%' },
@@ -407,7 +408,7 @@ export class DndCompassService
 
     /**
      * Drive the compass off raw pointer movement, which reports where the cursor
-     * actually is — `onWillShowOverlay` only fires while it is over a cell of a
+     * actually is: `onWillShowOverlay` only fires while it is over a cell of a
      * group that accepts the drop, so on its own the widget would sit there for
      * the rest of the drag.
      *
@@ -504,7 +505,7 @@ export class DndCompassService
         // Mount in that same frame. The widget clips to its own box, so
         // mounting anywhere else means cells computed in the outline's
         // coordinates get cut off by a smaller clip box while staying
-        // hit-testable — with `dndPanelOverlay: 'group'` the cross is centred
+        // hit-testable, with `dndPanelOverlay: 'group'` the cross is centred
         // on the group but clipped to the content, losing the top of the ring
         // to the tab header. Same element ⟹ clip box, paint box and hit-test
         // box are one.

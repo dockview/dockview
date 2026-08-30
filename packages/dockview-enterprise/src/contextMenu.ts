@@ -24,7 +24,7 @@ function popoverZIndexFor(
     // shares the shell stacking context but anchors *earlier* in DOM order, so
     // at the default overlay z-index it renders behind the peek. The clicked
     // tab isn't a descendant of the peek overlay, so the ancestor walk below
-    // can't discover the peek's z-index — key off the peek state directly and
+    // can't discover the peek's z-index: key off the peek state directly and
     // lift the menu clear of the peek band (mirrors the smart-guide "+100").
     if (group.api?.isPeeking?.()) {
         return 'calc(var(--dv-overlay-z-index, 999) + 100)';

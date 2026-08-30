@@ -60,7 +60,7 @@ describe('Scrollbar', () => {
         expect(bar.style.width).toBe('');
 
         // the frame runs the (single) restyle. jsdom reports 0 sizes, so the
-        // no-scrollbar branch sets an explicit 0px width — proof it ran.
+        // no-scrollbar branch sets an explicit 0px width: proof it ran.
         flushFrames();
         expect(bar.style.width).toBe('0px');
 

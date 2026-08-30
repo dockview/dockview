@@ -99,7 +99,7 @@ describe('PointerDropTarget: anchor / override target path', () => {
 
     test('a resolver that declines clears the anchor overlay', () => {
         // The anchored overlay lives in a container the drop target does not
-        // own, so a null resolution must clear it explicitly — otherwise the
+        // own, so a null resolution must clear it explicitly, otherwise the
         // previous frame's highlight lingers while the cursor sits in a dead
         // zone (e.g. a corner of the DnD compass).
         const dropEl = document.createElement('div');
@@ -156,7 +156,7 @@ describe('PointerDropTarget: anchor / override target path', () => {
 
     test('an edge cell clears the anchor overlay', () => {
         // The target renders nothing for an edge cell, so the anchored overlay
-        // from the previous (inner cell) frame must go — otherwise it
+        // from the previous (inner cell) frame must go, otherwise it
         // double-highlights alongside the layout-edge preview.
         const dropEl = document.createElement('div');
         document.body.appendChild(dropEl);
@@ -212,13 +212,13 @@ describe('PointerDropTarget: anchor / override target path', () => {
     });
 
     test('drag-leave clears the anchor overlay (pointer mode leaves no stale overlay behind)', () => {
-        // The HTML5 backend intentionally does NOT clear the anchor container on
-        // drag-leave (it relies on drop/dragend, which is why a stale overlay
-        // could survive a cross-container drag — see the shell `dragend` safety
-        // net). The pointer backend has no such gap: it clears the override
-        // target the moment the pointer leaves, so moving off a floating group's
-        // tab onto another group never leaves the floating anchor overlay behind.
-        // This test locks in that difference.
+        // The HTML5 backend intentionally does NOT clear the anchor container
+        // on drag-leave (it relies on drop/dragend, which is why a stale
+        // overlay could survive a cross-container drag; see the shell `dragend`
+        // safety net). The pointer backend has no such gap: it clears the
+        // override target the moment the pointer leaves, so moving off a
+        // floating group's tab onto another group never leaves the floating
+        // anchor overlay behind. This test locks in that difference.
         const dropEl = document.createElement('div');
         document.body.appendChild(dropEl);
         jest.spyOn(dropEl, 'offsetWidth', 'get').mockReturnValue(200);

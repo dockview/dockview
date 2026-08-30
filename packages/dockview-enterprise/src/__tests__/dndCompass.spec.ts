@@ -262,7 +262,7 @@ describe('DnD compass', () => {
             make(true);
             const { content } = mounted();
 
-            // just above the content container — the tab strip
+            // just above the content container: the tab strip
             move(200, 90);
             expect(content.querySelector('.dv-dnd-compass')).toBeNull();
         });
