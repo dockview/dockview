@@ -131,6 +131,46 @@ describe('dockview proportionalLayout option', () => {
         dockview.dispose();
     });
 
+    test('updateOptions reaches nested branches, not just the root row', () => {
+        const container = document.createElement('div');
+        const dockview = new DockviewComponent(container, {
+            createComponent: () => new TestPanel(),
+        });
+
+        dockview.layout(900, 600);
+
+        // panel_1 | (panel_2 above panel_3) - the root row holds a leaf and a
+        // nested column, so the toggle has to recurse to reach the column.
+        dockview.addPanel({ id: 'panel_1', component: 'default' });
+        dockview.addPanel({
+            id: 'panel_2',
+            component: 'default',
+            position: { referencePanel: 'panel_1', direction: 'right' },
+        });
+        dockview.addPanel({
+            id: 'panel_3',
+            component: 'default',
+            position: { referencePanel: 'panel_2', direction: 'below' },
+        });
+
+        const nested = () =>
+            ['panel_2', 'panel_3'].map(
+                (id) => dockview.getGroupPanel(id)!.group.api.height
+            );
+
+        expect(nested()).toEqual([300, 300]);
+
+        dockview.updateOptions({ proportionalLayout: false });
+
+        dockview.layout(900, 900);
+
+        // proportional would give [450, 450]; the nested column only splits
+        // this way if the new value propagated past the root branch
+        expect(nested()).toEqual([300, 600]);
+
+        dockview.dispose();
+    });
+
     test('an unrelated updateOptions leaves the behaviour untouched', () => {
         const dockview = createDockview(false);
 

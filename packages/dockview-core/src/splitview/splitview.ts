@@ -174,13 +174,12 @@ export class Splitview {
 
         this._proportionalLayout = value;
 
+        // enabling adopts the current sizes as the proportions to preserve,
+        // rather than waiting for the next size-changing operation; disabling
+        // drops them so `layout` falls back to priority-based distribution
         if (value) {
-            // adopt the current sizes as the proportions to preserve, rather
-            // than waiting for the next size-changing operation
             this.saveProportions();
         } else {
-            // `layout` falls back to the priority-based distribution as soon
-            // as there are no proportions to honour
             this._proportions = undefined;
         }
     }
