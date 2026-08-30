@@ -135,10 +135,8 @@ export const OPTION_MODULE_RULES: OptionModuleRule[] = [
     // read solely by AutoHideEdgeGroupService. Alone it is inert even *with*
     // the module, so it can't justify a message of its own; alongside
     // `autoHideEdgeGroups` the rule above already covers it.
-    // No rules for the context-menu options (`getTabContextMenuItems`,
-    // `getTabGroupChipContextMenuItems`, `createContextMenuItemComponent`): the
-    // ContextMenu module ships free in dockview-core and is always registered,
-    // so the getters can never go unserved.
+    // No rules for the context-menu options: ContextMenu is a built-in module,
+    // so they can never go unserved.
     {
         optionKey: 'dndCompass',
         reason: 'dndCompass',

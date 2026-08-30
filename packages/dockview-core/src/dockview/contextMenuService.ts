@@ -486,10 +486,8 @@ export const ContextMenuModule = defineModule<
     IContextMenuHost
 >({
     name: 'ContextMenu',
-    // No `options` declaration: that field exists so an *enterprise* module can
-    // be held in sync with core's `OPTION_MODULE_RULES`. This module ships in
-    // the free package and is always registered, so the getters can never go
-    // unserved and there is nothing to report.
+    // No `options`: that field pins an enterprise module to its
+    // `OPTION_MODULE_RULES` entry, and this module is always registered.
     serviceKey: 'contextMenuService',
     create: (host) => new ContextMenuController(host),
 });

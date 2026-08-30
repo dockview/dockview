@@ -30,8 +30,7 @@ calls `registerModules(Modules)` at import (a side effect — hence
   (`releaseDate.ts`).
 
 (`AdvancedDnD`, `TabGroupChips` and `ContextMenu` are FREE and live in
-`dockview-core`, not here. `ContextMenu` was briefly hosted here in 8.0-8.2;
-see #1610 for why it went back.)
+`dockview-core`, not here.)
 
 ## How it fits the module system
 

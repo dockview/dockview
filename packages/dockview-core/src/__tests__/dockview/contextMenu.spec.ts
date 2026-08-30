@@ -2131,23 +2131,19 @@ describe('ContextMenuController', () => {
             expect(Object.keys(ContextMenuModule.services ?? {})).toContain(
                 'contextMenuService'
             );
-            // The module ships free and is always registered, so it declares
-            // no `options`; see the module's `options` comment.
+            // Always registered, so it declares no `options`.
             expect(ContextMenuModule.options).toBeUndefined();
         });
     });
 });
 
 /**
- * #1610: the controller specs above all drive a hand-built accessor, so they
- * pass whichever package the module ships in. This is the part that regressed
- * in 8.0.0: `ContextMenuModule` moved out of the free entry point, so a real
- * component built from `dockview` alone silently had no `contextMenuService`
- * and a right-click did nothing. These tests construct the component the way an
- * app does, with no module registration of their own, so they fail if the
- * module ever leaves core's built-in set again.
+ * The specs above drive a hand-built accessor, so they pass whichever package
+ * the module ships in. These build a real component with no module
+ * registration of their own, and so fail if ContextMenu ever leaves core's
+ * built-in set.
  */
-describe('the free package serves context menus (#1610)', () => {
+describe('the free package serves context menus', () => {
     let container: HTMLElement;
     let component: DockviewComponent | undefined;
 

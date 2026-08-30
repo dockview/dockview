@@ -116,10 +116,7 @@ describe('validateOptionModules', () => {
     });
 
     test('the context menu options never demand enterprise', () => {
-        // #1610: ContextMenu ships free in dockview-core and is always
-        // registered, so none of these can go unserved. (#1594 covers the
-        // `createContextMenuItemComponent` half: the wrappers set that bridge
-        // unconditionally, so it never carried intent in the first place.)
+        // ContextMenu is a built-in module, so none of these can go unserved.
         validateOptionModules(
             options({
                 getTabContextMenuItems: () => [],
