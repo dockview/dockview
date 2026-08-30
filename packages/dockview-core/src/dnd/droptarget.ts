@@ -92,7 +92,6 @@ export function positionToDirection(position: Position): Direction {
 export type Position = 'top' | 'bottom' | 'left' | 'right' | 'center';
 
 /** The pointer location within a drop target, handed to a {@link PositionResolver}. */
-/** The pointer location within a drop target, handed to a {@link PositionResolver}. */
 export interface PositionResolverArgs {
     /** Pointer X within the target element (px from its left edge). */
     readonly x: number;
@@ -218,7 +217,6 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
     private targetElement: HTMLElement | undefined;
     private overlayElement: HTMLElement | undefined;
     private _state: Position | undefined;
-    /** The current state was resolved as an `edge` cell (see DroptargetEvent). */
     /** The current state was resolved as an `edge` cell (see DroptargetEvent). */
     private _edge = false;
     private _acceptedTargetZonesSet: Set<Position>;
@@ -642,7 +640,6 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
         this._state = position;
     }
 
-    /** Clear an overlay shown via {@link showOverlay} (in-place or anchored). */
     /** Clear an overlay shown via {@link showOverlay} (in-place or anchored). */
     clearOverlay(): void {
         this.removeDropTarget();

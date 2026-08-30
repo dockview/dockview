@@ -37,7 +37,6 @@ interface CompassCell {
 }
 
 /** Half-of-the-layout band along each edge, keyed by the outer cell's direction. */
-/** Half-of-the-layout band along each edge, keyed by the outer cell's direction. */
 const EDGE_PREVIEW_INSETS: Record<Position, Partial<CSSStyleDeclaration>> = {
     center: {},
     top: { inset: '0 0 auto 0', width: '100%', height: '50%' },

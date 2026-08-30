@@ -92,7 +92,7 @@ describe('Droptarget: deferred anchor-overlay clear on dragleave', () => {
         host.remove();
     });
 
-    test('leaving a floating-container target for an in-place (other-container) target clears it — no dragend needed', async () => {
+    test('leaving a floating-container target for an in-place (other-container) target clears it, no dragend needed', async () => {
         // This is the #1534 scenario (grid tab whose own container is disabled
         // renders in-place; floating tab anchors in a separate container),
         // resolved purely by the leave-scheduled clear: no `dragend` involved.

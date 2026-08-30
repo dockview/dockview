@@ -19,7 +19,6 @@ const VERTICAL_TABS_CLASS = 'dv-tabs-container-vertical';
 const TAB_CLASS = 'dv-tab';
 const HEADER_CLASS = 'dv-tabs-and-actions-container';
 /** The per-line thickness var (row height / column width) core sizes tabs by. */
-/** The per-line thickness var (row height / column width) core sizes tabs by. */
 const LINE_SIZE_VARIABLE = '--dv-tabs-and-actions-container-height';
 
 /**
@@ -187,8 +186,8 @@ function tighterCap(
 }
 
 /**
- * Drives wrap layout for one group. The wrap itself is CSS (the inert `.dv-
- * tabs-container--wrap` rules in core); this controller toggles that class on
+ * Drives wrap layout for one group. The wrap itself is CSS (the inert
+ * `.dv-tabs-container--wrap` rules in core); this controller toggles that class on
  * the group's tab list and, when the wrapped row count changes, asks the host
  * to relayout so the now-taller header shrinks the content area (the free
  * header-aware content-sizing seam does the subtraction).

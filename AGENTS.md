@@ -248,7 +248,7 @@ infer:
 // After, 3 lines:
 // A change of container supersedes the previous attach, so fence off its
 // closures and drop the frame queued against the old one. Re-attaching the
-// same container must not, or it discards the auto-hide peek's sticky state.
+// same container must do neither, or it discards the peek's sticky state.
 ```
 
 The second still stops a reader from "simplifying" the branch away, which was

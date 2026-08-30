@@ -186,7 +186,7 @@ class EdgeGroupController extends CompositeDisposable {
      * colour rather than the group-view *frame* colour: the latter is the near-
      * black inter-group gap colour in dark (and spaced) themes, which made the
      * header read as a plain black band. Falls back to the group element
-     *  when the strip has no opaque background of its own. */
+     * when the strip has no opaque background of its own. */
     private _titleBarBackground(): string {
         const strip = this.group.element.querySelector<HTMLElement>(
             '.dv-tabs-and-actions-container'
@@ -311,7 +311,7 @@ class EdgeGroupController extends CompositeDisposable {
         // Mark the group as a docked tool window so the spaced themes can
         // reshape its rounding (title bar caps the top; tab strip caps the
         // bottom; the content-container's default bottom rounding, which would
-        // otherwise carve notches mid-card now the header is at the bottom: is
+        // otherwise carve notches mid-card now the header is at the bottom, is
         // dropped). Removed on teardown.
         this.group.element.classList.add('dv-edge-tool-window');
         // Appended last → under the group's `column-reverse` (header-bottom)

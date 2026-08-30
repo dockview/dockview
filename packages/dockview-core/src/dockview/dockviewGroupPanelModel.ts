@@ -408,12 +408,10 @@ export class DockviewGroupPanelModel
     }
 
     /** DOM id of the content container (the group's tabpanel), referenced by each tab's `aria-controls`. */
-    /** DOM id of the content container (the group's tabpanel), referenced by each tab's `aria-controls`. */
     get contentContainerId(): string {
         return this.contentContainer.element.id;
     }
 
-    /** The group's content drop target; lets keyboard docking preview a drop here. */
     /** The group's content drop target; lets keyboard docking preview a drop here. */
     get contentDropTarget(): Droptarget {
         return this.contentContainer.dropTarget;
@@ -1828,7 +1826,6 @@ export class DockviewGroupPanelModel
         this.updateAccessibleLabel();
     }
 
-    /** Label the group region with its active panel's title (the WAI-ARIA region name). */
     /** Label the group region with its active panel's title (the WAI-ARIA region name). */
     private updateAccessibleLabel(): void {
         const title = this._activePanel?.title;

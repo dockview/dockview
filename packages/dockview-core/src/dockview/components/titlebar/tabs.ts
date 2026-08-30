@@ -698,7 +698,6 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
     }
 
     /** DOM id of the tab element for a panel, used for the tabpanel's `aria-labelledby`. */
-    /** DOM id of the tab element for a panel, used for the tabpanel's `aria-labelledby`. */
     getTabId(panelId: string): string | undefined {
         return this._tabMap.get(panelId)?.value.element.id;
     }
@@ -798,7 +797,6 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         }
     }
 
-    /** Move the roving focus to the tab at `index` (updates tabindex + DOM focus). */
     /** Move the roving focus to the tab at `index` (updates tabindex + DOM focus). */
     private _focusTab(index: number): void {
         for (let i = 0; i < this._tabs.length; i++) {

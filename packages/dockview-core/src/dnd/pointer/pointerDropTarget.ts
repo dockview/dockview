@@ -31,7 +31,6 @@ export interface PointerDropTargetOptions {
     acceptedTargetZones: Position[];
     overlayModel?: DroptargetOverlayModel;
     /** Render into an external anchor container (floating groups, layout root). */
-    /** Render into an external anchor container (floating groups, layout root). */
     getOverrideTarget?: () => DropTargetTargetModel | undefined;
     /** Outline element for positioning; falls back to the drop element. */
     getOverlayOutline?: () => HTMLElement | null;

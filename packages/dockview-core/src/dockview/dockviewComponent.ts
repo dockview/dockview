@@ -315,7 +315,6 @@ export interface DockviewMaximizedGroupChangeEvent {
 }
 
 /** The coarse kind of a structural layout mutation (see `onWillMutateLayout`). */
-/** The coarse kind of a structural layout mutation (see `onWillMutateLayout`). */
 export type DockviewLayoutMutationKind =
     | 'add'
     | 'remove'
@@ -921,7 +920,6 @@ export class DockviewComponent
         return this._smartGuidesService?.enabled ?? false;
     }
 
-    /** Toggle Smart Guides snapping at runtime (no-op if the module is absent). */
     /** Toggle Smart Guides snapping at runtime (no-op if the module is absent). */
     setSmartGuidesEnabled(enabled: boolean): void {
         assertModule(
@@ -3150,7 +3148,7 @@ export class DockviewComponent
      *
      * An existing edge group is reused with its collapsed and auto-hide state
      * left as-is, so a drag-reveal cannot silently convert a static edge group
-     * into an auto-hiding one; use `api.getEdgeGroup(position)?.setAutoHide()`
+     * into an auto-hiding one; use `api.getEdgeGroup(position)?.setAutoHide(...)`
      * for that. No-op if the EdgeGroup module is absent.
      */
     revealEdgeGroupWithData(
@@ -3608,8 +3606,8 @@ export class DockviewComponent
          * grid, so nothing else will ever tear them down.
          *
          * `dispose()` reaches consumer `IContentRenderer.dispose()`, so one
-         * throwing renderer must not abort the rest of the cleanup: that would
-         * re-introduce the very leak this reclaims, nor replace the
+         * throwing renderer must neither abort the rest of the cleanup, which
+         * would re-introduce the very leak this reclaims, nor replace the
          * deserialization error the caller is being given. Draining the list
          * also makes this safe to call more than once.
          */

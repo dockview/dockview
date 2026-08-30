@@ -95,9 +95,7 @@ export class OverlayRenderContainer extends CompositeDisposable {
             forceVisible?: boolean;
             clip?: DOMRect;
             /** Keep a positioned overlay stable while a replacement reference awaits layout. */
-            /** Keep a positioned overlay stable while a replacement reference awaits layout. */
             retainPreviousGeometry: boolean;
-            /** Set once real geometry has been written to the overlay element. */
             /** Set once real geometry has been written to the overlay element. */
             positioned: boolean;
             /**
@@ -248,7 +246,7 @@ export class OverlayRenderContainer extends CompositeDisposable {
          * `fromJSON({ reuseExistingPanels: true })` is a detached staging group
          * measuring 0x0.
          *
-         * Re-attaching over the same container must not, or it discards the
+         * Re-attaching over the same container must do neither, or it discards the
          * frame `repositionPanelOverlay` queued carrying the auto-hide peek's
          * sticky `forceVisible`/`clip` state, leaving the peek to render
          * nothing.
@@ -436,8 +434,8 @@ export class OverlayRenderContainer extends CompositeDisposable {
                  * Existing geometry is safe to show while its replacement lays
                  * out. `retainPreviousGeometry` is only set once geometry has
                  * been written (see `attach`), so this cannot un-hide an
-                 * overlay with unset left/top/width/height, which `.dv-render-
-                 * overlay` would size to the whole dock.
+                 * overlay with unset left/top/width/height, which
+                 * `.dv-render-overlay` would size to the whole dock.
                  *
                  * A restore that moves the panel paints stale coordinates until
                  * the reposition lands on the next frame, which is the trade-

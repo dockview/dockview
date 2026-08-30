@@ -226,9 +226,9 @@ export class TabGroupManager {
         }
 
         // Wrap the clone in a minimal ancestor chain so that CSS selectors like
-        // `.dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-
-        // tabs-container > .dv-tab` match the cloned tabs and apply correct
-        // color/background.
+        // `.dv-groupview.dv-active-group > .dv-tabs-and-actions-container
+        // .dv-tabs-container > .dv-tab` match the cloned tabs and apply
+        // correct color/background.
         const wrapper = document.createElement('div');
         wrapper.className = 'dv-groupview dv-active-group';
         wrapper.style.position = 'fixed';
