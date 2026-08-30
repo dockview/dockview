@@ -583,6 +583,38 @@ describe('ShellManager', () => {
             shell.dispose();
         });
 
+        test('toJSON persists a held size, not the size the group is stranded at', () => {
+            // requested before the shell has any extent to give
+            const preLayout = makeShell({
+                left: { id: 'left', initialSize: 260 },
+            });
+            preLayout.resizeEdgeGroup('left', 420);
+            expect(preLayout.toJSON().left!.size).toBe(420);
+            preLayout.dispose();
+
+            // requested while the group is hidden (pinned to zero)
+            const hidden = makeShell({ left: { id: 'left', initialSize: 260 } });
+            hidden.layout(1000, 800);
+            hidden.setEdgeGroupVisible('left', false);
+            hidden.resizeEdgeGroup('left', 420);
+            expect(hidden.toJSON().left!.size).toBe(420);
+            hidden.dispose();
+        });
+
+        test('a round-trip through toJSON/fromJSON keeps a size set before layout', () => {
+            const shell = makeShell({ left: { id: 'left', initialSize: 260 } });
+            shell.resizeEdgeGroup('left', 420);
+            const state = shell.toJSON();
+            shell.dispose();
+
+            const fresh = makeShell({ left: { id: 'left', initialSize: 260 } });
+            fresh.fromJSON(state);
+            fresh.layout(1000, 800);
+
+            expect(sizeOf(fresh, 'left')).toBe(420);
+            fresh.dispose();
+        });
+
         test('an unconfigured position, and a non-positive or non-finite size, are no-ops', () => {
             const shell = makeShell({ left: { id: 'left', initialSize: 260 } });
             shell.layout(1000, 800);
@@ -662,6 +694,22 @@ describe('ShellManager', () => {
             expect(shell.isEdgeGroupCollapsed('left')).toBe(true);
             const leftView = (shell as any)._leftView as EdgeGroupView;
             expect(leftView.lastExpandedSize).toBe(350);
+            shell.dispose();
+        });
+
+        test('re-shows a hidden panel when the restored state is visible', () => {
+            const shell = makeShell({ left: { id: 'left', initialSize: 260 } });
+            shell.layout(1000, 800);
+            shell.setEdgeGroupVisible('left', false);
+
+            shell.fromJSON({ left: { size: 420, visible: true } });
+
+            expect(shell.isEdgeGroupVisible('left')).toBe(true);
+            expect(
+                (shell as any)._outerSplitview.getViewSize(
+                    (shell as any)._leftIndex
+                )
+            ).toBe(420);
             shell.dispose();
         });
 

@@ -1035,12 +1035,21 @@ export class ShellManager implements IDisposable {
         // (then lastExpandedSize); otherwise re-showing snaps to minimumSize.
         const expandedSize = (
             view: EdgeGroupView,
+            position: EdgeGroupPosition,
             isVisible: boolean,
             liveSize: number,
             cachedVisibleSize: number | undefined
         ): number => {
             if (view.isCollapsed) {
                 return view.lastExpandedSize;
+            }
+            // A size that has been requested but could not be applied yet is
+            // the size the group will take, so it is the size to persist -
+            // otherwise the layout serializes the size the group is stranded
+            // at (its minimum, or the size it had before being hidden).
+            const pending = this._pendingSizes.get(position);
+            if (pending !== undefined) {
+                return pending;
             }
             if (!isVisible) {
                 return cachedVisibleSize ?? view.lastExpandedSize;
@@ -1053,6 +1062,7 @@ export class ShellManager implements IDisposable {
             edgeGroups.left = {
                 size: expandedSize(
                     this._leftView,
+                    'left',
                     visible,
                     this._outerSplitview.getViewSize(this._leftIndex),
                     this._outerSplitview.getViewCachedVisibleSize(
@@ -1071,6 +1081,7 @@ export class ShellManager implements IDisposable {
             edgeGroups.right = {
                 size: expandedSize(
                     this._rightView,
+                    'right',
                     visible,
                     this._outerSplitview.getViewSize(this._rightIndex),
                     this._outerSplitview.getViewCachedVisibleSize(
@@ -1087,6 +1098,7 @@ export class ShellManager implements IDisposable {
             edgeGroups.top = {
                 size: expandedSize(
                     this._topView,
+                    'top',
                     visible,
                     this._middleColumn.getViewSize('top'),
                     this._middleColumn.getViewCachedVisibleSize('top')
@@ -1101,6 +1113,7 @@ export class ShellManager implements IDisposable {
             edgeGroups.bottom = {
                 size: expandedSize(
                     this._bottomView,
+                    'bottom',
                     visible,
                     this._middleColumn.getViewSize('bottom'),
                     this._middleColumn.getViewCachedVisibleSize('bottom')
@@ -1144,9 +1157,10 @@ export class ShellManager implements IDisposable {
                 this.resizeEdgeGroup(position, state.size);
             }
 
-            if (!state.visible) {
-                this.setEdgeGroupVisible(position, false);
-            }
+            // Restore visibility both ways: showing a group the user had
+            // hidden also flushes the size restored above, which could not be
+            // applied while the view was pinned to zero.
+            this.setEdgeGroupVisible(position, !!state.visible);
         }
     }
 
