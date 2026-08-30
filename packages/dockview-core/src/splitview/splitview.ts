@@ -122,7 +122,7 @@ export class Splitview {
     private _orthogonalSize = 0;
     private _contentSize = 0;
     private _proportions: (number | undefined)[] | undefined = undefined;
-    private readonly proportionalLayout: boolean;
+    private _proportionalLayout: boolean;
     private _startSnappingEnabled = true;
     private _endSnappingEnabled = true;
     private _disabled = false;
@@ -161,6 +161,28 @@ export class Splitview {
 
     public get proportions(): (number | undefined)[] | undefined {
         return this._proportions ? [...this._proportions] : undefined;
+    }
+
+    get proportionalLayout(): boolean {
+        return this._proportionalLayout;
+    }
+
+    set proportionalLayout(value: boolean) {
+        if (this._proportionalLayout === value) {
+            return;
+        }
+
+        this._proportionalLayout = value;
+
+        if (value) {
+            // adopt the current sizes as the proportions to preserve, rather
+            // than waiting for the next size-changing operation
+            this.saveProportions();
+        } else {
+            // `layout` falls back to the priority-based distribution as soon
+            // as there are no proportions to honour
+            this._proportions = undefined;
+        }
     }
 
     get orientation(): Orientation {
@@ -247,7 +269,7 @@ export class Splitview {
 
         this.margin = options.margin ?? 0;
 
-        this.proportionalLayout =
+        this._proportionalLayout =
             options.proportionalLayout === undefined
                 ? true
                 : !!options.proportionalLayout;
