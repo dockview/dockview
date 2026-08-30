@@ -954,7 +954,7 @@ export class ShellManager implements IDisposable {
         if (this._pendingSizes.size === 0) {
             return;
         }
-        for (const [position, size] of [...this._pendingSizes]) {
+        for (const [position, size] of this._pendingSizes) {
             const view = this._getView(position);
             if (!view || view.isCollapsed || !this._canResize(position)) {
                 continue;
