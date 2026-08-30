@@ -593,7 +593,9 @@ describe('ShellManager', () => {
             preLayout.dispose();
 
             // requested while the group is hidden (pinned to zero)
-            const hidden = makeShell({ left: { id: 'left', initialSize: 260 } });
+            const hidden = makeShell({
+                left: { id: 'left', initialSize: 260 },
+            });
             hidden.layout(1000, 800);
             hidden.setEdgeGroupVisible('left', false);
             hidden.resizeEdgeGroup('left', 420);

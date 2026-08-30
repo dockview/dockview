@@ -3143,7 +3143,10 @@ export class DockviewComponent
             service.add(
                 position,
                 group,
-                new CompositeDisposable(autoCollapseDisposable, resizeDisposable)
+                new CompositeDisposable(
+                    autoCollapseDisposable,
+                    resizeDisposable
+                )
             );
             if (options.autoHide !== undefined) {
                 service.setAutoHide(group, options.autoHide);
