@@ -956,11 +956,7 @@ export class ShellManager implements IDisposable {
         }
         for (const [position, size] of [...this._pendingSizes]) {
             const view = this._getView(position);
-            if (!view) {
-                this._pendingSizes.delete(position);
-                continue;
-            }
-            if (view.isCollapsed || !this._canResize(position)) {
+            if (!view || view.isCollapsed || !this._canResize(position)) {
                 continue;
             }
             this._pendingSizes.delete(position);

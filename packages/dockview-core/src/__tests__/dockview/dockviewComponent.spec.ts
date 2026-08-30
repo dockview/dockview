@@ -12550,6 +12550,21 @@ describe('dockviewComponent', () => {
                 dv.dispose();
             });
 
+            test('setConstraints on an edge group does not resize it', () => {
+                const c = document.createElement('div');
+                const dv = createFixedDockview(c, ['left'], {
+                    left: { id: 'left-group', initialSize: 260 },
+                });
+                dv.layout(1200, 600);
+
+                // constraints travel on the same signal as a size request
+                dv.getEdgeGroup('left')!.setConstraints({ minimumWidth: 100 });
+
+                expect(edgeSize(dv, 'left')).toBe(260);
+
+                dv.dispose();
+            });
+
             test('setSize on a collapsed edge group applies when it expands', () => {
                 const c = document.createElement('div');
                 const dv = createFixedDockview(c, ['left'], {

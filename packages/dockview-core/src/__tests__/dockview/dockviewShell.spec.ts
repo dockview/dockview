@@ -474,25 +474,123 @@ describe('ShellManager', () => {
             return s._middleColumn.getViewSize(position);
         }
 
-        test('resizes an expanded left group along the width axis', () => {
-            const shell = makeShell({ left: { id: 'left', initialSize: 260 } });
-            shell.layout(1000, 800);
+        describe.each([
+            'left',
+            'right',
+            'top',
+            'bottom',
+        ] as const)('%s edge group', (position) => {
+            const cfg = (extra: Partial<EdgeGroupViewOptions> = {}) =>
+                ({
+                    [position]: {
+                        id: position,
+                        initialSize: 260,
+                        ...extra,
+                    },
+                }) as Parameters<typeof makeShell>[0];
 
-            shell.resizeEdgeGroup('left', 420);
+            test('resizes along its own axis', () => {
+                const shell = makeShell(cfg());
+                shell.layout(1000, 800);
 
-            expect(sizeOf(shell, 'left')).toBe(420);
-            expect(shell.getEdgeGroupExpandedSize('left')).toBe(420);
-            shell.dispose();
-        });
+                shell.resizeEdgeGroup(position, 420);
 
-        test('resizes an expanded top group along the height axis', () => {
-            const shell = makeShell({ top: { id: 'top', initialSize: 150 } });
-            shell.layout(1000, 800);
+                expect(sizeOf(shell, position)).toBe(420);
+                expect(shell.getEdgeGroupExpandedSize(position)).toBe(420);
+                shell.dispose();
+            });
 
-            shell.resizeEdgeGroup('top', 300);
+            test('takes its initialSize on the first layout', () => {
+                const shell = makeShell(cfg());
+                shell.layout(1000, 800);
 
-            expect(sizeOf(shell, 'top')).toBe(300);
-            shell.dispose();
+                expect(sizeOf(shell, position)).toBe(260);
+                shell.dispose();
+            });
+
+            test('a resize requested before layout lands on it', () => {
+                const shell = makeShell(cfg());
+                shell.resizeEdgeGroup(position, 420);
+
+                shell.layout(1000, 800);
+
+                expect(sizeOf(shell, position)).toBe(420);
+                shell.dispose();
+            });
+
+            test('a collapsed group keeps its strip and expands to the new size', () => {
+                const shell = makeShell(cfg());
+                shell.layout(1000, 800);
+                shell.setEdgeGroupCollapsed(position, true);
+                const collapsed = sizeOf(shell, position);
+
+                shell.resizeEdgeGroup(position, 420);
+                expect(sizeOf(shell, position)).toBe(collapsed);
+
+                shell.setEdgeGroupCollapsed(position, false);
+                expect(sizeOf(shell, position)).toBe(420);
+                shell.dispose();
+            });
+
+            test('a resize requested while hidden lands when shown', () => {
+                const shell = makeShell(cfg());
+                shell.layout(1000, 800);
+                shell.setEdgeGroupVisible(position, false);
+
+                shell.resizeEdgeGroup(position, 420);
+                expect(sizeOf(shell, position)).toBe(0);
+
+                shell.setEdgeGroupVisible(position, true);
+                expect(sizeOf(shell, position)).toBe(420);
+                shell.dispose();
+            });
+
+            test('toJSON persists a held size, not the size it is stranded at', () => {
+                const preLayout = makeShell(cfg());
+                preLayout.resizeEdgeGroup(position, 420);
+                expect(preLayout.toJSON()[position]!.size).toBe(420);
+                preLayout.dispose();
+
+                const hidden = makeShell(cfg());
+                hidden.layout(1000, 800);
+                hidden.setEdgeGroupVisible(position, false);
+                hidden.resizeEdgeGroup(position, 420);
+                expect(hidden.toJSON()[position]!.size).toBe(420);
+                hidden.dispose();
+            });
+
+            test('fromJSON restores size, collapsed and visible state', () => {
+                const shell = makeShell(cfg());
+                shell.layout(1000, 800);
+
+                shell.fromJSON({
+                    [position]: { size: 420, visible: true },
+                });
+                expect(sizeOf(shell, position)).toBe(420);
+
+                shell.fromJSON({
+                    [position]: {
+                        size: 420,
+                        visible: true,
+                        collapsed: true,
+                    },
+                });
+                expect(shell.isEdgeGroupCollapsed(position)).toBe(true);
+
+                shell.fromJSON({
+                    [position]: { size: 300, visible: false },
+                });
+                expect(shell.isEdgeGroupVisible(position)).toBe(false);
+
+                // ...and back: re-showing applies the restored size
+                shell.fromJSON({
+                    [position]: { size: 300, visible: true },
+                });
+                expect(shell.isEdgeGroupVisible(position)).toBe(true);
+                expect(shell.isEdgeGroupCollapsed(position)).toBe(false);
+                expect(sizeOf(shell, position)).toBe(300);
+                shell.dispose();
+            });
         });
 
         test('clamps to the configured maximumSize', () => {
@@ -507,58 +605,12 @@ describe('ShellManager', () => {
             shell.dispose();
         });
 
-        test('a collapsed group keeps its strip and expands to the new size', () => {
-            const shell = makeShell({ left: { id: 'left', initialSize: 260 } });
-            shell.layout(1000, 800);
-            shell.setEdgeGroupCollapsed('left', true);
-            const collapsedSize = sizeOf(shell, 'left');
-
-            shell.resizeEdgeGroup('left', 420);
-            expect(sizeOf(shell, 'left')).toBe(collapsedSize);
-
-            shell.setEdgeGroupCollapsed('left', false);
-            expect(sizeOf(shell, 'left')).toBe(420);
-            shell.dispose();
-        });
-
-        test('a resize requested before layout is applied once the shell is laid out', () => {
-            const shell = makeShell({ left: { id: 'left', initialSize: 260 } });
-
-            shell.resizeEdgeGroup('left', 420);
-            shell.layout(1000, 800);
-
-            expect(sizeOf(shell, 'left')).toBe(420);
-            shell.dispose();
-        });
-
-        test('a group added before layout still takes its initialSize', () => {
-            const shell = makeShell({ left: { id: 'left', initialSize: 260 } });
-
-            shell.layout(1000, 800);
-
-            expect(sizeOf(shell, 'left')).toBe(260);
-            shell.dispose();
-        });
-
         test('a fromJSON before layout applies the restored size on the first layout', () => {
             const shell = makeShell({ left: { id: 'left', initialSize: 260 } });
 
             shell.fromJSON({ left: { size: 420, visible: true } });
             shell.layout(1000, 800);
 
-            expect(sizeOf(shell, 'left')).toBe(420);
-            shell.dispose();
-        });
-
-        test('a resize requested while hidden is applied when the group is shown', () => {
-            const shell = makeShell({ left: { id: 'left', initialSize: 260 } });
-            shell.layout(1000, 800);
-            shell.setEdgeGroupVisible('left', false);
-
-            shell.resizeEdgeGroup('left', 420);
-            expect(sizeOf(shell, 'left')).toBe(0);
-
-            shell.setEdgeGroupVisible('left', true);
             expect(sizeOf(shell, 'left')).toBe(420);
             shell.dispose();
         });
@@ -580,26 +632,6 @@ describe('ShellManager', () => {
 
             expect(sizeOf(shell, 'left')).toBe(400);
             shell.dispose();
-        });
-
-        test('toJSON persists a held size, not the size the group is stranded at', () => {
-            // requested before the shell has any extent to give
-            const preLayout = makeShell({
-                left: { id: 'left', initialSize: 260 },
-            });
-            preLayout.resizeEdgeGroup('left', 420);
-            expect(preLayout.toJSON().left!.size).toBe(420);
-            preLayout.dispose();
-
-            // requested while the group is hidden (pinned to zero)
-            const hidden = makeShell({
-                left: { id: 'left', initialSize: 260 },
-            });
-            hidden.layout(1000, 800);
-            hidden.setEdgeGroupVisible('left', false);
-            hidden.resizeEdgeGroup('left', 420);
-            expect(hidden.toJSON().left!.size).toBe(420);
-            hidden.dispose();
         });
 
         test('a round-trip through toJSON/fromJSON keeps a size set before layout', () => {
