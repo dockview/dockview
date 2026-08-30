@@ -3094,11 +3094,9 @@ export class DockviewComponent
             group.model.location = { type: 'edge', position };
             group.model.headerPosition = position;
 
-            // `groupApi.setSize(...)` surfaces on the group as an
-            // `onDidChange` (the same signal a gridview LeafNode consumes, and
-            // a floating group turns into overlay bounds). An edge group lives
-            // in the shell splitview instead, so route it there — otherwise the
-            // call is silently dropped and only the sash can size the group.
+            // `setSize` surfaces as the group's `onDidChange` — consumed by a
+            // gridview LeafNode for a grid group, the overlay for a floating
+            // one, and the shell splitview for an edge group.
             const resizeDisposable = group.onDidChange((event) => {
                 if (!event) {
                     // constraint change, not a size request
@@ -3109,8 +3107,7 @@ export class DockviewComponent
                         ? event.width
                         : event.height;
                 if (typeof size !== 'number') {
-                    // a size for the group's cross axis, which the shell
-                    // splitview does not own
+                    // cross axis, which the shell splitview does not own
                     return;
                 }
                 this._shellManager?.resizeEdgeGroup(position, size);

@@ -565,8 +565,7 @@ describe('ShellManager', () => {
 
         test('a sash resize after a collapse/expand cycle survives a later relayout', () => {
             const shell = makeShell({ left: { id: 'left', initialSize: 260 } });
-            // collapsed before the shell has been laid out, so the size held
-            // from `addEdgeView` is still outstanding
+            // collapsed before layout, so the held size is still outstanding
             shell.setEdgeGroupCollapsed('left', true);
             shell.layout(1000, 800);
             shell.setEdgeGroupCollapsed('left', false);
@@ -576,7 +575,7 @@ describe('ShellManager', () => {
                 (shell as any)._leftIndex,
                 400
             );
-            // ...and a later relayout must not resurrect the original size
+            // a later relayout must not resurrect the original size
             shell.layout(1000, 700);
 
             expect(sizeOf(shell, 'left')).toBe(400);

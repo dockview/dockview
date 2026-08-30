@@ -457,9 +457,7 @@ class MiddleColumnView implements IView, IDisposable {
         }
     }
 
-    /** The inner splitview's primary-axis (height) extent. Zero until the
-     *  shell has been laid out, in which case a `resizeView` cannot be
-     *  honoured (splitview clamps against the available space). */
+    /** The inner splitview's primary-axis (height) extent; zero until laid out. */
     get axisSize(): number {
         return this._splitview.size;
     }
@@ -496,9 +494,8 @@ export class ShellManager implements IDisposable {
         EdgeGroupPosition,
         EdgeGroupOptions
     >();
-    // Sizes requested via `resizeEdgeGroup` that could not be applied at the
-    // time (the group was hidden, or the shell had not been laid out yet).
-    // Flushed once the group can actually take the size.
+    // Sizes a group could not take when they were requested (hidden, or no
+    // extent yet), applied as soon as it can.
     private readonly _pendingSizes = new Map<EdgeGroupPosition, number>();
     private _currentWidth = 0;
     private _currentHeight = 0;
@@ -664,10 +661,8 @@ export class ShellManager implements IDisposable {
 
         this._disposables.addDisposables(view);
 
-        // A group added before the shell has any extent cannot take its
-        // requested size: splitview clamps an `addView` against the space
-        // available, which at that point is none, leaving the group at its
-        // minimum size. Hold the requested size until the first layout.
+        // With no extent yet, splitview clamps the add down to the minimum
+        // size, so hold the requested size for the first layout.
         if (!view.isCollapsed && !this._canResize(position)) {
             this._pendingSizes.set(position, initialSize);
         }
@@ -682,10 +677,6 @@ export class ShellManager implements IDisposable {
     layout(width: number, height: number): void {
         // Outer splitview is HORIZONTAL: layout(size=width, orthogonalSize=height)
         this._outerSplitview.layout(width, height);
-
-        // A `resizeEdgeGroup` made before the shell had any extent could not be
-        // applied then (splitview clamps a resize against the space available);
-        // now that there is space, apply it.
         this._flushPendingSizes();
     }
 
@@ -852,8 +843,7 @@ export class ShellManager implements IDisposable {
         }
 
         if (visible) {
-            // A hidden view is pinned to zero, so a `resizeEdgeGroup` made
-            // while hidden was held back; apply it now.
+            // a hidden view is pinned to zero, so any held size waits for this
             this._flushPendingSizes();
         }
     }
@@ -886,8 +876,7 @@ export class ShellManager implements IDisposable {
         }
         view.setCollapsed(collapsed);
         if (collapsed) {
-            // The strip size supersedes any size held for this group; what a
-            // later expand uses is the view's recorded expanded size.
+            // the strip size wins; a later expand uses the recorded expanded size
             this._pendingSizes.delete(position);
             this._resizeView(position, view.collapsedSize);
         } else {
@@ -897,15 +886,11 @@ export class ShellManager implements IDisposable {
 
     /**
      * Resize the edge group at `position` along its primary axis (width for
-     * `left`/`right`, height for `top`/`bottom`). This is what
-     * `groupApi.setSize(...)` on an edge group routes to; the size is clamped
-     * by the group's own minimum/maximum and by the space the shell has to give.
+     * `left`/`right`, height for `top`/`bottom`), clamped by the group's
+     * constraints and the space available. Where `groupApi.setSize` lands.
      *
-     * The size is always recorded as the group's expanded size, so it survives
-     * a collapse/expand cycle and a `toJSON` round-trip. A collapsed group keeps
-     * its strip and takes the new size when it next expands; a group that is
-     * hidden, or belongs to a shell that has not been laid out yet, keeps the
-     * request pending until it can be applied.
+     * The size becomes the group's expanded size, so a collapsed group keeps
+     * its strip and takes it on expand, and it survives a `toJSON` round-trip.
      */
     resizeEdgeGroup(position: EdgeGroupPosition, size: number): void {
         const view = this._getView(position);
@@ -918,13 +903,9 @@ export class ShellManager implements IDisposable {
             return;
         }
 
-        // Record first: this is the size the group expands to, and the size
-        // `toJSON` persists, regardless of whether it can be applied right now.
         view.restoreExpandedSize(target);
 
         if (view.isCollapsed) {
-            // Collapsed groups are locked to their strip size; the recorded
-            // expanded size lands when the group is expanded.
             this._pendingSizes.delete(position);
             return;
         }
@@ -937,9 +918,8 @@ export class ShellManager implements IDisposable {
         }
     }
 
-    /** Whether a resize of the view at `position` can be honoured right now:
-     *  the view must be visible (a hidden splitview view is pinned to zero) and
-     *  its splitview must have some extent to distribute. */
+    /** A resize lands only on a visible view (a hidden one is pinned to zero)
+     *  whose splitview has extent to distribute. */
     private _canResize(position: EdgeGroupPosition): boolean {
         if (!this.isEdgeGroupVisible(position)) {
             return false;
@@ -1043,10 +1023,8 @@ export class ShellManager implements IDisposable {
             if (view.isCollapsed) {
                 return view.lastExpandedSize;
             }
-            // A size that has been requested but could not be applied yet is
-            // the size the group will take, so it is the size to persist -
-            // otherwise the layout serializes the size the group is stranded
-            // at (its minimum, or the size it had before being hidden).
+            // a held size is the size the group will take, so persist that
+            // rather than the size it is stranded at
             const pending = this._pendingSizes.get(position);
             if (pending !== undefined) {
                 return pending;
@@ -1150,16 +1128,12 @@ export class ShellManager implements IDisposable {
                 this._pendingSizes.delete(position);
                 this._resizeView(position, view.collapsedSize);
             } else {
-                // Goes through the pending-size path so a fromJSON on a shell
-                // that has not been laid out yet still lands: the restored size
-                // is applied on the first layout rather than being clamped away
-                // against zero available space.
+                // via resizeEdgeGroup so a restore onto a shell with no extent
+                // yet is held for the first layout rather than clamped away
                 this.resizeEdgeGroup(position, state.size);
             }
 
-            // Restore visibility both ways: showing a group the user had
-            // hidden also flushes the size restored above, which could not be
-            // applied while the view was pinned to zero.
+            // both ways: showing also flushes the size restored above
             this.setEdgeGroupVisible(position, !!state.visible);
         }
     }

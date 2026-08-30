@@ -1,14 +1,10 @@
 import { test, expect, Page } from '@playwright/test';
 
 /**
- * Sizing an edge group through its api (`groupApi.setSize`) — issue #1613,
- * where the call was silently dropped and only the sash could move the rail.
- *
- * Real-browser only: the shell splitview clamps a resize against the space it
- * actually has, and the first layout of a real dockview is driven by a
- * ResizeObserver — so both the pixel outcome and the "sized before the browser
- * has laid anything out" ordering need a real document. jsdom can only stand in
- * for that with explicit `layout()` calls.
+ * Sizing an edge group through `groupApi.setSize` (#1613). Real-browser only:
+ * the shell splitview clamps against the space it measures, and a real
+ * dockview's first layout is ResizeObserver-driven — so both the pixel outcome
+ * and the "sized before anything is laid out" ordering need a real document.
  */
 test.describe('edge group resize (api)', () => {
     const setup = async (page: Page, position: string = 'left') => {

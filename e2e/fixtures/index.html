@@ -875,11 +875,10 @@
                     },
                     peekEdge: (position, on) =>
                         dockview.api.peekEdgeGroup(position, on),
-                    // Issue #1613: a two-group centre split (so the layout has
-                    // something to redistribute against) plus an edge group at
-                    // `position` holding one panel. `autoHide: false` keeps the
-                    // group statically docked, since the harness turns
-                    // `autoHideEdgeGroups` on globally.
+                    // A two-group centre split (something to redistribute
+                    // against) plus an edge group at `position` holding one
+                    // panel. `autoHide: false` keeps it statically docked,
+                    // since the harness turns `autoHideEdgeGroups` on globally.
                     setupEdgeSizing: (position) => {
                         const pos = position || 'left';
                         dockview.addPanel({
@@ -914,12 +913,10 @@
                         dockview.getEdgeGroup(position)?.collapse(),
                     expandEdgeGroup: (position) =>
                         dockview.getEdgeGroup(position)?.expand(),
-                    // A SECOND dockview in its own container, whose edge group
-                    // is created — and optionally sized — synchronously at
-                    // construction, i.e. before the browser has laid anything
-                    // out and before the ResizeObserver has fired. That is the
-                    // ordering a real app hits, and the one the first layout has
-                    // to honour (jsdom has no ResizeObserver layout to model it).
+                    // A second dockview whose edge group is created — and
+                    // optionally sized — synchronously at construction, before
+                    // the ResizeObserver has fired: the ordering a real app
+                    // hits, which the first layout has to honour.
                     setupPreLayoutEdge: (width) => {
                         const host = document.createElement('div');
                         host.id = 'pre-layout';
