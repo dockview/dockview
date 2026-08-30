@@ -82,6 +82,8 @@ export const ControlsContent = (props: {
     onToggleDndCompass: () => void;
     smartGuides: boolean;
     onToggleSmartGuides: () => void;
+    proportionalLayout: boolean;
+    onToggleProportionalLayout: () => void;
     debug: boolean;
     onToggleDebug: () => void;
     showLogs: boolean;
@@ -150,6 +152,12 @@ export const ControlsContent = (props: {
                     icon="straighten"
                     checked={props.smartGuides}
                     onChange={props.onToggleSmartGuides}
+                />
+                <Switch
+                    label="Proportional layout"
+                    icon="aspect_ratio"
+                    checked={props.proportionalLayout}
+                    onChange={props.onToggleProportionalLayout}
                 />
                 {props.showLogs && (
                     <div style={{ paddingTop: 6 }}>
