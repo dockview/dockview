@@ -479,11 +479,34 @@ export class TabReorderController extends CompositeDisposable {
         }
         this.resetTabTransforms();
         if (this._animState.sourceIndex === -1) {
-            this.group.model.dropTargetContainer?.model?.clear();
+            this.clearHeaderAnchorOverlay();
             this._animState = null;
         } else {
             this._animState.currentInsertionIndex = null;
         }
+    }
+
+    /**
+     * Clear the anchored overlay only when this header is what rendered it.
+     * The container is shared with the group's content drop target, which
+     * renders into it on the same frame the cursor leaves the strip: the
+     * pointer backend calls `handleDragOver` on the new target before the
+     * global `onDragMove` that reaches us (#1612).
+     */
+    private clearHeaderAnchorOverlay(): void {
+        const container = this.group.model.dropTargetContainer;
+        const outline = container?.renderedOutline;
+
+        if (
+            outline &&
+            ![this._tabsList, this._voidContainer, this._extendedDropZone].some(
+                (scope) => scope?.contains(outline)
+            )
+        ) {
+            return; // someone else's overlay
+        }
+
+        container?.model?.clear();
     }
 
     handleDragOver(event: { clientX: number; clientY?: number }): void {

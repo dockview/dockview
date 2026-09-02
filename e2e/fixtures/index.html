@@ -157,7 +157,10 @@
                     // `?dnd=html5` swaps in the native HTML5 backend (needed to
                     // exercise the pinned row's pin-by-drag-in path, which reads
                     // the drag payload the main strip's HTML5 source populates).
-                    dndCompass: true,
+                    // `?compass=0` turns the compass off so the plain
+                    // cursor-quadrant drop resolution can be exercised; on by
+                    // default so the compass specs are unaffected.
+                    dndCompass: params.get('compass') !== '0',
                     dndStrategy:
                         params.get('dnd') === 'html5' ? 'html5' : 'pointer',
                     // Custom drop-position resolver (opt-in via `?resolver=`),
