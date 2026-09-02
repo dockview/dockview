@@ -1,5 +1,7 @@
 import {
     getRelativeLocation,
+    getDirectionOrientation,
+    getLocationOrientation,
     SerializedGridObject,
     getGridLocation,
     ISerializedLeafNode,
@@ -5596,6 +5598,50 @@ export class DockviewComponent
                 this.doSetGroupAndPanelActive(to);
             }
         } else {
+            // A pure reorder: `from` and `to` are siblings in one branch and
+            // the drop runs along that branch's grain, so the branch loses and
+            // regains exactly the moved group's size. Read before the detach
+            // below, which invalidates both grid locations.
+            const isReorderWithinBranch = ((): boolean => {
+                // Edge groups are structural slots, never branch siblings,
+                // and sit outside any gridview root.
+                if (
+                    from.api.location.type === 'edge' ||
+                    to.api.location.type === 'edge'
+                ) {
+                    return false;
+                }
+                // A floating or popout window has a gridview of its own, so
+                // require the same root: locations from two roots are not
+                // comparable and match by coincidence — every top-level group
+                // has `[]` for a parent path, in every root.
+                const root = this.getGridviewForGroup(from);
+                if (root !== this.getGridviewForGroup(to)) {
+                    return false;
+                }
+                let fromLocation: number[];
+                let toLocation: number[];
+                try {
+                    fromLocation = getGridLocation(from.element);
+                    toLocation = getGridLocation(to.element);
+                } catch {
+                    // Throws for an element detached from its root, which a
+                    // group mid-move through a floating window can briefly be.
+                    return false;
+                }
+                if (fromLocation.length === 0 || toLocation.length === 0) {
+                    return false;
+                }
+                return (
+                    sequenceEquals(
+                        tail(fromLocation)[0],
+                        tail(toLocation)[0]
+                    ) &&
+                    getLocationOrientation(root.orientation, toLocation) ===
+                        getDirectionOrientation(target)
+                );
+            })();
+
             if (from.api.location.type === 'edge') {
                 /**
                  * Edge groups are permanent structural elements and must
@@ -5740,21 +5786,23 @@ export class DockviewComponent
                     target
                 );
 
-                let size: number;
+                // A reorder keeps the group's own size, measured along the
+                // branch's axis. Any other move takes its room from the group
+                // it was dropped on, the only space on offer: the reference is
+                // either wrapped in a fresh branch the two now share, or sits
+                // in a row whose extent is already spoken for (#1612).
+                let size: number | Sizing;
 
-                switch (destGridview.orientation) {
-                    case Orientation.VERTICAL:
-                        size =
-                            referenceLocation.length % 2 == 0
-                                ? from.api.width
-                                : from.api.height;
-                        break;
-                    case Orientation.HORIZONTAL:
-                        size =
-                            referenceLocation.length % 2 == 0
-                                ? from.api.height
-                                : from.api.width;
-                        break;
+                if (isReorderWithinBranch) {
+                    size =
+                        getDirectionOrientation(target) ===
+                        Orientation.HORIZONTAL
+                            ? from.api.width
+                            : from.api.height;
+                } else {
+                    size = Sizing.Split(
+                        referenceLocation[referenceLocation.length - 1] ?? 0
+                    );
                 }
 
                 destGridview.addView(source, size, dropLocation);

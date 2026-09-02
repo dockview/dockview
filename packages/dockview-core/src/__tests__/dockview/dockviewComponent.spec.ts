@@ -794,6 +794,74 @@ describe('dockviewComponent', () => {
             expect(referenceGroupStillExists).toBe(false);
         });
 
+        test('a cross-grain move splits the group it lands on (#1612)', () => {
+            // Rearranging a 2x2 grid into one row: each move drops a group on
+            // the side of another, across the grain of the branch that other
+            // one sits in. The moved group has only the group it landed on to
+            // take room from, so it splits that and leaves the rest alone.
+            dockview = new DockviewComponent(container, {
+                createComponent(options) {
+                    switch (options.name) {
+                        case 'default':
+                            return new PanelContentPartTest(
+                                options.id,
+                                options.name
+                            );
+                        default:
+                            throw new Error(`unsupported`);
+                    }
+                },
+            });
+
+            dockview.layout(1200, 600);
+
+            const topLeft = dockview.addPanel({
+                id: 'topLeft',
+                component: 'default',
+            });
+            const topRight = dockview.addPanel({
+                id: 'topRight',
+                component: 'default',
+                position: { direction: 'right', referencePanel: 'topLeft' },
+            });
+            const bottomLeft = dockview.addPanel({
+                id: 'bottomLeft',
+                component: 'default',
+                position: { direction: 'below', referencePanel: 'topLeft' },
+            });
+            const bottomRight = dockview.addPanel({
+                id: 'bottomRight',
+                component: 'default',
+                position: { direction: 'below', referencePanel: 'topRight' },
+            });
+
+            for (const panel of [topLeft, topRight, bottomLeft, bottomRight]) {
+                expect(panel.api.width).toBe(600);
+                expect(panel.api.height).toBe(300);
+            }
+
+            dockview.moveGroup({
+                from: { group: bottomLeft.api.group },
+                to: { group: topRight.api.group, position: 'left' },
+            });
+
+            // The right-hand column is now shared evenly; the left is untouched.
+            expect(topLeft.api.width).toBe(600);
+            expect(bottomLeft.api.width).toBe(300);
+            expect(topRight.api.width).toBe(300);
+
+            dockview.moveGroup({
+                from: { group: bottomRight.api.group },
+                to: { group: topLeft.api.group, position: 'right' },
+            });
+
+            // Four columns, each an even share, all full height.
+            for (const panel of [topLeft, topRight, bottomLeft, bottomRight]) {
+                expect(panel.api.width).toBe(300);
+                expect(panel.api.height).toBe(600);
+            }
+        });
+
         test('horizontal', () => {
             dockview = new DockviewComponent(container, {
                 createComponent(options) {
