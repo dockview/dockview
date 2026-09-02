@@ -794,6 +794,63 @@ describe('dockviewComponent', () => {
             expect(referenceGroupStillExists).toBe(false);
         });
 
+        test('a panel dropped on a group edge splits that group (#1612)', () => {
+            // The drop overlay draws half of the group under the cursor, so
+            // that is what the panel gets: the rest of the column is untouched.
+            dockview = new DockviewComponent(container, {
+                createComponent(options) {
+                    switch (options.name) {
+                        case 'default':
+                            return new PanelContentPartTest(
+                                options.id,
+                                options.name
+                            );
+                        default:
+                            throw new Error(`unsupported`);
+                    }
+                },
+            });
+
+            dockview.layout(1200, 600);
+
+            const topLeft = dockview.addPanel({
+                id: 'topLeft',
+                component: 'default',
+            });
+            const topRight = dockview.addPanel({
+                id: 'topRight',
+                component: 'default',
+                position: { direction: 'right', referencePanel: 'topLeft' },
+            });
+            dockview.addPanel({
+                id: 'bottomLeft',
+                component: 'default',
+                position: { direction: 'below', referencePanel: 'topLeft' },
+            });
+            const bottomRight = dockview.addPanel({
+                id: 'bottomRight',
+                component: 'default',
+                position: { direction: 'below', referencePanel: 'topRight' },
+            });
+
+            expect(topRight.api.height).toBe(300);
+            expect(bottomRight.api.height).toBe(300);
+
+            dockview.moveGroupOrPanel({
+                from: {
+                    groupId: topLeft.api.group.id,
+                    panelId: topLeft.id,
+                },
+                to: { group: bottomRight.api.group, position: 'top' },
+            });
+
+            // The dropped panel takes the top half of the group it landed on…
+            expect(topLeft.api.height).toBe(150);
+            expect(bottomRight.api.height).toBe(150);
+            // …and the group above that one keeps every pixel it had.
+            expect(topRight.api.height).toBe(300);
+        });
+
         test('a cross-grain move splits the group it lands on (#1612)', () => {
             // Rearranging a 2x2 grid into one row: each move drops a group on
             // the side of another, across the grain of the branch that other

@@ -5255,7 +5255,9 @@ export class DockviewComponent
 
                     const newGroup = this.createGroupAtLocation(
                         updatedTargetLocation,
-                        undefined,
+                        this.dropSizing(
+                            getGridLocation(destinationGroup.element)
+                        ),
                         undefined,
                         destinationGridview
                     );
@@ -5295,7 +5297,7 @@ export class DockviewComponent
 
                     const newGroup = this.createGroupAtLocation(
                         targetLocation,
-                        undefined,
+                        this.dropSizing(referenceLocation),
                         undefined,
                         destinationGridview
                     );
@@ -5332,7 +5334,7 @@ export class DockviewComponent
                     this.doAddGroup(
                         targetGroup,
                         location,
-                        undefined,
+                        this.dropSizing(updatedReferenceLocation),
                         destinationGridview
                     )
                 );
@@ -5370,7 +5372,7 @@ export class DockviewComponent
 
                 const group = this.createGroupAtLocation(
                     dropLocation,
-                    undefined,
+                    this.dropSizing(referenceLocation),
                     undefined,
                     destinationGridview
                 );
@@ -5485,7 +5487,10 @@ export class DockviewComponent
                 referenceLocation,
                 destinationTarget
             );
-            targetGroup = this.createGroupAtLocation(dropLocation);
+            targetGroup = this.createGroupAtLocation(
+                dropLocation,
+                this.dropSizing(referenceLocation)
+            );
         }
 
         // Remove the source group if it became empty. We compare against
@@ -6022,9 +6027,24 @@ export class DockviewComponent
         return panel;
     }
 
+    /**
+     * Sizing for a group created by a drop next to `referenceLocation`: half
+     * of the group the overlay was drawn over, leaving its siblings alone, so
+     * the panel lands in the region the overlay indicated (#1612). Gridview
+     * rewrites the index to 0 when a cross-axis drop wraps the reference in a
+     * new branch, so one value serves both paths.
+     */
+    private dropSizing(referenceLocation: number[]): Sizing {
+        return Sizing.Split(
+            referenceLocation.length === 0
+                ? 0
+                : referenceLocation[referenceLocation.length - 1]
+        );
+    }
+
     private createGroupAtLocation(
         location: number[],
-        size?: number,
+        size?: number | Sizing,
         options?: GroupOptions,
         gridview: Gridview = this.gridview
     ): DockviewGroupPanel {
