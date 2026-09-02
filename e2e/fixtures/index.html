@@ -875,6 +875,79 @@
                     },
                     peekEdge: (position, on) =>
                         dockview.api.peekEdgeGroup(position, on),
+                    // A two-group centre split (something to redistribute
+                    // against) plus an edge group at `position` holding one
+                    // panel. `autoHide: false` keeps it statically docked,
+                    // since the harness turns `autoHideEdgeGroups` on globally.
+                    setupEdgeSizing: (position) => {
+                        const pos = position || 'left';
+                        dockview.addPanel({
+                            id: 'main',
+                            component: 'default',
+                            title: 'main',
+                        });
+                        dockview.addPanel({
+                            id: 'other',
+                            component: 'default',
+                            title: 'other',
+                            position: { direction: 'right' },
+                        });
+                        dockview.addEdgeGroup(pos, {
+                            id: 'edge-' + pos,
+                            initialSize: 260,
+                            autoHide: false,
+                        });
+                        dockview.addPanel({
+                            id: 'side',
+                            component: 'default',
+                            title: 'side',
+                            position: {
+                                referenceGroup: 'edge-' + pos,
+                                direction: 'within',
+                            },
+                        });
+                    },
+                    setEdgeGroupSize: (position, size) =>
+                        dockview.getEdgeGroup(position)?.setSize(size),
+                    collapseEdgeGroup: (position) =>
+                        dockview.getEdgeGroup(position)?.collapse(),
+                    expandEdgeGroup: (position) =>
+                        dockview.getEdgeGroup(position)?.expand(),
+                    // A second dockview whose edge group is created — and
+                    // optionally sized — synchronously at construction, before
+                    // the ResizeObserver has fired: the ordering a real app
+                    // hits, which the first layout has to honour.
+                    setupPreLayoutEdge: (width) => {
+                        const host = document.createElement('div');
+                        host.id = 'pre-layout';
+                        host.style.cssText =
+                            'position:fixed;inset:0;width:800px;height:600px;background:#fff;';
+                        document.body.appendChild(host);
+                        const dv = new lib.DockviewComponent(host, {
+                            createComponent: (o) => {
+                                const e = document.createElement('div');
+                                e.className = 'dv-test-panel';
+                                e.textContent = o.id;
+                                return { element: e, init() {}, dispose() {} };
+                            },
+                        });
+                        dv.addPanel({ id: 'pre-main', component: 'default' });
+                        dv.addEdgeGroup('left', {
+                            id: 'pre-edge',
+                            initialSize: 260,
+                        });
+                        dv.addPanel({
+                            id: 'pre-side',
+                            component: 'default',
+                            position: {
+                                referenceGroup: 'pre-edge',
+                                direction: 'within',
+                            },
+                        });
+                        if (typeof width === 'number') {
+                            dv.getEdgeGroup('left').setSize({ width });
+                        }
+                    },
                     // Two floating groups for Smart Guides: a target float on
                     // the left (left edge ~120) and a draggable float to its
                     // right. Dragging the right one near x=120 should snap +
