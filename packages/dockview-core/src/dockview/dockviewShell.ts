@@ -457,6 +457,11 @@ class MiddleColumnView implements IView, IDisposable {
         }
     }
 
+    /** The inner splitview's primary-axis (height) extent; zero until laid out. */
+    get axisSize(): number {
+        return this._splitview.size;
+    }
+
     updateMargin(gap: number): void {
         this._splitview.margin = gap;
     }
@@ -489,6 +494,9 @@ export class ShellManager implements IDisposable {
         EdgeGroupPosition,
         EdgeGroupOptions
     >();
+    // Sizes a group could not take when they were requested (hidden, or no
+    // extent yet), applied as soon as it can.
+    private readonly _pendingSizes = new Map<EdgeGroupPosition, number>();
     private _currentWidth = 0;
     private _currentHeight = 0;
     private _gap: number;
@@ -653,6 +661,12 @@ export class ShellManager implements IDisposable {
 
         this._disposables.addDisposables(view);
 
+        // With no extent yet, splitview clamps the add down to the minimum
+        // size, so hold the requested size for the first layout.
+        if (!view.isCollapsed && !this._canResize(position)) {
+            this._pendingSizes.set(position, initialSize);
+        }
+
         // Recalculate gap adjustments for all views now that n has changed.
         // updateTheme already guards the layout() call by _currentWidth/_currentHeight.
         this.updateTheme(this._gap, this._defaultCollapsedSize);
@@ -663,6 +677,7 @@ export class ShellManager implements IDisposable {
     layout(width: number, height: number): void {
         // Outer splitview is HORIZONTAL: layout(size=width, orthogonalSize=height)
         this._outerSplitview.layout(width, height);
+        this._flushPendingSizes();
     }
 
     /**
@@ -784,6 +799,7 @@ export class ShellManager implements IDisposable {
         view.dispose();
 
         this._viewConfigs.delete(position);
+        this._pendingSizes.delete(position);
 
         // Recalculate gap adjustments for remaining views.
         this.updateTheme(this._gap, this._defaultCollapsedSize);
@@ -825,6 +841,11 @@ export class ShellManager implements IDisposable {
                 this._middleColumn.setViewVisible(position, visible);
                 break;
         }
+
+        if (visible) {
+            // a hidden view is pinned to zero, so any held size waits for this
+            this._flushPendingSizes();
+        }
     }
 
     isEdgeGroupVisible(position: EdgeGroupPosition): boolean {
@@ -854,30 +875,92 @@ export class ShellManager implements IDisposable {
             return;
         }
         view.setCollapsed(collapsed);
-        const targetSize = collapsed
-            ? view.collapsedSize
-            : view.lastExpandedSize;
+        if (collapsed) {
+            // the strip size wins; a later expand uses the recorded expanded size
+            this._pendingSizes.delete(position);
+            this._resizeView(position, view.collapsedSize);
+        } else {
+            this.resizeEdgeGroup(position, view.lastExpandedSize);
+        }
+    }
+
+    /**
+     * Resize the edge group at `position` along its primary axis (width for
+     * `left`/`right`, height for `top`/`bottom`), clamped by the group's
+     * constraints and the space available. Where `groupApi.setSize` lands.
+     *
+     * The size becomes the group's expanded size, so a collapsed group keeps
+     * its strip and takes it on expand, and it survives a `toJSON` round-trip.
+     */
+    resizeEdgeGroup(position: EdgeGroupPosition, size: number): void {
+        const view = this._getView(position);
+        if (!view || !Number.isFinite(size)) {
+            return;
+        }
+
+        const target = Math.round(size);
+        if (target <= 0) {
+            return;
+        }
+
+        view.restoreExpandedSize(target);
+
+        if (view.isCollapsed) {
+            this._pendingSizes.delete(position);
+            return;
+        }
+
+        if (this._canResize(position)) {
+            this._pendingSizes.delete(position);
+            this._resizeView(position, target);
+        } else {
+            this._pendingSizes.set(position, target);
+        }
+    }
+
+    /** A resize lands only on a visible view (a hidden one is pinned to zero)
+     *  whose splitview has extent to distribute. */
+    private _canResize(position: EdgeGroupPosition): boolean {
+        if (!this.isEdgeGroupVisible(position)) {
+            return false;
+        }
+        const axisSize =
+            position === 'left' || position === 'right'
+                ? this._outerSplitview.size
+                : this._middleColumn.axisSize;
+        return axisSize > 0;
+    }
+
+    private _resizeView(position: EdgeGroupPosition, size: number): void {
         switch (position) {
             case 'left':
                 if (this._leftIndex !== undefined) {
-                    this._outerSplitview.resizeView(
-                        this._leftIndex,
-                        targetSize
-                    );
+                    this._outerSplitview.resizeView(this._leftIndex, size);
                 }
                 break;
             case 'right':
                 if (this._rightIndex !== undefined) {
-                    this._outerSplitview.resizeView(
-                        this._rightIndex,
-                        targetSize
-                    );
+                    this._outerSplitview.resizeView(this._rightIndex, size);
                 }
                 break;
             case 'top':
             case 'bottom':
-                this._middleColumn.resizeView(position, targetSize);
+                this._middleColumn.resizeView(position, size);
                 break;
+        }
+    }
+
+    private _flushPendingSizes(): void {
+        if (this._pendingSizes.size === 0) {
+            return;
+        }
+        for (const [position, size] of this._pendingSizes) {
+            const view = this._getView(position);
+            if (!view || view.isCollapsed || !this._canResize(position)) {
+                continue;
+            }
+            this._pendingSizes.delete(position);
+            this._resizeView(position, size);
         }
     }
 
@@ -928,12 +1011,19 @@ export class ShellManager implements IDisposable {
         // (then lastExpandedSize); otherwise re-showing snaps to minimumSize.
         const expandedSize = (
             view: EdgeGroupView,
+            position: EdgeGroupPosition,
             isVisible: boolean,
             liveSize: number,
             cachedVisibleSize: number | undefined
         ): number => {
             if (view.isCollapsed) {
                 return view.lastExpandedSize;
+            }
+            // a held size is the size the group will take, so persist that
+            // rather than the size it is stranded at
+            const pending = this._pendingSizes.get(position);
+            if (pending !== undefined) {
+                return pending;
             }
             if (!isVisible) {
                 return cachedVisibleSize ?? view.lastExpandedSize;
@@ -946,6 +1036,7 @@ export class ShellManager implements IDisposable {
             edgeGroups.left = {
                 size: expandedSize(
                     this._leftView,
+                    'left',
                     visible,
                     this._outerSplitview.getViewSize(this._leftIndex),
                     this._outerSplitview.getViewCachedVisibleSize(
@@ -964,6 +1055,7 @@ export class ShellManager implements IDisposable {
             edgeGroups.right = {
                 size: expandedSize(
                     this._rightView,
+                    'right',
                     visible,
                     this._outerSplitview.getViewSize(this._rightIndex),
                     this._outerSplitview.getViewCachedVisibleSize(
@@ -980,6 +1072,7 @@ export class ShellManager implements IDisposable {
             edgeGroups.top = {
                 size: expandedSize(
                     this._topView,
+                    'top',
                     visible,
                     this._middleColumn.getViewSize('top'),
                     this._middleColumn.getViewCachedVisibleSize('top')
@@ -994,6 +1087,7 @@ export class ShellManager implements IDisposable {
             edgeGroups.bottom = {
                 size: expandedSize(
                     this._bottomView,
+                    'bottom',
                     visible,
                     this._middleColumn.getViewSize('bottom'),
                     this._middleColumn.getViewCachedVisibleSize('bottom')
@@ -1008,60 +1102,35 @@ export class ShellManager implements IDisposable {
     }
 
     fromJSON(data: SerializedEdgeGroups): void {
-        if (data.left && this._leftIndex !== undefined) {
+        for (const position of [
+            'left',
+            'right',
+            'top',
+            'bottom',
+        ] as EdgeGroupPosition[]) {
+            const state = data[position];
+            const view = this._getView(position);
+            if (!state || !view) {
+                continue;
+            }
+
             // Always restore the expanded size first. toJSON always records the
-            // expanded size (even when collapsed), so restoredExpandedSize must
-            // be applied before setCollapsed locks min/max to collapsedSize.
-            this._leftView?.restoreExpandedSize(data.left.size);
-            this._leftView?.setCollapsed(data.left.collapsed ?? false);
-            this._outerSplitview.resizeView(
-                this._leftIndex,
-                data.left.collapsed
-                    ? (this._leftView?.collapsedSize ?? data.left.size)
-                    : data.left.size
-            );
-            if (!data.left.visible) {
-                this._outerSplitview.setViewVisible(this._leftIndex, false);
+            // expanded size (even when collapsed), so it must be applied before
+            // setCollapsed locks min/max to collapsedSize.
+            view.restoreExpandedSize(state.size);
+            view.setCollapsed(state.collapsed ?? false);
+
+            if (state.collapsed) {
+                this._pendingSizes.delete(position);
+                this._resizeView(position, view.collapsedSize);
+            } else {
+                // via resizeEdgeGroup so a restore onto a shell with no extent
+                // yet is held for the first layout rather than clamped away
+                this.resizeEdgeGroup(position, state.size);
             }
-        }
-        if (data.right && this._rightIndex !== undefined) {
-            this._rightView?.restoreExpandedSize(data.right.size);
-            this._rightView?.setCollapsed(data.right.collapsed ?? false);
-            this._outerSplitview.resizeView(
-                this._rightIndex,
-                data.right.collapsed
-                    ? (this._rightView?.collapsedSize ?? data.right.size)
-                    : data.right.size
-            );
-            if (!data.right.visible) {
-                this._outerSplitview.setViewVisible(this._rightIndex, false);
-            }
-        }
-        if (data.top) {
-            this._topView?.restoreExpandedSize(data.top.size);
-            this._topView?.setCollapsed(data.top.collapsed ?? false);
-            this._middleColumn.resizeView(
-                'top',
-                data.top.collapsed
-                    ? (this._topView?.collapsedSize ?? data.top.size)
-                    : data.top.size
-            );
-            if (!data.top.visible) {
-                this._middleColumn.setViewVisible('top', false);
-            }
-        }
-        if (data.bottom) {
-            this._bottomView?.restoreExpandedSize(data.bottom.size);
-            this._bottomView?.setCollapsed(data.bottom.collapsed ?? false);
-            this._middleColumn.resizeView(
-                'bottom',
-                data.bottom.collapsed
-                    ? (this._bottomView?.collapsedSize ?? data.bottom.size)
-                    : data.bottom.size
-            );
-            if (!data.bottom.visible) {
-                this._middleColumn.setViewVisible('bottom', false);
-            }
+
+            // both ways: showing also flushes the size restored above
+            this.setEdgeGroupVisible(position, !!state.visible);
         }
     }
 

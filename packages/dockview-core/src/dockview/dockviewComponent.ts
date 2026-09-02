@@ -3094,6 +3094,25 @@ export class DockviewComponent
             group.model.location = { type: 'edge', position };
             group.model.headerPosition = position;
 
+            // `setSize` surfaces as the group's `onDidChange` — consumed by a
+            // gridview LeafNode for a grid group, the overlay for a floating
+            // one, and the shell splitview for an edge group.
+            const resizeDisposable = group.onDidChange((event) => {
+                if (!event) {
+                    // constraint change, not a size request
+                    return;
+                }
+                const size =
+                    position === 'left' || position === 'right'
+                        ? event.width
+                        : event.height;
+                if (typeof size !== 'number') {
+                    // cross axis, which the shell splitview does not own
+                    return;
+                }
+                this._shellManager?.resizeEdgeGroup(position, size);
+            });
+
             // When the group becomes empty: an auto-reveal edge tears down to
             // zero footprint; every other edge group collapses to its strip.
             const autoCollapseDisposable = group.model.onDidRemovePanel(() => {
@@ -3118,7 +3137,14 @@ export class DockviewComponent
                 }
             });
 
-            service.add(position, group, autoCollapseDisposable);
+            service.add(
+                position,
+                group,
+                new CompositeDisposable(
+                    autoCollapseDisposable,
+                    resizeDisposable
+                )
+            );
             if (options.autoHide !== undefined) {
                 service.setAutoHide(group, options.autoHide);
             }
