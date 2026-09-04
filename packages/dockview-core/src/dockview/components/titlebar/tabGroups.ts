@@ -19,7 +19,6 @@ import {
 import { DockviewComponent } from '../../dockviewComponent';
 import { DockviewGroupPanel } from '../../dockviewGroupPanel';
 import { DockviewHeaderDirection } from '../../options';
-import { Position } from '../../../dnd/droptarget';
 import { resolveDndCapabilities } from '../../dndCapabilities';
 import { Tab } from '../tab/tab';
 import { ITabGroup } from '../../tabGroup';
@@ -30,6 +29,7 @@ import {
     DroptargetEvent,
     DroptargetOptions,
     IDropTarget,
+    Position,
 } from '../../../dnd/droptarget';
 import {
     ITabGroupIndicator,
