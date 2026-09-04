@@ -1148,6 +1148,75 @@ describe('tabs - animation', () => {
             expect(getAnimState(tabs)).toBeNull();
         });
 
+        test('dragleave does not clear an overlay another target rendered (#1612)', () => {
+            // The anchor container is shared with the group's content drop
+            // target, which renders into it on the frame the cursor leaves
+            // the strip. Only the header's own overlay may be cleared here.
+            const clearMock = jest.fn();
+            const { tabs, group } = createTabs({ tabAnimation: 'smooth' });
+
+            const contentContainer = document.createElement('div');
+
+            (group.model as any).dropTargetContainer = {
+                renderedOutline: contentContainer,
+                model: { clear: clearMock, exists: () => true },
+            };
+
+            const panelA = createMockPanel('panel-a');
+            tabs.openPanel(panelA, 0);
+
+            const elements = getTabElements(tabs);
+            mockTabRect(elements[0], { left: 0, width: 80 });
+
+            (dataTransfer.getPanelData as jest.Mock).mockReturnValue(
+                new dataTransfer.PanelTransfer(
+                    'test-accessor',
+                    'other-group',
+                    'external-panel'
+                )
+            );
+
+            const tabsList = (tabs as any)._tabsList as HTMLElement;
+            fireEvent.dragOver(tabsList);
+            expect(getAnimState(tabs)).not.toBeNull();
+
+            tabsList.dispatchEvent(new Event('dragleave', { bubbles: true }));
+
+            expect(clearMock).not.toHaveBeenCalled();
+            expect(getAnimState(tabs)).toBeNull();
+        });
+
+        test('dragleave clears an overlay this header rendered (#1612)', () => {
+            const clearMock = jest.fn();
+            const { tabs, group } = createTabs({ tabAnimation: 'smooth' });
+
+            const panelA = createMockPanel('panel-a');
+            tabs.openPanel(panelA, 0);
+
+            const elements = getTabElements(tabs);
+            mockTabRect(elements[0], { left: 0, width: 80 });
+
+            // The live overlay belongs to one of this strip's own tabs.
+            (group.model as any).dropTargetContainer = {
+                renderedOutline: elements[0],
+                model: { clear: clearMock, exists: () => true },
+            };
+
+            (dataTransfer.getPanelData as jest.Mock).mockReturnValue(
+                new dataTransfer.PanelTransfer(
+                    'test-accessor',
+                    'other-group',
+                    'external-panel'
+                )
+            );
+
+            const tabsList = (tabs as any)._tabsList as HTMLElement;
+            fireEvent.dragOver(tabsList);
+            tabsList.dispatchEvent(new Event('dragleave', { bubbles: true }));
+
+            expect(clearMock).toHaveBeenCalledTimes(1);
+        });
+
         test('intra-group dragover clears dropTargetContainer overlay (panel→tab)', () => {
             // When an intra-group drag passes over the panel content area the
             // anchor overlay may be set there. On re-entering the tab strip the

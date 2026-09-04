@@ -21,6 +21,15 @@ export class DropTargetAnchorContainer extends CompositeDisposable {
      */
     private _pendingClear: ReturnType<typeof setTimeout> | undefined;
 
+    /**
+     * The element the live overlay was rendered for, `undefined` when nothing
+     * is showing. The container is shared by every drop target, so a caller
+     * tearing down only its own overlay must check this before `clear()`.
+     */
+    get renderedOutline(): HTMLElement | undefined {
+        return this._model ? this._outline : undefined;
+    }
+
     get disabled(): boolean {
         return this._disabled;
     }

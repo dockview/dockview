@@ -157,7 +157,10 @@
                     // `?dnd=html5` swaps in the native HTML5 backend (needed to
                     // exercise the pinned row's pin-by-drag-in path, which reads
                     // the drag payload the main strip's HTML5 source populates).
-                    dndCompass: true,
+                    // `?compass=0` turns the compass off so the plain
+                    // cursor-quadrant drop resolution can be exercised; on by
+                    // default so the compass specs are unaffected.
+                    dndCompass: params.get('compass') !== '0',
                     dndStrategy:
                         params.get('dnd') === 'html5' ? 'html5' : 'pointer',
                     // Custom drop-position resolver (opt-in via `?resolver=`),
@@ -655,6 +658,25 @@
                     activeGroupId: () => dockview.activeGroup?.id,
                     // Two side-by-side groups for keyboard navigation — like
                     // setupDndCompass but with stable ids the spec can compare.
+                    // Four groups in the four quadrants, with stable ids, for
+                    // drop-target boundary specs.
+                    setupQuad: () => {
+                        panels['tl'] = dockview.addPanel({
+                            id: 'tl', component: 'default', title: 'tl',
+                        });
+                        panels['tr'] = dockview.addPanel({
+                            id: 'tr', component: 'default', title: 'tr',
+                            position: { direction: 'right', referencePanel: 'tl' },
+                        });
+                        panels['bl'] = dockview.addPanel({
+                            id: 'bl', component: 'default', title: 'bl',
+                            position: { direction: 'below', referencePanel: 'tl' },
+                        });
+                        panels['br'] = dockview.addPanel({
+                            id: 'br', component: 'default', title: 'br',
+                            position: { direction: 'below', referencePanel: 'tr' },
+                        });
+                    },
                     setupTwoGroups: () => {
                         panels['one'] = dockview.addPanel({
                             id: 'one',

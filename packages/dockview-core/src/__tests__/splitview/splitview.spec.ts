@@ -118,6 +118,26 @@ describe('splitview', () => {
         splitview.dispose();
     });
 
+    test('Sizing.Split halves the view it splits, not the branch (#1612)', () => {
+        const splitview = new Splitview(container, {
+            orientation: Orientation.HORIZONTAL,
+        });
+        splitview.layout(600, 100);
+
+        splitview.addView(new Testview(0, 1000), 400);
+        splitview.addView(new Testview(0, 1000), 200);
+
+        // Split the first view, inserting after it: the newcomer takes half
+        // of that view and the second view keeps its size.
+        splitview.addView(new Testview(0, 1000), Sizing.Split(0), 1);
+
+        expect(splitview.getViewSize(0)).toBe(200);
+        expect(splitview.getViewSize(1)).toBe(200);
+        expect(splitview.getViewSize(2)).toBe(200);
+
+        splitview.dispose();
+    });
+
     test('has views and sashes', () => {
         const splitview = new Splitview(container, {
             orientation: Orientation.HORIZONTAL,
