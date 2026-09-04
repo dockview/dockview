@@ -167,8 +167,13 @@ test.describe('tab-group chip reorder across a mixed strip (#1352)', () => {
     const chipLabels = (page: Page) =>
         page.evaluate(() => (window as any).__dv.chipLabels());
 
-    const setup = async (page: Page, dnd: 'html5' | 'pointer') => {
-        await page.goto(`/e2e/fixtures/index.html?smooth=1&dnd=${dnd}`);
+    const setup = async (
+        page: Page,
+        dnd: 'html5' | 'pointer',
+        animation: 'smooth' | 'default' = 'smooth'
+    ) => {
+        const smooth = animation === 'smooth' ? '&smooth=1' : '';
+        await page.goto(`/e2e/fixtures/index.html?dnd=${dnd}${smooth}`);
         await page.waitForFunction(() => (window as any).__ready === true);
         await page.evaluate(() =>
             (window as any).__dv.setupTemplateTabGroups()
@@ -237,6 +242,54 @@ test.describe('tab-group chip reorder across a mixed strip (#1352)', () => {
             await expect
                 .poll(() => chipLabels(page))
                 .toEqual(['Feature', 'Monitoring']);
+        });
+
+        test(`[${dnd}] a tab dropped on a chip lands before that group`, async ({
+            page,
+        }) => {
+            // Default animation: smooth mode routes an internal drag through
+            // the strip-level commit, which would cover for a chip that never
+            // accepts the drop. Here the chip's own target has to work.
+            await setup(page, dnd, 'default');
+
+            // The chip is the affordance for the slot before its group: it
+            // sits ahead of the group's first tab, so no neighbouring tab's
+            // zone covers that position.
+            const billing = (await page
+                .locator('.dv-tab', { hasText: 'Billing' })
+                .boundingBox())!;
+            const monitoring = (await page
+                .locator('.dv-tab-group-chip', { hasText: 'Monitoring' })
+                .boundingBox())!;
+            const y = billing.y + billing.height / 2;
+            await page.mouse.move(billing.x + billing.width / 2, y);
+            await page.mouse.down();
+            await page.mouse.move(billing.x + billing.width / 2 - 6, y, {
+                steps: 3,
+            });
+            await page.mouse.move(
+                monitoring.x + monitoring.width / 2,
+                y,
+                { steps: 16 }
+            );
+            await page.waitForTimeout(400);
+            await page.mouse.move(monitoring.x + monitoring.width / 2 + 1, y);
+            await page.mouse.up();
+
+            await expect
+                .poll(() =>
+                    page.evaluate(() => (window as any).__dv.tabTitles())
+                )
+                .toEqual([
+                    'Dashboard',
+                    'Settings',
+                    'Users',
+                    'Analytics',
+                    'Billing',
+                    'Reports',
+                    'Notifications',
+                    'Logs',
+                ]);
         });
 
         test(`[${dnd}] a chip dropped over a tab of another group lands outside it`, async ({

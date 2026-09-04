@@ -21,6 +21,7 @@ import {
     LocalSelectionTransfer,
     PanelTransfer,
 } from '../../../../dnd/dataTransfer';
+import { PointerDragController } from '../../../../dnd/pointer/pointerDragController';
 
 function createTab(id: string): IValueDisposable<Tab> {
     const element = document.createElement('div');
@@ -744,6 +745,82 @@ describe('TabGroupManager', () => {
 
             setTransfer('accessor-1', 'g2');
             expect(canDisplayOverlay(manager)).toBe(true);
+        });
+    });
+
+    describe('pointer drag wiring', () => {
+        // The chip covers the "insert before this group" slot. Tabs build a
+        // drop target per backend; the chip must too, or the slot is a dead
+        // zone whenever the pointer backend owns the gesture
+        // (`dndStrategy: 'pointer'`, and touch under `auto`).
+        test('a pointer drop released over the chip fires onChipDrop', () => {
+            const tabs = [createTab('p1'), createTab('p2')];
+            const tg = makeGroup('g1', ['p1']);
+            const { manager, callbacks } = createManager({
+                tabs,
+                tabGroups: [tg],
+                options: { dndStrategy: 'pointer' },
+            });
+
+            manager.update();
+            const chipEl = manager.chipRenderers.get('g1')!.chip.element;
+            document.body.appendChild(chipEl);
+            jest.spyOn(chipEl, 'offsetWidth', 'get').mockReturnValue(60);
+            jest.spyOn(chipEl, 'offsetHeight', 'get').mockReturnValue(30);
+            jest.spyOn(chipEl, 'getBoundingClientRect').mockReturnValue({
+                top: 0,
+                left: 0,
+                right: 60,
+                bottom: 30,
+                width: 60,
+                height: 30,
+                x: 0,
+                y: 0,
+                toJSON: () => ({}),
+            } as DOMRect);
+            const elementsFromPoint = jest
+                .spyOn(document, 'elementsFromPoint')
+                .mockReturnValue([chipEl]);
+
+            LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
+                [new PanelTransfer('accessor-1', 'group-1', 'p2')],
+                PanelTransfer.prototype
+            );
+
+            const controller = PointerDragController.getInstance();
+            controller.beginDrag({
+                pointerEvent: new PointerEvent('pointerdown', {
+                    pointerId: 1,
+                    pointerType: 'touch',
+                }),
+                source: tabs[1].value.element,
+                getData: () => ({ dispose: jest.fn() }),
+            });
+            window.dispatchEvent(
+                new PointerEvent('pointermove', {
+                    pointerId: 1,
+                    pointerType: 'touch',
+                    clientX: 10,
+                    clientY: 15,
+                })
+            );
+            window.dispatchEvent(
+                new PointerEvent('pointerup', {
+                    pointerId: 1,
+                    pointerType: 'touch',
+                    clientX: 10,
+                    clientY: 15,
+                })
+            );
+
+            expect(callbacks.onChipDrop).toHaveBeenCalledTimes(1);
+
+            controller.cancel();
+            LocalSelectionTransfer.getInstance<PanelTransfer>().clearData(
+                PanelTransfer.prototype
+            );
+            elementsFromPoint.mockRestore();
+            chipEl.remove();
         });
     });
 

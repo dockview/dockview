@@ -19,13 +19,18 @@ import {
 import { DockviewComponent } from '../../dockviewComponent';
 import { DockviewGroupPanel } from '../../dockviewGroupPanel';
 import { DockviewHeaderDirection } from '../../options';
+import { Position } from '../../../dnd/droptarget';
 import { resolveDndCapabilities } from '../../dndCapabilities';
 import { Tab } from '../tab/tab';
 import { ITabGroup } from '../../tabGroup';
 import { applyTabGroupAccent } from '../../tabGroupAccent';
 import { TabGroupChip } from './tabGroupChip';
 import { ITabGroupChipRenderer } from '../../framework';
-import { Droptarget, DroptargetEvent } from '../../../dnd/droptarget';
+import {
+    DroptargetEvent,
+    DroptargetOptions,
+    IDropTarget,
+} from '../../../dnd/droptarget';
 import {
     ITabGroupIndicator,
     NoneTabGroupIndicator,
@@ -76,7 +81,8 @@ interface ChipRendererEntry {
     /** Disposes the two drag sources + their shared dragend listener. */
     dragSourcesDisposable: IDisposable | undefined;
     disposable: IDisposable;
-    dropTarget: Droptarget;
+    dropTarget: IDropTarget;
+    pointerDropTarget: IDropTarget;
 }
 
 export class TabGroupManager {
@@ -161,7 +167,9 @@ export class TabGroupManager {
     updateDirection(): void {
         const isVertical = this._ctx.getDirection() === 'vertical';
         for (const [, entry] of this._chipRenderers) {
-            entry.dropTarget.setTargetZones(isVertical ? ['top'] : ['left']);
+            const zones: Position[] = isVertical ? ['top'] : ['left'];
+            entry.dropTarget.setTargetZones(zones);
+            entry.pointerDropTarget.setTargetZones(zones);
         }
     }
 
@@ -574,13 +582,13 @@ export class TabGroupManager {
 
         // The chip sits before its group's first tab in the DOM, so it
         // covers the "drop before the group" position. Without a drop
-        // target here, dropping a tab over the chip is a dead zone,
-        // particularly visible when the group is first in the tabs list
-        // and there's no preceding tab whose right zone covers position 0.
-        // The smooth animation path already shifts the chip's margin to
-        // open a gap, so suppress the overlay in that mode.
+        // target here, dropping over the chip is a dead zone, particularly
+        // visible when the group is first in the tabs list and there's no
+        // preceding tab whose right zone covers position 0. One target per
+        // backend, as tabs have: an HTML5-only target leaves the slot dead
+        // whenever the pointer backend owns the gesture.
         const isVertical = this._ctx.getDirection() === 'vertical';
-        const dropTarget = new Droptarget(chip.element, {
+        const dropTargetOptions: DroptargetOptions = {
             acceptedTargetZones: isVertical ? ['top'] : ['left'],
             overlayModel: {
                 activationSize: { value: 100, type: 'percentage' },
@@ -614,12 +622,23 @@ export class TabGroupManager {
                     'tab'
                 );
             },
-        });
+        };
+        const dropTarget = html5Backend.createDropTarget(
+            chip.element,
+            dropTargetOptions
+        );
+        const pointerDropTarget = pointerBackend.createDropTarget(
+            chip.element,
+            dropTargetOptions
+        );
+        const onDrop = (event: DroptargetEvent) => {
+            this._callbacks.onChipDrop(tabGroup, event);
+        };
         disposables.push(
             dropTarget,
-            dropTarget.onDrop((event) => {
-                this._callbacks.onChipDrop(tabGroup, event);
-            })
+            dropTarget.onDrop(onDrop),
+            pointerDropTarget,
+            pointerDropTarget.onDrop(onDrop)
         );
 
         const disposable = new CompositeDisposable(...disposables);
@@ -630,6 +649,7 @@ export class TabGroupManager {
             dragSourcesDisposable: dragSources.disposable,
             disposable,
             dropTarget,
+            pointerDropTarget,
         });
 
         // Group is born collapsed (cross-group drop, layout restore, etc.):
