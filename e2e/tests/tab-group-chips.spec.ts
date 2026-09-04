@@ -149,3 +149,126 @@ test.describe('tab-group chip repeated moves (#1410)', () => {
             .toEqual(['Feature', 'Monitoring']);
     });
 });
+
+/**
+ * Chip reorder across the docs "Tab Groups" strip (#1352): an expanded
+ * Feature group, an ungrouped Billing tab and a collapsed Monitoring group.
+ * A group pushed to the right of the strip must be draggable back to the
+ * left, whichever drop zone the release lands on.
+ *
+ * The strip's commit path for a chip drag is HTML5-only — the tabs list's
+ * capturing `dragover`/`drop` listeners — so the same gesture is exercised
+ * under both `dndStrategy` values (`?dnd=`), which the fixture reads. The
+ * pointer cases are `test.fail()`: the pointer backend has no equivalent
+ * commit path, so a chip released over the strip is dropped on the floor
+ * and only the void container to the right of the tabs works.
+ */
+test.describe('tab-group chip reorder across a mixed strip (#1352)', () => {
+    const chipLabels = (page: Page) =>
+        page.evaluate(() => (window as any).__dv.chipLabels());
+
+    const setup = async (page: Page, dnd: 'html5' | 'pointer') => {
+        await page.goto(`/e2e/fixtures/index.html?smooth=1&dnd=${dnd}`);
+        await page.waitForFunction(() => (window as any).__ready === true);
+        await page.evaluate(() =>
+            (window as any).__dv.setupTemplateTabGroups()
+        );
+        await expect(page.locator('.dv-tab-group-chip')).toHaveCount(2);
+    };
+
+    // Drag a chip to an absolute x within the strip. The final one-pixel move
+    // re-dispatches `dragover` against the settled layout: the gap animation
+    // slides elements out from under a stationary cursor, and a release with
+    // no intervening move resolves against a node that was never dragged
+    // over.
+    const dragChipTo = async (page: Page, label: string, x: number) => {
+        const chip = (await page
+            .locator('.dv-tab-group-chip', { hasText: label })
+            .boundingBox())!;
+        const y = chip.y + chip.height / 2;
+        await page.mouse.move(chip.x + chip.width / 2, y);
+        await page.mouse.down();
+        await page.mouse.move(chip.x + chip.width / 2 + 6, y, { steps: 3 });
+        await page.mouse.move(x, y, { steps: 16 });
+        await page.waitForTimeout(400);
+        await page.mouse.move(x + 1, y);
+        await page.mouse.up();
+    };
+
+    // Push Feature past the last tab so Monitoring leads the strip.
+    const moveFeatureToTheRight = async (page: Page) => {
+        const last = (await page.locator('.dv-tab').last().boundingBox())!;
+        await dragChipTo(page, 'Feature', last.x + last.width - 3);
+        await expect
+            .poll(() => chipLabels(page))
+            .toEqual(['Monitoring', 'Feature']);
+    };
+
+    for (const dnd of ['html5', 'pointer'] as const) {
+        test(`[${dnd}] a group moved right returns to the left of an ungrouped tab`, async ({
+            page,
+        }) => {
+            test.fail(dnd === 'pointer');
+            await setup(page, dnd);
+            await moveFeatureToTheRight(page);
+
+            const billing = (await page
+                .locator('.dv-tab', { hasText: 'Billing' })
+                .boundingBox())!;
+            await dragChipTo(page, 'Feature', billing.x + 3);
+            await expect
+                .poll(() => chipLabels(page))
+                .toEqual(['Feature', 'Monitoring']);
+        });
+
+        test(`[${dnd}] a group moved right returns to the left of another group's chip`, async ({
+            page,
+        }) => {
+            test.fail(dnd === 'pointer');
+            await setup(page, dnd);
+            await moveFeatureToTheRight(page);
+
+            const monitoring = (await page
+                .locator('.dv-tab-group-chip', { hasText: 'Monitoring' })
+                .boundingBox())!;
+            await dragChipTo(
+                page,
+                'Feature',
+                monitoring.x + monitoring.width / 2
+            );
+            await expect
+                .poll(() => chipLabels(page))
+                .toEqual(['Feature', 'Monitoring']);
+        });
+
+        test(`[${dnd}] a chip dropped over a tab of another group lands outside it`, async ({
+            page,
+        }) => {
+            test.fail(dnd === 'pointer');
+            await setup(page, dnd);
+
+            // Monitoring starts last; drop it over the first tab of the
+            // Feature group. A group can never land inside another group, so
+            // it takes the slot before Feature.
+            const dashboard = (await page
+                .locator('.dv-tab', { hasText: 'Dashboard' })
+                .boundingBox())!;
+            await dragChipTo(page, 'Monitoring', dashboard.x + 3);
+            await expect
+                .poll(() => chipLabels(page))
+                .toEqual(['Monitoring', 'Feature']);
+            await expect
+                .poll(() => page.evaluate(() => (window as any).__dv.tabTitles()))
+                .toEqual([
+                    'Reports',
+                    'Notifications',
+                    'Logs',
+                    'Dashboard',
+                    'Settings',
+                    'Users',
+                    'Analytics',
+                    'Billing',
+                ]);
+        });
+    }
+});
