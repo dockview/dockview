@@ -580,13 +580,10 @@ export class TabGroupManager {
             );
         }
 
-        // The chip sits before its group's first tab in the DOM, so it
-        // covers the "drop before the group" position. Without a drop
-        // target here, dropping over the chip is a dead zone, particularly
-        // visible when the group is first in the tabs list and there's no
-        // preceding tab whose right zone covers position 0. One target per
-        // backend, as tabs have: an HTML5-only target leaves the slot dead
-        // whenever the pointer backend owns the gesture.
+        // The chip sits before its group's first tab in the DOM, so it covers
+        // the "drop before the group" position — no preceding tab's right
+        // zone reaches it when the group leads the strip. One target per
+        // backend, as tabs have.
         const isVertical = this._ctx.getDirection() === 'vertical';
         const dropTargetOptions: DroptargetOptions = {
             acceptedTargetZones: isVertical ? ['top'] : ['left'],
@@ -602,11 +599,10 @@ export class TabGroupManager {
                 }
                 const data = getPanelData();
                 if (this._ctx.accessor.id === data?.viewId) {
-                    // Smooth-reorder owns the in-flight visual for a
-                    // single tab, so the chip's overlay stays suppressed
-                    // for one. A dragged group keeps it: the gap for that
-                    // drag is drawn by shifting this chip aside, which
-                    // marks no boundary of its own.
+                    // Smooth-reorder owns the in-flight visual for a single
+                    // tab. A dragged group keeps the chip's overlay: its gap
+                    // is drawn by shifting this chip aside, which marks no
+                    // boundary of its own.
                     if (
                         this._ctx.accessor.options.theme?.tabAnimation ===
                             'smooth' &&

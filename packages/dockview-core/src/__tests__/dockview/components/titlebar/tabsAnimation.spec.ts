@@ -1784,8 +1784,10 @@ describe('tabs - animation', () => {
         });
 
         test('a chip dropped on another chip commits a group move', () => {
-            const { tabs, accessor, group, tabGroup, chip } =
-                setupChipDrag('default', ['panel-a', 'panel-b', 'panel-c']);
+            const { tabs, accessor, group, tabGroup, chip } = setupChipDrag(
+                'default',
+                ['panel-a', 'panel-b', 'panel-c']
+            );
 
             const moveTabGroupMock = jest.fn();
             const moveGroupOrPanelMock = jest.fn();
@@ -1817,17 +1819,16 @@ describe('tabs - animation', () => {
                 position: 'left',
             });
 
-            // The group move goes to the model directly. Routing it through
-            // the panel drop path would hand it to `moveGroupOrPanel`, which
-            // rebuilds the tab group under a new id.
+            // Straight to the model: the panel drop path would hand it to
+            // `moveGroupOrPanel`, which rebuilds the group under a new id.
             expect(moveTabGroupMock).toHaveBeenCalledWith(
                 'tg-1',
                 insertionIndex
             );
             expect(moveGroupOrPanelMock).not.toHaveBeenCalled();
             expect(drops).toHaveLength(0);
-            // The anim state is spent, so the pointer backend's drag-end
-            // commit skips this drag instead of committing it twice.
+            // Spent anim state: the pointer drag-end commit skips this
+            // release rather than committing it twice.
             expect(getAnimState(tabs)).toBeNull();
 
             transfer.clearData(dataTransfer.PanelTransfer.prototype);
@@ -1868,104 +1869,101 @@ describe('tabs - animation', () => {
             );
 
             // In smooth mode the chip and tab drop targets stay silent, so
-            // without a drag-end commit the group snapped back on release.
+            // only the drag-end commit can land this release.
             expect(moveTabGroupMock).toHaveBeenCalledWith('tg-1', 2);
         });
 
         // A group can never land inside another group: the reorder controller
         // snaps a chip drag out of any group range it falls in. The per-tab
-        // overlay doesn't know that, so it advertises the plain left/right
-        // slot of the tab under the cursor — including slots between two tabs
-        // of another group, where the drop cannot go.
-        // `test.failing`: the per-tab overlay resolves a plain left/right
-        // slot and doesn't consult the group-boundary snapping, so it
-        // advertises a slot the drop can't use. The annotation trips once
-        // the two agree.
-        test.failing(
-            'the overlay shown over a grouped tab matches where a dragged group lands',
-            () => {
-                const { tabs, group, tabGroup, chip, elements } = setupChipDrag(
-                    'default',
-                    ['panel-a', 'panel-b', 'panel-c']
+        // overlay doesn't consult that, so it offers the plain left/right slot
+        // of the tab under the cursor — including slots between two tabs of
+        // another group, which the drop can't use. `test.failing` until an
+        // offered slot is the slot taken.
+        test.failing('the overlay shown over a grouped tab matches where a dragged group lands', () => {
+            const { tabs, group, tabGroup, chip, elements } = setupChipDrag(
+                'default',
+                ['panel-a', 'panel-b', 'panel-c']
+            );
+
+            // A second group holds panel-b + panel-c; tg-1 (panel-a) is the
+            // one being dragged.
+            const otherGroup = new TabGroup('tg-2', {
+                label: 'Other',
+                color: 'purple',
+            });
+            otherGroup.addPanel('panel-b');
+            otherGroup.addPanel('panel-c');
+            (group.model as any).getTabGroups = () => [tabGroup, otherGroup];
+            (group.model as any).getTabGroupForPanel = (pid: string) =>
+                tabGroup.containsPanel(pid)
+                    ? tabGroup
+                    : otherGroup.containsPanel(pid)
+                      ? otherGroup
+                      : undefined;
+
+            const otherChip = new TabGroupChip();
+            otherChip.init({ tabGroup: otherGroup, api: fromPartial({}) });
+            mockTabRect(otherChip.element, { left: 80, width: 30 });
+            (
+                (tabs as any)._tabGroupManager._chipRenderers as Map<
+                    string,
+                    any
+                >
+            ).set('tg-2', {
+                chip: otherChip,
+                disposable: { dispose: jest.fn() },
+            });
+
+            for (let i = 0; i < elements.length; i++) {
+                mockTabRect(elements[i], { left: i * 80, width: 80 });
+                jest.spyOn(elements[i], 'offsetWidth', 'get').mockReturnValue(
+                    80
                 );
-
-                // A second group holds panel-b + panel-c; tg-1 (panel-a) is the
-                // one being dragged.
-                const otherGroup = new TabGroup('tg-2', {
-                    label: 'Other',
-                    color: 'purple',
-                });
-                otherGroup.addPanel('panel-b');
-                otherGroup.addPanel('panel-c');
-                (group.model as any).getTabGroups = () => [tabGroup, otherGroup];
-                (group.model as any).getTabGroupForPanel = (pid: string) =>
-                    tabGroup.containsPanel(pid)
-                        ? tabGroup
-                        : otherGroup.containsPanel(pid)
-                          ? otherGroup
-                          : undefined;
-
-                const otherChip = new TabGroupChip();
-                otherChip.init({ tabGroup: otherGroup, api: fromPartial({}) });
-                mockTabRect(otherChip.element, { left: 80, width: 30 });
-                (
-                    (tabs as any)._tabGroupManager._chipRenderers as Map<string, any>
-                ).set('tg-2', {
-                    chip: otherChip,
-                    disposable: { dispose: jest.fn() },
-                });
-
-                for (let i = 0; i < elements.length; i++) {
-                    mockTabRect(elements[i], { left: i * 80, width: 80 });
-                    jest.spyOn(elements[i], 'offsetWidth', 'get').mockReturnValue(
-                        80
-                    );
-                    jest.spyOn(elements[i], 'offsetHeight', 'get').mockReturnValue(
-                        30
-                    );
-                }
-
-                const transfer = dataTransfer.LocalSelectionTransfer.getInstance();
-                transfer.setData(
-                    [
-                        new dataTransfer.PanelTransfer(
-                            'test-accessor',
-                            'test-group',
-                            null,
-                            'tg-1'
-                        ),
-                    ],
-                    dataTransfer.PanelTransfer.prototype
+                jest.spyOn(elements[i], 'offsetHeight', 'get').mockReturnValue(
+                    30
                 );
-
-                triggerChipDragStart(tabs, tabGroup, chip);
-
-                // Cursor in the right half of panel-b, the first tab of tg-2.
-                const clientX = 140;
-                fireEvent.dragOver(elements[1], { clientX, clientY: 15 });
-                const shownState = (tabs as any)._tabs[1].value.dropTarget.state;
-                // Either no slot is offered, or the one offered is the one
-                // the drop takes.
-                const shownIndex =
-                    shownState === undefined
-                        ? undefined
-                        : shownState === 'right'
-                          ? 2
-                          : 1;
-
-                (tabs as any).handleDragOver({ clientX });
-                const committedIndex = getAnimState(tabs).currentInsertionIndex;
-
-                // Shown: a line on the leading edge of panel-b, offering the
-                // slot before the second group. Committed: index 3, past the
-                // whole group.
-                if (shownIndex !== undefined) {
-                    expect(shownIndex).toBe(committedIndex);
-                }
-
-                transfer.clearData(dataTransfer.PanelTransfer.prototype);
             }
-        );
+
+            const transfer = dataTransfer.LocalSelectionTransfer.getInstance();
+            transfer.setData(
+                [
+                    new dataTransfer.PanelTransfer(
+                        'test-accessor',
+                        'test-group',
+                        null,
+                        'tg-1'
+                    ),
+                ],
+                dataTransfer.PanelTransfer.prototype
+            );
+
+            triggerChipDragStart(tabs, tabGroup, chip);
+
+            // Cursor in the right half of panel-b, the first tab of tg-2.
+            const clientX = 140;
+            fireEvent.dragOver(elements[1], { clientX, clientY: 15 });
+            const shownState = (tabs as any)._tabs[1].value.dropTarget.state;
+            // Either no slot is offered, or the one offered is the one
+            // the drop takes.
+            const shownIndex =
+                shownState === undefined
+                    ? undefined
+                    : shownState === 'right'
+                      ? 2
+                      : 1;
+
+            (tabs as any).handleDragOver({ clientX });
+            const committedIndex = getAnimState(tabs).currentInsertionIndex;
+
+            // Shown: a line on the leading edge of panel-b, offering the
+            // slot before the second group. Committed: index 3, past the
+            // whole group.
+            if (shownIndex !== undefined) {
+                expect(shownIndex).toBe(committedIndex);
+            }
+
+            transfer.clearData(dataTransfer.PanelTransfer.prototype);
+        });
 
         // Regression for #1243: when a tab group chip is dragged from one
         // split into another and dropped next to an existing tab, the

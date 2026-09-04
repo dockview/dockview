@@ -156,12 +156,11 @@ test.describe('tab-group chip repeated moves (#1410)', () => {
  * A group pushed to the right of the strip must be draggable back to the
  * left, whichever drop zone the release lands on.
  *
- * In smooth mode every element-level drop target on the strip refuses
- * internal drags — the gap animation owns the in-flight visual — so the
- * commit runs at strip level. Both `dndStrategy` values (`?dnd=`, read by
- * the fixture) are exercised because those two paths are separate: the
- * capturing `dragover`/`drop` listeners on the tabs list for HTML5, and the
- * drag-end commit in `TabReorderController` for pointer.
+ * Every case runs under both `dndStrategy` values (`?dnd=`, read by the
+ * fixture): in smooth mode the commit runs at strip level, and those paths
+ * are separate per backend — the tabs list's capturing `dragover`/`drop`
+ * listeners for HTML5, the drag-end commit in `TabReorderController` for
+ * pointer.
  */
 test.describe('tab-group chip reorder across a mixed strip (#1352)', () => {
     const chipLabels = (page: Page) =>
@@ -184,8 +183,7 @@ test.describe('tab-group chip reorder across a mixed strip (#1352)', () => {
     // Drag a chip to an absolute x within the strip. The final one-pixel move
     // is a harness detail: Playwright's synthetic HTML5 drag coalesces the
     // interpolated moves, so the last `dragover` can land tens of pixels short
-    // of the release point. The extra move dispatches one at the coordinates
-    // the drop is about to resolve against.
+    // of the release point.
     const dragChipTo = async (page: Page, label: string, x: number) => {
         const chip = (await page
             .locator('.dv-tab-group-chip', { hasText: label })
@@ -247,14 +245,10 @@ test.describe('tab-group chip reorder across a mixed strip (#1352)', () => {
         test(`[${dnd}] a tab dropped on a chip lands before that group`, async ({
             page,
         }) => {
-            // Default animation: smooth mode routes an internal drag through
-            // the strip-level commit, which would cover for a chip that never
-            // accepts the drop. Here the chip's own target has to work.
+            // Default animation, so the chip's own drop target has to work:
+            // smooth mode routes an internal drag through the strip-level
+            // commit, which covers for a chip that never accepts the drop.
             await setup(page, dnd, 'default');
-
-            // The chip is the affordance for the slot before its group: it
-            // sits ahead of the group's first tab, so no neighbouring tab's
-            // zone covers that position.
             const billing = (await page
                 .locator('.dv-tab', { hasText: 'Billing' })
                 .boundingBox())!;

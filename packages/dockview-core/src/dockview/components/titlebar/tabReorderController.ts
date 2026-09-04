@@ -246,23 +246,16 @@ export class TabReorderController extends CompositeDisposable {
         clientY: number;
         pointerEvent: PointerEvent;
     }): void {
-        // Smooth-mode reorder within the strip: the pointer-backend analog of
-        // the HTML5 tabs-list `drop` commit. In smooth mode the per-tab and
-        // chip pointer drop targets don't latch a drop state for an internal
-        // drag, so their `onDrop` never fires; commit from the computed
-        // insertion index when the drag ends over the strip. This covers both
-        // single-row and multi-row wrap layouts. It can't double-commit: the
-        // drop targets that do fire (`tab.onDrop`, the chip's) null
-        // `_animState` first — the backend calls `handleDrop` before
-        // `onDragEnd` — so this is skipped whenever one of them handled the
-        // release. A release over the void container leaves the strip, so
-        // `isPointInsideTabsList` is false and that container's own commit
-        // path owns it.
+        // The pointer-backend analog of the HTML5 tabs-list `drop` commit: in
+        // smooth mode the per-element drop targets don't latch a state for an
+        // internal drag, so nothing else commits a release over the strip.
+        // A target that does fire nulls `_animState` before this runs, and a
+        // release over the void container is outside the strip, so neither
+        // double-commits.
         if (
             e &&
             this._animState &&
-            // `sourceIndex === -1` is a cross-group drag, handled by the
-            // cross-group machinery rather than by an insertion index here.
+            // A cross-group drag has no insertion index of ours to commit.
             this._animState.sourceIndex !== -1 &&
             this._animState.currentInsertionIndex !== null &&
             this.isPointInsideTabsList(e.clientX, e.clientY)

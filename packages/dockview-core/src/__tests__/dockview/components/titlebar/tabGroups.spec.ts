@@ -673,10 +673,9 @@ describe('TabGroupManager', () => {
     });
 
     describe('chip drop target', () => {
-        // The chip covers the "insert before this group" slot. Smooth-reorder
-        // owns the in-flight visual for a single tab, so the chip's overlay
-        // stays suppressed there; a dragged group has no other affordance for
-        // that slot, so it keeps one.
+        // Smooth-reorder owns the in-flight visual for a single tab, so the
+        // chip's overlay is suppressed for one; a dragged group has no other
+        // affordance for the slot before a group, so it keeps one.
         const setTransfer = (viewId: string, tabGroupId?: string) => {
             LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
                 [
@@ -749,10 +748,9 @@ describe('TabGroupManager', () => {
     });
 
     describe('pointer drag wiring', () => {
-        // The chip covers the "insert before this group" slot. Tabs build a
-        // drop target per backend; the chip must too, or the slot is a dead
-        // zone whenever the pointer backend owns the gesture
-        // (`dndStrategy: 'pointer'`, and touch under `auto`).
+        // Tabs build a drop target per backend and the chip must too, or the
+        // slot before a group is a dead zone whenever the pointer backend
+        // owns the gesture (`dndStrategy: 'pointer'`, touch under `auto`).
         test('a pointer drop released over the chip fires onChipDrop', () => {
             const tabs = [createTab('p1'), createTab('p2')];
             const tg = makeGroup('g1', ['p1']);
