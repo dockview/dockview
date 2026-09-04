@@ -211,6 +211,10 @@ export interface IDropTarget extends IDisposable {
     disabled: boolean;
     setTargetZones(zones: Position[]): void;
     setOverlayModel(model: DroptargetOverlayModel): void;
+    /** Drop whatever this target is showing, for a consumer that commits a
+     *  drop this target never sees (a capturing listener that stops the
+     *  event, say) and so has to tear the overlay down itself. */
+    clearOverlay(): void;
 }
 
 export class Droptarget extends CompositeDisposable implements IDropTarget {

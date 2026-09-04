@@ -1345,6 +1345,7 @@ export class TabReorderController extends CompositeDisposable {
         // sibling dragover handler firing in the same tick) would
         // otherwise see stale data still referencing the old tabGroupId.
         this._tabGroupManager.disposeChipDrag(sourceTabGroupId);
+        this._tabGroupManager.clearChipDropOverlays();
 
         // Check if the tab group exists in this group (within-group reorder)
         // or in another group (cross-group move).

@@ -1445,6 +1445,14 @@ describe('tabs - animation', () => {
     });
 
     describe('chip drag (tab group)', () => {
+        // A `test.failing` body stops at the failing assertion, so per-test
+        // cleanup of the transfer singleton would never run.
+        afterEach(() => {
+            dataTransfer.LocalSelectionTransfer.getInstance().clearData(
+                dataTransfer.PanelTransfer.prototype
+            );
+        });
+
         function setupChipDrag(
             tabAnimation: TabAnimation | undefined,
             panelIds: string[] = ['panel-a', 'panel-b']
@@ -1961,8 +1969,6 @@ describe('tabs - animation', () => {
             if (shownIndex !== undefined) {
                 expect(shownIndex).toBe(committedIndex);
             }
-
-            transfer.clearData(dataTransfer.PanelTransfer.prototype);
         });
 
         // Regression for #1243: when a tab group chip is dragged from one

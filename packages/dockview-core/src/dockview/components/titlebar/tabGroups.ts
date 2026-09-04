@@ -173,6 +173,20 @@ export class TabGroupManager {
         }
     }
 
+    /**
+     * Drop any overlay the chips are showing. A group move is committed by a
+     * capturing listener on the tabs list that stops the event, so the chip
+     * target under the cursor never sees the drop that would clear its own.
+     */
+    clearChipDropOverlays(): void {
+        for (const [, entry] of this._chipRenderers) {
+            // Optional-chained because tests may inject minimal entries that
+            // skip the manager's normal `_ensureChipForGroup` flow.
+            entry.dropTarget?.clearOverlay();
+            entry.pointerDropTarget?.clearOverlay();
+        }
+    }
+
     snapshotChipWidths(): Map<string, number> {
         const widths = new Map<string, number>();
         for (const [groupId, entry] of this._chipRenderers) {

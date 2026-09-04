@@ -240,6 +240,11 @@ test.describe('tab-group chip reorder across a mixed strip (#1352)', () => {
             await expect
                 .poll(() => chipLabels(page))
                 .toEqual(['Feature', 'Monitoring']);
+
+            // The commit runs from a capturing listener that stops the event,
+            // so the chip's own target never sees the drop that would tear its
+            // overlay down.
+            await expect(page.locator('.dv-drop-target')).toHaveCount(0);
         });
 
         test(`[${dnd}] a tab dropped on a chip lands before that group`, async ({
