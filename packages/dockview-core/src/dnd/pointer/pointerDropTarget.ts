@@ -100,6 +100,10 @@ export class PointerDropTarget
         );
     }
 
+    clearOverlay(): void {
+        this._clearOwnOverlay();
+    }
+
     setTargetZones(zones: Position[]): void {
         this._acceptedTargetZonesSet = new Set(zones);
     }

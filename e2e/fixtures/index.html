@@ -765,6 +765,69 @@
                             monitoringId: monitoring.id,
                         };
                     },
+                    // The docs "Tab Groups" template layout: an expanded
+                    // Feature group, an ungrouped Billing tab and a collapsed
+                    // Monitoring group in a single group. The mixed
+                    // grouped/ungrouped strip that chip reorder drags cross.
+                    setupTemplateTabGroups: () => {
+                        const titles = {
+                            panel_1: 'Dashboard',
+                            panel_2: 'Settings',
+                            panel_3: 'Users',
+                            panel_4: 'Analytics',
+                            panel_5: 'Reports',
+                            panel_6: 'Billing',
+                            panel_7: 'Notifications',
+                            panel_8: 'Logs',
+                        };
+                        for (const id of Object.keys(titles)) {
+                            panels[id] = dockview.addPanel({
+                                id,
+                                component: 'default',
+                                title: titles[id],
+                            });
+                        }
+                        const groupId = panels['panel_1'].group.id;
+                        const feature = dockview.api.createTabGroup({
+                            groupId,
+                            label: 'Feature',
+                            color: 'blue',
+                        });
+                        for (const panelId of [
+                            'panel_1',
+                            'panel_2',
+                            'panel_3',
+                            'panel_4',
+                        ]) {
+                            dockview.api.addPanelToTabGroup({
+                                groupId,
+                                tabGroupId: feature.id,
+                                panelId,
+                            });
+                        }
+                        const monitoring = dockview.api.createTabGroup({
+                            groupId,
+                            label: 'Monitoring',
+                            color: 'purple',
+                        });
+                        for (const panelId of [
+                            'panel_5',
+                            'panel_7',
+                            'panel_8',
+                        ]) {
+                            dockview.api.addPanelToTabGroup({
+                                groupId,
+                                tabGroupId: monitoring.id,
+                                panelId,
+                            });
+                        }
+                        monitoring.collapse();
+                        return {
+                            groupId,
+                            featureId: feature.id,
+                            monitoringId: monitoring.id,
+                        };
+                    },
                     // DOM order of the tab-group chip labels — reflects the
                     // relative order of the tab groups in the strip.
                     chipLabels: () =>

@@ -25,7 +25,12 @@ import { ITabGroup } from '../../tabGroup';
 import { applyTabGroupAccent } from '../../tabGroupAccent';
 import { TabGroupChip } from './tabGroupChip';
 import { ITabGroupChipRenderer } from '../../framework';
-import { Droptarget, DroptargetEvent } from '../../../dnd/droptarget';
+import {
+    DroptargetEvent,
+    DroptargetOptions,
+    IDropTarget,
+    Position,
+} from '../../../dnd/droptarget';
 import {
     ITabGroupIndicator,
     NoneTabGroupIndicator,
@@ -76,7 +81,8 @@ interface ChipRendererEntry {
     /** Disposes the two drag sources + their shared dragend listener. */
     dragSourcesDisposable: IDisposable | undefined;
     disposable: IDisposable;
-    dropTarget: Droptarget;
+    dropTarget: IDropTarget;
+    pointerDropTarget: IDropTarget;
 }
 
 export class TabGroupManager {
@@ -161,7 +167,23 @@ export class TabGroupManager {
     updateDirection(): void {
         const isVertical = this._ctx.getDirection() === 'vertical';
         for (const [, entry] of this._chipRenderers) {
-            entry.dropTarget.setTargetZones(isVertical ? ['top'] : ['left']);
+            const zones: Position[] = isVertical ? ['top'] : ['left'];
+            entry.dropTarget.setTargetZones(zones);
+            entry.pointerDropTarget.setTargetZones(zones);
+        }
+    }
+
+    /**
+     * Drop any overlay the chips are showing. A group move is committed by a
+     * capturing listener on the tabs list that stops the event, so the chip
+     * target under the cursor never sees the drop that would clear its own.
+     */
+    clearChipDropOverlays(): void {
+        for (const [, entry] of this._chipRenderers) {
+            // Optional-chained because tests may inject minimal entries that
+            // skip the manager's normal `_ensureChipForGroup` flow.
+            entry.dropTarget?.clearOverlay();
+            entry.pointerDropTarget?.clearOverlay();
         }
     }
 
@@ -572,15 +594,12 @@ export class TabGroupManager {
             );
         }
 
-        // The chip sits before its group's first tab in the DOM, so it
-        // covers the "drop before the group" position. Without a drop
-        // target here, dropping a tab over the chip is a dead zone,
-        // particularly visible when the group is first in the tabs list
-        // and there's no preceding tab whose right zone covers position 0.
-        // The smooth animation path already shifts the chip's margin to
-        // open a gap, so suppress the overlay in that mode.
+        // The chip sits before its group's first tab in the DOM, so it covers
+        // the "drop before the group" position — no preceding tab's right
+        // zone reaches it when the group leads the strip. One target per
+        // backend, as tabs have.
         const isVertical = this._ctx.getDirection() === 'vertical';
-        const dropTarget = new Droptarget(chip.element, {
+        const dropTargetOptions: DroptargetOptions = {
             acceptedTargetZones: isVertical ? ['top'] : ['left'],
             overlayModel: {
                 activationSize: { value: 100, type: 'percentage' },
@@ -594,9 +613,14 @@ export class TabGroupManager {
                 }
                 const data = getPanelData();
                 if (this._ctx.accessor.id === data?.viewId) {
+                    // Smooth-reorder owns the in-flight visual for a single
+                    // tab. A dragged group keeps the chip's overlay: its gap
+                    // is drawn by shifting this chip aside, which marks no
+                    // boundary of its own.
                     if (
                         this._ctx.accessor.options.theme?.tabAnimation ===
-                        'smooth'
+                            'smooth' &&
+                        !data.tabGroupId
                     ) {
                         return false;
                     }
@@ -608,12 +632,23 @@ export class TabGroupManager {
                     'tab'
                 );
             },
-        });
+        };
+        const dropTarget = html5Backend.createDropTarget(
+            chip.element,
+            dropTargetOptions
+        );
+        const pointerDropTarget = pointerBackend.createDropTarget(
+            chip.element,
+            dropTargetOptions
+        );
+        const onDrop = (event: DroptargetEvent) => {
+            this._callbacks.onChipDrop(tabGroup, event);
+        };
         disposables.push(
             dropTarget,
-            dropTarget.onDrop((event) => {
-                this._callbacks.onChipDrop(tabGroup, event);
-            })
+            dropTarget.onDrop(onDrop),
+            pointerDropTarget,
+            pointerDropTarget.onDrop(onDrop)
         );
 
         const disposable = new CompositeDisposable(...disposables);
@@ -624,6 +659,7 @@ export class TabGroupManager {
             dragSourcesDisposable: dragSources.disposable,
             disposable,
             dropTarget,
+            pointerDropTarget,
         });
 
         // Group is born collapsed (cross-group drop, layout restore, etc.):
