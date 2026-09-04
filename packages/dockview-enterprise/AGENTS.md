@@ -12,16 +12,16 @@ license check.
 calls `registerModules(Modules)` at import (a side effect — hence
 `sideEffects: true` in package.json).
 
-- `TabGroupChipsModule` (`tabGroupChipsService.ts`)
-- `ContextMenuModule` (`contextMenu.ts`)
-- `AccessibilityModule` (`accessibilityService.ts`) — keyboard navigation;
-  `dependsOn` `AdvancedDnDModule` + `LiveRegionModule` (both in core)
+- `KeyboardNavigationModule` (`keyboardNavigationService.ts`) — `dependsOn`
+  `AdvancedDnDModule` + `LiveRegionModule` (both in core)
 - `LayoutHistoryModule` (`layoutHistoryService.ts`)
 - `DndCompassModule` (`dndCompassService.ts`) — `dependsOn` `AdvancedDnDModule` (core)
 - `SmartGuidesModule` (`smartGuidesService.ts`) — `dependsOn` `FloatingGroupModule` (core)
 - `AutoHideEdgeGroupModule` (`autoHideEdgeGroupService.ts`) — `dependsOn` `EdgeGroupModule` (core)
+- `AutoEdgeGroupModule` (`autoEdgeGroupService.ts`) — `dependsOn` `EdgeGroupModule` (core)
 - `MultiRowTabsModule` (`multiRowTabsService.ts`)
 - `PinnedTabsModule` (`pinnedTabsService.ts`)
+- `AdvancedOverflowModule` (`advancedOverflowService.ts`)
 - `KeyboardDockingModule` (`keyboardDockingService.ts`) — `dependsOn` `AdvancedDnDModule` + `LiveRegionModule` (core)
 - `LicenseModule` (`licenseService.ts`) — the license gate; renders a corner
   watermark unless a valid key is set. Supported by
@@ -29,7 +29,8 @@ calls `registerModules(Modules)` at import (a side effect — hence
   (`licenseValidator.ts`), and the build-stamped `DOCKVIEW_RELEASE_DATE`
   (`releaseDate.ts`).
 
-(`AdvancedDnD` is FREE and lives in `dockview-core` now, not here.)
+(`AdvancedDnD`, `TabGroupChips` and `ContextMenu` are FREE and live in
+`dockview-core`, not here.)
 
 ## How it fits the module system
 

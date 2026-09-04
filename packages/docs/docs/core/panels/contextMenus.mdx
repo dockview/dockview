@@ -2,9 +2,6 @@
 title: 'Context menus'
 description: Right-click menus for tabs and tab group chips, with built-in item shortcuts, custom label and component items, and per-case suppression.
 sidebar_position: 14
-enterprise: true
-sidebar_custom_props:
-    enterprise: true
 ---
 
 import { CodeRunner } from '@site/src/components/ui/codeRunner';
@@ -14,14 +11,6 @@ Dockview can show a context menu when you right-click a tab or a tab group chip.
 Menus are opt-in: nothing is shown unless you supply a builder function. Each
 builder returns a list mixing built-in string shortcuts with your own custom
 items.
-
-:::info Enterprise feature
-Context menus are an enterprise feature, available in the
-[`dockview-enterprise`](/docs/overview/enterprise-setup) package. Importing
-`dockview-enterprise` enables them for every Dockview instance in the
-process. Without it, `getTabContextMenuItems` and
-`getTabGroupChipContextMenuItems` are ignored and no menu appears.
-:::
 
 <CodeRunner id="dockview/context-menu" height={400} />
 

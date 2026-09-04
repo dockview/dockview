@@ -101,14 +101,16 @@ free-versus-enterprise list.
 | `dockToEdgeGroups`     | [Dock to edge groups, drag-revealed edges](/docs/core/groups/autoEdgeGroups) |
 | `edgeGroupPeek`        | Peek animation tuning for [auto-hide edge groups](/docs/core/groups/autoHideEdgeGroups) |
 | `tabGroupColors`, `tabGroupAccent` | Palette and accent for [tab groups](/docs/core/panels/tabGroups) (free) |
-| `getTabContextMenuItems`, `getTabGroupChipContextMenuItems` | [Context menus](/docs/core/panels/contextMenus) for tabs and chips |
 
 `autoHideEdgeGroups` and `dockToEdgeGroups` accept an `EdgeGroupSet`: pass
 `true` to enable all four edges, or an object such as `{ left: true, right: true }`
 to opt edges in individually.
 
-The tab context menu also gains a `'pin'` built-in item for toggling a panel's
-pinned state; it is a no-op when pinning is not enabled.
+[Context menus](/docs/core/panels/contextMenus) need no new option: they are
+still driven by `getTabContextMenuItems` and `getTabGroupChipContextMenuItems`,
+and they are still free. v8 only adds built-in items to them, including a
+`'pin'` item for toggling a panel's pinned state, which is a no-op when pinning
+is not enabled.
 
 ---
 
