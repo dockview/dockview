@@ -23,7 +23,12 @@ console.log(`[buildTemplates] using dockview version: ${DOCKVIEW_VERSION}`);
 
 const local = 'http://localhost:1111';
 
-const BOILERPLATE_PATH_PREFIX = '/example-runner/';
+// The built example folders are also opened directly in CodeSandbox, where the
+// docs site root does not exist. Each folder therefore gets its own copy of the
+// SystemJS runtime next to its index.html and refers to it relatively, rather
+// than pointing at /example-runner/ on the docs site.
+const BOILERPLATE_PATH_PREFIX = './';
+const EXAMPLE_RUNNER_DIR = path.join(__dirname, '../static/example-runner');
 
 const FRAMEWORK_BOILERPLATE = {
     react: 'dockview-react-boilerplate',
@@ -283,7 +288,28 @@ async function buildTemplates() {
                 const templateCodeSandboxUrl = `${codeSandboxUrl}/${component}/${folder}/${framework}`;
 
                 const boilerplateName = FRAMEWORK_BOILERPLATE[framework];
-                const boilerplatePath = `${BOILERPLATE_PATH_PREFIX}${boilerplateName}/`;
+                const boilerplatePath = BOILERPLATE_PATH_PREFIX;
+
+                // The SystemJS config and its css plugin, copied in beside
+                // index.html so the folder runs standalone.
+                const runtimeDir = path.join(
+                    output,
+                    component,
+                    folder,
+                    framework
+                );
+                fs.copySync(
+                    path.join(
+                        EXAMPLE_RUNNER_DIR,
+                        boilerplateName,
+                        'systemjs.config.js'
+                    ),
+                    path.join(runtimeDir, 'systemjs.config.js')
+                );
+                fs.copySync(
+                    path.join(EXAMPLE_RUNNER_DIR, 'css.js'),
+                    path.join(runtimeDir, 'css.js')
+                );
 
                 const systemJsMap =
                     DOCKVIEW_CDN[framework][USE_LOCAL_CDN ? 'local' : 'remote'];
