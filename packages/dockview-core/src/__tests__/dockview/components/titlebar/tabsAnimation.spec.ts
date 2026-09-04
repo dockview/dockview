@@ -23,6 +23,7 @@ import { TabAnimation } from '../../../../dockview/options';
 import { TabGroupChip } from '../../../../dockview/components/titlebar/tabGroupChip';
 import { TabGroup } from '../../../../dockview/tabGroup';
 import { PointerDragController } from '../../../../dnd/pointer/pointerDragController';
+import { TabDropIndexEvent } from '../../../../dockview/components/titlebar/tabsContainer';
 
 function makeDOMRect(
     x: number,
@@ -1780,6 +1781,95 @@ describe('tabs - animation', () => {
 
             expect(moveTabGroupMock).toHaveBeenCalled();
             expect(moveGroupOrPanelMock).not.toHaveBeenCalled();
+        });
+
+        test('a chip dropped on another chip commits a group move', () => {
+            const { tabs, accessor, group, tabGroup, chip } =
+                setupChipDrag('default', ['panel-a', 'panel-b', 'panel-c']);
+
+            const moveTabGroupMock = jest.fn();
+            const moveGroupOrPanelMock = jest.fn();
+            (group.model as any).moveTabGroup = moveTabGroupMock;
+            (accessor as any).moveGroupOrPanel = moveGroupOrPanelMock;
+
+            triggerChipDragStart(tabs, tabGroup, chip);
+            (tabs as any).handleDragOver({ clientX: 200 } as DragEvent);
+            const insertionIndex = getAnimState(tabs).currentInsertionIndex;
+
+            const transfer = dataTransfer.LocalSelectionTransfer.getInstance();
+            transfer.setData(
+                [
+                    new dataTransfer.PanelTransfer(
+                        'test-accessor',
+                        'test-group',
+                        null,
+                        'tg-1'
+                    ),
+                ],
+                dataTransfer.PanelTransfer.prototype
+            );
+
+            const drops: TabDropIndexEvent[] = [];
+            tabs.onDrop((e) => drops.push(e));
+
+            (tabs as any)._handleChipDrop(tabGroup, {
+                nativeEvent: new Event('drop'),
+                position: 'left',
+            });
+
+            // The group move goes to the model directly. Routing it through
+            // the panel drop path would hand it to `moveGroupOrPanel`, which
+            // rebuilds the tab group under a new id.
+            expect(moveTabGroupMock).toHaveBeenCalledWith(
+                'tg-1',
+                insertionIndex
+            );
+            expect(moveGroupOrPanelMock).not.toHaveBeenCalled();
+            expect(drops).toHaveLength(0);
+            // The anim state is spent, so the pointer backend's drag-end
+            // commit skips this drag instead of committing it twice.
+            expect(getAnimState(tabs)).toBeNull();
+
+            transfer.clearData(dataTransfer.PanelTransfer.prototype);
+        });
+
+        test('pointer chip drag commits the group move on release over the strip', () => {
+            const { tabs, group, tabGroup, chip } = setupChipDrag('smooth', [
+                'panel-a',
+                'panel-b',
+                'panel-c',
+            ]);
+
+            const moveTabGroupMock = jest.fn();
+            (group.model as any).moveTabGroup = moveTabGroupMock;
+
+            triggerChipDragStart(tabs, tabGroup, chip);
+            getAnimState(tabs).currentInsertionIndex = 2;
+
+            const tabsList = (tabs as any)._tabsList as HTMLElement;
+            jest.spyOn(document, 'elementFromPoint').mockReturnValue(tabsList);
+
+            const controller = PointerDragController.getInstance();
+            controller.beginDrag({
+                pointerEvent: new PointerEvent('pointerdown', {
+                    pointerId: 1,
+                    pointerType: 'touch',
+                }),
+                source: chip.element,
+                getData: () => ({ dispose: jest.fn() }),
+            });
+            window.dispatchEvent(
+                new PointerEvent('pointerup', {
+                    pointerId: 1,
+                    pointerType: 'touch',
+                    clientX: 100,
+                    clientY: 10,
+                })
+            );
+
+            // In smooth mode the chip and tab drop targets stay silent, so
+            // without a drag-end commit the group snapped back on release.
+            expect(moveTabGroupMock).toHaveBeenCalledWith('tg-1', 2);
         });
 
         // Regression for #1243: when a tab group chip is dragged from one

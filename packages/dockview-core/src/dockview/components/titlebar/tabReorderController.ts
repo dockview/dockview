@@ -246,32 +246,36 @@ export class TabReorderController extends CompositeDisposable {
         clientY: number;
         pointerEvent: PointerEvent;
     }): void {
-        // Smooth-mode intra-group reorder: the pointer-backend analog of the
-        // HTML5 tabs-list `drop` commit. In smooth mode the per-tab pointer
-        // drop target doesn't latch a drop state for the intra-group drag, so
-        // its `onDrop` never fires; commit the reorder from the computed
+        // Smooth-mode reorder within the strip: the pointer-backend analog of
+        // the HTML5 tabs-list `drop` commit. In smooth mode the per-tab and
+        // chip pointer drop targets don't latch a drop state for an internal
+        // drag, so their `onDrop` never fires; commit from the computed
         // insertion index when the drag ends over the strip. This covers both
-        // single-row and multi-row wrap layouts (single-row previously had no
-        // pointer commit path at all, so the tab snapped back on release). It
-        // can't double-commit: `tab.onDrop` nulls `_animState` before this runs
-        // (the backend calls `handleDrop` before `onDragEnd`), so if the per-tab
-        // path *did* fire, `_animState` is already null and this is skipped; in
-        // default (non-smooth) mode `_animState` is never set for an intra-group
-        // drag, so this path is inert there too.
+        // single-row and multi-row wrap layouts. It can't double-commit: the
+        // drop targets that do fire (`tab.onDrop`, the chip's) null
+        // `_animState` first — the backend calls `handleDrop` before
+        // `onDragEnd` — so this is skipped whenever one of them handled the
+        // release. A release over the void container leaves the strip, so
+        // `isPointInsideTabsList` is false and that container's own commit
+        // path owns it.
         if (
             e &&
             this._animState &&
-            // intra-group single-tab reorder only: `sourceIndex === -1` is a
-            // cross-group drag (handled by the cross-group machinery), and
-            // `sourceTabGroupId` is a group-chip drag (handled by the chip drop
-            // target, which does not null `_animState`, so committing here too
-            // would double-commit).
+            // `sourceIndex === -1` is a cross-group drag, handled by the
+            // cross-group machinery rather than by an insertion index here.
             this._animState.sourceIndex !== -1 &&
-            !this._animState.sourceTabGroupId &&
             this._animState.currentInsertionIndex !== null &&
             this.isPointInsideTabsList(e.clientX, e.clientY)
         ) {
-            this.commitPointerReorder(e.pointerEvent);
+            const sourceTabGroupId = this._animState.sourceTabGroupId;
+
+            if (sourceTabGroupId) {
+                const insertionIndex = this._animState.currentInsertionIndex;
+                this._animState = null;
+                this.commitGroupMove(sourceTabGroupId, insertionIndex);
+            } else {
+                this.commitPointerReorder(e.pointerEvent);
+            }
         }
         this._pointerInsideTabsList = false;
         this.resetDragAnimation();

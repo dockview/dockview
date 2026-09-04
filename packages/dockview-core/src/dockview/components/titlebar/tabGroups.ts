@@ -594,9 +594,15 @@ export class TabGroupManager {
                 }
                 const data = getPanelData();
                 if (this._ctx.accessor.id === data?.viewId) {
+                    // Smooth-reorder owns the in-flight visual for a
+                    // single tab, so the chip's overlay stays suppressed
+                    // for one. A dragged group keeps it: the gap for that
+                    // drag is drawn by shifting this chip aside, which
+                    // marks no boundary of its own.
                     if (
                         this._ctx.accessor.options.theme?.tabAnimation ===
-                        'smooth'
+                            'smooth' &&
+                        !data.tabGroupId
                     ) {
                         return false;
                     }

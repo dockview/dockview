@@ -1434,6 +1434,10 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
      * (when the source tab is currently to the left of the target slot, its
      * removal shifts the insertion index down by one). Always clears
      * `targetTabGroupId` so the dropped tab lands outside the group.
+     *
+     * A chip dropped on a chip is a group move, not a panel drop, and goes to
+     * `_commitGroupMove` — the panel path would route it through the
+     * cross-group machinery, which rebuilds the tab group under a new id.
      */
     private _handleChipDrop(tabGroup: ITabGroup, event: DroptargetEvent): void {
         const firstPanelId = tabGroup.panelIds[0];
@@ -1447,6 +1451,21 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
             return;
         }
         const data = getPanelData();
+
+        if (data?.tabGroupId) {
+            // Null the anim state first, the way `tab.onDrop` does: the
+            // pointer backend's `onDragEnd` commit runs after this and skips
+            // a drag whose state is already spent.
+            const animState = this._animState;
+            this._animState = null;
+            this._pendingCollapse = false;
+            this._commitGroupMove(
+                data.tabGroupId,
+                animState?.currentInsertionIndex ?? insertionIndex
+            );
+            return;
+        }
+
         const sourceIndex =
             data?.groupId === this.group.id && data?.panelId
                 ? this._tabs.findIndex((x) => x.value.panel.id === data.panelId)

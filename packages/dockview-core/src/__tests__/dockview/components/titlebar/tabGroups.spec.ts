@@ -17,6 +17,10 @@ import {
 } from '../../../../dockview/tabGroupAccent';
 import { ITabGroupChipRenderer } from '../../../../dockview/framework';
 import { DockviewHeaderDirection } from '../../../../dockview/options';
+import {
+    LocalSelectionTransfer,
+    PanelTransfer,
+} from '../../../../dnd/dataTransfer';
 
 function createTab(id: string): IValueDisposable<Tab> {
     const element = document.createElement('div');
@@ -664,6 +668,82 @@ describe('TabGroupManager', () => {
             options.disableDnd = true;
             manager.updateDragAndDropState();
             expect(chipEl.draggable).toBe(false);
+        });
+    });
+
+    describe('chip drop target', () => {
+        // The chip covers the "insert before this group" slot. Smooth-reorder
+        // owns the in-flight visual for a single tab, so the chip's overlay
+        // stays suppressed there; a dragged group has no other affordance for
+        // that slot, so it keeps one.
+        const setTransfer = (viewId: string, tabGroupId?: string) => {
+            LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
+                [
+                    new PanelTransfer(
+                        viewId,
+                        'group-1',
+                        tabGroupId ? null : 'p9',
+                        tabGroupId
+                    ),
+                ],
+                PanelTransfer.prototype
+            );
+        };
+
+        afterEach(() => {
+            LocalSelectionTransfer.getInstance<PanelTransfer>().clearData(
+                PanelTransfer.prototype
+            );
+        });
+
+        const canDisplayOverlay = (manager: TabGroupManager): boolean => {
+            const dropTarget = manager.chipRenderers.get('g1')!
+                .dropTarget as any;
+            return dropTarget.options.canDisplayOverlay(
+                new Event('dragover'),
+                'left'
+            );
+        };
+
+        test('a chip drag keeps the chip overlay in smooth mode', () => {
+            const tabs = [createTab('p1')];
+            const tg = makeGroup('g1', ['p1']);
+            const { manager } = createManager({
+                tabs,
+                tabGroups: [tg],
+                options: { theme: { tabAnimation: 'smooth' } },
+            });
+            manager.update();
+
+            setTransfer('accessor-1', 'g2');
+            expect(canDisplayOverlay(manager)).toBe(true);
+        });
+
+        test('a single-tab drag has no chip overlay in smooth mode', () => {
+            const tabs = [createTab('p1')];
+            const tg = makeGroup('g1', ['p1']);
+            const { manager } = createManager({
+                tabs,
+                tabGroups: [tg],
+                options: { theme: { tabAnimation: 'smooth' } },
+            });
+            manager.update();
+
+            setTransfer('accessor-1');
+            expect(canDisplayOverlay(manager)).toBe(false);
+        });
+
+        test('both drags keep the chip overlay outside smooth mode', () => {
+            const tabs = [createTab('p1')];
+            const tg = makeGroup('g1', ['p1']);
+            const { manager } = createManager({ tabs, tabGroups: [tg] });
+            manager.update();
+
+            setTransfer('accessor-1');
+            expect(canDisplayOverlay(manager)).toBe(true);
+
+            setTransfer('accessor-1', 'g2');
+            expect(canDisplayOverlay(manager)).toBe(true);
         });
     });
 

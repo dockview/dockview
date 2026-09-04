@@ -156,12 +156,12 @@ test.describe('tab-group chip repeated moves (#1410)', () => {
  * A group pushed to the right of the strip must be draggable back to the
  * left, whichever drop zone the release lands on.
  *
- * The strip's commit path for a chip drag is HTML5-only — the tabs list's
- * capturing `dragover`/`drop` listeners — so the same gesture is exercised
- * under both `dndStrategy` values (`?dnd=`), which the fixture reads. The
- * pointer cases are `test.fail()`: the pointer backend has no equivalent
- * commit path, so a chip released over the strip is dropped on the floor
- * and only the void container to the right of the tabs works.
+ * In smooth mode every element-level drop target on the strip refuses
+ * internal drags — the gap animation owns the in-flight visual — so the
+ * commit runs at strip level. Both `dndStrategy` values (`?dnd=`, read by
+ * the fixture) are exercised because those two paths are separate: the
+ * capturing `dragover`/`drop` listeners on the tabs list for HTML5, and the
+ * drag-end commit in `TabReorderController` for pointer.
  */
 test.describe('tab-group chip reorder across a mixed strip (#1352)', () => {
     const chipLabels = (page: Page) =>
@@ -177,10 +177,10 @@ test.describe('tab-group chip reorder across a mixed strip (#1352)', () => {
     };
 
     // Drag a chip to an absolute x within the strip. The final one-pixel move
-    // re-dispatches `dragover` against the settled layout: the gap animation
-    // slides elements out from under a stationary cursor, and a release with
-    // no intervening move resolves against a node that was never dragged
-    // over.
+    // is a harness detail: Playwright's synthetic HTML5 drag coalesces the
+    // interpolated moves, so the last `dragover` can land tens of pixels short
+    // of the release point. The extra move dispatches one at the coordinates
+    // the drop is about to resolve against.
     const dragChipTo = async (page: Page, label: string, x: number) => {
         const chip = (await page
             .locator('.dv-tab-group-chip', { hasText: label })
@@ -208,7 +208,6 @@ test.describe('tab-group chip reorder across a mixed strip (#1352)', () => {
         test(`[${dnd}] a group moved right returns to the left of an ungrouped tab`, async ({
             page,
         }) => {
-            test.fail(dnd === 'pointer');
             await setup(page, dnd);
             await moveFeatureToTheRight(page);
 
@@ -224,7 +223,6 @@ test.describe('tab-group chip reorder across a mixed strip (#1352)', () => {
         test(`[${dnd}] a group moved right returns to the left of another group's chip`, async ({
             page,
         }) => {
-            test.fail(dnd === 'pointer');
             await setup(page, dnd);
             await moveFeatureToTheRight(page);
 
@@ -244,7 +242,6 @@ test.describe('tab-group chip reorder across a mixed strip (#1352)', () => {
         test(`[${dnd}] a chip dropped over a tab of another group lands outside it`, async ({
             page,
         }) => {
-            test.fail(dnd === 'pointer');
             await setup(page, dnd);
 
             // Monitoring starts last; drop it over the first tab of the
