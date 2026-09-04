@@ -34,6 +34,19 @@
                         --dv-activegroup-hiddenpanel-tab-background-color
                     );
                     color: var(--dv-activegroup-hiddenpanel-tab-color);
+
+                    // Optional hover feedback: a theme opts in by setting
+                    // --dv-tab-inactive-hover-background-color. Unset, it
+                    // falls back to this tab's own background, so the hover
+                    // is a no-op and no theme is affected. This lives here
+                    // (rather than a standalone .dv-tab:hover rule) so it
+                    // outranks the group-scoped background above it.
+                    &:hover {
+                        background-color: var(
+                            --dv-tab-inactive-hover-background-color,
+                            var(--dv-activegroup-hiddenpanel-tab-background-color)
+                        );
+                    }
                 }
             }
         }
@@ -52,6 +65,17 @@
                         --dv-inactivegroup-hiddenpanel-tab-background-color
                     );
                     color: var(--dv-inactivegroup-hiddenpanel-tab-color);
+
+                    // See the active-group note above; falls back to this
+                    // tab's own background so unset themes are unaffected.
+                    &:hover {
+                        background-color: var(
+                            --dv-tab-inactive-hover-background-color,
+                            var(
+                                --dv-inactivegroup-hiddenpanel-tab-background-color
+                            )
+                        );
+                    }
                 }
             }
         }

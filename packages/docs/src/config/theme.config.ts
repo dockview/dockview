@@ -17,6 +17,8 @@ import {
     themeGithubDarkSpaced,
     themeGithubLight,
     themeGithubLightSpaced,
+    themeSlate,
+    themeSlateDark,
 } from 'dockview-react';
 
 export const themeConfig = [
@@ -126,6 +128,18 @@ export const themeConfig = [
         id: themeGithubLightSpaced,
         label: 'GitHub Light Spaced',
         key: '**[GitHub Light Spaced](/demo?theme=githubLightSpaced)**',
+        text: '',
+    },
+    {
+        id: themeSlate,
+        label: 'Slate',
+        key: '**[Slate](/demo?theme=slate)**',
+        text: 'Connected folder tabs with rounded, inset floating groups',
+    },
+    {
+        id: themeSlateDark,
+        label: 'Slate Dark',
+        key: '**[Slate Dark](/demo?theme=slateDark)**',
         text: '',
     },
 ].filter((entry) => entry.id != null);
