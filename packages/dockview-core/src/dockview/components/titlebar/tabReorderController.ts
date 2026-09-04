@@ -249,9 +249,11 @@ export class TabReorderController extends CompositeDisposable {
         // The pointer-backend analog of the HTML5 tabs-list `drop` commit: in
         // smooth mode the per-element drop targets don't latch a state for an
         // internal drag, so nothing else commits a release over the strip.
-        // A target that does fire nulls `_animState` before this runs, and a
-        // release over the void container is outside the strip, so neither
-        // double-commits.
+        // The strip's own targets null `_animState` before this runs and the
+        // void container is outside the strip, so neither double-commits.
+        // The layout-edge target (`dndEdges`) is the exception: it knows
+        // nothing of tabs, so a release inside both it and the strip docks
+        // the group and reorders it.
         if (
             e &&
             this._animState &&
