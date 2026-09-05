@@ -869,8 +869,16 @@ export class Gridview implements IDisposable {
         return findLeaf(this.root, reverse);
     }
 
+    get proportionalLayout(): boolean {
+        return this.root.proportionalLayout;
+    }
+
+    set proportionalLayout(value: boolean) {
+        this.root.proportionalLayout = value;
+    }
+
     constructor(
-        readonly proportionalLayout: boolean,
+        proportionalLayout: boolean,
         readonly styles: ISplitviewStyles | undefined,
         orientation: Orientation,
         locked?: boolean,

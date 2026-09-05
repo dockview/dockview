@@ -1521,7 +1521,7 @@ export class DockviewComponent
 
     constructor(container: HTMLElement, options: DockviewComponentOptions) {
         super(container, {
-            proportionalLayout: true,
+            proportionalLayout: options.proportionalLayout ?? true,
             orientation: Orientation.HORIZONTAL,
             styles: options.hideBorders
                 ? { separatorBorder: 'transparent' }
