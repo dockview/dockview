@@ -12,15 +12,25 @@
             transition: transform 0.15s ease-out;
         }
     }
+    // Paneview manages its own inter-pane separators via the pane header
+    // border, so suppress the split-view separator border on its panes to
+    // avoid a doubled line. Both orientations are listed so the selector
+    // out-specifies the core `.dv-separator-border` border rule regardless of
+    // stylesheet concatenation order.
+    .dv-split-view-container.dv-separator-border.dv-vertical
+        > .dv-view-container
+        > .dv-view:not(:first-child),
+    .dv-split-view-container.dv-separator-border.dv-horizontal
+        > .dv-view-container
+        > .dv-view:not(:first-child) {
+        border: none;
+    }
+
     .dv-view {
         overflow: hidden;
         display: flex;
         flex-direction: column;
         padding: 0px !important;
-
-        &:not(:first-child)::before {
-            background-color: transparent !important;
-        }
 
         &:not(:first-child) {
             .dv-pane > .dv-pane-header {

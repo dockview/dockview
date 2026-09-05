@@ -333,6 +333,17 @@
                             title: id,
                         });
                     },
+                    // Add a panel in a new group split off to the given
+                    // direction of a reference panel — used to produce a
+                    // horizontal/vertical split-view seam between two groups.
+                    addPanelSplit: (id, referencePanel, direction) => {
+                        panels[id] = dockview.addPanel({
+                            id,
+                            component: 'default',
+                            title: id,
+                            position: { referencePanel, direction },
+                        });
+                    },
                     // Pinned tabs: add `n` panels then pin the given ids.
                     setupPinned: (ids, pinnedIds) => {
                         for (const id of ids) {
