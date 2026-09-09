@@ -471,25 +471,18 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
 
         this._reorder = new TabReorderController(this);
 
-        // Hit-test stop for internal pointer drags. `_findTargetUnder` returns
-        // the innermost *registered* ancestor, and the strip registers targets
-        // on tabs and the void container only - so releasing over the strip's
-        // padding (or a gap opened by the smooth-reorder animation) walked all
-        // the way up to the root edge target. That docked the drag at the
-        // layout edge while `handlePointerDragEnd` also committed the reorder:
-        // two actions for one release. Registering here stops the walk at the
-        // strip; `canDisplayOverlay` declines so no state is latched and the
-        // target is inert on drop, leaving the reorder as the only commit.
+        // Hit-test stop, not a drop handler. `_findTargetUnder` returns the
+        // innermost registered ancestor, and the strip registers targets on
+        // tabs and the void container only, so without this a release over the
+        // strip's padding or the smooth-reorder gap reaches the root edge
+        // target - which docks at the layout edge while
+        // `handlePointerDragEnd` also commits the reorder.
+        // `canDisplayOverlay` declines, so nothing latches here.
         //
-        // Stopping the walk is only correct for a payload the strip can
-        // actually commit, otherwise the release lands in a dead zone. Match
-        // `handlePointerDragEnd`'s guard exactly: an intra-group single-tab
-        // drag, i.e. our own view (`viewId`), started in this strip
-        // (`groupId`, the same discriminator the reorder controller uses), and
-        // a tab rather than a group or chip (both of which carry a null
-        // `panelId`). Everything else - external payloads, cross-group,
-        // whole-group and chip drags - stays transparent and still reaches the
-        // root edge target.
+        // Transparent for payloads the strip cannot commit, which would
+        // otherwise be stranded: mirrors `handlePointerDragEnd`'s guard - our
+        // own view, started in this strip, and a tab rather than a group or
+        // chip (both carry a null `panelId`).
         const tabsListPointerTarget = pointerBackend.createDropTarget(
             this._tabsList,
             {

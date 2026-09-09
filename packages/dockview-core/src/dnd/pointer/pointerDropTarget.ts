@@ -41,12 +41,7 @@ export interface PointerDropTargetOptions {
      * change at runtime; `undefined` (default) uses the cursor-quadrant logic.
      */
     getPositionResolver?: () => PositionResolver | undefined;
-    /**
-     * Skip this target during hit-testing when it returns `true`, letting the
-     * ancestor walk continue past it. Use it alongside a declining
-     * `canDisplayOverlay` to make an element a hit-test stop for some payloads
-     * and fully transparent for the rest.
-     */
+    /** See `DroptargetOptions.isHitTestTransparent`. */
     isHitTestTransparent?: () => boolean;
 }
 

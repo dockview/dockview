@@ -198,11 +198,10 @@ export interface DroptargetOptions {
      */
     getPositionResolver?: () => PositionResolver | undefined;
     /**
-     * Pointer backend only: skip this target during hit-testing when it returns
-     * `true`, so the ancestor walk continues past it. Lets an element be a
-     * hit-test stop for some payloads and fully transparent for the rest. The
-     * HTML5 backend ignores it — there, propagation is controlled by the DOM
-     * event flow.
+     * Pointer backend only: skip this target during hit-testing so the ancestor
+     * walk continues past it, making an element a hit-test stop for some
+     * payloads and transparent for the rest. The HTML5 backend ignores it —
+     * propagation there is the DOM event flow's job.
      */
     isHitTestTransparent?: () => boolean;
 }
