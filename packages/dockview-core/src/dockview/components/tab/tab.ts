@@ -131,6 +131,19 @@ export class Tab extends CompositeDisposable {
                 if (this.accessor.options.theme?.tabAnimation === 'smooth') {
                     return false;
                 }
+
+                // A group drag never lands inside a tab group: the reorder
+                // controller snaps the insertion index out of any group range
+                // it falls in. Offering a grouped tab's slot would advertise a
+                // landing the drop won't take, so the boundary is left to the
+                // chip. Ungrouped tabs keep their slots.
+                if (
+                    data.tabGroupId &&
+                    this.group.model.getTabGroupForPanel(this.panel.id)
+                ) {
+                    return false;
+                }
+
                 return true;
             }
 
