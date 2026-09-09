@@ -161,6 +161,21 @@
                     // cursor-quadrant drop resolution can be exercised; on by
                     // default so the compass specs are unaffected.
                     dndCompass: params.get('compass') !== '0',
+                    // `?dndEdges=N` widens the root edge-dock activation band
+                    // to N pixels so the tab strip falls inside it (the 10px
+                    // default leaves the strip clear of the band). Inert when
+                    // absent, so other specs keep the default band.
+                    ...(params.get('dndEdges')
+                        ? {
+                              dndEdges: {
+                                  activationSize: {
+                                      type: 'pixels',
+                                      value: Number(params.get('dndEdges')),
+                                  },
+                                  size: { type: 'pixels', value: 20 },
+                              },
+                          }
+                        : {}),
                     dndStrategy:
                         params.get('dnd') === 'html5' ? 'html5' : 'pointer',
                     // Custom drop-position resolver (opt-in via `?resolver=`),

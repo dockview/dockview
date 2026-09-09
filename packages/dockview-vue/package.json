@@ -1,6 +1,6 @@
 {
   "name": "dockview-vue",
-  "version": "8.2.0",
+  "version": "8.3.0",
   "description": "Vue 3 docking layout manager — tabs, groups, grids, splitviews, drag and drop, floating panels",
   "keywords": [
     "splitview",
@@ -85,7 +85,7 @@
     "format:check": "biome format src"
   },
   "dependencies": {
-    "dockview": "^8.2.0"
+    "dockview": "^8.3.0"
   },
   "peerDependencies": {
     "vue": "^3.4.0"

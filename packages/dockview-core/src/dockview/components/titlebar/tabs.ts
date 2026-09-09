@@ -31,6 +31,7 @@ import { ITabGroup } from '../../tabGroup';
 import { TabGroupManager } from './tabGroups';
 import { ITabGroupChipRenderer } from '../../framework';
 import { DroptargetEvent } from '../../../dnd/droptarget';
+import { pointerBackend } from '../../../dnd/backend';
 import {
     ITabReorderHost,
     TabAnimationState,
@@ -470,7 +471,36 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
 
         this._reorder = new TabReorderController(this);
 
+        // Hit-test stop, not a drop handler. `_findTargetUnder` returns the
+        // innermost registered ancestor, and the strip registers targets on
+        // tabs and the void container only, so without this a release over the
+        // strip's padding or the smooth-reorder gap reaches the root edge
+        // target - which docks at the layout edge while
+        // `handlePointerDragEnd` also commits the reorder.
+        // `canDisplayOverlay` declines, so nothing latches here.
+        //
+        // Transparent for payloads the strip cannot commit, which would
+        // otherwise be stranded: mirrors `handlePointerDragEnd`'s guard - our
+        // own view, started in this strip, and a tab rather than a group or
+        // chip (both carry a null `panelId`).
+        const tabsListPointerTarget = pointerBackend.createDropTarget(
+            this._tabsList,
+            {
+                acceptedTargetZones: ['center'],
+                canDisplayOverlay: () => false,
+                isHitTestTransparent: () => {
+                    const data = getPanelData();
+                    return !(
+                        data?.viewId === this.accessor.id &&
+                        data.groupId === this.group.id &&
+                        data.panelId !== null
+                    );
+                },
+            }
+        );
+
         this.addDisposables(
+            tabsListPointerTarget,
             this._onOverflowTabsChange,
             this._observerDisposable,
             this._pointerActivation,

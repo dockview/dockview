@@ -5,10 +5,16 @@
  * Expects the following globals to be set before this script loads:
  *   - window.defined_dockview_systemJsMap  (package URL map, local or CDN)
  *   - window.defined_dockview_appLocation  (base URL for example source files)
+ *   - window.defined_dockview_boilerplatePath (directory holding this config
+ *     and css.js; optional, defaults to the docs site's /example-runner/)
  */
 (function (global) {
     var defined_dockview_systemJsMap = global.defined_dockview_systemJsMap;
     var defined_dockview_appLocation = global.defined_dockview_appLocation;
+    // Where this config and its sibling css.js live. Falls back to the docs
+    // site location for any page that doesn't define it.
+    var defined_dockview_boilerplatePath =
+        global.defined_dockview_boilerplatePath || '/example-runner/';
 
     System.config({
         transpiler: 'ts',
@@ -28,7 +34,7 @@
         },
         map: Object.assign(
             {
-                css: '/example-runner/css.js',
+                css: defined_dockview_boilerplatePath + 'css.js',
                 ts: 'npm:plugin-typescript@8.0.0/lib/plugin.js',
                 tslib: 'npm:tslib@2.3.1/tslib.js',
                 typescript: 'npm:typescript@4.4/lib/typescript.min.js',

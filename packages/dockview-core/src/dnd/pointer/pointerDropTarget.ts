@@ -41,6 +41,8 @@ export interface PointerDropTargetOptions {
      * change at runtime; `undefined` (default) uses the cursor-quadrant logic.
      */
     getPositionResolver?: () => PositionResolver | undefined;
+    /** See `DroptargetOptions.isHitTestTransparent`. */
+    isHitTestTransparent?: () => boolean;
 }
 
 /** Pointer-driven counterpart to `Droptarget` with identical visual output. */
@@ -91,6 +93,7 @@ export class PointerDropTarget
             handleDragOver: (e) => this._onDragOver(e),
             handleDragLeave: () => this._onDragLeave(),
             handleDrop: (e) => this._onDropEvent(e),
+            isHitTestTransparent: options.isHitTestTransparent,
         };
 
         this.addDisposables(
