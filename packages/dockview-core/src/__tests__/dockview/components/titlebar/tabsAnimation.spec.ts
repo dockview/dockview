@@ -1887,7 +1887,7 @@ describe('tabs - animation', () => {
         // of the tab under the cursor — including slots between two tabs of
         // another group, which the drop can't use. `test.failing` until an
         // offered slot is the slot taken.
-        test.failing('the overlay shown over a grouped tab matches where a dragged group lands', () => {
+        test('the overlay shown over a grouped tab matches where a dragged group lands', () => {
             const { tabs, group, tabGroup, chip, elements } = setupChipDrag(
                 'default',
                 ['panel-a', 'panel-b', 'panel-c']
@@ -1969,6 +1969,45 @@ describe('tabs - animation', () => {
             if (shownIndex !== undefined) {
                 expect(shownIndex).toBe(committedIndex);
             }
+        });
+
+        // The suppression is narrow by design: a group can land beside an
+        // ungrouped tab, so that tab keeps offering its slot.
+        test('an ungrouped tab still offers a slot during a chip drag', () => {
+            const { tabs, tabGroup, chip, elements } = setupChipDrag(
+                'default',
+                ['panel-a', 'panel-b']
+            );
+
+            for (let i = 0; i < elements.length; i++) {
+                mockTabRect(elements[i], { left: i * 80, width: 80 });
+                jest.spyOn(elements[i], 'offsetWidth', 'get').mockReturnValue(
+                    80
+                );
+                jest.spyOn(elements[i], 'offsetHeight', 'get').mockReturnValue(
+                    30
+                );
+            }
+
+            const transfer = dataTransfer.LocalSelectionTransfer.getInstance();
+            transfer.setData(
+                [
+                    new dataTransfer.PanelTransfer(
+                        'test-accessor',
+                        'test-group',
+                        null,
+                        'tg-1'
+                    ),
+                ],
+                dataTransfer.PanelTransfer.prototype
+            );
+
+            triggerChipDragStart(tabs, tabGroup, chip);
+
+            // panel-b belongs to no tab group, so the drop can land here.
+            fireEvent.dragOver(elements[1], { clientX: 140, clientY: 15 });
+
+            expect((tabs as any)._tabs[1].value.dropTarget.state).toBeDefined();
         });
 
         // Regression for #1243: when a tab group chip is dragged from one
