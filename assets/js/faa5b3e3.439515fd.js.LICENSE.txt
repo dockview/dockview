@@ -1,6 +1,0 @@
-/**
- * dockview-core
- * @version 8.2.0
- * @link https://github.com/dockview/dockview
- * @license MIT
- */

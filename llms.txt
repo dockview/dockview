@@ -24,7 +24,7 @@ Dockview is an open-source docking layout library that lets you build IDE-like a
 ## Editions
 
 - **Dockview** — MIT licensed, open source. Everything needed to build a complete docking layout.
-- **Dockview Enterprise** — commercial licence (`dockview-enterprise`, free 30-day trial). A drop-in superset adding smart guides, layout history (undo/redo), multi-row and pinned tabs, tab/chip context menus, advanced tab overflow, auto edge groups, and spatial keyboard docking. See https://dockview.dev/docs/overview/licence.
+- **Dockview Enterprise** — commercial licence (`dockview-enterprise`, free 30-day trial). A drop-in superset adding smart guides, layout history (undo/redo), multi-row and pinned tabs, advanced tab overflow, auto edge groups, and spatial keyboard docking. See https://dockview.dev/docs/overview/licence.
 
 ## Packages
 

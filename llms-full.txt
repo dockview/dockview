@@ -28,8 +28,8 @@ Dockview is an open-source docking layout library that lets you build IDE-like a
 Dockview ships as an MIT-licensed open-source core with an optional commercial
 Enterprise superset.
 
-- **Dockview** — free, MIT licensed. Everything needed to build a complete docking layout: dockable grid, nested layouts, floating groups, popout windows, edge groups, maximize/restore, tab groups and chips, tab overflow menu, drag and drop, save/restore, built-in themes, and full framework support.
-- **Dockview Enterprise** — commercial licence with a free 30-day trial. A drop-in superset that adds: smart guides (snapping), DnD compass, layout history (undo/redo), multi-row tabs, pinned tabs, advanced tab overflow (search and previews), tab and chip context menus, auto-hide and dock-to-edge groups, and spatial keyboard navigation/docking.
+- **Dockview** — free, MIT licensed. Everything needed to build a complete docking layout: dockable grid, nested layouts, floating groups, popout windows, edge groups, maximize/restore, tab groups and chips, tab and chip context menus, tab overflow menu, drag and drop, save/restore, built-in themes, and full framework support.
+- **Dockview Enterprise** — commercial licence with a free 30-day trial. A drop-in superset that adds: smart guides (snapping), DnD compass, layout history (undo/redo), multi-row tabs, pinned tabs, advanced tab overflow (search and previews), auto-hide and dock-to-edge groups, and spatial keyboard navigation/docking.
 
 Enterprise features live in a separate `dockview-enterprise` package unlocked
 with a licence key. In JavaScript it is a drop-in replacement — install it

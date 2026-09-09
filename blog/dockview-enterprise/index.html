@@ -20,8 +20,8 @@
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"Dockview","description":"A zero dependency docking layout manager for building IDE-like interfaces with tabs, groups, grids, splitviews, drag and drop, floating panels, and popout windows. Touch and mobile ready. Supports React, Vue, Angular, and vanilla TypeScript.","url":"https://dockview.dev","codeRepository":"https://github.com/dockview/dockview","programmingLanguage":["TypeScript","JavaScript"],"runtimePlatform":["Browser"],"license":"https://opensource.org/licenses/MIT","operatingSystem":"Any","applicationCategory":"DeveloperApplication","keywords":["layout manager","docking","tabs","drag and drop","react","vue","angular","typescript","splitview","gridview","floating panels","popout windows","touch","mobile","zero dependency"]}</script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&amp;display=swap"><link rel="stylesheet" href="/assets/css/styles.fb9d5f01.css">
-<script src="/assets/js/runtime~main.e1a3390e.js" defer="defer"></script>
-<script src="/assets/js/main.9dfba9d2.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.6574a120.js" defer="defer"></script>
+<script src="/assets/js/main.ce529a02.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -50,13 +50,13 @@
 <ul>
 <li class=""><strong>Multi-row tabs</strong> and <strong>pinned tabs</strong>: wrap a tab strip onto extra rows, or pin the tabs that matter so they sort first and never overflow</li>
 <li class=""><strong>Advanced overflow</strong>: the overflow dropdown becomes a command-palette style switcher, with search, most-recently-used ordering and keyboard navigation</li>
-<li class=""><strong>Context menus</strong> for tabs and tab group chips</li>
 <li class=""><strong>DnD compass</strong>: an explicit set of drop targets to aim at while dragging, instead of resolving the drop from whichever quadrant the cursor is over</li>
 <li class=""><strong>Smart guides</strong>: alignment lines and magnetic snapping while dragging floating groups</li>
 <li class=""><strong>Auto-hide edge groups</strong> and <strong>dock to edge</strong>: collapsed edges that peek open as an overlay without reflowing the grid, and edges that take up zero space until you drop a panel on them</li>
 <li class=""><strong>Layout history</strong>: a bounded undo/redo stack for layout changes, so a mis-drag or an accidental close is recoverable</li>
 <li class=""><strong>Keyboard docking</strong> and spatial navigation: move and dock panels without a mouse</li>
 </ul>
+<p><em>Update: this list originally included context menus for tabs and tab group chips. Those shipped free in v6 and v7, so moving them into the enterprise package was a mistake (<a href="https://github.com/dockview/dockview/issues/1610" target="_blank" rel="noopener noreferrer" class="">#1610</a>). They are back in the free <code>dockview</code> package and the list above has been corrected.</em></p>
 <p>Deciding what went where was the hardest part. Dockview Enterprise is for enterprises, and it should never come at the expense of Dockview being a great free layout manager.</p>
 <p>The rule I settled on: the free version should aim to never be behind the competition. Enterprise is ideally for capabilities no other library gives away, and for the ones used mostly by large enterprises.</p>
 <p>Enterprise is also for customers who want premium support, and a say in the roadmap and which features come next.</p>
