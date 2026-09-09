@@ -197,6 +197,14 @@ export interface DroptargetOptions {
      * `undefined` (the default) uses the built-in cursor-quadrant logic.
      */
     getPositionResolver?: () => PositionResolver | undefined;
+    /**
+     * Pointer backend only: skip this target during hit-testing when it returns
+     * `true`, so the ancestor walk continues past it. Lets an element be a
+     * hit-test stop for some payloads and fully transparent for the rest. The
+     * HTML5 backend ignores it — there, propagation is controlled by the DOM
+     * event flow.
+     */
+    isHitTestTransparent?: () => boolean;
 }
 
 /**

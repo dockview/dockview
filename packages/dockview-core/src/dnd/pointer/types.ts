@@ -16,4 +16,11 @@ export interface IPointerDropTargetHandle {
     handleDragOver(event: PointerDragEvent): void;
     handleDragLeave(): void;
     handleDrop(event: PointerDragEvent): void;
+    /**
+     * When present and truthy the target is skipped during hit-testing, so the
+     * ancestor walk continues past it to the next registered target. Lets a
+     * target act as a hit-test stop for some payloads only; a target that is
+     * merely inert on drop would otherwise still shadow its ancestors.
+     */
+    isHitTestTransparent?(): boolean;
 }

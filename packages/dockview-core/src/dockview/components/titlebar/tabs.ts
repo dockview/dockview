@@ -31,6 +31,7 @@ import { ITabGroup } from '../../tabGroup';
 import { TabGroupManager } from './tabGroups';
 import { ITabGroupChipRenderer } from '../../framework';
 import { DroptargetEvent } from '../../../dnd/droptarget';
+import { pointerBackend } from '../../../dnd/backend';
 import {
     ITabReorderHost,
     TabAnimationState,
@@ -470,7 +471,33 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
 
         this._reorder = new TabReorderController(this);
 
+        // Hit-test stop for internal pointer drags. `_findTargetUnder` returns
+        // the innermost *registered* ancestor, and the strip registers targets
+        // on tabs and the void container only - so releasing over the strip's
+        // padding (or a gap opened by the smooth-reorder animation) walked all
+        // the way up to the root edge target. That docked the drag at the
+        // layout edge while `handlePointerDragEnd` also committed the reorder:
+        // two actions for one release. Registering here stops the walk at the
+        // strip; `canDisplayOverlay` declines so no state is latched and the
+        // target is inert on drop, leaving the reorder as the only commit.
+        //
+        // External payloads must still reach the root, so the target reports
+        // itself hit-test transparent for anything that isn't an internal drag
+        // from this view (mirroring the root's own `canDisplayOverlay`).
+        const tabsListPointerTarget = pointerBackend.createDropTarget(
+            this._tabsList,
+            {
+                acceptedTargetZones: ['center'],
+                canDisplayOverlay: () => false,
+                isHitTestTransparent: () => {
+                    const data = getPanelData();
+                    return data?.viewId !== this.accessor.id;
+                },
+            }
+        );
+
         this.addDisposables(
+            tabsListPointerTarget,
             this._onOverflowTabsChange,
             this._observerDisposable,
             this._pointerActivation,
