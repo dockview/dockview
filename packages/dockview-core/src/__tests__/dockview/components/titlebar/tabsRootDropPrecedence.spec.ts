@@ -97,6 +97,7 @@ function createScene(): {
     rootService: RootDropTargetService;
     tabsList: HTMLElement;
     tabElements: HTMLElement[];
+    scrollbar: HTMLElement;
     dispose: () => void;
 } {
     const accessor = fromPartial<DockviewComponent>({
@@ -161,11 +162,16 @@ function createScene(): {
     ]);
     jest.spyOn(document, 'elementFromPoint').mockReturnValue(tabsList);
 
+    const scrollbar = tabs.element.querySelector(
+        '.dv-scrollbar'
+    ) as HTMLElement;
+
     return {
         tabs,
         rootService,
         tabsList,
         tabElements,
+        scrollbar,
         dispose: () => {
             rootService.dispose();
             tabs.dispose();
@@ -226,42 +232,71 @@ describe('tabs - pointer drop precedence over the root edge target', () => {
         scene.dispose();
     });
 
-    test('the strip target never latches a drop state, whatever the payload', () => {
+    test('a release on the scrollbar thumb is unaffected', () => {
+        // The thumb is a sibling of the strip inside `.dv-scrollable`, so
+        // `isPointInsideTabsList` already excluded it: the reorder never
+        // commits there and the root is the only thing that acts. Pinned so
+        // widening the stop to cover the thumb does not silently turn an edge
+        // dock into a no-op.
+        (dataTransfer.getPanelData as jest.Mock).mockReturnValue({
+            viewId: ACCESSOR_ID,
+            groupId: GROUP_ID,
+            panelId: 'panel-b',
+        });
+
         const scene = createScene();
-        const target: IDropTarget = (scene.tabs as any)._tabsListPointerTarget;
-        expect(target).toBeDefined();
+        const rootDrops: unknown[] = [];
+        const tabDrops: unknown[] = [];
+        scene.rootService.onDrop((e) => rootDrops.push(e));
+        scene.tabs.onDrop((e) => tabDrops.push(e));
 
-        // jsdom reports a zero-sized strip, which short-circuits the overlay
-        // path before `canDisplayOverlay` is reached.
-        jest.spyOn(scene.tabsList, 'offsetWidth', 'get').mockReturnValue(300);
-        jest.spyOn(scene.tabsList, 'offsetHeight', 'get').mockReturnValue(30);
+        (document.elementsFromPoint as jest.Mock).mockReturnValue([
+            scene.scrollbar,
+            scene.tabs.element,
+            scene.tabsList.parentElement,
+        ]);
+        (document.elementFromPoint as jest.Mock).mockReturnValue(
+            scene.scrollbar
+        );
 
-        const dragOver = () =>
-            (target as any)._onDragOver({
-                clientX: 2,
-                clientY: 15,
-                pointerEvent: pointerEvent('pointermove', 2, 15),
-            });
+        fireEvent.dragStart(scene.tabElements[1]);
 
-        for (const data of [
-            { viewId: ACCESSOR_ID, groupId: GROUP_ID, panelId: 'panel-b' },
-            // A cross-instance payload: the root declines this too, so the
-            // strip claiming it would only paint an overlay nothing commits.
-            {
-                viewId: 'another-accessor',
-                groupId: 'another-group',
-                panelId: 'panel-x',
-            },
-            undefined,
-        ]) {
-            (dataTransfer.getPanelData as jest.Mock).mockReturnValue(data);
-            dragOver();
-            expect(target.state).toBeUndefined();
-        }
+        const controller = PointerDragController.getInstance();
+        controller.beginDrag({
+            pointerEvent: pointerEvent('pointerdown', 140, 15),
+            source: scene.tabElements[1],
+            getData: () => ({ dispose: jest.fn() }),
+        });
+        window.dispatchEvent(pointerEvent('pointermove', 2, 28));
+        window.dispatchEvent(pointerEvent('pointerup', 2, 28));
 
-        expect(
-            scene.tabsList.getElementsByClassName('dv-drop-target-dropzone')
-        ).toHaveLength(0);
+        expect(tabDrops).toHaveLength(0);
+        expect(rootDrops).toHaveLength(1);
+
+        scene.dispose();
+    });
+
+    test('a payload this view does not own still reaches the root', () => {
+        // A paneview header drags on this backend carrying a `PaneTransfer`,
+        // so `getPanelData()` is undefined: the strip must not claim it, or
+        // `onUnhandledDragOverEvent` docking over the header stops working.
+        (dataTransfer.getPanelData as jest.Mock).mockReturnValue(undefined);
+
+        const scene = createScene();
+        const rootDrops: { position: string }[] = [];
+        scene.rootService.onDrop((e) => rootDrops.push(e as any));
+
+        const controller = PointerDragController.getInstance();
+        controller.beginDrag({
+            pointerEvent: pointerEvent('pointerdown', 140, 15),
+            source: scene.tabElements[1],
+            getData: () => ({ dispose: jest.fn() }),
+        });
+        window.dispatchEvent(pointerEvent('pointermove', 2, 15));
+        window.dispatchEvent(pointerEvent('pointerup', 2, 15));
+
+        expect(rootDrops).toHaveLength(1);
+        expect(rootDrops[0].position).toBe('left');
 
         scene.dispose();
     });

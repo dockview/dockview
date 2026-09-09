@@ -17,7 +17,6 @@ import {
 import { Scrollbar } from '../../../scrollbar';
 import { PointerDragController } from '../../../dnd/pointer/pointerDragController';
 import { pointerBackend } from '../../../dnd/backend';
-import { IDropTarget } from '../../../dnd/droptarget';
 import { DockviewComponent } from '../../dockviewComponent';
 import { DockviewGroupPanel } from '../../dockviewGroupPanel';
 import { DockviewWillShowOverlayLocationEvent } from '../../events';
@@ -46,12 +45,10 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
     private readonly _pointerActivation = new MutableDisposable();
     private readonly _scrollbar: Scrollbar | null = null;
     /**
-     * Pointer-backend hit-test stop for the strip itself. Declines every
-     * overlay, so it never latches a drop state and is inert on release; it
-     * exists only so the ancestor walk in `PointerDragController` stops here
-     * instead of reaching the layout root.
+     * Pointer-backend hit-test stop for the header strip, live only for the
+     * duration of a drag this view owns. See {@link _armPointerDropStop}.
      */
-    private readonly _tabsListPointerTarget: IDropTarget;
+    private readonly _pointerDropStop = new MutableDisposable();
 
     private _tabs: IValueDisposable<Tab>[] = [];
     private readonly _tabMap = new Map<string, IValueDisposable<Tab>>();
@@ -430,34 +427,6 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
             this._direction === 'vertical' ? 'vertical' : 'horizontal'
         );
 
-        // `PointerDragController` resolves a release point to the innermost
-        // *registered* target. The strip was unregistered, so a release on its
-        // padding - or on a gap opened by the smooth-reorder animation - walked
-        // up to the layout-root edge target, which docked the group at the
-        // layout edge while `handlePointerDragEnd` also committed the reorder.
-        // A target that declines never latches a drop state, so this one is
-        // inert on release while still ending the walk: the strip wins over the
-        // root edge band, and the reorder is the only thing that commits.
-        //
-        // It declines unconditionally rather than only for drags this view
-        // owns. Registration alone is what ends the walk - `canDisplayOverlay`
-        // is never consulted while hit-testing - so a gate could not hand an
-        // external payload back to the root anyway, and accepting one here
-        // would latch a drop state and paint an overlay across the strip for a
-        // cross-instance drag the root already declines. Nothing is lost: every
-        // pointer drag originates from a dockview drag source and so always
-        // carries a `PanelTransfer`.
-        //
-        // Pointer backend only - on HTML5 the capturing `drop` handler below
-        // already stops the event before the root listener sees it.
-        this._tabsListPointerTarget = pointerBackend.createDropTarget(
-            this._tabsList,
-            {
-                acceptedTargetZones: ['center'],
-                canDisplayOverlay: () => false,
-            }
-        );
-
         this.showTabsOverflowControl = options.showTabsOverflowControl;
 
         if (accessor.options.scrollbars === 'native') {
@@ -508,7 +477,10 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         this._reorder = new TabReorderController(this);
 
         this.addDisposables(
-            this._tabsListPointerTarget,
+            this._pointerDropStop,
+            PointerDragController.getInstance().onDragStart(() => {
+                this._armPointerDropStop();
+            }),
             this._onOverflowTabsChange,
             this._observerDisposable,
             this._pointerActivation,
@@ -522,6 +494,10 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
             // its own transfer payload + iframe-shield cleanup.
             PointerDragController.getInstance().onDragEnd((e) => {
                 this._reorder.handlePointerDragEnd(e);
+            }),
+            // Subscribed after the commit above so the stop outlives it.
+            PointerDragController.getInstance().onDragEnd(() => {
+                this._pointerDropStop.dispose();
             }),
             // Pointer-event mirror of the HTML5 dragover / dragleave handlers
             // below. Drives smooth-reorder for `dndStrategy: 'pointer'` and
@@ -904,6 +880,51 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                 parentElement.scrollLeft = start;
             }
         }
+    }
+
+    /**
+     * Register a declining pointer drop target on the header strip for the
+     * lifetime of one drag, but only for a drag this view owns.
+     *
+     * `PointerDragController` resolves a release point to the innermost
+     * *registered* target. Nothing in the strip but the tabs, the group chips
+     * and the void container is registered, so a release on the strip's
+     * padding - or on a gap opened by the smooth-reorder animation, or on the
+     * scrollbar thumb overlaying it - walked up to the layout-root edge target.
+     * That docked the group at the layout edge while `handlePointerDragEnd`
+     * also committed the reorder: two actions for one release. A target that
+     * declines never latches a drop state, so this one is inert on release
+     * while still ending the walk, leaving the reorder as the only commit.
+     *
+     * Registration is what ends the walk - `canDisplayOverlay` is never
+     * consulted while hit-testing - so the ownership test has to gate the
+     * registration, not the overlay. A payload this view does not own (another
+     * component's tab, or a paneview header, which drags on this backend
+     * carrying a `PaneTransfer` and no panel data) still reaches the root,
+     * where `dndEdges` and `onUnhandledDragOverEvent` decide it as before.
+     *
+     * Bound to `_tabsList`, not `element`: with non-native scrollbars the
+     * scrollbar thumb is a sibling of the strip inside `.dv-scrollable`, and
+     * `isPointInsideTabsList` already excludes it, so a release on the thumb
+     * commits no reorder and has only ever been the root's. Widening the stop
+     * to the wrapper would turn that edge dock into a silent no-op.
+     *
+     * Pointer backend only. The HTML5 path is untouched.
+     */
+    private _armPointerDropStop(): void {
+        const data = getPanelData();
+
+        if (data?.viewId !== this.accessor.id) {
+            return;
+        }
+
+        this._pointerDropStop.value = pointerBackend.createDropTarget(
+            this._tabsList,
+            {
+                acceptedTargetZones: ['center'],
+                canDisplayOverlay: () => false,
+            }
+        );
     }
 
     /**
