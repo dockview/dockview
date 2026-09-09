@@ -98,6 +98,10 @@
                 // overriding the pointer-quadrant / compass resolution — inert
                 // unless the param is present so other DnD specs are unaffected.
                 const resolverPosition = params.get('resolver');
+                // `?dndEdges=<px>` widens the root edge activation band so the
+                // tab strip falls inside it. Unset leaves the 10px default, so
+                // other DnD specs are unaffected.
+                const dndEdgesParam = params.get('dndEdges');
                 const dropPositionResolver = resolverPosition
                     ? { resolve: () => ({ position: resolverPosition }) }
                     : undefined;
@@ -161,6 +165,15 @@
                     // cursor-quadrant drop resolution can be exercised; on by
                     // default so the compass specs are unaffected.
                     dndCompass: params.get('compass') !== '0',
+                    dndEdges: dndEdgesParam
+                        ? {
+                              activationSize: {
+                                  type: 'pixels',
+                                  value: Number(dndEdgesParam),
+                              },
+                              size: { type: 'pixels', value: 20 },
+                          }
+                        : undefined,
                     dndStrategy:
                         params.get('dnd') === 'html5' ? 'html5' : 'pointer',
                     // Custom drop-position resolver (opt-in via `?resolver=`),
