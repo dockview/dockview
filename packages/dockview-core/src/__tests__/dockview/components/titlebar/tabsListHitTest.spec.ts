@@ -252,6 +252,59 @@ describe('tabs - strip is a pointer hit-test stop', () => {
         fixture.dispose();
     });
 
+    test('a cross-group drag released on strip padding still docks at the edge', () => {
+        // `handlePointerDragEnd` only commits intra-group single-tab reorders
+        // (`sourceIndex !== -1`), so a drag from another group has nothing to
+        // commit here. Stopping the walk for it would just make the release a
+        // dead zone.
+        const fixture = createFixture();
+
+        const onTabsDrop = jest.fn();
+        const onRootDrop = jest.fn();
+        fixture.tabs.onDrop(onTabsDrop);
+        fixture.rootService.onDrop(onRootDrop);
+
+        LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
+            [new PanelTransfer(ACCESSOR_ID, 'other-group', 'panel-x')],
+            PanelTransfer.prototype
+        );
+
+        drag(fixture, document.createElement('div'));
+
+        window.dispatchEvent(
+            makePointerEvent('pointerup', RELEASE_X, RELEASE_Y)
+        );
+
+        expect(onTabsDrop).not.toHaveBeenCalled();
+        expect(onRootDrop).toHaveBeenCalledTimes(1);
+
+        fixture.dispose();
+    });
+
+    test('a whole-group or chip drag released on strip padding still docks at the edge', () => {
+        // Both carry a null `panelId`; `handlePointerDragEnd` declines them
+        // (`sourceTabGroupId` for chips, and neither is a single-tab reorder).
+        const fixture = createFixture();
+
+        const onRootDrop = jest.fn();
+        fixture.rootService.onDrop(onRootDrop);
+
+        LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
+            [new PanelTransfer(ACCESSOR_ID, 'test-group', null, 'chip-1')],
+            PanelTransfer.prototype
+        );
+
+        drag(fixture, document.createElement('div'));
+
+        window.dispatchEvent(
+            makePointerEvent('pointerup', RELEASE_X, RELEASE_Y)
+        );
+
+        expect(onRootDrop).toHaveBeenCalledTimes(1);
+
+        fixture.dispose();
+    });
+
     test('an external drag released on strip padding still docks at the edge', () => {
         const fixture = createFixture();
 

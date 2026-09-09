@@ -481,9 +481,15 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         // strip; `canDisplayOverlay` declines so no state is latched and the
         // target is inert on drop, leaving the reorder as the only commit.
         //
-        // External payloads must still reach the root, so the target reports
-        // itself hit-test transparent for anything that isn't an internal drag
-        // from this view (mirroring the root's own `canDisplayOverlay`).
+        // Stopping the walk is only correct for a payload the strip can
+        // actually commit, otherwise the release lands in a dead zone. Match
+        // `handlePointerDragEnd`'s guard exactly: an intra-group single-tab
+        // drag, i.e. our own view (`viewId`), started in this strip
+        // (`groupId`, the same discriminator the reorder controller uses), and
+        // a tab rather than a group or chip (both of which carry a null
+        // `panelId`). Everything else - external payloads, cross-group,
+        // whole-group and chip drags - stays transparent and still reaches the
+        // root edge target.
         const tabsListPointerTarget = pointerBackend.createDropTarget(
             this._tabsList,
             {
@@ -491,7 +497,11 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                 canDisplayOverlay: () => false,
                 isHitTestTransparent: () => {
                     const data = getPanelData();
-                    return data?.viewId !== this.accessor.id;
+                    return !(
+                        data?.viewId === this.accessor.id &&
+                        data.groupId === this.group.id &&
+                        data.panelId !== null
+                    );
                 },
             }
         );
