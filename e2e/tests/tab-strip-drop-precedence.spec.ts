@@ -3,13 +3,13 @@ import { test, expect, Page } from '@playwright/test';
 /**
  * Tab strip vs. the root edge drop target on the pointer backend.
  *
- * `PointerDragController` resolves a release point to the innermost
- * *registered* target. Inside the strip only the tabs, the group chips and the
- * void container were registered, so a release over a part of the strip that is
- * none of those — the hole the smooth-reorder animation opens where the dragged
- * tab used to sit — walked up to the layout root and handed the drop to its
- * edge target. That docked the group at the layout edge *and* let
- * `handlePointerDragEnd` commit the reorder: two actions for one release.
+ * `PointerDragController` routes a release to the innermost *registered*
+ * target. Inside the strip that is the tabs, the group chips and the void
+ * container, so a release over none of those — the hole the smooth reorder
+ * opens where the dragged tab sat — resolves to the layout root's edge target,
+ * docking the group at the layout edge on the same release that
+ * `handlePointerDragEnd` commits the reorder. `Tabs` registers a declining
+ * stop on the strip to keep the root out of that walk.
  *
  * Real-browser only. The unit coverage stubs `elementsFromPoint` and every
  * rect, so it asserts the geometry rather than observing it; only a real layout

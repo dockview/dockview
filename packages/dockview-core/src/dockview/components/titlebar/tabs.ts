@@ -883,33 +883,24 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
     }
 
     /**
-     * Register a declining pointer drop target on the header strip for the
-     * lifetime of one drag, but only for a drag this view owns.
+     * Register a declining pointer drop target on the tabs list for the
+     * lifetime of one drag this view owns.
      *
-     * `PointerDragController` resolves a release point to the innermost
-     * *registered* target. Nothing in the strip but the tabs, the group chips
-     * and the void container is registered, so a release on the strip's
-     * padding - or on a gap opened by the smooth-reorder animation, or on the
-     * scrollbar thumb overlaying it - walked up to the layout-root edge target.
-     * That docked the group at the layout edge while `handlePointerDragEnd`
-     * also committed the reorder: two actions for one release. A target that
-     * declines never latches a drop state, so this one is inert on release
-     * while still ending the walk, leaving the reorder as the only commit.
+     * `PointerDragController` routes a release to the innermost *registered*
+     * target, so without this the strip's non-tab areas - its padding, and the
+     * gap the smooth reorder opens - resolve to the layout-root edge target,
+     * docking the group at the layout edge on the same release that
+     * `handlePointerDragEnd` commits the reorder. Declining latches no drop
+     * state: inert on release, but still a stop for the walk.
      *
-     * Registration is what ends the walk - `canDisplayOverlay` is never
-     * consulted while hit-testing - so the ownership test has to gate the
-     * registration, not the overlay. A payload this view does not own (another
-     * component's tab, or a paneview header, which drags on this backend
-     * carrying a `PaneTransfer` and no panel data) still reaches the root,
-     * where `dndEdges` and `onUnhandledDragOverEvent` decide it as before.
+     * Registration is the stop, not `canDisplayOverlay`, so ownership gates
+     * the registration - a payload this view does not own (a paneview header
+     * carries a `PaneTransfer`, no panel data) must still reach the root and
+     * its `dndEdges` / `onUnhandledDragOverEvent` handling.
      *
-     * Bound to `_tabsList`, not `element`: with non-native scrollbars the
-     * scrollbar thumb is a sibling of the strip inside `.dv-scrollable`, and
-     * `isPointInsideTabsList` already excludes it, so a release on the thumb
-     * commits no reorder and has only ever been the root's. Widening the stop
-     * to the wrapper would turn that edge dock into a silent no-op.
-     *
-     * Pointer backend only. The HTML5 path is untouched.
+     * `_tabsList`, not `element`: the scrollbar thumb is a sibling of the
+     * strip and `isPointInsideTabsList` excludes it, so a release there is the
+     * root's.
      */
     private _armPointerDropStop(): void {
         const data = getPanelData();

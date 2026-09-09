@@ -89,8 +89,8 @@ function pointerEvent(
  *
  * The release point used throughout - (2, 15) - sits in the strip's left
  * padding (the first tab starts at x=20) *and* inside the root's 10px edge
- * activation band, which is exactly the overlap that used to dock the group at
- * the layout edge and reorder the tab strip off one release.
+ * activation band: the overlap where a single release can reach both the
+ * reorder and the root's edge dock.
  */
 function createScene(): {
     tabs: Tabs;

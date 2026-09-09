@@ -257,12 +257,10 @@ export class TabReorderController extends CompositeDisposable {
         // (the backend calls `handleDrop` before `onDragEnd`), so if the per-tab
         // path *did* fire, `_animState` is already null and this is skipped; in
         // default (non-smooth) mode `_animState` is never set for an intra-group
-        // drag, so this path is inert there too. A release on the strip's
-        // padding used to escape that guard entirely - no strip target was
-        // registered, so the hit-test walked up to the layout-root edge target,
-        // which docked the group at the edge *and* left `_animState` set for the
-        // commit below. `Tabs` now registers a declining pointer target on the
-        // tabs list, so the walk stops at the strip.
+        // drag, so this path is inert there too. The strip-level
+        // pointer stop `Tabs` registers keeps the layout-root edge target out
+        // of the hit-test, so a release on the strip cannot dock at the edge
+        // alongside this commit.
         if (
             e &&
             this._animState &&
