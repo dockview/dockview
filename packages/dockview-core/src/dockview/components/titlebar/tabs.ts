@@ -481,8 +481,10 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         //
         // Transparent for payloads the strip cannot commit, which would
         // otherwise be stranded: mirrors `handlePointerDragEnd`'s guard - our
-        // own view, started in this strip, and a tab rather than a group or
-        // chip (both carry a null `panelId`).
+        // own view, started in this strip, and either a single tab or a chip,
+        // both of which commit on release here. A whole-group drag carries a
+        // null `panelId` and no tab group, commits nothing here, and stays the
+        // root's.
         const tabsListPointerTarget = pointerBackend.createDropTarget(
             this._tabsList,
             {
@@ -490,11 +492,15 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                 canDisplayOverlay: () => false,
                 isHitTestTransparent: () => {
                     const data = getPanelData();
-                    return !(
-                        data?.viewId === this.accessor.id &&
-                        data.groupId === this.group.id &&
-                        data.panelId !== null
-                    );
+
+                    if (
+                        data?.viewId !== this.accessor.id ||
+                        data.groupId !== this.group.id
+                    ) {
+                        return true;
+                    }
+
+                    return data.panelId === null && !data.tabGroupId;
                 },
             }
         );

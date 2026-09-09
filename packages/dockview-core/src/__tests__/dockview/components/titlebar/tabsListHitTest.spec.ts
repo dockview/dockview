@@ -281,16 +281,53 @@ describe('tabs - strip is a pointer hit-test stop', () => {
         fixture.dispose();
     });
 
-    test('a whole-group or chip drag released on strip padding still docks at the edge', () => {
-        // Both carry a null `panelId`; `handlePointerDragEnd` declines them
-        // (`sourceTabGroupId` for chips, and neither is a single-tab reorder).
+    // A chip drag commits here too, so the strip has to stop the walk for it
+    // as well - otherwise the release docks at the layout edge on top of the
+    // group move.
+    test('a chip drag released on strip padding reorders only', () => {
         const fixture = createFixture();
+
+        const model = (fixture.tabs as any).group.model;
+        model.moveTabGroup = jest.fn();
+        model.getTabGroups = jest.fn().mockReturnValue([{ id: 'chip-1' }]);
 
         const onRootDrop = jest.fn();
         fixture.rootService.onDrop(onRootDrop);
 
         LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
             [new PanelTransfer(ACCESSOR_ID, 'test-group', null, 'chip-1')],
+            PanelTransfer.prototype
+        );
+
+        drag(fixture, document.createElement('div'));
+
+        (fixture.tabs as any)._animState = {
+            ...reorderAnimState(),
+            sourceTabId: '',
+            sourceTabGroupId: 'chip-1',
+            sourceGroupPanelIds: new Set(['panel-a']),
+        };
+
+        window.dispatchEvent(
+            makePointerEvent('pointerup', RELEASE_X, RELEASE_Y)
+        );
+
+        expect(onRootDrop).not.toHaveBeenCalled();
+        expect(model.moveTabGroup).toHaveBeenCalledWith('chip-1', 2);
+
+        fixture.dispose();
+    });
+
+    test('a whole-group drag released on strip padding still docks at the edge', () => {
+        // A group header drag carries a null `panelId` and no tab group, so
+        // `handlePointerDragEnd` has nothing to commit for it here.
+        const fixture = createFixture();
+
+        const onRootDrop = jest.fn();
+        fixture.rootService.onDrop(onRootDrop);
+
+        LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
+            [new PanelTransfer(ACCESSOR_ID, 'test-group', null)],
             PanelTransfer.prototype
         );
 
