@@ -4196,6 +4196,68 @@ describe('dockviewComponent', () => {
         expect(dockview.totalPanels).toBe(0);
     });
 
+    test('can re-add a closed panel with a tabComponent and renderer=always (#1300)', () => {
+        const container = document.createElement('div');
+
+        const dockview = new DockviewComponent(container, {
+            createComponent(options) {
+                switch (options.name) {
+                    case 'default':
+                        return new PanelContentPartTest(
+                            options.id,
+                            options.name
+                        );
+                    default:
+                        throw new Error(`unsupported`);
+                }
+            },
+            createTabComponent(options) {
+                switch (options.name) {
+                    case 'default':
+                        return new PanelTabPartTest(options.id, options.name);
+                    default:
+                        throw new Error(`unsupported`);
+                }
+            },
+        });
+
+        dockview.layout(500, 1000);
+
+        for (const renderer of ['always', 'onlyWhenVisible'] as const) {
+            const panel = dockview.addPanel({
+                id: 'panel1',
+                component: 'default',
+                tabComponent: 'default',
+                renderer,
+            });
+
+            expect(panel.api.renderer).toBe(renderer);
+
+            panel.api.close();
+
+            expect(dockview.totalPanels).toBe(0);
+
+            const panelAgain = dockview.addPanel({
+                id: 'panel1',
+                component: 'default',
+                tabComponent: 'default',
+                renderer,
+            });
+
+            expect(dockview.totalPanels).toBe(1);
+            expect(panelAgain.api.renderer).toBe(renderer);
+
+            // the tabComponent of the re-added panel must be rendered
+            const tab = panelAgain.view.tab as PanelTabPartTest;
+            expect(tab.isDisposed).toBeFalsy();
+            expect(
+                panelAgain.group.model.header.element.contains(tab.element)
+            ).toBeTruthy();
+
+            panelAgain.api.close();
+        }
+    });
+
     test('panel is disposed of when removed', () => {
         const container = document.createElement('div');
 
