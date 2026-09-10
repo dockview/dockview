@@ -2622,11 +2622,15 @@ export class DockviewComponent
 
             this.movingLock(() =>
                 this.removePanel(item, {
-                    removeEmptyGroup: true,
+                    removeEmptyGroup: false,
                     skipDispose: true,
                     skipSetActiveGroup: true,
                 })
             );
+
+            // outside `movingLock`: this group is destroyed rather than
+            // relocated, so its removal is owed an event
+            this.removeGroupIfEmpty(sourceGroup);
 
             this.movingLock(() =>
                 group.model.openPanel(item, { skipSetGroupActive: true })
@@ -2760,6 +2764,12 @@ export class DockviewComponent
 
         for (const { panel, from } of movedPanels) {
             this.fireDidMovePanel(panel, from);
+        }
+    }
+
+    private removeGroupIfEmpty(group: DockviewGroupPanel): void {
+        if (group.model.size === 0) {
+            this.doRemoveGroup(group, { skipActive: true });
         }
     }
 
