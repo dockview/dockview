@@ -3,8 +3,3 @@ dist/
 # Rust build output and Tauri's generated mobile/desktop scaffolding.
 src-tauri/target/
 src-tauri/gen/
-
-# Not committed for a demo: it would add several thousand lines of lockfile
-# noise to a repository that otherwise ships no Rust. Regenerated on first
-# `cargo`/`tauri` invocation.
-src-tauri/Cargo.lock
