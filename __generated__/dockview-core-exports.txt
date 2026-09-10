@@ -356,6 +356,8 @@ themeLightSpaced
 themeMonokai
 themeNord
 themeNordSpaced
+themeSlate
+themeSlateDark
 themeSolarizedLight
 themeSolarizedLightSpaced
 themeVisualStudio

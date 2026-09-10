@@ -108,7 +108,7 @@ export const themeAbyssSpaced: DockviewTheme = {
     className: 'dockview-theme-abyss-spaced',
     colorScheme: 'dark',
     gap: 10,
-    edgeGroupCollapsedSize: 44,
+    edgeGroupCollapsedSize: 28,
     dndOverlayMounting: 'absolute',
     dndPanelOverlay: 'group',
     dndTabIndicator: 'line',
@@ -120,7 +120,7 @@ export const themeLightSpaced: DockviewTheme = {
     className: 'dockview-theme-light-spaced',
     colorScheme: 'light',
     gap: 10,
-    edgeGroupCollapsedSize: 44,
+    edgeGroupCollapsedSize: 28,
     dndOverlayMounting: 'absolute',
     dndPanelOverlay: 'group',
     dndTabIndicator: 'line',
@@ -138,7 +138,7 @@ export const themeNordSpaced: DockviewTheme = {
     className: 'dockview-theme-nord-spaced',
     colorScheme: 'dark',
     gap: 10,
-    edgeGroupCollapsedSize: 44,
+    edgeGroupCollapsedSize: 28,
     dndOverlayMounting: 'absolute',
     dndPanelOverlay: 'group',
     dndTabIndicator: 'line',
@@ -156,7 +156,7 @@ export const themeCatppuccinMochaSpaced: DockviewTheme = {
     className: 'dockview-theme-catppuccin-mocha-spaced',
     colorScheme: 'dark',
     gap: 10,
-    edgeGroupCollapsedSize: 44,
+    edgeGroupCollapsedSize: 28,
     dndOverlayMounting: 'absolute',
     dndPanelOverlay: 'group',
     dndTabIndicator: 'line',
@@ -180,7 +180,7 @@ export const themeSolarizedLightSpaced: DockviewTheme = {
     className: 'dockview-theme-solarized-light-spaced',
     colorScheme: 'light',
     gap: 10,
-    edgeGroupCollapsedSize: 44,
+    edgeGroupCollapsedSize: 28,
     dndOverlayMounting: 'absolute',
     dndPanelOverlay: 'group',
     dndTabIndicator: 'line',
@@ -198,7 +198,7 @@ export const themeGithubDarkSpaced: DockviewTheme = {
     className: 'dockview-theme-github-dark-spaced',
     colorScheme: 'dark',
     gap: 10,
-    edgeGroupCollapsedSize: 44,
+    edgeGroupCollapsedSize: 28,
     dndOverlayMounting: 'absolute',
     dndPanelOverlay: 'group',
     dndTabIndicator: 'line',
@@ -216,9 +216,27 @@ export const themeGithubLightSpaced: DockviewTheme = {
     className: 'dockview-theme-github-light-spaced',
     colorScheme: 'light',
     gap: 10,
-    edgeGroupCollapsedSize: 44,
+    edgeGroupCollapsedSize: 28,
     dndOverlayMounting: 'absolute',
     dndPanelOverlay: 'group',
     dndTabIndicator: 'line',
     dndOverlayBorder: '2px solid var(--dv-active-sash-color)',
+};
+
+export const themeSlate: DockviewTheme = {
+    name: 'slate',
+    className: 'dockview-theme-slate',
+    colorScheme: 'light',
+    // Connected folder tabs merge into the panel, so an insertion line reads
+    // more cleanly than a fill when dropping a tab.
+    dndTabIndicator: 'line',
+    edgeGroupCollapsedSize: 32,
+};
+
+export const themeSlateDark: DockviewTheme = {
+    name: 'slateDark',
+    className: 'dockview-theme-slate-dark',
+    colorScheme: 'dark',
+    dndTabIndicator: 'line',
+    edgeGroupCollapsedSize: 32,
 };
