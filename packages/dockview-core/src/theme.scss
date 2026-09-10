@@ -1191,6 +1191,25 @@
         + .dv-tab::before {
         background-color: transparent;
     }
+
+    // Vertical (edge-group) headers can't wear the horizontal folder shape: the
+    // shoulders are horizontal-only (above) and the base tab rounding only
+    // rounds the top corners, which land on the wrong edges once the strip is
+    // rotated (leaving notched, half-rounded tabs). Give the vertical tabs a
+    // clean full-radius pill instead, with a stacking gap along the header
+    // (block axis) and a cross-axis inset (inline axis) so the pill sits inside
+    // the strip rather than clipping its edge.
+    .dv-tabs-container-vertical > .dv-tab {
+        border-radius: var(--dv-tab-border-radius);
+        margin: calc(var(--dv-tab-connected-gap) / 2)
+            calc(var(--dv-tab-shoulder-size) / 2);
+
+        // The stacking gap already separates the pills, so drop the base
+        // between-tab hairline (it renders as a stray mark against the pill).
+        &::before {
+            display: none;
+        }
+    }
 }
 
 // Utility class: opt any theme into connected tabs (compose like
