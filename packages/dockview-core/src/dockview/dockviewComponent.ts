@@ -2622,11 +2622,25 @@ export class DockviewComponent
 
             this.movingLock(() =>
                 this.removePanel(item, {
-                    removeEmptyGroup: true,
+                    removeEmptyGroup: false,
                     skipDispose: true,
                     skipSetActiveGroup: true,
                 })
             );
+
+            /**
+             * Floating the last panel out of a group destroys that group, so
+             * the caller is owed an `onDidRemoveGroup` for it — the counterpart
+             * to the `onDidAddGroup` fired for the new floating group above.
+             * The removal is deliberately left outside `movingLock`: the lock
+             * exists to suppress the panel add/remove churn of a *move*, but
+             * this group is genuinely gone rather than relocated. Dropping the
+             * last panel of a group into another group already reports it this
+             * way (see `moveGroupOrPanel`), so floating now matches.
+             */
+            if (sourceGroup.model.size === 0) {
+                this.doRemoveGroup(sourceGroup, { skipActive: true });
+            }
 
             this.movingLock(() =>
                 group.model.openPanel(item, { skipSetGroupActive: true })

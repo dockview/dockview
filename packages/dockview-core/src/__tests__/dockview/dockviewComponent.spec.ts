@@ -6662,6 +6662,68 @@ describe('dockviewComponent', () => {
             expect(dockview.groups).toHaveLength(0);
         });
 
+        test('floating the last panel of a group fires onDidRemoveGroup for the group it destroys', () => {
+            const dockview = createDockview();
+            dockview.layout(1000, 500);
+
+            const panel = dockview.addPanel({
+                id: 'panel_1',
+                component: 'default',
+            });
+            const sourceGroup = panel.api.group;
+
+            const events: string[] = [];
+            dockview.onDidAddGroup((group) => events.push(`add:${group.id}`));
+            dockview.onDidRemoveGroup((group) =>
+                events.push(`remove:${group.id}`)
+            );
+
+            dockview.addFloatingGroup(panel as DockviewPanel);
+
+            const floatingGroup = panel.api.group;
+
+            // the source group is genuinely gone, not merely emptied
+            expect(dockview.groups).toEqual([floatingGroup]);
+            expect(dockview.getPanel(sourceGroup.id)).toBeUndefined();
+
+            // ...so its removal is reported, matching the `onDidAddGroup` that
+            // announced the floating group it was traded for
+            expect(events).toEqual([
+                `add:${floatingGroup.id}`,
+                `remove:${sourceGroup.id}`,
+            ]);
+
+            dockview.dispose();
+        });
+
+        test('floating a panel out of a multi-panel group leaves the source group untouched', () => {
+            const dockview = createDockview();
+            dockview.layout(1000, 500);
+
+            const panel1 = dockview.addPanel({
+                id: 'panel_1',
+                component: 'default',
+            });
+            const panel2 = dockview.addPanel({
+                id: 'panel_2',
+                component: 'default',
+                position: { referencePanel: 'panel_1', direction: 'within' },
+            });
+            const sourceGroup = panel1.api.group;
+
+            const removed: string[] = [];
+            dockview.onDidRemoveGroup((group) => removed.push(group.id));
+
+            dockview.addFloatingGroup(panel2 as DockviewPanel);
+
+            // the source group still holds panel_1, so nothing was destroyed
+            expect(removed).toEqual([]);
+            expect(dockview.getPanel(sourceGroup.id)).toBe(sourceGroup);
+            expect(sourceGroup.panels.map((p) => p.id)).toEqual(['panel_1']);
+
+            dockview.dispose();
+        });
+
         const createDockview = () =>
             new DockviewComponent(document.createElement('div'), {
                 createComponent(options) {

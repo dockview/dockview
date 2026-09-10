@@ -96,6 +96,8 @@ api.onDidRemoveGroup((group: DockviewGroupPanel) => {});
 api.onDidActiveGroupChange((group: DockviewGroupPanel | undefined) => {});
 ```
 
+Moving the last panel out of a group destroys the group it leaves behind, and that destruction is reported through `onDidRemoveGroup`. This holds whether the panel was dropped into another group or floated out into a window of its own. Floating a whole group is a relocation rather than a trade, so it adds and removes nothing.
+
 ## Layout
 
 These events fire when the overall layout structure changes.
