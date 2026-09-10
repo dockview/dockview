@@ -4242,7 +4242,7 @@ export class DockviewComponent
 
             return popoutService.scheduleRestoration(
                 index * DESERIALIZATION_POPOUT_DELAY_MS,
-                () => {
+                () =>
                     this.addPopoutGroup(group, {
                         position: position ?? undefined,
                         overridePopoutGroup: gridReferenceGroup
@@ -4253,8 +4253,7 @@ export class DockviewComponent
                             ? this.getPanel(gridReferenceGroup)
                             : undefined,
                         popoutUrl: url,
-                    });
-                },
+                    }),
                 () => {
                     // The group was registered in _groups synchronously but the
                     // timer that would parent it into the popout window never
