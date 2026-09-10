@@ -732,6 +732,24 @@ export function isEdgeGroupEnabled(
     return !!set?.[position];
 }
 
+/**
+ * Depth (px) of the outer "dock as an edge group" band measured in from the
+ * content-area edge, and the single source of truth for the two-band edge
+ * drag-reveal affordance's geometry.
+ *
+ * The band the root drop target activates on is twice this ({@link
+ * EDGE_GROUP_DOCK_BAND} outer, the same again inner), so the two drops a
+ * layout-edge drag can produce - dock as an edge group, or split the grid at
+ * that edge - get an equal share of the travel. They used to be sized
+ * independently in two packages, which is how the inner band ended up narrow
+ * enough to overshoot.
+ *
+ * Core does not implement the outer band; it only reserves the room for it (see
+ * `rootDropTargetService`). The affordance itself lives in the AutoEdgeGroup
+ * module, which classifies against this same constant.
+ */
+export const EDGE_GROUP_DOCK_BAND = 24;
+
 /** Whether any edge is enabled in a per-edge {@link EdgeGroupSet}. */
 export function isAnyEdgeGroupEnabled(set: EdgeGroupSet | undefined): boolean {
     if (typeof set === 'boolean') {

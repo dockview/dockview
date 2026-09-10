@@ -36,19 +36,37 @@ describe('auto edge group service (branch coverage)', () => {
     function createHost(dockToEdgeGroups: unknown = true) {
         const overlayRoot = document.createElement('div');
         document.body.appendChild(overlayRoot);
-        const willShow = new Emitter<DockviewWillShowOverlayLocationEvent>();
+        const emitter = new Emitter<DockviewWillShowOverlayLocationEvent>();
         const willDrop = new Emitter<DockviewWillDropEvent>();
         const reveal = jest.fn();
+        // The real overlay event carries `suppressOverlay` (the seam the outer
+        // band takes the drop target's own preview off with), so the synthetic
+        // one has to as well; the spy is how the suppression is asserted.
+        const suppressOverlay = jest.fn();
+        const willShow = {
+            fire: (e: unknown) =>
+                emitter.fire({
+                    suppressOverlay,
+                    ...(e as object),
+                } as DockviewWillShowOverlayLocationEvent),
+        };
         const host = {
             options: { dockToEdgeGroups },
             overlayRoot,
             getDropZoneRect: () => rect,
-            onWillShowOverlay: willShow.event,
+            onWillShowOverlay: emitter.event,
             onWillDrop: willDrop.event,
             revealEdgeGroupWithData: reveal,
         };
         const service = new AutoEdgeGroupService(host as any);
-        return { service, overlayRoot, willShow, willDrop, reveal };
+        return {
+            service,
+            overlayRoot,
+            willShow,
+            willDrop,
+            reveal,
+            suppressOverlay,
+        };
     }
 
     const band = (root: HTMLElement): HTMLElement | null =>
@@ -158,7 +176,7 @@ describe('auto edge group service (branch coverage)', () => {
             event: { clientX, clientY } as any,
         });
 
-        // 4px from the right edge (1000) → within the 16px band
+        // 4px from the right edge (1000) → within the 24px band
         expect(service.resolveEdge(at(996, 500))).toEqual({
             position: 'right',
             edge: true,
@@ -176,14 +194,14 @@ describe('auto edge group service (branch coverage)', () => {
             edge: true,
             edgeGroup: true,
         });
-        // exactly 16px in is still inside the band (<=)
-        expect(service.resolveEdge(at(16, 500))).toEqual({
+        // exactly 24px in is still inside the band (<=)
+        expect(service.resolveEdge(at(24, 500))).toEqual({
             position: 'left',
             edge: true,
             edgeGroup: true,
         });
-        // 17px in is past the band
-        expect(service.resolveEdge(at(17, 500))).toBeNull();
+        // 33px in is past the band, hysteresis included (24 + 8)
+        expect(service.resolveEdge(at(33, 500))).toBeNull();
     });
 
     test('an event with no clientX/clientY treats the pointer as the origin', () => {
@@ -251,11 +269,12 @@ describe('auto edge group service (branch coverage)', () => {
         } as any);
         const el = band(overlayRoot)!;
         expect(el).toBeTruthy();
-        // left = dz.width - LINE(3); a full-height vertical line
-        expect(el.style.left).toBe('997px');
+        // left = dz.width - PREVIEW(36); a full-height vertical strip
+        expect(el.style.left).toBe('964px');
         expect(el.style.top).toBe('0px');
-        expect(el.style.width).toBe('3px');
+        expect(el.style.width).toBe('36px');
         expect(el.style.height).toBe('1000px');
+        expect(el.classList).toContain('dv-auto-edge-band-right');
         service.dispose();
     });
 
@@ -267,11 +286,12 @@ describe('auto edge group service (branch coverage)', () => {
             nativeEvent: { clientX: 500, clientY: 4 },
         } as any);
         const el = band(overlayRoot)!;
-        // a full-width horizontal line at the top
+        // a full-width horizontal strip at the top
         expect(el.style.left).toBe('0px');
         expect(el.style.top).toBe('0px');
         expect(el.style.width).toBe('1000px');
-        expect(el.style.height).toBe('3px');
+        expect(el.style.height).toBe('36px');
+        expect(el.classList).toContain('dv-auto-edge-band-top');
         service.dispose();
     });
 
@@ -283,11 +303,12 @@ describe('auto edge group service (branch coverage)', () => {
             nativeEvent: { clientX: 500, clientY: 996 },
         } as any);
         const el = band(overlayRoot)!;
-        // a full-width horizontal line at the bottom (top = height - LINE)
+        // a full-width horizontal strip at the bottom (top = height - PREVIEW)
         expect(el.style.left).toBe('0px');
-        expect(el.style.top).toBe('997px');
+        expect(el.style.top).toBe('964px');
         expect(el.style.width).toBe('1000px');
-        expect(el.style.height).toBe('3px');
+        expect(el.style.height).toBe('36px');
+        expect(el.classList).toContain('dv-auto-edge-band-bottom');
         service.dispose();
     });
 
@@ -309,8 +330,11 @@ describe('auto edge group service (branch coverage)', () => {
         expect(overlayRoot.querySelectorAll('.dv-auto-edge-band')).toHaveLength(
             1
         );
-        // it re-geometried to the right edge
-        expect(first.style.left).toBe('997px');
+        // it re-geometried to the right edge, and the per-edge modifier moved
+        // with it so the accent rail is on the right-hand side
+        expect(first.style.left).toBe('964px');
+        expect(first.classList).toContain('dv-auto-edge-band-right');
+        expect(first.classList).not.toContain('dv-auto-edge-band-left');
         service.dispose();
     });
 

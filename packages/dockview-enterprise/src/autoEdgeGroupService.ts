@@ -9,6 +9,7 @@ import {
     PositionResolver,
     PositionResolverArgs,
     PositionResolverResult,
+    EDGE_GROUP_DOCK_BAND,
     defineModule,
     EdgeGroupModule,
     IAutoEdgeGroupHost,
@@ -18,8 +19,36 @@ import {
 /**
  * Distance (px) from the content-area edge within which a drop docks as an
  * **edge group** rather than splitting the group under the cursor.
+ *
+ * Shared with core, which reserves twice this depth as the root drop target's
+ * activation band so the inner "split the grid" band is exactly as deep as this
+ * one. Sizing the two independently is what made the inner band a sliver you
+ * had to thread a cursor into.
  */
-const OUTER_BAND = 16;
+const OUTER_BAND = EDGE_GROUP_DOCK_BAND;
+
+/**
+ * Extra depth (px) the pointer must travel back out before the outer band lets
+ * go of it.
+ *
+ * The two bands meet at a hard boundary, and a drag is never a steady hand: at
+ * the seam a pixel of jitter flips the drop between "dock as an edge group" and
+ * "split the grid at this edge", flickering the indicator and committing
+ * whichever one happened to be current on release. Latching the band the
+ * pointer entered and requiring a deliberate move out of it makes the choice
+ * stick.
+ */
+const BAND_HYSTERESIS = 8;
+
+/**
+ * Cross-axis thickness (px) of the outer band's drop preview: roughly the
+ * collapsed strip a drag-revealed edge group docks as, so the preview reads as
+ * the thing it is about to create.
+ */
+const PREVIEW_SIZE = 36;
+
+/** The preview never eats more than this fraction of a small content area. */
+const PREVIEW_MAX_RATIO = 0.25;
 
 /** Threshold (%) for the inner "split this group" quadrants. Matches the core
  *  default activation size, so non-edge drops behave as usual. */
@@ -79,28 +108,48 @@ function defaultQuadrant(
     return 'center';
 }
 
+/** Preview thickness for a content area `extent` px across the same axis. */
+function previewSize(extent: number): number {
+    return Math.max(
+        1,
+        Math.min(PREVIEW_SIZE, Math.round(extent * PREVIEW_MAX_RATIO))
+    );
+}
+
 /**
  * Drag-revealed, zero-footprint edges: the two-band drag-reveal affordance. A
  * drag toward the layout edge splits into:
  *
  * - an **outer band** (within {@link OUTER_BAND} of the content-area edge) that
- *   docks the panel as a self-hiding, pinnable **edge group**, highlighted
- *   with its own overlay strip and committed via `host.revealEdgeGroupWithData`;
- * - an **inner band** that splits the group under the cursor as usual.
+ *   docks the panel as a self-hiding, pinnable **edge group**, previewed with
+ *   its own overlay strip and committed via `host.revealEdgeGroupWithData`;
+ * - an **inner band** (the same depth again) that splits the group under the
+ *   cursor as usual.
+ *
+ * Exactly one of the two is ever advertised. The bands abut, and the root edge
+ * drop target activates across both, so the outer band takes the preview off it
+ * (`suppressOverlay`) for the frames it owns; and the boundary latches
+ * ({@link BAND_HYSTERESIS}) so a hand that wobbles across it does not flip the
+ * drop. Every path - overlay, resolver, commit - classifies through the one
+ * {@link AutoEdgeGroupService._isEdgeGroupBand} call, so they agree by
+ * construction.
  *
  * Over a **populated** layout the outer band is reached via a
  * {@link PositionResolver} installed on the group content drop targets (the
  * same mechanism the DnD compass uses), so it works without the
  * compass. Over an empty grid it also handles the root edge target's
  * `kind: 'edge'` overlays directly. It never `preventDefault`s the overlay
- * (that would clear the drop state), only draws its highlight on top and
- * preempts the commit at `onWillDrop`.
+ * (that would clear the drop state), only takes over the drawing and preempts
+ * the commit at `onWillDrop`.
  */
 export class AutoEdgeGroupService
     extends CompositeDisposable
     implements IAutoEdgeGroupService
 {
     private _highlight: HTMLElement | undefined;
+    /** The edge whose outer band currently holds the pointer, if any. See
+     *  {@link AutoEdgeGroupService._isEdgeGroupBand}. */
+    private _latchedEdge: EdgeGroupPosition | undefined;
     private readonly _resolver: PositionResolver = {
         resolve: (args) => this._resolve(args),
     };
@@ -157,13 +206,47 @@ export class AutoEdgeGroupService
         ] as EdgeGroupPosition[]) {
             if (
                 args.zones.has(pos) &&
-                isEdgeGroupEnabled(this.host.options.dockToEdgeGroups, pos) &&
-                edgeDepth(pos, args.event, rect) <= OUTER_BAND
+                this._isEdgeGroupBand(pos, args.event, rect)
             ) {
                 return { position: pos, edge: true, edgeGroup: true };
             }
         }
         return null;
+    }
+
+    /**
+     * The single classifier every path asks: is this pointer in `position`'s
+     * outer "dock as an edge group" band?
+     *
+     * Overlay drawing, position resolution and the drop commit all route
+     * through here so they cannot disagree - a preview that says "edge group"
+     * and a drop that splits the grid is the worst version of this feature.
+     *
+     * The band latches (see {@link BAND_HYSTERESIS}): once the pointer is
+     * inside, it stays inside until it moves a further `BAND_HYSTERESIS` back
+     * out, so the boundary is sticky rather than a coin toss. Only the latched
+     * edge's own test can release the latch, so probing the other three edges
+     * (as `resolveEdge` does on every frame) never clears it.
+     */
+    private _isEdgeGroupBand(
+        position: EdgeGroupPosition,
+        event: DragEvent | PointerEvent,
+        rect: DOMRect
+    ): boolean {
+        if (!isEdgeGroupEnabled(this.host.options.dockToEdgeGroups, position)) {
+            return false;
+        }
+        const latched = this._latchedEdge === position;
+        const depth = edgeDepth(position, event, rect);
+        const inBand =
+            depth <= (latched ? OUTER_BAND + BAND_HYSTERESIS : OUTER_BAND);
+
+        if (inBand) {
+            this._latchedEdge = position;
+        } else if (latched) {
+            this._latchedEdge = undefined;
+        }
+        return inBand;
     }
 
     private _resolve(
@@ -184,32 +267,48 @@ export class AutoEdgeGroupService
     }
 
     private _onWillShowOverlay(e: DockviewWillShowOverlayLocationEvent): void {
-        // Show the edge-group indicator line iff the pointer is in the true
-        // outer band, purely by depth, so it never lights up for a compass
-        // outer-ring cell (grid-edge dock, further in) or a normal group split.
+        // Show the edge-group preview iff the pointer is in the true outer
+        // band, purely by depth, so it never lights up for a compass outer-ring
+        // cell (grid-edge dock, further in) or a normal group split.
         if (!this._enabled || !isEdge(e.position)) {
             this._hide();
             return;
         }
         const rect = this.host.getDropZoneRect();
-        if (edgeDepth(e.position, e.nativeEvent, rect) <= OUTER_BAND) {
-            this._show(e.position);
-        } else {
+        if (!this._isEdgeGroupBand(e.position, e.nativeEvent, rect)) {
             this._hide();
+            return;
         }
+
+        // Take the preview off the drop target for this frame. The root edge
+        // target activates over both bands and would otherwise paint its
+        // "split the grid at this edge" overlay underneath this one: two
+        // indicators for one pointer position, advertising two different drops,
+        // only one of which is the one about to happen.
+        //
+        // `suppressOverlay`, not `preventDefault`: the latter would drop the
+        // target's latched state and with it the drop this is previewing.
+        e.suppressOverlay();
+        this._show(e.position);
     }
 
     private _onWillDrop(e: DockviewWillDropEvent): void {
-        this._hide();
         if (!this._enabled || e.kind !== 'edge' || !isEdge(e.position)) {
+            this._hide();
             return;
         }
         const data = e.getData();
         if (!data) {
+            this._hide();
             return;
         }
+        // Classify before hiding: `_hide` drops the latch, and the drop has to
+        // land on whichever band the preview was showing when the pointer was
+        // released, not on a re-classification without it.
         const rect = this.host.getDropZoneRect();
-        if (edgeDepth(e.position, e.nativeEvent, rect) > OUTER_BAND) {
+        const outer = this._isEdgeGroupBand(e.position, e.nativeEvent, rect);
+        this._hide();
+        if (!outer) {
             // Inner band (root path) → let core split the grid.
             return;
         }
@@ -228,21 +327,27 @@ export class AutoEdgeGroupService
         let el = this._highlight;
         if (!el) {
             el = doc.createElement('div');
-            // A thin accent line hugging the content-area edge in the direction
-            // the new edge group would appear. Styled by `.dv-auto-edge-band`
-            // in core (theme drag-over colour); the module only sets geometry.
-            el.className = 'dv-auto-edge-band';
             this._highlight = el;
             this.host.overlayRoot.appendChild(el);
         }
 
-        // Position the line at the content-area edge, in overlayRoot-local
+        // A strip hugging the content-area edge, the footprint the new edge
+        // group would take, with an accent rail on the outer side. Styled by
+        // `.dv-auto-edge-band` (+ the per-edge modifier that places the rail) in
+        // core; the module only sets geometry. Since this is now the *only*
+        // indicator drawn for the outer band, it has to say what it does: a
+        // strip that reads as a docked panel, not a hairline that reads as a
+        // seam.
+        el.className = `dv-auto-edge-band dv-auto-edge-band-${position}`;
+
+        // Position the strip at the content-area edge, in overlayRoot-local
         // coordinates (the content area is inset when edge groups are present).
         const dz = this.host.getDropZoneRect();
         const root = this.host.overlayRoot.getBoundingClientRect();
         const left = dz.left - root.left;
         const top = dz.top - root.top;
-        const LINE = 3; // px thickness of the indicator line
+        const vertical = position === 'left' || position === 'right';
+        const size = previewSize(vertical ? dz.width : dz.height);
 
         el.style.top = '';
         el.style.right = '';
@@ -254,26 +359,26 @@ export class AutoEdgeGroupService
             case 'left':
                 el.style.left = `${left}px`;
                 el.style.top = `${top}px`;
-                el.style.width = `${LINE}px`;
+                el.style.width = `${size}px`;
                 el.style.height = `${dz.height}px`;
                 break;
             case 'right':
-                el.style.left = `${left + dz.width - LINE}px`;
+                el.style.left = `${left + dz.width - size}px`;
                 el.style.top = `${top}px`;
-                el.style.width = `${LINE}px`;
+                el.style.width = `${size}px`;
                 el.style.height = `${dz.height}px`;
                 break;
             case 'top':
                 el.style.left = `${left}px`;
                 el.style.top = `${top}px`;
                 el.style.width = `${dz.width}px`;
-                el.style.height = `${LINE}px`;
+                el.style.height = `${size}px`;
                 break;
             case 'bottom':
                 el.style.left = `${left}px`;
-                el.style.top = `${top + dz.height - LINE}px`;
+                el.style.top = `${top + dz.height - size}px`;
                 el.style.width = `${dz.width}px`;
-                el.style.height = `${LINE}px`;
+                el.style.height = `${size}px`;
                 break;
         }
     }
@@ -281,6 +386,7 @@ export class AutoEdgeGroupService
     private _hide(): void {
         this._highlight?.remove();
         this._highlight = undefined;
+        this._latchedEdge = undefined;
     }
 }
 

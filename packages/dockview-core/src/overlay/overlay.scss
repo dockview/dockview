@@ -50,17 +50,40 @@
     }
 }
 
-// Drag-reveal edge indicator: a thin accent line hugging the content-area edge
-// in the direction a new edge group would dock. A line (not a fill) so it reads
-// differently from the split overlay; the colour is the theme's drag-over accent
-// so it matches the rest of the drop styling. Geometry (edge + extent) is set
-// inline by the auto-edge-group module.
+// Drag-reveal edge indicator: the strip a new edge group would dock into,
+// hugging the content-area edge, with a bright accent rail on the outer side.
+//
+// It is the *only* thing drawn for the outer band (the module takes the drop
+// target's own overlay off that frame), so it has to preview the drop rather
+// than merely mark a boundary. The rail is what tells it apart from the plain
+// split overlay of the inner band, which is otherwise the same drag-over fill
+// against the same edge. Geometry (edge + extent) is set inline by the
+// auto-edge-group module.
 .dv-auto-edge-band {
     position: absolute;
     pointer-events: none;
+    box-sizing: border-box;
     z-index: var(--dv-overlay-z-index, 999);
-    background-color: var(--dv-edge-dock-indicator-color);
+    background-color: var(--dv-drag-over-background-color);
     box-shadow: 0 0 6px var(--dv-edge-dock-indicator-color);
+}
+
+$dv-edge-dock-rail: 3px solid var(--dv-edge-dock-indicator-color);
+
+.dv-auto-edge-band-left {
+    border-left: $dv-edge-dock-rail;
+}
+
+.dv-auto-edge-band-right {
+    border-right: $dv-edge-dock-rail;
+}
+
+.dv-auto-edge-band-top {
+    border-top: $dv-edge-dock-rail;
+}
+
+.dv-auto-edge-band-bottom {
+    border-bottom: $dv-edge-dock-rail;
 }
 
 // The title bar is a sibling overlay so it can sit above an `always` panel's

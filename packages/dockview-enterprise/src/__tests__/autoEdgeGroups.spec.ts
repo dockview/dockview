@@ -33,21 +33,34 @@ describe('auto edge groups (two-band drag reveal)', () => {
         height: 1000,
     } as DOMRect;
 
-    function createHost(dockToEdgeGroups = true) {
+    function createHost(dockToEdgeGroups: unknown = true) {
         const overlayRoot = document.createElement('div');
-        const willShow = new Emitter<any>();
+        const emitter = new Emitter<any>();
         const willDrop = new Emitter<any>();
         const reveal = jest.fn();
+        // The real overlay event carries `suppressOverlay`; the spy stands in
+        // for the drop target dropping its own preview for this frame.
+        const suppressOverlay = jest.fn();
+        const willShow = {
+            fire: (e: any) => emitter.fire({ suppressOverlay, ...e }),
+        };
         const host = {
             options: { dockToEdgeGroups },
             overlayRoot,
             getDropZoneRect: () => rect,
-            onWillShowOverlay: willShow.event,
+            onWillShowOverlay: emitter.event,
             onWillDrop: willDrop.event,
             revealEdgeGroupWithData: reveal,
         };
         const service = new AutoEdgeGroupService(host as any);
-        return { service, overlayRoot, willShow, willDrop, reveal };
+        return {
+            service,
+            overlayRoot,
+            willShow,
+            willDrop,
+            reveal,
+            suppressOverlay,
+        };
     }
 
     const band = (root: HTMLElement): HTMLElement | null =>
@@ -56,7 +69,7 @@ describe('auto edge groups (two-band drag reveal)', () => {
     test('outer band shows the edge-group highlight; inner band hides it', () => {
         const { service, overlayRoot, willShow } = createHost();
 
-        // clientX = 5 → within the 16px outer band on the left edge
+        // clientX = 5 → within the 24px outer band on the left edge
         willShow.fire({
             kind: 'edge',
             position: 'left',
@@ -64,13 +77,94 @@ describe('auto edge groups (two-band drag reveal)', () => {
         });
         expect(band(overlayRoot)).toBeTruthy();
 
-        // clientX = 25 → inner band (grid split); highlight removed
+        // clientX = 40 → clear of the band and its hysteresis, so this is the
+        // inner "split the grid" band; highlight removed
         willShow.fire({
             kind: 'edge',
             position: 'left',
-            nativeEvent: { clientX: 25, clientY: 500 },
+            nativeEvent: { clientX: 40, clientY: 500 },
         });
         expect(band(overlayRoot)).toBeNull();
+
+        service.dispose();
+    });
+
+    test('the outer band takes the drop target preview off, without cancelling the drop', () => {
+        const { service, willShow, suppressOverlay } = createHost();
+
+        // Outer band: this frame is the affordance's to draw, so the root edge
+        // target must not also paint its "split the grid" overlay underneath.
+        willShow.fire({
+            kind: 'edge',
+            position: 'left',
+            nativeEvent: { clientX: 5, clientY: 500 },
+        });
+        expect(suppressOverlay).toHaveBeenCalledTimes(1);
+
+        // Inner band: core's overlay is the right one, so it is left alone.
+        willShow.fire({
+            kind: 'edge',
+            position: 'left',
+            nativeEvent: { clientX: 40, clientY: 500 },
+        });
+        expect(suppressOverlay).toHaveBeenCalledTimes(1);
+
+        service.dispose();
+    });
+
+    test('the band latches, so a wobble across the boundary does not flip the drop', () => {
+        const { service, overlayRoot, willShow, willDrop, reveal } =
+            createHost();
+        const preventDefault = jest.fn();
+        const over = (clientX: number): void =>
+            willShow.fire({
+                kind: 'edge',
+                position: 'left',
+                nativeEvent: { clientX, clientY: 500 },
+            });
+
+        over(5); // in the outer band
+        expect(band(overlayRoot)).toBeTruthy();
+
+        // Past the raw 24px boundary but inside the 8px hysteresis: still the
+        // edge-group band, so the indicator holds instead of strobing.
+        over(30);
+        expect(band(overlayRoot)).toBeTruthy();
+
+        // ...and a drop there commits the band that was being previewed.
+        willDrop.fire({
+            kind: 'edge',
+            position: 'left',
+            nativeEvent: { clientX: 30, clientY: 500 },
+            getData: () => ({ groupId: 'g1', panelId: 'p1' }),
+            preventDefault,
+        });
+        expect(preventDefault).toHaveBeenCalledTimes(1);
+        expect(reveal).toHaveBeenCalledTimes(1);
+
+        service.dispose();
+    });
+
+    test('leaving the band releases the latch, so re-entry needs the full band again', () => {
+        const { service, overlayRoot, willShow } = createHost();
+        const over = (clientX: number): void =>
+            willShow.fire({
+                kind: 'edge',
+                position: 'left',
+                nativeEvent: { clientX, clientY: 500 },
+            });
+
+        over(5);
+        over(40); // clear of band + hysteresis → latch released
+        expect(band(overlayRoot)).toBeNull();
+
+        // 30px would have held the latch, but it cannot re-arm it: coming back
+        // in is judged against the plain 24px band.
+        over(30);
+        expect(band(overlayRoot)).toBeNull();
+
+        over(20);
+        expect(band(overlayRoot)).toBeTruthy();
 
         service.dispose();
     });
@@ -103,7 +197,7 @@ describe('auto edge groups (two-band drag reveal)', () => {
         willDrop.fire({
             kind: 'edge',
             position: 'left',
-            nativeEvent: { clientX: 26, clientY: 500 },
+            nativeEvent: { clientX: 40, clientY: 500 },
             getData: () => ({ groupId: 'g1', panelId: 'p1' }),
             preventDefault,
         });
@@ -193,6 +287,46 @@ describe('auto edge groups (two-band drag reveal)', () => {
             nativeEvent: { clientX: 5, clientY: 500 },
         });
         expect(band(overlayRoot)).toBeTruthy();
+        service.dispose();
+    });
+
+    test('a per-edge set gates the root drop path, not just the resolver', () => {
+        // `dockToEdgeGroups: { left: true }` means the right edge is a plain
+        // grid split. The root edge target activates on all four edges alike,
+        // so the gate has to be applied where the drop is classified, not only
+        // in the resolver the content targets use.
+        const { service, overlayRoot, willShow, willDrop, reveal } = createHost(
+            {
+                left: true,
+            } as never
+        );
+        const preventDefault = jest.fn();
+
+        willShow.fire({
+            kind: 'edge',
+            position: 'right',
+            nativeEvent: { clientX: 996, clientY: 500 },
+        });
+        expect(band(overlayRoot)).toBeNull();
+
+        willDrop.fire({
+            kind: 'edge',
+            position: 'right',
+            nativeEvent: { clientX: 996, clientY: 500 },
+            getData: () => ({ groupId: 'g1', panelId: 'p1' }),
+            preventDefault,
+        });
+        expect(reveal).not.toHaveBeenCalled();
+        expect(preventDefault).not.toHaveBeenCalled();
+
+        // ...while the enabled edge still docks
+        willShow.fire({
+            kind: 'edge',
+            position: 'left',
+            nativeEvent: { clientX: 4, clientY: 500 },
+        });
+        expect(band(overlayRoot)).toBeTruthy();
+
         service.dispose();
     });
 

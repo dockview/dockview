@@ -24,6 +24,8 @@ export class WillShowOverlayEvent
     extends DockviewEvent
     implements DroptargetEvent
 {
+    private _overlaySuppressed = false;
+
     get nativeEvent(): DragEvent | PointerEvent {
         return this.options.nativeEvent;
     }
@@ -41,6 +43,29 @@ export class WillShowOverlayEvent
      *  (e.g. the DnD compass) can bow out of this cell. */
     get edgeGroup(): boolean {
         return !!this.options.edgeGroup;
+    }
+
+    /** See {@link suppressOverlay}. */
+    get overlaySuppressed(): boolean {
+        return this._overlaySuppressed;
+    }
+
+    /**
+     * Claim the preview for this cell: the target renders no overlay, but keeps
+     * its latched state so the drop still commits and the consumer can route it.
+     *
+     * This is the seam for a consumer that draws its own drop preview over a
+     * cell the target would otherwise highlight - the edge-group affordance's
+     * outer band being the case in point, where the built-in edge overlay and
+     * the affordance's own indicator would otherwise both render for the same
+     * pointer position and advertise two different drops.
+     *
+     * Distinct from {@link preventDefault}, which also cancels the drop: a
+     * consumer that only wants to own the *drawing* must not use it, or the
+     * drop it is previewing never happens.
+     */
+    suppressOverlay(): void {
+        this._overlaySuppressed = true;
     }
 
     constructor(
@@ -359,15 +384,17 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
 
                 this.markAsUsed(e);
 
-                // An `edge` cell reports its position but renders nothing. The
-                // consumer (e.g. the layout-edge dock) owns the preview + commit.
-                // The anchored overlay from the previous frame (the inner cell
+                // Two ways this frame renders nothing while still latching a
+                // droppable position: an `edge` cell (whose consumer - the
+                // layout-edge dock - owns the preview + commit), or a listener
+                // that claimed the preview via `suppressOverlay`. Either way the
+                // anchored overlay from the previous frame (the inner cell
                 // crossed on the way out) has to go, or it double-highlights
-                // alongside the consumer's own whole-layout-edge preview.
-                if (resolved.edge) {
+                // alongside the consumer's own preview.
+                if (resolved.edge || willShowOverlayEvent.overlaySuppressed) {
                     this.clearOwnOverlay();
                     this._state = quadrant;
-                    this._edge = true;
+                    this._edge = resolved.edge;
                     return;
                 }
                 this._edge = false;

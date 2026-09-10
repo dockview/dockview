@@ -73,8 +73,22 @@ export class DockviewWillShowOverlayLocationEvent implements IDockviewEvent {
         return this.options.group;
     }
 
+    /** See {@link WillShowOverlayEvent.overlaySuppressed}. */
+    get overlaySuppressed(): boolean {
+        return this.event.overlaySuppressed;
+    }
+
     preventDefault(): void {
         this.event.preventDefault();
+    }
+
+    /**
+     * Claim the drop preview for this cell: the built-in overlay is not drawn,
+     * but the drop still commits (unlike {@link preventDefault}). See
+     * {@link WillShowOverlayEvent.suppressOverlay}.
+     */
+    suppressOverlay(): void {
+        this.event.suppressOverlay();
     }
 
     getData(): PanelTransfer | undefined {

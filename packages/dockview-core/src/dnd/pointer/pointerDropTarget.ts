@@ -170,6 +170,7 @@ export class PointerDropTarget
             nativeEvent: event.pointerEvent,
             position: quadrant,
             edge: resolved.edge,
+            edgeGroup: resolved.edgeGroup,
         });
         this._onWillShowOverlay.fire(willShow);
         if (willShow.defaultPrevented) {
@@ -177,15 +178,16 @@ export class PointerDropTarget
             return;
         }
 
-        // An `edge` cell reports its position but renders nothing. The consumer
-        // (e.g. the layout-edge dock) owns the preview + commit. The anchored
-        // overlay from the previous frame (the inner cell crossed on the way
-        // out) has to go, or it double-highlights alongside the consumer's own
-        // whole-layout-edge preview.
-        if (resolved.edge) {
+        // Two ways this frame renders nothing while still latching a droppable
+        // position: an `edge` cell (whose consumer - the layout-edge dock -
+        // owns the preview + commit), or a listener that claimed the preview
+        // via `suppressOverlay`. Either way the anchored overlay from the
+        // previous frame (the inner cell crossed on the way out) has to go, or
+        // it double-highlights alongside the consumer's own preview.
+        if (resolved.edge || willShow.overlaySuppressed) {
             this._clearOwnOverlay();
             this._state = quadrant;
-            this._edge = true;
+            this._edge = resolved.edge;
             return;
         }
         this._edge = false;
@@ -264,7 +266,7 @@ export class PointerDropTarget
         width: number,
         height: number,
         event: DragEvent | PointerEvent
-    ): { position: Position; edge: boolean } | null {
+    ): { position: Position; edge: boolean; edgeGroup: boolean } | null {
         const resolver = this.options.getPositionResolver?.();
         if (resolver) {
             const result = resolver.resolve({
@@ -276,11 +278,15 @@ export class PointerDropTarget
                 event,
             });
             return result
-                ? { position: result.position, edge: !!result.edge }
+                ? {
+                      position: result.position,
+                      edge: !!result.edge,
+                      edgeGroup: !!result.edgeGroup,
+                  }
                 : null;
         }
         const position = this._calculateQuadrant(x, y, width, height);
-        return position ? { position, edge: false } : null;
+        return position ? { position, edge: false, edgeGroup: false } : null;
     }
 
     private _calculateQuadrant(

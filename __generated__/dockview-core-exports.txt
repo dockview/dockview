@@ -95,6 +95,7 @@ DragModifiers
 DraggablePaneviewPanel
 DropOverlayModelParams
 DroptargetOverlayModel
+EDGE_GROUP_DOCK_BAND
 EdgeGroupModule
 EdgeGroupOptions
 EdgeGroupPeekOptions

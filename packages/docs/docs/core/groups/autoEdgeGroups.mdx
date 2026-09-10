@@ -64,10 +64,12 @@ Dock-to-edge is **off by default**; leaving `dockToEdgeGroups` unset (or `false`
 
 ## Two drop bands
 
-While dragging a panel toward the layout edge there are two drop zones:
+While dragging a panel toward the layout edge there are two drop zones, each 24px deep:
 
-- The **outer band**, hugging the true edge (marked by a coloured indicator line), docks the panel as a dedicated **edge group**.
-- Just **inside** it, the panel splits the primary grid as usual, the standard `dndEdges` behaviour.
+- The **outer band**, hugging the true edge, docks the panel as a dedicated **edge group**. It previews as a strip along the edge with a bright accent rail on the outer side, the footprint the new edge group takes.
+- Just **inside** it, the panel splits the primary grid as usual, the standard `dndEdges` behaviour, previewed with the normal drop overlay.
+
+Only ever one of the two indicators is shown, so the preview always names the drop that a release would perform. The boundary between the bands is also sticky: once the pointer is in the outer band it has to travel 8px back past the boundary to leave it, so a wobble mid-drag cannot flip the drop between the two.
 
 A newly revealed edge group is created **collapsed**: the drop adds a tab to its strip rather than popping the group open. Dropping onto an edge that already exists simply adds the panel to its tabs and leaves the group's collapsed/expanded state untouched. Combine with [auto-hide edge groups](/docs/core/groups/autoHideEdgeGroups) so a revealed edge peeks open on click.
 
@@ -84,7 +86,7 @@ If the [DnD compass](/docs/core/dnd/dndCompass) compass is also enabled, the two
 - the **grid layout edge**, the compass's outer ring, or
 - an **edge group**, the true outer edge band (drag-reveal).
 
-The distinction is by pointer depth: the compass's outer ring sits well inside the edge band, and the edge-group indicator takes over at the very edge.
+The distinction is by pointer depth: the compass's outer ring sits well inside the edge band, and the edge-group indicator takes over at the very edge, where the compass bows out of the cell rather than drawing over it.
 
 ## Revealing programmatically
 

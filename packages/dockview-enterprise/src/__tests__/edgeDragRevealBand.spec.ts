@@ -1,4 +1,8 @@
-import { DockviewComponent, IContentRenderer } from 'dockview';
+import {
+    DockviewComponent,
+    EDGE_GROUP_DOCK_BAND,
+    IContentRenderer,
+} from 'dockview';
 
 class TestPanel implements IContentRenderer {
     element = document.createElement('div');
@@ -32,7 +36,9 @@ class TestPanel implements IContentRenderer {
  */
 describe('edge drag-reveal activation band', () => {
     const DEFAULT_ACTIVATION = 10;
-    const WIDENED_ACTIVATION = 32;
+    // EDGE_GROUP_DOCK_BAND doubled: an outer "dock as edge group" sub-band and
+    // an inner "split the grid" one of the same depth.
+    const WIDENED_ACTIVATION = 2 * EDGE_GROUP_DOCK_BAND;
 
     const built: DockviewComponent[] = [];
 

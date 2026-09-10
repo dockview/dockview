@@ -211,6 +211,68 @@ describe('PointerDropTarget: anchor / override target path', () => {
         document.body.removeChild(dropEl);
     });
 
+    test('a listener claiming the preview clears the anchor overlay but stays latched', () => {
+        // Same contract as an edge cell, reached the other way: a consumer
+        // (the edge-group affordance) draws its own preview for this frame, so
+        // core's must go rather than sit underneath it. The drop itself is
+        // untouched - that is what separates it from preventDefault.
+        const dropEl = document.createElement('div');
+        document.body.appendChild(dropEl);
+        jest.spyOn(dropEl, 'offsetWidth', 'get').mockReturnValue(200);
+        jest.spyOn(dropEl, 'offsetHeight', 'get').mockReturnValue(100);
+        jest.spyOn(dropEl, 'getBoundingClientRect').mockReturnValue({
+            top: 0,
+            left: 0,
+            right: 200,
+            bottom: 100,
+            width: 200,
+            height: 100,
+            x: 0,
+            y: 0,
+            toJSON: () => ({}),
+        });
+
+        const { targetModel, clear } = makeAnchorTarget();
+
+        let suppress = false;
+        const target = new PointerDropTarget(dropEl, {
+            acceptedTargetZones: ['left', 'right', 'center'],
+            canDisplayOverlay: () => true,
+            getOverrideTarget: () => targetModel,
+            getPositionResolver: () => ({
+                resolve: () => ({ position: 'left' }),
+            }),
+        });
+        target.onWillShowOverlay((e) => {
+            if (suppress) {
+                e.suppressOverlay();
+            }
+        });
+
+        const dragEvent = {
+            clientX: 100,
+            clientY: 50,
+            pointerEvent: new PointerEvent('pointermove', {
+                clientX: 100,
+                clientY: 50,
+                pointerId: 1,
+                pointerType: 'touch',
+            }),
+        };
+
+        (target as any)._onDragOver(dragEvent);
+        expect(target.state).toBe('left');
+        expect(clear).not.toHaveBeenCalled();
+
+        suppress = true;
+        (target as any)._onDragOver(dragEvent);
+        expect(clear).toHaveBeenCalled();
+        expect(target.state).toBe('left');
+
+        target.dispose();
+        document.body.removeChild(dropEl);
+    });
+
     test('drag-leave clears the anchor overlay (pointer mode leaves no stale overlay behind)', () => {
         // The HTML5 backend intentionally does NOT clear the anchor container on
         // drag-leave (it relies on drop/dragend, which is why a stale overlay

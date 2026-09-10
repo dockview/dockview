@@ -100,6 +100,44 @@ describe('droptarget', () => {
             expect(calls[0].zones.has('center')).toBe(true);
         });
 
+        test('a listener that claims the preview renders no overlay but still drops', () => {
+            // The seam the edge-group affordance draws its own preview through:
+            // unlike preventDefault it must not cancel the drop it is
+            // previewing, or the two would advertise a dock the release never
+            // performs.
+            let dropped: { position: Position; edge?: boolean } | undefined;
+            droptarget = new Droptarget(element, {
+                canDisplayOverlay: () => true,
+                acceptedTargetZones: ALL,
+                getPositionResolver: () => ({
+                    resolve: () => ({ position: 'left' }),
+                }),
+            });
+            droptarget.onWillShowOverlay((e) => {
+                e.suppressOverlay();
+            });
+            droptarget.onDrop((e) => {
+                dropped = e;
+            });
+
+            fireEvent.dragEnter(element);
+            fireEvent(
+                element,
+                createOffsetDragOverEvent({ clientX: 100, clientY: 50 })
+            );
+
+            expect(
+                element.querySelector('.dv-drop-target-dropzone')
+            ).toBeNull();
+            expect(droptarget.state).toBe('left');
+
+            fireEvent.drop(element);
+            // not an `edge` cell - the consumer only took over the drawing
+            expect(dropped).toEqual(
+                expect.objectContaining({ position: 'left', edge: false })
+            );
+        });
+
         test('an edge cell reports edge + renders no overlay', () => {
             let dropped: { position: Position; edge?: boolean } | undefined;
             droptarget = new Droptarget(element, {

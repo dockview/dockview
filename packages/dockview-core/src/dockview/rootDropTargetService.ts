@@ -10,7 +10,11 @@ import {
 } from '../dnd/droptarget';
 import { html5Backend, pointerBackend } from '../dnd/backend';
 import { getPanelData } from '../dnd/dataTransfer';
-import { DockviewComponentOptions, isAnyEdgeGroupEnabled } from './options';
+import {
+    DockviewComponentOptions,
+    EDGE_GROUP_DOCK_BAND,
+    isAnyEdgeGroupEnabled,
+} from './options';
 import { defineModule } from './modules';
 
 const DEFAULT_ROOT_OVERLAY_MODEL: DroptargetOverlayModel = {
@@ -20,17 +24,19 @@ const DEFAULT_ROOT_OVERLAY_MODEL: DroptargetOverlayModel = {
 
 // The two-band drag-reveal affordance needs room for a distinct outer ("dock as
 // edge group") and inner ("split the grid") sub-band, so the edge activation
-// band widens when it is present. The band is uniform across edges; per-edge
-// gating of the actual dock happens in the affordance's own edge resolver.
+// band widens when it is present: the outer band is EDGE_GROUP_DOCK_BAND deep
+// and the inner one gets the same again, so neither drop is a sliver the other
+// is easy to overshoot into. The band is uniform across edges; per-edge gating
+// of the actual dock happens in the affordance's own edge resolver.
 const AUTO_EDGE_ROOT_OVERLAY_MODEL: DroptargetOverlayModel = {
-    activationSize: { type: 'pixels', value: 32 },
+    activationSize: { type: 'pixels', value: 2 * EDGE_GROUP_DOCK_BAND },
     size: { type: 'pixels', value: 20 },
 };
 
 /**
  * `hasEdgeDragReveal` gates the widened band, *not* the `dockToEdgeGroups`
  * option alone: without the affordance nothing consumes the outer sub-band, so
- * widening would only enlarge the plain grid-split trigger, a 3.2x bigger
+ * widening would only enlarge the plain grid-split trigger, a much bigger
  * target for the same behaviour the default band already gives.
  */
 function resolveRootOverlayModel(
