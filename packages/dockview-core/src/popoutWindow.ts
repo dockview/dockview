@@ -11,26 +11,44 @@ export type PopoutWindowOptions = {
 } & Box;
 
 /**
- * Reject popout URLs that aren't same-origin http(s). Blocks `javascript:`,
+ * Throwing form of {@link getPopoutUrlError}, for callers with no way to
+ * recover from a refused URL.
+ */
+export function assertSameOriginPopoutUrl(url: string): void {
+    const error = getPopoutUrlError(url);
+
+    if (error) {
+        throw error;
+    }
+}
+
+/**
+ * The reason `url` is unusable as a popout target, or `undefined` if it is
+ * allowed. Rejects anything that isn't same-origin http(s): `javascript:`,
  * `data:`, `blob:`, `vbscript:`, and cross-origin URLs that would otherwise
  * execute in a context the browser still associates with the opener via
  * `window.opener`.
+ *
+ * Callers that can recover from a refusal use this rather than catching, so it
+ * can be handled without a rejected promise.
  */
-export function assertSameOriginPopoutUrl(url: string): void {
+export function getPopoutUrlError(url: string): Error | undefined {
     let resolved: URL;
     try {
         resolved = new URL(url, globalThis.location.href);
     } catch {
-        throw new Error(`dockview: invalid popout URL: ${url}`);
+        return new Error(`dockview: invalid popout URL: ${url}`);
     }
 
     const protocolOk =
         resolved.protocol === 'http:' || resolved.protocol === 'https:';
     if (!protocolOk || resolved.origin !== globalThis.location.origin) {
-        throw new Error(
+        return new Error(
             `dockview: popout URL must be same-origin http(s); got: ${url}`
         );
     }
+
+    return undefined;
 }
 
 export class PopoutWindow extends CompositeDisposable {
