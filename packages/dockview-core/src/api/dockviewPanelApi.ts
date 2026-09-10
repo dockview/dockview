@@ -141,9 +141,7 @@ export class DockviewPanelApiImpl
 
             this.setupGroupEventListeners(oldGroup);
 
-            this._onDidLocationChange.fire({
-                location: this.group.api.location,
-            });
+            this.fireLocationChange();
         }
     }
 
@@ -241,6 +239,27 @@ export class DockviewPanelApiImpl
         this.group.api.exitMaximized();
     }
 
+    /**
+     * Report that this panel's location may have moved.
+     *
+     * A relocation touches the location more than once - the panel is
+     * reparented into the destination group, then that group is tagged with
+     * the location it ends up at - so the event is coalesced to the end of the
+     * enclosing layout mutation and reports where the panel actually settled.
+     * Firing each signal as it happened surfaced an intermediate `grid`
+     * location the panel was never in, at a point where it was in neither
+     * group's panel list. Outside a mutation this fires straight away.
+     */
+    private fireLocationChange(): void {
+        this.accessor.deferLocationChange(this, () => {
+            if (this.isDisposed) {
+                return;
+            }
+
+            this._onDidLocationChange.fire({ location: this.location });
+        });
+    }
+
     private setupGroupEventListeners(previousGroup?: DockviewGroupPanel) {
         let _trackGroupActive = previousGroup?.isActive ?? false; // prevent duplicate events with same state
 
@@ -257,11 +276,11 @@ export class DockviewPanelApiImpl
                     this._onDidVisibilityChange.fire(event);
                 }
             }),
-            this.group.api.onDidLocationChange((event) => {
+            this.group.api.onDidLocationChange(() => {
                 if (this.group !== this.panel.group) {
                     return;
                 }
-                this._onDidLocationChange.fire(event);
+                this.fireLocationChange();
             }),
             this.group.api.onDidActiveChange(() => {
                 if (this.group !== this.panel.group) {

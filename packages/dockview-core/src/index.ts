@@ -261,6 +261,10 @@ export {
     TabGroupChipsModule,
     TabGroupChipsService,
 } from './dockview/tabGroupChipsService';
+export {
+    ContextMenuController,
+    ContextMenuModule,
+} from './dockview/contextMenuService';
 export { FloatingGroupModule } from './dockview/floatingGroupService';
 export { EdgeGroupModule } from './dockview/edgeGroupService';
 export { createCloseButton, createPinButton } from './svg';

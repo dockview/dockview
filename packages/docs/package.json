@@ -1,6 +1,6 @@
 {
   "name": "dockview-docs",
-  "version": "8.1.0",
+  "version": "8.3.0",
   "private": true,
   "scripts": {
     "build": "npm run copy-llms && npm run build-templates && docusaurus build",
@@ -35,8 +35,8 @@
     "@mdx-js/react": "^3.1.1",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "clsx": "^2.1.1",
-    "dockview": "^8.1.0",
-    "dockview-react": "^8.1.0",
+    "dockview": "^8.3.0",
+    "dockview-react": "^8.3.0",
     "prism-react-renderer": "^2.4.1",
     "source-map-loader": "^5.0.0",
     "vanilla-cookieconsent": "^3.1.0"

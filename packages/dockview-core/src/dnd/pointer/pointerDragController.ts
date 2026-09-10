@@ -215,7 +215,7 @@ export class PointerDragController extends CompositeDisposable {
             let current: Element | null = el;
             while (current) {
                 const target = this._targetByElement.get(current);
-                if (target) {
+                if (target && !target.isHitTestTransparent?.()) {
                     return target;
                 }
                 current = current.parentElement;

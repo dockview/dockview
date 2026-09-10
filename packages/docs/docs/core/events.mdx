@@ -37,11 +37,48 @@ api.onDidActivePanelChange((event: DockviewActivePanelChangeEvent) => {
 });
 
 // Fires when a panel moves from one group to another
-api.onDidMovePanel((event: MovePanelEvent) => {});
+api.onDidMovePanel((event: MovePanelEvent) => {
+    // event.panel: IDockviewPanel
+    // event.from: DockviewGroupPanel, the group the panel left
+    // event.to: DockviewGroupPanel, the group the panel now belongs to
+});
 ```
 
 :::info
 `onDidAddPanel` and `onDidRemovePanel` fire during panel moves. A panel being moved from group A to group B will trigger a remove followed by an add. Use `onDidMovePanel` if you only want to react to explicit moves.
+:::
+
+### Relocation paths
+
+`onDidMovePanel` covers every way a panel is relocated. Whichever path a panel takes, three things hold by the time the event reaches you:
+
+-   it fires **once the move has settled**, so `event.panel.api.location` already reports the destination and `event.to` is the panel's current group;
+-   the panel is **back in the layout**, so it appears in `api.panels` — you never see it mid-transition, belonging to neither group;
+-   the panel's `onDidLocationChange` fires **at most once** for the whole relocation, reporting where it ended up rather than once per internal step.
+
+What differs between paths is how many events you get, whether the panel changed group, and which transaction brackets the work:
+
+| Relocation | `onDidMovePanel` | `event.to` | Location after | Bracketed as |
+| --- | --- | --- | --- | --- |
+| Panel dropped into another grid group | once | new group | `grid` | `move` |
+| Panel dragged out of an edge group | once | new group | `grid` | `move` |
+| Panel extracted into a floating window | once | new group | `floating` | `float` |
+| Panel extracted into a popout window | once | new group | `popout` | `popout` |
+| Group relocated within the grid | per panel | same as `from` | `grid` | `move` |
+| Whole group floated | per panel | same as `from` | `floating` | `float` |
+| Whole group popped out | per panel | new group | `popout` | `popout` |
+| Group merged onto another group's centre | per panel | destination group | `grid` | `move` |
+| Popout window closed | per panel | reference group | `grid` | — |
+| Popout window closed, re-floating its group | per panel | same as `from` | `floating` | `float` |
+| Floating groups restored from `fromJSON` | — | — | — | `load` |
+| Panel added with `floating: true` | — | — | — | `add` |
+
+`event.to` equals `event.from` when the group itself moved and took its panels with it. It differs when the panels were rehomed into another group — popping a group out rebuilds it in the new window, merging empties one group into another, and closing a popout returns its panels to the group it left behind in the main window.
+
+The last two rows are not relocations at all: building a layout is not moving within one, so restoring from JSON and adding a panel straight into a floating window are silent.
+
+:::note
+Closing a popout window is currently the one path that reports moves without a transaction around them — a window closing is driven by the browser rather than by a call into the component, so nothing opens a bracket. If you are mirroring layout state, drive it from `onDidMovePanel` rather than from the mutation boundary alone.
 :::
 
 ## Group lifecycle
@@ -92,7 +129,7 @@ api.onWillMutateLayout((event: DockviewLayoutMutationEvent) => {
 api.onDidMutateLayout((event: DockviewLayoutMutationEvent) => {});
 ```
 
-A compound operation brackets as a **single** transaction: dragging a panel to a new group, or restoring a whole layout via `fromJSON`, fires exactly one before/after pair rather than one per internal step.
+A compound operation brackets as a **single** transaction: dragging a panel to a new group, or restoring a whole layout via `fromJSON`, fires exactly one before/after pair rather than one per internal step. `addPopoutGroup` is asynchronous - it resolves once its window has opened - and its transaction stays open for the whole operation, so the panel moves it makes are bracketed like those of every other relocation.
 
 `event.origin` distinguishes _who_ caused the change: `'user'` for direct interaction (drag-and-drop, tab UI), `'api'` for a programmatic `DockviewApi` call made by your own code. Consumers such as an undo stack can use this to ignore the app's own programmatic mutations.
 
@@ -227,7 +264,12 @@ panel.api.onDidGroupChange(() => {});
 // Fires when the panel's group active state changes
 panel.api.onDidActiveGroupChange(({ isActive }) => {});
 
-// Fires when the panel's location changes (grid → floating → popout)
+// Fires when the panel's location changes (grid → floating → popout). Fires
+// once per relocation, reporting where the panel settled - see the relocation
+// table above. It also fires when the location `type` is unchanged but the
+// window is not, such as a panel moving between two floating or popout
+// windows, so read `location` rather than assuming the type differs from the
+// last time you were called.
 panel.api.onDidLocationChange(({ location }) => {});
 
 // Fires when the panel's renderer mode changes

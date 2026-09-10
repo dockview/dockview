@@ -94,6 +94,13 @@ export interface DockviewGroupPanelApi extends GridviewPanelApi {
     exitMaximized(): void;
     close(): void;
     /**
+     * Resize this group, clamped by its constraints and the space available.
+     * An edge group is sized along its own axis only - `width` for
+     * `left`/`right`, `height` for `top`/`bottom` - and that size is the one
+     * it expands to, so a collapsed group keeps its strip until expanded.
+     */
+    setSize(event: SizeEvent): void;
+    /**
      * Collapse this group (edge groups only). No-op for non-edge groups.
      */
     collapse(): void;

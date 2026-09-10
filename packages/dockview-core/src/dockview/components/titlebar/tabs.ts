@@ -31,6 +31,7 @@ import { ITabGroup } from '../../tabGroup';
 import { TabGroupManager } from './tabGroups';
 import { ITabGroupChipRenderer } from '../../framework';
 import { DroptargetEvent } from '../../../dnd/droptarget';
+import { pointerBackend } from '../../../dnd/backend';
 import {
     ITabReorderHost,
     TabAnimationState,
@@ -470,7 +471,42 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
 
         this._reorder = new TabReorderController(this);
 
+        // Hit-test stop, not a drop handler. `_findTargetUnder` returns the
+        // innermost registered ancestor, and the strip registers targets on
+        // tabs and the void container only, so without this a release over the
+        // strip's padding or the smooth-reorder gap reaches the root edge
+        // target - which docks at the layout edge while
+        // `handlePointerDragEnd` also commits the reorder.
+        // `canDisplayOverlay` declines, so nothing latches here.
+        //
+        // Transparent for payloads the strip cannot commit, which would
+        // otherwise be stranded: mirrors `handlePointerDragEnd`'s guard - our
+        // own view, started in this strip, and either a single tab or a chip,
+        // both of which commit on release here. A whole-group drag carries a
+        // null `panelId` and no tab group, commits nothing here, and stays the
+        // root's.
+        const tabsListPointerTarget = pointerBackend.createDropTarget(
+            this._tabsList,
+            {
+                acceptedTargetZones: ['center'],
+                canDisplayOverlay: () => false,
+                isHitTestTransparent: () => {
+                    const data = getPanelData();
+
+                    if (
+                        data?.viewId !== this.accessor.id ||
+                        data.groupId !== this.group.id
+                    ) {
+                        return true;
+                    }
+
+                    return data.panelId === null && !data.tabGroupId;
+                },
+            }
+        );
+
         this.addDisposables(
+            tabsListPointerTarget,
             this._onOverflowTabsChange,
             this._observerDisposable,
             this._pointerActivation,
@@ -1434,6 +1470,10 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
      * (when the source tab is currently to the left of the target slot, its
      * removal shifts the insertion index down by one). Always clears
      * `targetTabGroupId` so the dropped tab lands outside the group.
+     *
+     * A chip dropped on a chip is a group move: the panel path would route it
+     * through the cross-group machinery, which rebuilds the tab group under a
+     * new id.
      */
     private _handleChipDrop(tabGroup: ITabGroup, event: DroptargetEvent): void {
         const firstPanelId = tabGroup.panelIds[0];
@@ -1447,6 +1487,20 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
             return;
         }
         const data = getPanelData();
+
+        if (data?.tabGroupId) {
+            // Spend the anim state, as `tab.onDrop` does, so the pointer
+            // backend's later `onDragEnd` commit skips this release.
+            const animState = this._animState;
+            this._animState = null;
+            this._pendingCollapse = false;
+            this._commitGroupMove(
+                data.tabGroupId,
+                animState?.currentInsertionIndex ?? insertionIndex
+            );
+            return;
+        }
+
         const sourceIndex =
             data?.groupId === this.group.id && data?.panelId
                 ? this._tabs.findIndex((x) => x.value.panel.id === data.panelId)

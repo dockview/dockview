@@ -15,7 +15,15 @@ const config: Config = {
     setupFilesAfterEnv: [
         '<rootDir>/packages/dockview-angular/src/__tests__/setup-jest.ts',
     ],
-    coveragePathIgnorePatterns: ['/node_modules/'],
+    // Report coverage only for this package. The Angular preset instruments
+    // TypeScript differently from the @swc/jest projects, so when this project
+    // also reported the `dockview-core` sources it maps in, merging the two
+    // instrumentations of the same file produced garbage counters - branches
+    // taken hundreds of times came out as never taken.
+    coveragePathIgnorePatterns: [
+        '/node_modules/',
+        '<rootDir>/packages/(?!dockview-angular/)[^/]+/src/',
+    ],
     moduleNameMapper: {
         '^dockview$': '<rootDir>/packages/dockview/src/index.ts',
         '^dockview-core$': '<rootDir>/packages/dockview-core/src/index.ts',

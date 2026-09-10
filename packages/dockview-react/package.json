@@ -1,6 +1,6 @@
 {
   "name": "dockview-react",
-  "version": "8.1.0",
+  "version": "8.3.0",
   "description": "React docking layout manager — tabs, groups, grids, splitviews, drag and drop, floating panels",
   "keywords": [
     "splitview",
@@ -85,7 +85,7 @@
     "format:check": "biome format src"
   },
   "dependencies": {
-    "dockview": "^8.1.0"
+    "dockview": "^8.3.0"
   },
   "peerDependencies": {
     "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0",

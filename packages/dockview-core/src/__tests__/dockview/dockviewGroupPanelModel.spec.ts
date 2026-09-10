@@ -898,6 +898,58 @@ describe('dockviewGroupPanelModel', () => {
         expect(contentContainer.item(0)).toBe(panel2.view.content.element);
     });
 
+    test('swapping renderContainer re-lays out the active panel', () => {
+        // Regression (#989): when a popout group is moved back into the main
+        // grid the render container is swapped via `set renderContainer`. That
+        // path re-attaches the active panel's content but, unlike
+        // `doSetActivePanel`, used to skip `layout()` — so the content element
+        // kept stale dimensions and rendered blank until another view change.
+        const dockviewComponent = new DockviewComponent(
+            document.createElement('div'),
+            {
+                createComponent(options) {
+                    switch (options.name) {
+                        case 'component':
+                            return new TestContentPart(options.id);
+                        default:
+                            throw new Error(`unsupported`);
+                    }
+                },
+            }
+        );
+
+        const groupviewContainer = document.createElement('div');
+        const cut = new DockviewGroupPanelModel(
+            groupviewContainer,
+            dockviewComponent,
+            'id',
+            {},
+            null as any
+        );
+
+        const panel1 = new TestPanel('id_1', panelApi);
+        const panel2 = new TestPanel('id_2', panelApi);
+        cut.openPanel(panel1);
+        cut.openPanel(panel2); // panel2 is the active panel
+
+        // Give the group real dimensions so contentDimensions() is meaningful.
+        cut.layout(300, 200);
+
+        // Only observe layout() calls caused by the container swap itself.
+        const layoutSpy = jest.spyOn(panel2, 'layout');
+        layoutSpy.mockClear();
+
+        cut.renderContainer = new OverlayRenderContainer(
+            document.createElement('div'),
+            dockviewComponent
+        );
+
+        // The active panel is re-laid out with the group's content dimensions
+        // (full width/height here since the header has no size in jsdom).
+        expect(layoutSpy).toHaveBeenCalledTimes(1);
+        expect(layoutSpy).toHaveBeenCalledWith(300, 200);
+    });
+
     test('that should not show drop target is external event', () => {
         const accessor = fromPartial<DockviewComponent>({
             id: 'testcomponentid',

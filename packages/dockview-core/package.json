@@ -1,6 +1,6 @@
 {
   "name": "dockview-core",
-  "version": "8.1.0",
+  "version": "8.3.0",
   "description": "Zero dependency layout manager supporting tabs, groups, grids and splitviews for vanilla TypeScript",
   "keywords": [
     "splitview",

@@ -1310,6 +1310,12 @@ export class DockviewGroupPanelModel
             this.contentContainer.renderPanel(this._activePanel, {
                 asActive: true,
             });
+            // Also re-run layout() so the panel content is sized after the
+            // container switch — matching doSetActivePanel(). Without it the
+            // content element keeps stale dimensions when a group is moved back
+            // from a popout window and renders blank (fixes #989).
+            const { width, height } = this.contentDimensions();
+            this._activePanel.layout(width, height);
         }
     }
 

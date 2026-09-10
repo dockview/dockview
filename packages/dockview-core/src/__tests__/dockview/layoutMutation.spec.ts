@@ -3,6 +3,10 @@ import {
     DockviewLayoutMutationKind,
 } from '../../dockview/dockviewComponent';
 import { IContentRenderer } from '../../dockview/types';
+import {
+    setupDeferredMockWindow,
+    setupMockWindow,
+} from '../__mocks__/mockWindow';
 
 class TestPanel implements IContentRenderer {
     element = document.createElement('div');
@@ -98,6 +102,147 @@ describe('layout mutation events', () => {
         dockview.addFloatingGroup(p1);
         expect(will).toEqual(['float']);
         expect(did).toEqual(['float']);
+    });
+
+    /**
+     * The popout window opens asynchronously and the panels are only rehomed
+     * once it has. The bracket therefore has to stay open across the await,
+     * otherwise a consumer using the transaction for autosave / undo sees the
+     * popout's structural work land outside it - unlike the move and float
+     * paths, whose work is entirely synchronous.
+     */
+    test('addPopoutGroup brackets the async work, not just its start', async () => {
+        window.open = () => setupMockWindow();
+
+        const sequence: string[] = [];
+        dockview.onWillMutateLayout((e) => sequence.push(`will:${e.kind}`));
+        dockview.onDidMutateLayout((e) => sequence.push(`did:${e.kind}`));
+        dockview.onDidAddGroup(() => sequence.push('addGroup'));
+        dockview.onDidMovePanel(() => sequence.push('movePanel'));
+
+        dockview.addPanel({ id: 'p1', component: 'default' });
+        const p2 = dockview.addPanel({ id: 'p2', component: 'default' });
+        sequence.length = 0;
+        will.length = 0;
+        did.length = 0;
+
+        await dockview.addPopoutGroup(p2);
+
+        expect(sequence).toEqual([
+            'will:popout',
+            'addGroup',
+            'movePanel',
+            'did:popout',
+        ]);
+        expect(will).toEqual(['popout']);
+        expect(did).toEqual(['popout']);
+    });
+
+    test('a nested mutation during the popout joins the popout transaction', async () => {
+        window.open = () => setupMockWindow();
+
+        const p1 = dockview.addPanel({ id: 'p1', component: 'default' });
+        dockview.addPanel({ id: 'p2', component: 'default' });
+
+        // popping a whole group out of a floating window removes the floating
+        // group as part of the popout, a nested mutation that must fold in
+        dockview.addFloatingGroup(p1.group);
+        will.length = 0;
+        did.length = 0;
+
+        await dockview.addPopoutGroup(p1.group);
+
+        expect(will).toEqual(['popout']);
+        expect(did).toEqual(['popout']);
+    });
+
+    /**
+     * Asynchronous transactions can *overlap* rather than nest, so the first to
+     * open is not necessarily the last to close. Two popouts opening at once
+     * whose windows load at different times is the ordinary case - `fromJSON`
+     * staggers restored popouts deliberately. Keying the closing event off
+     * which bracket opened first fires `didMutate` while the second popout is
+     * still adding groups and moving panels, putting its work outside the
+     * transaction - exactly what holding the bracket open across the async work
+     * exists to prevent.
+     */
+    test('overlapping popouts report one transaction that closes after all the work', async () => {
+        const first = setupDeferredMockWindow();
+        const second = setupDeferredMockWindow();
+        const windows = [first, second];
+        window.open = () => windows.shift()!.window;
+
+        const sequence: string[] = [];
+        dockview.onWillMutateLayout((e) => sequence.push(`will:${e.kind}`));
+        dockview.onDidMutateLayout((e) => sequence.push(`did:${e.kind}`));
+        dockview.onDidMovePanel((e) => sequence.push(`move:${e.panel.id}`));
+
+        const p1 = dockview.addPanel({ id: 'p1', component: 'default' });
+        const p2 = dockview.addPanel({
+            id: 'p2',
+            component: 'default',
+            position: { direction: 'right' },
+        });
+        dockview.addPanel({ id: 'p3', component: 'default' });
+        sequence.length = 0;
+        will.length = 0;
+        did.length = 0;
+
+        // both in flight at once, neither awaited before the other starts
+        const opened = Promise.all([
+            dockview.addPopoutGroup(p1),
+            dockview.addPopoutGroup(p2),
+        ]);
+
+        // the first window loads while the second is still opening
+        first.load();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        second.load();
+        await opened;
+
+        expect(will).toEqual(['popout']);
+        expect(did).toEqual(['popout']);
+        expect(sequence).toEqual([
+            'will:popout',
+            'move:p1',
+            'move:p2',
+            'did:popout',
+        ]);
+    });
+
+    /**
+     * The async bracket holds the transaction open until the work settles, so a
+     * popout that fails has to settle too - a promise that never does would
+     * leave the depth counter above zero and silently swallow the will/did pair
+     * of every mutation for the rest of the component's life. The trailing
+     * `addPanel` is the real assertion: it only brackets on its own if the
+     * failed popout put the counter back.
+     */
+    test('a blocked popout closes its transaction and leaves nothing open', async () => {
+        const openSpy = jest.spyOn(window, 'open').mockReturnValue(null);
+        const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {
+            // the blocked-popup fallback logs; keep the test output clean
+        });
+
+        try {
+            dockview.addPanel({ id: 'p1', component: 'default' });
+            const p2 = dockview.addPanel({ id: 'p2', component: 'default' });
+            will.length = 0;
+            did.length = 0;
+
+            expect(await dockview.addPopoutGroup(p2)).toBe(false);
+
+            expect(will).toEqual(['popout']);
+            expect(did).toEqual(['popout']);
+
+            dockview.addPanel({ id: 'p3', component: 'default' });
+
+            expect(will).toEqual(['popout', 'add']);
+            expect(did).toEqual(['popout', 'add']);
+        } finally {
+            errorSpy.mockRestore();
+            openSpy.mockRestore();
+        }
     });
 
     test('clear brackets one "clear" transaction', () => {

@@ -18,7 +18,14 @@ const config: Config = {
         '<rootDir>/jest-setup.ts',
         '<rootDir>/packages/dockview-enterprise/src/__tests__/registerModules.ts',
     ],
-    coveragePathIgnorePatterns: ['/node_modules/'],
+    // Report coverage only for this package. `moduleNameMapper` points the
+    // other dockview packages at their source, so specs here load those files
+    // and jest emits a second, near-empty coverage map for each; merging the
+    // two instrumentations of one file overwrites the real counters.
+    coveragePathIgnorePatterns: [
+        '/node_modules/',
+        '<rootDir>/packages/(?!dockview-enterprise/)[^/]+/src/',
+    ],
     moduleNameMapper: {
         '^dockview-core$': '<rootDir>/packages/dockview-core/src/index.ts',
         // The enterprise source imports the base API from `dockview` (not

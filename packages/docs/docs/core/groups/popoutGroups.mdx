@@ -51,6 +51,33 @@ From within a panel you may say
 props.containerApi.addPopoutGroup(props.api.group);
 ```
 
+## Awaiting the open
+
+`addPopoutGroup` is asynchronous. The window opens first and the group is only
+moved into it once that has happened, so await the call when the next step
+depends on the group already being there.
+
+```tsx
+const opened = await api.addPopoutGroup(group);
+
+if (!opened) {
+    // the popout was not created and the group is still in the main grid
+}
+```
+
+The promise always settles, and resolves `false` instead of throwing when the
+popout could not be created: the browser blocked the window, the window was
+closed before it finished loading, or the item cannot be popped out at all (an
+edge group). The panels are left in the main grid, or returned to the group they
+came from, and `onDidOpenPopoutWindowFail` fires for a window that never became
+usable.
+
+The [layout transaction](/docs/core/events#mutation-boundary) covers the whole
+operation: `onWillMutateLayout` fires with `kind: 'popout'` before the window is
+opened, and the matching `onDidMutateLayout` only once the promise settles, so
+the panel moves the popout makes are bracketed by the pair rather than landing
+after it.
+
 ## Closing the popout group
 
 To programmatically move the popout group back into the main grid you can use the `moveTo` method in many ways, one of the following would suffice

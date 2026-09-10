@@ -413,7 +413,17 @@ export class Splitview {
         if (typeof size === 'number') {
             viewSize = size;
         } else if (size.type === 'split') {
-            viewSize = this.getViewSize(size.index) / 2;
+            // Take the new view's room from the view being split. Halving it
+            // here keeps the branch total unchanged, so the relayout below has
+            // no deficit to claw back from a sibling with slack (#1612).
+            const splitTarget = this.viewItems[size.index];
+            if (splitTarget) {
+                const half = Math.floor(splitTarget.size / 2);
+                viewSize = splitTarget.size - half;
+                splitTarget.size = half;
+            } else {
+                viewSize = this.getViewSize(size.index) / 2;
+            }
         } else if (size.type === 'invisible') {
             viewSize = { cachedVisibleSize: size.cachedVisibleSize };
         } else {

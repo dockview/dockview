@@ -38,11 +38,6 @@ model. When writing or editing docs:
 - `static/templates/` - Auto-generated from `templates/` source directory. Do not edit manually.
 - Templates contain examples for plain TypeScript plus the supported frameworks: React, Vue, and Angular
 
-### Release Notes
-
-- Release notes are stored in `blog/` with the naming format `YYYY-MM-DD-dockview-X.Y.Z.md`
-- See root AGENTS.md for release note format details
-
 ### Live Examples (`<CodeRunner>` + `templates/`)
 
 **This is where docs examples live.** A page embeds a live example with `<CodeRunner id="dockview/<id>" />`. That renders an iframe pointing at `/templates/dockview/<id>/<framework>/index.html`, generated from `templates/` by `scripts/buildTemplates.mjs`. So:

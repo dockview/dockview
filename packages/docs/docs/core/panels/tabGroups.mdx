@@ -262,12 +262,6 @@ tabGroup.onDidDestroy(() => {});
 Right-clicking a tab group chip can show a context menu. This is opt-in; no menu is shown unless
 `getTabGroupChipContextMenuItems` is provided. Return an empty array to suppress the menu for specific chips.
 
-:::info
-The chip context menu is an enterprise [context menu](/docs/core/panels/contextMenus)
-feature. Everything else on this page (chips, colours, custom chip renderers, events, and
-serialization) is part of the free core; only this menu needs the enterprise package.
-:::
-
 <FrameworkSpecific framework="React">
     <DocRef
         declaration="IDockviewReactProps"
