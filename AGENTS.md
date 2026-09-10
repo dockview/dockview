@@ -73,6 +73,7 @@ NX handles build ordering automatically via `dependsOn: ["^build"]`. The depende
 -   **packages/dockview-react** - Canonical React bindings package — what docs, READMEs, and examples point users at (`npm install dockview-react`). Holds the actual React source and depends on `dockview`.
 -   **packages/dockview-vue** - Vue 3 bindings and components
 -   **packages/dockview-angular** - Angular bindings and components
+-   **packages/dockview-tauri-demo** - Private Tauri desktop shell hosting dockview. A testbed for host-environment behaviour (popouts in a native webview, native window isolation, cross-process layout sync); not published, and not built by CI.
 -   **packages/docs** - Documentation website (Docusaurus v3)
 
 ### Key Components
