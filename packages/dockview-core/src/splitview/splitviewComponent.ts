@@ -180,6 +180,11 @@ export class SplitviewComponent
             this._onDidRemoveView,
             this._onDidLayoutChange
         );
+
+        // Seed the layout from the element now that construction is complete,
+        // so anything built before the ResizeObserver first reports sizes
+        // against the real dimensions rather than zero.
+        this.layoutFromElement();
     }
 
     updateOptions(options: Partial<SplitviewComponentOptions>): void {
