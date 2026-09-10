@@ -41,7 +41,7 @@
         "vite": "^7.3.3"
     },
     "devDependencies": {
-        "@angular/common": "^21.2.12",
+        "@angular/common": "^21.2.20",
         "@angular/compiler": "^21.2.12",
         "@angular/compiler-cli": "^21.2.12",
         "@angular/core": "^21.2.12",
