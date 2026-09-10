@@ -321,6 +321,49 @@ describe('DockviewVue Component', () => {
         expect(emitted).toBeTruthy();
         expect(emitted![0][0]).toBe(fakeEvent);
     });
+
+    test.each([
+        'always',
+        'onlyWhenVisible',
+    ] as const)('closing a panel and re-adding it re-renders content and tab (renderer=%s, #1300)', async (renderer) => {
+        wrapper = mountDockview();
+        await flushPromises();
+
+        const api = (wrapper.emitted('ready')![0][0] as any).api as DockviewApi;
+
+        const panel = api.addPanel({
+            id: 'panel1',
+            component: 'MockPanel',
+            tabComponent: 'MockTab',
+            renderer,
+        });
+        await flushPromises();
+        await nextTick();
+
+        expect(document.querySelectorAll('.mock-panel')).toHaveLength(1);
+        expect(document.querySelectorAll('.mock-tab')).toHaveLength(1);
+
+        panel.api.close();
+        await flushPromises();
+        await nextTick();
+
+        expect(api.panels).toHaveLength(0);
+        expect(document.querySelectorAll('.mock-tab')).toHaveLength(0);
+
+        const panelAgain = api.addPanel({
+            id: 'panel1',
+            component: 'MockPanel',
+            tabComponent: 'MockTab',
+            renderer,
+        });
+        await flushPromises();
+        await nextTick();
+
+        expect(api.panels).toHaveLength(1);
+        expect(panelAgain.api.renderer).toBe(renderer);
+        expect(document.querySelectorAll('.mock-panel')).toHaveLength(1);
+        expect(document.querySelectorAll('.mock-tab')).toHaveLength(1);
+    });
 });
 
 // Regression coverage for https://github.com/dockview/dockview/issues/1301
