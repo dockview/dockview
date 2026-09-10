@@ -1795,6 +1795,13 @@ export class DockviewComponent
         // Modules subscribe to host events here so the component doesn't
         // need to manually invoke them at scattered call sites.
         this._moduleRegistry.postConstruct(this);
+
+        // Seed the layout now that construction is complete, so anything built
+        // before the shell's ResizeObserver first reports - panels added
+        // straight after `createDockview` - sizes against the real dimensions
+        // rather than zero. The shell owns sizing here; this component's own
+        // Resizable observer is disabled above.
+        this._shellManager.layoutFromElement();
     }
 
     override setVisible(panel: DockviewGroupPanel, visible: boolean): void {
