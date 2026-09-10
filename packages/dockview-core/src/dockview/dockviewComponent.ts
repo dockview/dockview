@@ -124,7 +124,7 @@ import {
     DockviewPanelRenderer,
     OverlayRenderContainer,
 } from '../overlay/overlayRenderContainer';
-import { PopoutWindow } from '../popoutWindow';
+import { getPopoutUrlError, PopoutWindow } from '../popoutWindow';
 import { StrictEventsSequencing } from './strictEventsSequencing';
 import { PopupService } from './components/popupService';
 import { IRootDropTargetHost } from './rootDropTargetService';
@@ -1942,11 +1942,13 @@ export class DockviewComponent
         // actually opening the window, not baked into saved layouts.
         const resolvedPopoutUrl = options?.popoutUrl ?? this.options?.popoutUrl;
 
+        const popoutUrl = resolvedPopoutUrl ?? '/popout.html';
+
         const _window = new PopoutWindow(
             `${this.id}-${groupId}`, // unique id
             theme ?? '',
             {
-                url: resolvedPopoutUrl ?? '/popout.html',
+                url: popoutUrl,
                 left: box.left,
                 top: box.top,
                 width: box.width,
@@ -1964,8 +1966,15 @@ export class DockviewComponent
             })
         );
 
-        return _window
-            .open()
+        // A URL the guard refuses - a packaged desktop shell serving the app
+        // from a custom protocol, say - is settled here rather than by catching
+        // the rejection from `open()`, so it reaches the same blocked-window
+        // fallback below and the group is returned to the grid instead of being
+        // left registered but unparented. Chaining a `.catch` would instead add
+        // a microtask hop to the path where the window does open.
+        const openError = getPopoutUrlError(popoutUrl);
+
+        return (openError ? Promise.resolve(null) : _window.open())
             .then((popoutContainer) => {
                 if (_window.isDisposed) {
                     return false;
@@ -2010,6 +2019,7 @@ export class DockviewComponent
                         referenceGroup,
                         options,
                         popoutWindowDisposable,
+                        error: openError,
                     });
                     return false;
                 }
@@ -2312,23 +2322,35 @@ export class DockviewComponent
     }
 
     /**
-     * The popout window was blocked (e.g. by the browser's popup blocker,
-     * common when restoring popouts on load). Fall back gracefully so the
-     * group(s) end up valid and visible in the main grid rather than as
-     * orphans that later crash clear()/remove().
+     * The popout window never opened - blocked by the browser's popup blocker
+     * (common when restoring popouts on load), or refused outright because its
+     * URL failed the same-origin guard. Fall back gracefully so the group(s)
+     * end up valid and visible in the main grid rather than as orphans that
+     * render nothing and later crash clear()/remove().
      */
     private handleBlockedPopout(params: {
         group: DockviewGroupPanel;
         referenceGroup: DockviewGroupPanel;
         options?: DockviewPopoutGroupOptionsInternal;
         popoutWindowDisposable: CompositeDisposable;
+        /** Set when the window was refused rather than blocked. */
+        error?: Error;
     }): void {
-        const { group, referenceGroup, options, popoutWindowDisposable } =
-            params;
+        const {
+            group,
+            referenceGroup,
+            options,
+            popoutWindowDisposable,
+            error,
+        } = params;
 
-        console.error(
-            'dockview: failed to create popout. perhaps you need to allow pop-ups for this website'
-        );
+        if (error) {
+            console.error('dockview: failed to create popout.', error);
+        } else {
+            console.error(
+                'dockview: failed to create popout. perhaps you need to allow pop-ups for this website'
+            );
+        }
 
         popoutWindowDisposable.dispose();
         this._onDidOpenPopoutWindowFail.fire();

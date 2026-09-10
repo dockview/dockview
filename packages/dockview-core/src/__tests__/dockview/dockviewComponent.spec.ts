@@ -7722,6 +7722,94 @@ describe('dockviewComponent', () => {
 
                 jest.useRealTimers();
             });
+
+            test('a popout URL the guard refuses leaves the layout untouched', async () => {
+                window.open = () => setupMockWindow();
+                const dockview = make();
+                dockview.layout(1000, 500);
+
+                const panel1 = dockview.addPanel({
+                    id: 'panel_1',
+                    component: 'default',
+                });
+                dockview.addPanel({
+                    id: 'panel_2',
+                    component: 'default',
+                    position: { referencePanel: 'panel_1', direction: 'right' },
+                });
+
+                const before = dockview.groups.length;
+
+                // A packaged desktop shell can serve the app from a custom
+                // protocol (`tauri://localhost` on macOS / Linux), which the
+                // same-origin guard refuses.
+                const result = await dockview.addPopoutGroup(panel1.api.group, {
+                    popoutUrl: 'tauri://localhost/popout.html',
+                });
+
+                expect(result).toBe(false);
+                expect(dockview.groups).toHaveLength(before);
+                expect(panel1.api.location.type).toBe('grid');
+                expect(panel1.api.isVisible).toBe(true);
+
+                dockview.dispose();
+            });
+
+            test('restoring a popout whose URL the guard refuses docks it into the grid', async () => {
+                jest.useFakeTimers();
+                window.open = () => setupMockWindow();
+                const dockview = make();
+                dockview.layout(1000, 500);
+
+                const panel1 = dockview.addPanel({
+                    id: 'panel_1',
+                    component: 'default',
+                });
+                dockview.addPanel({
+                    id: 'panel_2',
+                    component: 'default',
+                    position: { referencePanel: 'panel_1', direction: 'right' },
+                });
+
+                await dockview.addPopoutGroup(panel1.api.group, {
+                    popoutUrl: '/popout.html',
+                });
+
+                const state = dockview.toJSON();
+                expect(state.popoutGroups![0].url).toBe('/popout.html');
+
+                // The same layout reopened where the app is served from a
+                // custom protocol: the guard refuses the URL before the window
+                // is ever requested, so the blocked-popup fallback never runs.
+                state.popoutGroups![0].url = 'tauri://localhost/popout.html';
+
+                dockview.clear();
+                dockview.fromJSON(state);
+                jest.advanceTimersByTime(500);
+                await dockview.popoutRestorationPromise;
+
+                expect(dockview.panels.map((p) => p.id).sort()).toEqual([
+                    'panel_1',
+                    'panel_2',
+                ]);
+                expect(
+                    dockview.groups.filter(
+                        (group) => group.api.location.type === 'popout'
+                    )
+                ).toHaveLength(0);
+
+                // the refused group must not linger registered-but-unparented,
+                // which would render nothing while still serializing
+                expect(
+                    dockview.groups.filter(
+                        (group) => !dockview.element.contains(group.element)
+                    )
+                ).toHaveLength(0);
+
+                expect(() => dockview.clear()).not.toThrow();
+
+                jest.useRealTimers();
+            });
         });
 
         test('move a floating group of many tabs to a new fixed group', () => {
