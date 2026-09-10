@@ -2638,9 +2638,7 @@ export class DockviewComponent
              * last panel of a group into another group already reports it this
              * way (see `moveGroupOrPanel`), so floating now matches.
              */
-            if (sourceGroup.model.size === 0) {
-                this.doRemoveGroup(sourceGroup, { skipActive: true });
-            }
+            this.removeGroupIfEmpty(sourceGroup);
 
             this.movingLock(() =>
                 group.model.openPanel(item, { skipSetGroupActive: true })
@@ -2774,6 +2772,16 @@ export class DockviewComponent
 
         for (const { panel, from } of movedPanels) {
             this.fireDidMovePanel(panel, from);
+        }
+    }
+
+    /**
+     * Discard a group that a relocation has just emptied. Edge groups are
+     * permanent, so `doRemoveGroup` leaves those in place.
+     */
+    private removeGroupIfEmpty(group: DockviewGroupPanel): void {
+        if (group.model.size === 0) {
+            this.doRemoveGroup(group, { skipActive: true });
         }
     }
 
