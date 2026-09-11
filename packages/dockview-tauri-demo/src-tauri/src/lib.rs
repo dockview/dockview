@@ -53,23 +53,12 @@ fn open_related_window(
     url: Url,
     features: NewWindowFeatures,
 ) -> NewWindowResponse<tauri::Wry> {
-    // Two ways to answer. `Allow` is wry's own per-platform window creation:
-    // it navigates nothing itself, so the engine loads the requested URL into
-    // the new webview exactly once, and it sizes the window from the
-    // `window.open` features on macOS and Windows (on WebKitGTK it ignores
-    // them and opens 200x200). `Create` is a Tauri-built window, which must
-    // be given a URL; its `about:blank` load races the engine's load of the
-    // request, and where `about:blank` lands last it wipes the document
-    // dockview has already moved the group into, leaving a blank window.
-    // Measured: the order holds on WebKitGTK and does not on WKWebView.
-    // `DOCKVIEW_POPOUT=create|allow` overrides the default for comparison.
-    let mode = std::env::var("DOCKVIEW_POPOUT").unwrap_or_default();
-    let create = match mode.as_str() {
-        "create" => true,
-        "allow" => false,
-        _ => cfg!(target_os = "linux"),
-    };
-    if !create {
+    // Two ways to answer. `Create` (the default) returns a Tauri-built
+    // window: labelled, titled from its document, and sized from the
+    // `window.open` features on macOS and Windows. `Allow` is wry's own
+    // per-platform window creation, kept behind `DOCKVIEW_POPOUT=allow` for
+    // comparison; on WebKitGTK it ignores the features and opens 200x200.
+    if std::env::var("DOCKVIEW_POPOUT").as_deref() == Ok("allow") {
         return NewWindowResponse::Allow;
     }
 
@@ -90,11 +79,41 @@ fn open_related_window(
     .build();
 
     match built {
-        Ok(window) => NewWindowResponse::Create { window },
+        Ok(window) => {
+            honour_script_close(&window);
+            NewWindowResponse::Create { window }
+        }
         Err(err) => {
             eprintln!("window.open for {url} refused: {err}");
             NewWindowResponse::Deny
         }
+    }
+}
+
+/// Makes `window.close()` from the page close the native window. wry answers
+/// WebKitGTK's `close` signal by destroying the webview widget only, which
+/// leaves the window on screen, blank; closing the window from the widget's
+/// `destroy` runs after that whatever the handler order. On Windows wry
+/// destroys the window itself; on macOS its UI delegate has no
+/// `webViewDidClose:`, so nothing closes it yet. dockview calls `close()` on
+/// a popout when its group is closed or redocked.
+fn honour_script_close(window: &WebviewWindow) {
+    #[cfg(target_os = "linux")]
+    {
+        use gtk::prelude::WidgetExt;
+        let handle = window.clone();
+        let result = window.with_webview(move |webview| {
+            webview.inner().connect_destroy(move |_| {
+                let _ = handle.close();
+            });
+        });
+        if let Err(err) = result {
+            eprintln!("popout: could not hook window.close: {err}");
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = window;
     }
 }
 
