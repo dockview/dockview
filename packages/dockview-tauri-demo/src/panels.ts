@@ -57,24 +57,58 @@ export class HostPanel extends DemoPanel {
         // that needs a click to refresh, since the click clears the
         // selection. `peak` keeps the high-water mark for the same reason.
         let peak = 0;
-        const selection = el('div', { class: 'demo-field' });
+        let shieldSeen = false;
+        let selectStarts = 0;
+        let selectStartsPrevented = 0;
+        const selection = el('div', { class: 'demo-diag' });
+
         const renderSelection = () => {
             const length = globalThis.getSelection()?.toString().length ?? 0;
             peak = Math.max(peak, length);
             selection.replaceChildren(
-                el('span', { class: 'demo-field-label' }, 'selected chars'),
-                el(
-                    'span',
-                    { class: 'demo-field-value' },
-                    `${length} (peak ${peak})`
+                field('selected chars', `${length} (peak ${peak})`),
+                field('shield seen active', shieldSeen ? 'yes' : 'no'),
+                field(
+                    'selectstart seen / blocked',
+                    `${selectStarts} / ${selectStartsPrevented}`
                 )
             );
         };
+
+        // Sampled rather than event-driven: the shield is applied and released
+        // inside a drag, between any events this panel would otherwise see.
+        const sample = setInterval(() => {
+            const applied =
+                document.documentElement.style.getPropertyValue(
+                    'user-select'
+                ) === 'none';
+            if (applied && !shieldSeen) {
+                shieldSeen = true;
+                renderSelection();
+            }
+        }, 50);
+
+        // Capture phase, so it runs before the shield's own handler and can
+        // tell whether the event arrived at all separately from whether
+        // anything cancelled it.
+        const onSelectStart = (event: Event) => {
+            selectStarts += 1;
+            queueMicrotask(() => {
+                if (event.defaultPrevented) {
+                    selectStartsPrevented += 1;
+                }
+                renderSelection();
+            });
+        };
+        document.addEventListener('selectstart', onSelectStart, true);
+
         renderSelection();
         document.addEventListener('selectionchange', renderSelection);
-        this.onDispose(() =>
-            document.removeEventListener('selectionchange', renderSelection)
-        );
+        this.onDispose(() => {
+            clearInterval(sample);
+            document.removeEventListener('selectstart', onSelectStart, true);
+            document.removeEventListener('selectionchange', renderSelection);
+        });
         const render = () => {
             const report = readHostReport();
             body.replaceChildren(
