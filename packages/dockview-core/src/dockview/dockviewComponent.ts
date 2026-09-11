@@ -146,6 +146,21 @@ import {
     TabGroupColorPalette,
 } from './tabGroupAccent';
 
+/**
+ * A popout window that never opened was either refused outright - an invalid
+ * URL, reported with the error - or blocked by the browser, where naming the
+ * usual cause is the more useful message.
+ */
+function logFailedPopout(error: Error | undefined): void {
+    if (error) {
+        console.error('dockview: failed to create popout.', error);
+    } else {
+        console.error(
+            'dockview: failed to create popout. perhaps you need to allow pop-ups for this website'
+        );
+    }
+}
+
 function buildTabGroupColorPalette(options: {
     tabGroupColors?: DockviewTabGroupColorEntry[];
     tabGroupAccent?: 'palette' | 'off';
@@ -2344,13 +2359,7 @@ export class DockviewComponent
             error,
         } = params;
 
-        if (error) {
-            console.error('dockview: failed to create popout.', error);
-        } else {
-            console.error(
-                'dockview: failed to create popout. perhaps you need to allow pop-ups for this website'
-            );
-        }
+        logFailedPopout(error);
 
         popoutWindowDisposable.dispose();
         this._onDidOpenPopoutWindowFail.fire();
