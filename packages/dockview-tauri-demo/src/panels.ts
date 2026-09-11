@@ -51,6 +51,30 @@ function section(title: string, ...children: (Node | string)[]): HTMLElement {
 export class HostPanel extends DemoPanel {
     init(): void {
         const body = el('div');
+
+        // Live, because the interesting moment is mid-drag: a pointer drag
+        // that selects the text it crosses cannot be measured by anything
+        // that needs a click to refresh, since the click clears the
+        // selection. `peak` keeps the high-water mark for the same reason.
+        let peak = 0;
+        const selection = el('div', { class: 'demo-field' });
+        const renderSelection = () => {
+            const length = globalThis.getSelection()?.toString().length ?? 0;
+            peak = Math.max(peak, length);
+            selection.replaceChildren(
+                el('span', { class: 'demo-field-label' }, 'selected chars'),
+                el(
+                    'span',
+                    { class: 'demo-field-value' },
+                    `${length} (peak ${peak})`
+                )
+            );
+        };
+        renderSelection();
+        document.addEventListener('selectionchange', renderSelection);
+        this.onDispose(() =>
+            document.removeEventListener('selectionchange', renderSelection)
+        );
         const render = () => {
             const report = readHostReport();
             body.replaceChildren(
@@ -75,6 +99,7 @@ export class HostPanel extends DemoPanel {
             section(
                 'Host environment',
                 body,
+                selection,
                 button('Re-read', render),
                 el(
                     'p',
