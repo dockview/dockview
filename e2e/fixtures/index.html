@@ -743,6 +743,61 @@
                     // that must stay repeatable (#1410). Flat order is
                     // red,green,blue,yellow so the chips render Feature then
                     // Monitoring. Returns the ids the spec needs.
+                    // Two dockview groups side by side, each with its own
+                    // tab group: a chip in the left group, grouped tabs in the
+                    // right. Dragging the left chip onto a grouped tab in the
+                    // right group is a *cross-group* move, which is a separate
+                    // commit path from reordering within one strip.
+                    setupCrossGroupTabGroups: () => {
+                        for (const id of ['red', 'green']) {
+                            panels[id] = dockview.addPanel({
+                                id,
+                                component: 'default',
+                                title: id,
+                            });
+                        }
+                        for (const id of ['blue', 'yellow']) {
+                            panels[id] = dockview.addPanel({
+                                id,
+                                component: 'default',
+                                title: id,
+                                position: {
+                                    referencePanel: 'red',
+                                    direction: 'right',
+                                },
+                            });
+                        }
+
+                        const left = panels['red'].group.id;
+                        const right = panels['blue'].group.id;
+
+                        const feature = dockview.api.createTabGroup({
+                            groupId: left,
+                            label: 'Feature',
+                        });
+                        for (const panelId of ['red', 'green']) {
+                            dockview.api.addPanelToTabGroup({
+                                groupId: left,
+                                tabGroupId: feature.id,
+                                panelId,
+                            });
+                        }
+
+                        const monitoring = dockview.api.createTabGroup({
+                            groupId: right,
+                            label: 'Monitoring',
+                        });
+                        for (const panelId of ['blue', 'yellow']) {
+                            dockview.api.addPanelToTabGroup({
+                                groupId: right,
+                                tabGroupId: monitoring.id,
+                                panelId,
+                            });
+                        }
+
+                        return { left, right };
+                    },
+                    groupOf: (id) => panels[id] && panels[id].group.id,
                     setupTwoTabGroupChips: () => {
                         for (const id of ['red', 'green', 'blue', 'yellow']) {
                             panels[id] = dockview.addPanel({
