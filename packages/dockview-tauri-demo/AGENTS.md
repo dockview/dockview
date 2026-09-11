@@ -20,8 +20,13 @@ not a published package and not a supported example.
 - `dev` / `build:web` — Vite. Requires the workspace packages to be built
   (`yarn build && yarn build:bundle` at the root): the demo imports
   `dockview/dist/styles/dockview.css` and the enterprise bundle from `dist/`.
-- `tauri:dev` / `tauri:build` — the desktop shell. Needs a Rust toolchain and
-  Tauri's platform prerequisites; CI does not build this.
+- `tauri:dev` / `tauri:build` — the desktop shell, driven through the Rust
+  `tauri-cli` (`cargo install tauri-cli --version "^2"`). Deliberately not the
+  npm `@tauri-apps/cli`: its prebuilt binaries are ~36MB and would land in
+  every `yarn install` in the repo, CI included, for a package almost nobody
+  builds. Anyone building the shell already needs a Rust toolchain, so the CLI
+  costs them nothing extra. Needs Tauri's platform prerequisites; CI does not
+  build this.
 - `typecheck` — `tsc --noEmit`. There is no test target: what this package
   verifies cannot be asserted in jsdom.
 
