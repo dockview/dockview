@@ -53,9 +53,6 @@ const api = createSplitview(container, {
     },
 });
 
-// Layout BEFORE adding panels (critical for splitview)
-api.layout(container.clientWidth, container.clientHeight);
-
 api.addPanel({
     id: 'panel_1',
     component: 'default',
