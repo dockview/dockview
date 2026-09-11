@@ -374,8 +374,14 @@ export function disableIframePointEvents(rootNode: ParentNode = document) {
  * exempt - the browser owns the gesture - which is why this is only needed on
  * the pointer backend.
  *
- * `selectstart` is cancelled as well as setting `user-select`, because WebKit
- * can have begun a selection before the style lands.
+ * `user-select: none` alone is not enough on WebKit: it starts the selection
+ * gesture from a mousedown on a `user-select: none` element unless that
+ * element is also natively draggable, then extends it into whatever the
+ * pointer crosses. Cancelling `selectstart` refuses that first extension,
+ * which ends the gesture for the rest of the drag.
+ *
+ * An existing selection is left alone: a mousedown on a `user-select: none`
+ * element does not clear one natively, and a pointer drag should not either.
  */
 export function disableTextSelection(rootNode: ParentNode = document) {
     const doc =
@@ -400,9 +406,6 @@ export function disableTextSelection(rootNode: ParentNode = document) {
 
     const onSelectStart = (event: Event) => event.preventDefault();
     doc.addEventListener('selectstart', onSelectStart);
-
-    // A selection the pointerdown itself began predates the style.
-    doc.defaultView?.getSelection()?.removeAllRanges();
 
     return {
         release: () => {

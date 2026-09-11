@@ -110,7 +110,7 @@ describe('dom', () => {
             expect(root.style.userSelect).toBe('');
         });
 
-        test('clears a selection the pointerdown already began', () => {
+        test('leaves an existing selection alone', () => {
             const removeAllRanges = jest.fn();
             jest.spyOn(window, 'getSelection').mockReturnValue({
                 removeAllRanges,
@@ -118,7 +118,7 @@ describe('dom', () => {
 
             disableTextSelection().release();
 
-            expect(removeAllRanges).toHaveBeenCalled();
+            expect(removeAllRanges).not.toHaveBeenCalled();
             jest.restoreAllMocks();
         });
 

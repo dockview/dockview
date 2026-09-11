@@ -34,7 +34,9 @@ export default defineConfig({
         // `yarn playwright install webkit`): a few behaviours are engine
         // specific — WebKit starts a text selection from a mousedown on a
         // `user-select: none` element unless it is also natively draggable,
-        // which Chromium never does — and only reproduce there.
+        // which Chromium never does — and only reproduce there. Not every
+        // spec passes on it: the HTML5-backend specs need a native drop
+        // WebKit's automation does not complete.
         ...(process.env.PLAYWRIGHT_WEBKIT
             ? [{ name: 'webkit', use: { ...devices['Desktop Safari'] } }]
             : []),
