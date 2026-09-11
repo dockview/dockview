@@ -10,15 +10,6 @@
         "frontendDist": "../dist"
     },
     "app": {
-        "windows": [
-            {
-                "label": "main",
-                "title": "dockview + Tauri",
-                "dragDropEnabled": false,
-                "width": 1280,
-                "height": 820
-            }
-        ],
         "security": {
             "csp": null
         }

@@ -24,27 +24,49 @@ export function assertSameOriginPopoutUrl(url: string): void {
 
 /**
  * The reason `url` is unusable as a popout target, or `undefined` if it is
- * allowed. Rejects anything that isn't same-origin http(s): `javascript:`,
- * `data:`, `blob:`, `vbscript:`, and cross-origin URLs that would otherwise
- * execute in a context the browser still associates with the opener via
- * `window.opener`.
+ * allowed. Rejects anything that isn't same-origin with the page (scheme and
+ * host, so a packaged webview's own scheme such as `tauri://` qualifies), and
+ * the `javascript:`, `data:`, `blob:`, `vbscript:` and `file:` schemes that
+ * would otherwise execute in a context the browser still associates with the
+ * opener via `window.opener`.
  *
  * Callers that can recover from a refusal use this rather than catching, so it
  * can be handled without a rejected promise.
  */
-export function getPopoutUrlError(url: string): Error | undefined {
+/**
+ * Schemes a popout must never open: each runs script in a context the browser
+ * still associates with the opener, or (for `file:`) has no origin to check.
+ */
+const UNSAFE_POPOUT_PROTOCOLS = new Set([
+    'javascript:',
+    'data:',
+    'blob:',
+    'vbscript:',
+    'file:',
+]);
+
+export function getPopoutUrlError(
+    url: string,
+    page: Pick<Location, 'href' | 'protocol' | 'host'> = globalThis.location
+): Error | undefined {
     let resolved: URL;
     try {
-        resolved = new URL(url, globalThis.location.href);
+        resolved = new URL(url, page.href);
     } catch {
         return new Error(`dockview: invalid popout URL: ${url}`);
     }
 
-    const protocolOk =
-        resolved.protocol === 'http:' || resolved.protocol === 'https:';
-    if (!protocolOk || resolved.origin !== globalThis.location.origin) {
+    // Same origin is compared as scheme + host rather than through `origin`:
+    // a packaged webview serves its app from a custom scheme (`tauri://`,
+    // `app://`), which the URL spec gives an opaque origin, so `origin`
+    // reads "null" on both sides and cannot tell same-app from cross-app.
+    // For http(s) the two comparisons agree, since `host` carries the port.
+    const sameOrigin =
+        resolved.protocol === page.protocol && resolved.host === page.host;
+
+    if (UNSAFE_POPOUT_PROTOCOLS.has(resolved.protocol) || !sameOrigin) {
         return new Error(
-            `dockview: popout URL must be same-origin http(s); got: ${url}`
+            `dockview: popout URL must be same-origin with the page; got: ${url}`
         );
     }
 

@@ -1,4 +1,8 @@
-import { PopoutWindow, assertSameOriginPopoutUrl } from '../popoutWindow';
+import {
+    PopoutWindow,
+    assertSameOriginPopoutUrl,
+    getPopoutUrlError,
+} from '../popoutWindow';
 
 describe('PopoutWindow', () => {
     function makeFakeExternalWindow() {
@@ -290,5 +294,52 @@ describe('assertSameOriginPopoutUrl', () => {
                 /dockview: popout URL/
             );
         });
+    });
+});
+
+describe('getPopoutUrlError on a custom app scheme', () => {
+    // A packaged desktop webview serves the app from its own scheme (Tauri on
+    // macOS and Linux: `tauri://localhost`). The URL spec gives such schemes
+    // an opaque origin, so `origin` comparison cannot tell same-app from
+    // cross-app; scheme + host can.
+    const page = {
+        href: 'tauri://localhost/index.html',
+        protocol: 'tauri:',
+        host: 'localhost',
+    };
+
+    test.each([
+        '/popout.html',
+        'popout.html',
+        'tauri://localhost/popout.html',
+        'tauri://localhost/nested/popout.html?x=1#y',
+    ])('accepts %s', (url) => {
+        expect(getPopoutUrlError(url, page)).toBeUndefined();
+    });
+
+    test.each([
+        // a different app, or a different scheme, is another origin
+        ['tauri://other-app/popout.html'],
+        ['http://localhost/popout.html'],
+        ['https://localhost/popout.html'],
+        // the unsafe schemes stay refused whatever the page's scheme is
+        ['javascript:alert(1)'],
+        ['data:text/html,<script>alert(1)</script>'],
+        ['blob:tauri://localhost/abc-123'],
+        ['vbscript:msgbox(1)'],
+        ['file:///etc/passwd'],
+    ])('rejects %s', (url) => {
+        expect(getPopoutUrlError(url, page)).toBeInstanceOf(Error);
+    });
+
+    test('a file: page still cannot pop out file: URLs', () => {
+        const filePage = {
+            href: 'file:///app/index.html',
+            protocol: 'file:',
+            host: '',
+        };
+        expect(getPopoutUrlError('/popout.html', filePage)).toBeInstanceOf(
+            Error
+        );
     });
 });
