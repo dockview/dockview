@@ -386,23 +386,34 @@ export function disableTextSelection(rootNode: ParentNode = document) {
         return { release: () => undefined };
     }
 
-    const previous = root.style.userSelect;
-    const previousWebkit = root.style.webkitUserSelect;
+    // Set through `setProperty` so the prefixed form is a plain CSS property
+    // rather than the deprecated `style.webkitUserSelect` IDL attribute.
+    const properties = ['user-select', '-webkit-user-select'];
+    const previous = properties.map((name) => [
+        name,
+        root.style.getPropertyValue(name),
+    ]);
 
-    root.style.userSelect = 'none';
-    root.style.webkitUserSelect = 'none';
+    for (const name of properties) {
+        root.style.setProperty(name, 'none');
+    }
 
     const onSelectStart = (event: Event) => event.preventDefault();
     doc.addEventListener('selectstart', onSelectStart);
 
-    // A selection started by the pointerdown itself predates the style.
+    // A selection the pointerdown itself began predates the style.
     doc.defaultView?.getSelection()?.removeAllRanges();
 
     return {
         release: () => {
             doc.removeEventListener('selectstart', onSelectStart);
-            root.style.userSelect = previous;
-            root.style.webkitUserSelect = previousWebkit;
+            for (const [name, value] of previous) {
+                if (value) {
+                    root.style.setProperty(name, value);
+                } else {
+                    root.style.removeProperty(name);
+                }
+            }
         },
     };
 }
