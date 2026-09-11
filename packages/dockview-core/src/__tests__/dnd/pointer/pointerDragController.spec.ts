@@ -392,6 +392,54 @@ describe('PointerDragController', () => {
         });
     });
 
+    describe('text selection shielding', () => {
+        test('beginDrag refuses selection until the drag ends', () => {
+            const controller = PointerDragController.getInstance();
+            const source = document.createElement('div');
+            document.body.appendChild(source);
+            const root = document.documentElement;
+
+            controller.beginDrag({
+                pointerEvent: makePointerEvent('pointermove'),
+                source,
+                getData: () => ({ dispose: jest.fn() }),
+            });
+
+            expect(root.style.getPropertyValue('user-select')).toBe('none');
+            const during = new Event('selectstart', { cancelable: true });
+            document.dispatchEvent(during);
+            expect(during.defaultPrevented).toBe(true);
+
+            window.dispatchEvent(makePointerEvent('pointerup'));
+
+            expect(root.style.getPropertyValue('user-select')).toBe('');
+            const after = new Event('selectstart', { cancelable: true });
+            document.dispatchEvent(after);
+            expect(after.defaultPrevented).toBe(false);
+
+            document.body.removeChild(source);
+        });
+
+        test('cancel() also releases the shield', () => {
+            const controller = PointerDragController.getInstance();
+            const source = document.createElement('div');
+            document.body.appendChild(source);
+            const root = document.documentElement;
+
+            controller.beginDrag({
+                pointerEvent: makePointerEvent('pointermove'),
+                source,
+                getData: () => ({ dispose: jest.fn() }),
+            });
+            expect(root.style.getPropertyValue('user-select')).toBe('none');
+
+            controller.cancel();
+            expect(root.style.getPropertyValue('user-select')).toBe('');
+
+            document.body.removeChild(source);
+        });
+    });
+
     describe("listener attachment honours the source's owning window", () => {
         test("pointermove from source's owning window is routed to the controller", () => {
             // Build an iframe (stand-in for a popout window) so we get a

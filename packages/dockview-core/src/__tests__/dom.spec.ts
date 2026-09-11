@@ -2,6 +2,7 @@ import {
     Classnames,
     addStyles,
     disableIframePointEvents,
+    disableTextSelection,
     findRelativeZIndexParent,
     isChildEntirelyVisibleWithinParent,
     isInDocument,
@@ -70,6 +71,68 @@ describe('dom', () => {
         shadow.appendChild(el2);
 
         expect(isInDocument(el2)).toBeTruthy();
+    });
+
+    describe('disableTextSelection', () => {
+        test('suppresses selection for the duration of a drag', () => {
+            const root = document.documentElement;
+            root.style.userSelect = 'text';
+
+            const shield = disableTextSelection();
+
+            expect(root.style.userSelect).toBe('none');
+
+            // a selection attempt during the drag is refused
+            const event = new Event('selectstart', { cancelable: true });
+            document.dispatchEvent(event);
+            expect(event.defaultPrevented).toBe(true);
+
+            shield.release();
+
+            expect(root.style.userSelect).toBe('text');
+
+            // and allowed again once released
+            const after = new Event('selectstart', { cancelable: true });
+            document.dispatchEvent(after);
+            expect(after.defaultPrevented).toBe(false);
+
+            root.style.userSelect = '';
+        });
+
+        test('restores an unset value rather than leaving none behind', () => {
+            const root = document.documentElement;
+            root.style.userSelect = '';
+
+            const shield = disableTextSelection();
+            expect(root.style.userSelect).toBe('none');
+
+            shield.release();
+            expect(root.style.userSelect).toBe('');
+        });
+
+        test('leaves an existing selection alone', () => {
+            const removeAllRanges = jest.fn();
+            jest.spyOn(window, 'getSelection').mockReturnValue({
+                removeAllRanges,
+            } as unknown as Selection);
+
+            disableTextSelection().release();
+
+            expect(removeAllRanges).not.toHaveBeenCalled();
+            jest.restoreAllMocks();
+        });
+
+        test('is inert for a node with no document', () => {
+            const orphan = document.createElement('div');
+            const detached = orphan.cloneNode() as HTMLElement;
+            Object.defineProperty(detached, 'ownerDocument', {
+                value: null,
+            });
+
+            expect(() =>
+                disableTextSelection(detached).release()
+            ).not.toThrow();
+        });
     });
 
     test('disableIframePointEvents', () => {

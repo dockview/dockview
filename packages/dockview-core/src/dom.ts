@@ -366,6 +366,61 @@ export function disableIframePointEvents(rootNode: ParentNode = document) {
     };
 }
 
+/**
+ * Suppress text selection for the duration of a pointer drag.
+ *
+ * A pointer drag is just a held button as far as the browser is concerned, so
+ * it selects text under the cursor as it travels. HTML5 drag-and-drop is
+ * exempt - the browser owns the gesture - which is why this is only needed on
+ * the pointer backend.
+ *
+ * `user-select: none` alone is not enough on WebKit: it starts the selection
+ * gesture from a mousedown on a `user-select: none` element unless that
+ * element is also natively draggable, then extends it into whatever the
+ * pointer crosses. Cancelling `selectstart` refuses that first extension,
+ * which ends the gesture for the rest of the drag.
+ *
+ * An existing selection is left alone: a mousedown on a `user-select: none`
+ * element does not clear one natively, and a pointer drag should not either.
+ */
+export function disableTextSelection(rootNode: ParentNode = document) {
+    const doc =
+        rootNode instanceof Document ? rootNode : rootNode.ownerDocument;
+    const root = doc?.documentElement;
+
+    if (!doc || !root) {
+        return { release: () => undefined };
+    }
+
+    // Set through `setProperty` so the prefixed form is a plain CSS property
+    // rather than the deprecated `style.webkitUserSelect` IDL attribute.
+    const properties = ['user-select', '-webkit-user-select'];
+    const previous = properties.map((name) => [
+        name,
+        root.style.getPropertyValue(name),
+    ]);
+
+    for (const name of properties) {
+        root.style.setProperty(name, 'none');
+    }
+
+    const onSelectStart = (event: Event) => event.preventDefault();
+    doc.addEventListener('selectstart', onSelectStart);
+
+    return {
+        release: () => {
+            doc.removeEventListener('selectstart', onSelectStart);
+            for (const [name, value] of previous) {
+                if (value) {
+                    root.style.setProperty(name, value);
+                } else {
+                    root.style.removeProperty(name);
+                }
+            }
+        },
+    };
+}
+
 export function getDockviewTheme(element: HTMLElement): string | undefined {
     function toClassList(element: HTMLElement) {
         const list: string[] = [];
