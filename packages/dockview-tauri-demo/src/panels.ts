@@ -7,6 +7,7 @@ import type {
 } from 'dockview';
 import {
     broadcastLayout,
+    closeNativePopout,
     nativeHostInfo,
     onLayoutBroadcast,
     openNativeWindow,
@@ -252,6 +253,9 @@ function popOut(
 ): void {
     api.addPopoutGroup(group, popoutUrl ? { popoutUrl } : undefined).then(
         (opened) => {
+            if (opened) {
+                routeCloseThroughShell(api);
+            }
             log.append(
                 opened
                     ? 'popout group opened'
@@ -262,6 +266,32 @@ function popOut(
             log.append(`addPopoutGroup rejected — ${describe(err)}`);
         }
     );
+}
+
+/**
+ * dockview closes a popout by calling `close()` on its window when the group
+ * is closed or redocked. wry's macOS UI delegate has no `webViewDidClose:`,
+ * so that is a no-op there; route it through the shell as well.
+ */
+function routeCloseThroughShell(api: DockviewApi): void {
+    for (const candidate of api.groups) {
+        const location = candidate.api.location;
+        if (location.type !== 'popout') {
+            continue;
+        }
+        const win = location.getWindow() as Window & {
+            __closeRouted?: boolean;
+        };
+        if (win.__closeRouted) {
+            continue;
+        }
+        win.__closeRouted = true;
+        const nativeClose = win.close.bind(win);
+        win.close = () => {
+            nativeClose();
+            void closeNativePopout(win);
+        };
+    }
 }
 
 /**

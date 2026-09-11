@@ -10,6 +10,8 @@ export interface ProbeResult {
     detail: string;
 }
 
+import { closeNativePopout } from './bridge';
+
 const PROBE_TARGET = 'dockview-tauri-probe';
 
 export function probeWindowOpen(url = '/popout.html'): ProbeResult {
@@ -39,6 +41,7 @@ export function probeWindowOpen(url = '/popout.html'): ProbeResult {
         const doc = handle.document;
         const reachable = !!doc?.body;
         handle.close();
+        void closeNativePopout(handle);
 
         return reachable
             ? {
@@ -53,6 +56,7 @@ export function probeWindowOpen(url = '/popout.html'): ProbeResult {
               };
     } catch (err) {
         handle.close();
+        void closeNativePopout(handle);
         return {
             ok: false,
             title: 'new window is not scriptable',

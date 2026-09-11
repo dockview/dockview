@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use serde::Serialize;
 use tauri::{
     webview::{NewWindowFeatures, NewWindowResponse},
-    AppHandle, Emitter, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
 
 /// Event carrying a serialized dockview layout between native windows.
@@ -68,11 +68,16 @@ fn open_related_window(
     // requested URL; loading it here too would be a second navigation.
     let built = WebviewWindowBuilder::new(
         app,
-        label,
+        label.clone(),
         WebviewUrl::External("about:blank".parse().expect("static URL")),
     )
     .window_features(features)
     .title(url.as_str())
+    // Lets the opener, which has IPC, name this window to `close_popout`.
+    .initialization_script(format!(
+        "window.__DOCKVIEW_POPOUT_LABEL__ = {};",
+        serde_json::to_string(&label).expect("a string serializes")
+    ))
     .on_document_title_changed(|window, title| {
         let _ = window.set_title(&title);
     })
@@ -81,6 +86,7 @@ fn open_related_window(
     match built {
         Ok(window) => {
             honour_script_close(&window);
+            unload_before_close(&window);
             NewWindowResponse::Create { window }
         }
         Err(err) => {
@@ -104,7 +110,7 @@ fn honour_script_close(window: &WebviewWindow) {
         let handle = window.clone();
         let result = window.with_webview(move |webview| {
             webview.inner().connect_destroy(move |_| {
-                let _ = handle.close();
+                let _ = handle.destroy();
             });
         });
         if let Err(err) = result {
@@ -114,6 +120,41 @@ fn honour_script_close(window: &WebviewWindow) {
     #[cfg(not(target_os = "linux"))]
     {
         let _ = window;
+    }
+}
+
+/// A native close tears the webview down without running the page's unload
+/// handlers, and dockview learns that a popout is gone from `beforeunload`
+/// on the popout document: skip it and the group is lost with the window.
+/// So the close request is held, the page told to unload (which on
+/// platforms that honour `window.close()` also closes the window), and the
+/// window destroyed once the page has had its turn.
+fn unload_before_close(window: &WebviewWindow) {
+    let handle = window.clone();
+    window.on_window_event(move |event| {
+        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();
+            let _ = handle.eval("window.dispatchEvent(new Event('beforeunload')); window.close();");
+            let target = handle.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(300));
+                let _ = target.destroy();
+            });
+        }
+    });
+}
+
+/// Destroys a window this shell created for `window.open`. wry's macOS UI
+/// delegate has no `webViewDidClose:`, so `handle.close()` from the opener
+/// does nothing there; the opener asks here instead.
+#[tauri::command]
+fn close_popout(app: AppHandle, label: String) -> Result<(), String> {
+    if !label.starts_with("popout-") {
+        return Err(format!("{label} is not a popout window"));
+    }
+    match app.get_webview_window(&label) {
+        Some(window) => window.destroy().map_err(|err| err.to_string()),
+        None => Ok(()),
     }
 }
 
@@ -171,7 +212,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             host_info,
             open_dock_window,
-            broadcast_layout
+            broadcast_layout,
+            close_popout
         ])
         .run(tauri::generate_context!())
         .expect("error while running the dockview tauri demo");
