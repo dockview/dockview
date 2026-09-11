@@ -28,7 +28,17 @@ export default defineConfig({
             ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
             : undefined,
     },
-    projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+    projects: [
+        { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+        // WebKit is opt-in (`PLAYWRIGHT_WEBKIT=1`, after
+        // `yarn playwright install webkit`): a few behaviours are engine
+        // specific — WebKit starts a text selection from a mousedown on a
+        // `user-select: none` element unless it is also natively draggable,
+        // which Chromium never does — and only reproduce there.
+        ...(process.env.PLAYWRIGHT_WEBKIT
+            ? [{ name: 'webkit', use: { ...devices['Desktop Safari'] } }]
+            : []),
+    ],
     webServer: {
         // Zero-dependency static server over the repo root so the fixture can
         // load the built bundles and the popout target by absolute path.
