@@ -366,6 +366,47 @@ export function disableIframePointEvents(rootNode: ParentNode = document) {
     };
 }
 
+/**
+ * Suppress text selection for the duration of a pointer drag.
+ *
+ * A pointer drag is just a held button as far as the browser is concerned, so
+ * it selects text under the cursor as it travels. HTML5 drag-and-drop is
+ * exempt - the browser owns the gesture - which is why this is only needed on
+ * the pointer backend.
+ *
+ * `selectstart` is cancelled as well as setting `user-select`, because WebKit
+ * can have begun a selection before the style lands.
+ */
+export function disableTextSelection(rootNode: ParentNode = document) {
+    const doc =
+        rootNode instanceof Document ? rootNode : rootNode.ownerDocument;
+    const root = doc?.documentElement;
+
+    if (!doc || !root) {
+        return { release: () => undefined };
+    }
+
+    const previous = root.style.userSelect;
+    const previousWebkit = root.style.webkitUserSelect;
+
+    root.style.userSelect = 'none';
+    root.style.webkitUserSelect = 'none';
+
+    const onSelectStart = (event: Event) => event.preventDefault();
+    doc.addEventListener('selectstart', onSelectStart);
+
+    // A selection started by the pointerdown itself predates the style.
+    doc.defaultView?.getSelection()?.removeAllRanges();
+
+    return {
+        release: () => {
+            doc.removeEventListener('selectstart', onSelectStart);
+            root.style.userSelect = previous;
+            root.style.webkitUserSelect = previousWebkit;
+        },
+    };
+}
+
 export function getDockviewTheme(element: HTMLElement): string | undefined {
     function toClassList(element: HTMLElement) {
         const list: string[] = [];

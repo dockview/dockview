@@ -1,4 +1,4 @@
-import { disableIframePointEvents } from '../../dom';
+import { disableIframePointEvents, disableTextSelection } from '../../dom';
 import { addDisposableListener, Emitter, Event } from '../../events';
 import { CompositeDisposable, IDisposable } from '../../lifecycle';
 import { PointerGhost } from './pointerGhost';
@@ -47,6 +47,7 @@ export class PointerDragController extends CompositeDisposable {
     private _upListener: IDisposable | undefined;
     private _cancelListener: IDisposable | undefined;
     private _iframeShield: { release: () => void } | undefined;
+    private _selectionShield: { release: () => void } | undefined;
     private _onDragMoveCallback?: (e: PointerDragEvent) => void;
     private _onDragEndCallback?: (
         e: PointerDragEvent,
@@ -125,6 +126,12 @@ export class PointerDragController extends CompositeDisposable {
         // Iframes capture pointermove once the cursor crosses into them,
         // which would freeze the drag from the parent window's POV.
         this._iframeShield = disableIframePointEvents(
+            source.ownerDocument ?? document
+        );
+
+        // A held button selects the text it travels over. The HTML5 backend
+        // never sees this because the browser owns that gesture.
+        this._selectionShield = disableTextSelection(
             source.ownerDocument ?? document
         );
 
@@ -285,6 +292,8 @@ export class PointerDragController extends CompositeDisposable {
         this._ghost = undefined;
         this._iframeShield?.release();
         this._iframeShield = undefined;
+        this._selectionShield?.release();
+        this._selectionShield = undefined;
         this._moveListener?.dispose();
         this._upListener?.dispose();
         this._cancelListener?.dispose();
