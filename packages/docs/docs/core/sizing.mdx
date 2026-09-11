@@ -95,6 +95,56 @@ export class AppComponent {
 You can read the current dimensions at any time via `api.width` and `api.height`.
 :::
 
+## Proportional layout
+
+When the container is resized, Dockview shares the extra (or missing) space out
+between the groups of each row and column proportionally, so every group keeps
+its share of the layout.
+
+Set `proportionalLayout={false}` to hand the whole delta to the last group in
+each row/column instead. Every splitter but the last one then stays exactly
+where the user left it, which is how VS Code behaves.
+
+```tsx
+proportionalLayout={false}
+```
+
+<FrameworkSpecific framework='JavaScript'>
+```ts
+const api = createDockview(element, {
+    theme: themeAbyss,
+    proportionalLayout: false,
+    createComponent: (options) => new MyPanel(),
+});
+```
+</FrameworkSpecific>
+
+<FrameworkSpecific framework='React'>
+```tsx
+<DockviewReact
+    proportionalLayout={false}
+    onReady={onReady}
+    components={components}
+/>
+```
+</FrameworkSpecific>
+
+<FrameworkSpecific framework='Vue'>
+```html
+<dockview-vue :proportionalLayout="false" @ready="onReady" />
+```
+</FrameworkSpecific>
+
+<FrameworkSpecific framework='Angular'>
+```html
+<dv-dockview [proportionalLayout]="false" (ready)="onReady($event)" />
+```
+</FrameworkSpecific>
+
+The option can also be changed after initialization with
+`api.updateOptions({ proportionalLayout })`. Re-enabling it adopts the group
+sizes in place at that moment as the proportions to preserve.
+
 ## Hiding borders
 
 By default, Dockview renders thin borders between groups in the grid. The `hideBorders` option removes them. See [Hiding borders](/docs/core/theming#hiding-borders) on the theming page for the full example.

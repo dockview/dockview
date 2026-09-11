@@ -1004,6 +1004,11 @@ const DockviewDemo = (props: {
     const [customGhost, setCustomGhost] = React.useState<boolean>(false);
     const [dndCompass, setDndCompass] = React.useState<boolean>(false);
     const [smartGuides, setSmartGuides] = React.useState<boolean>(true);
+    // `false` hands a container resize to the last group in each row/column
+    // instead of sharing it out proportionally, so every splitter but the last
+    // stays put - the VS Code behaviour.
+    const [proportionalLayout, setProportionalLayout] =
+        React.useState<boolean>(true);
 
     const [gapCheck, setGapCheck] = React.useState<boolean>(false);
 
@@ -1101,6 +1106,9 @@ const DockviewDemo = (props: {
                                                 smartGuides
                                                     ? { snapDistance: 8 }
                                                     : undefined
+                                            }
+                                            proportionalLayout={
+                                                proportionalLayout
                                             }
                                             getTabContextMenuItems={
                                                 getTabContextMenuItems
@@ -1226,6 +1234,10 @@ const DockviewDemo = (props: {
                     onToggleDndCompass={() => setDndCompass(!dndCompass)}
                     smartGuides={smartGuides}
                     onToggleSmartGuides={() => setSmartGuides(!smartGuides)}
+                    proportionalLayout={proportionalLayout}
+                    onToggleProportionalLayout={() =>
+                        setProportionalLayout(!proportionalLayout)
+                    }
                     debug={debug}
                     onToggleDebug={() => setDebug(!debug)}
                     showLogs={showLogs}

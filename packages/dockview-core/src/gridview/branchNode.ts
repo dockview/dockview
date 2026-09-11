@@ -196,9 +196,23 @@ export class BranchNode extends CompositeDisposable implements IView {
         });
     }
 
+    get proportionalLayout(): boolean {
+        return this.splitview.proportionalLayout;
+    }
+
+    set proportionalLayout(value: boolean) {
+        this.splitview.proportionalLayout = value;
+
+        this.children.forEach((child) => {
+            if (child instanceof BranchNode) {
+                child.proportionalLayout = value;
+            }
+        });
+    }
+
     constructor(
         readonly orientation: Orientation,
-        readonly proportionalLayout: boolean,
+        proportionalLayout: boolean,
         readonly styles: ISplitviewStyles | undefined,
         size: number,
         orthogonalSize: number,
