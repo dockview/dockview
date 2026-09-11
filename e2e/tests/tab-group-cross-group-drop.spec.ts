@@ -25,27 +25,6 @@ test.describe('tab-group chip dropped across groups', () => {
         test(`[${dnd}] a chip dragged onto another group's grouped tab moves its panels`, async ({
             page,
         }) => {
-            if (dnd === 'pointer') {
-                /**
-                 * Known defect. `Tab.canDisplayOverlay` refuses a drag
-                 * carrying a `tabGroupId` over any grouped tab of the same
-                 * dockview, to stop a chip advertising a landing inside a tab
-                 * group. That rule is meant for reordering within one strip,
-                 * but it also fires across groups, where the drop is a
-                 * legitimate move: the tab's pointer drop target never
-                 * latches, `_findTargetUnder` stops at the tab so no ancestor
-                 * sees the release, and `handlePointerDragEnd` skips it
-                 * because a cross-group drag carries `sourceIndex: -1`.
-                 *
-                 * HTML5 is unaffected - it commits from the bubbling `drop`
-                 * listener on the tabs list - which is why only this variant
-                 * is marked. Remove this once the guard is narrowed to
-                 * same-group drags; the test then reports as unexpectedly
-                 * passing.
-                 */
-                test.fail();
-            }
-
             const { left, right } = await setup(page, dnd);
 
             expect(await groupOf(page, 'red')).toBe(left);
