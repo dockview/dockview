@@ -25,7 +25,10 @@ import {
     IHeaderActionsRenderer,
 } from '../../dockview/options';
 import { SizeEvent } from '../../api/gridviewPanelApi';
-import { setupMockWindow } from '../__mocks__/mockWindow';
+import {
+    setupDeferredMockWindow,
+    setupMockWindow,
+} from '../__mocks__/mockWindow';
 import { EdgeGroupOptions } from '../../dockview/dockviewShell';
 import {
     exhaustMicrotaskQueue,
@@ -7719,6 +7722,63 @@ describe('dockviewComponent', () => {
 
                 expect(() => dockview.clear()).not.toThrow();
                 expect(dockview.groups).toHaveLength(0);
+
+                jest.useRealTimers();
+            });
+
+            test('popoutRestorationPromise waits for the window to finish opening', async () => {
+                jest.useFakeTimers();
+                window.open = () => setupMockWindow();
+                const dockview = make();
+                dockview.layout(1000, 500);
+
+                const panel1 = dockview.addPanel({
+                    id: 'panel_1',
+                    component: 'default',
+                });
+                dockview.addPanel({
+                    id: 'panel_2',
+                    component: 'default',
+                    position: { referencePanel: 'panel_1', direction: 'right' },
+                });
+
+                await dockview.addPopoutGroup(panel1.api.group);
+                const state = dockview.toJSON();
+
+                // Hold the restored window's `load` back, so the popout is
+                // still in flight when the restoration timer has run.
+                const deferred = setupDeferredMockWindow();
+                (window as any).open = () => deferred.window;
+
+                dockview.clear();
+                dockview.fromJSON(state);
+                jest.advanceTimersByTime(500);
+
+                let settled = false;
+                const restored = dockview.popoutRestorationPromise.then(() => {
+                    settled = true;
+                });
+
+                // the timer has fired, but the window has not loaded yet
+                for (let i = 0; i < 10; i++) {
+                    await Promise.resolve();
+                }
+                expect(settled).toBe(false);
+                expect(
+                    dockview.groups.filter(
+                        (group) => group.api.location.type === 'popout'
+                    )
+                ).toHaveLength(0);
+
+                deferred.load();
+                await restored;
+
+                expect(settled).toBe(true);
+                expect(
+                    dockview.groups.filter(
+                        (group) => group.api.location.type === 'popout'
+                    )
+                ).toHaveLength(1);
 
                 jest.useRealTimers();
             });
