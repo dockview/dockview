@@ -2,11 +2,8 @@ import { DockviewOptions } from './options';
 
 /**
  * Which drag-and-drop backends are live: the `dndStrategy` option resolved
- * against the device. Consumed internally by the drag-source / drop-target
- * construction sites, and readable through `api.dndCapabilities` - the only way
- * to learn what `'auto'` decided, which matters because only an HTML5 drag rides
- * an OS drag session and so only an HTML5 drag can leave the window it started
- * in.
+ * against the device. Read by the drag-source / drop-target construction sites,
+ * and exposed to consumers as `api.dndCapabilities`.
  */
 export interface DndCapabilities {
     /** HTML5 drag/drop wiring active (draggable attr, dragstart). */

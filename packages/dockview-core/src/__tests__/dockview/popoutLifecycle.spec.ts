@@ -100,11 +100,9 @@ describe('popout lifecycle', () => {
     });
 
     /**
-     * A host that owns its windows (a desktop webview, where the page's own
-     * `close()` can be a no-op) has to be told to close the real window, and
-     * needs the handle while it is still there. The per-call `onWillClose`
-     * option cannot cover popouts dockview opens for itself - the group context
-     * menu, a restored layout - so the component fires for all of them.
+     * A host that owns its windows needs the handle while the window is still
+     * there, and the per-call `onWillClose` option cannot cover the popouts
+     * dockview opens for itself, so the component fires for all of them.
      */
     test('onWillClosePopoutWindow fires with the live window, without any options passed', async () => {
         // the id is the window's own target - what dockview passed to
@@ -157,10 +155,7 @@ describe('popout lifecycle', () => {
         expect(closing).toEqual([popoutWindow]);
     });
 
-    /**
-     * Unlike `onDidRemovePopoutGroup`, this one does fire during teardown: a
-     * host with real windows open has work left to do at exactly that moment.
-     */
+    /** Unlike `onDidRemovePopoutGroup`, this one fires during teardown too. */
     test('onWillClosePopoutWindow fires on component disposal', async () => {
         const localContainer = document.createElement('div');
         const local = new DockviewComponent(localContainer, {

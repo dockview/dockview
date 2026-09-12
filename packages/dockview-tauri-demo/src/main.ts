@@ -40,11 +40,9 @@ const api = createDockview(container, {
 });
 
 /**
- * dockview closes a popout by calling `close()` on its window when the group is
- * closed or redocked. wry's macOS UI delegate has no `webViewDidClose:`, so that
- * is a no-op there and the shell has to destroy the window instead. Registered
- * once, for every popout window the component opens - including the ones it
- * opens for itself, from the group context menu or when restoring a layout.
+ * wry's macOS UI delegate has no `webViewDidClose:`, so the `close()` dockview
+ * calls on a popout window does nothing there and the shell has to destroy it.
+ * One listener covers every popout, whatever opened it.
  */
 api.onWillClosePopoutWindow(({ window }) => {
     void closeNativePopout(window);

@@ -56,11 +56,9 @@ test.describe('cross-window popout lifecycle', () => {
     });
 
     /**
-     * `beforeunload` is not a guaranteed signal: a native shell destroying its
-     * webview, or a browser discarding the page, takes the window away without
-     * running the document's unload handlers. Playwright's default close does
-     * exactly that - which is why the test above has to opt in - so it models
-     * the case here. The group must still come home.
+     * A window can go away without its unload handlers running: a native shell
+     * destroying its webview, or a browser discarding the page. Playwright's
+     * default close does the same, which is why the test above has to opt in.
      */
     test('a popout closed without running unload handlers still re-docks', async ({
         page,

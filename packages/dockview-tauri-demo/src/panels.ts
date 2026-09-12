@@ -97,16 +97,14 @@ export class HostPanel extends DemoPanel {
         };
 
         // A drop overlay means the drag reached dockview: on the HTML5 backend
-        // that is the page receiving `dragover`, which is the thing a host can
-        // break. dockview reports it, so nothing here reads its DOM.
+        // that is the page receiving `dragover`, which is what a host can break.
         const overlays = api.onWillShowOverlay(() => {
             overlayEvents += 1;
         });
         this.onDispose(() => overlays.dispose());
 
-        // The selection shield is internal by nature - a `user-select` applied
-        // and released inside a single drag - so it is sampled rather than
-        // observed. The overlay count is rendered from here too, to keep a
+        // The shield is a `user-select` applied and released inside one drag, so
+        // it is sampled. Rendering the overlay count here too keeps a
         // dragover-rate event off the render path.
         const sample = setInterval(() => {
             const applied =

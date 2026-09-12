@@ -836,11 +836,10 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
     }
 
     /**
-     * The drag-and-drop backends currently live: the `dndStrategy` option
-     * resolved against this device. `'auto'` (the default) decides from the
-     * primary input device, so this is the only way to know what it chose - and
-     * the distinction matters, because only an HTML5 drag rides an OS drag
-     * session and so only an HTML5 drag can leave the window it started in.
+     * The drag-and-drop backends currently live: `dndStrategy` resolved against
+     * this device, which `'auto'` reads from the primary input device. Only an
+     * HTML5 drag can leave the window it started in, so check `html5` before
+     * relying on a drag between a popout window and the main window.
      */
     get dndCapabilities(): DndCapabilities {
         return this.component.dndCapabilities;
@@ -852,13 +851,12 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
 
     /**
      * Fires as dockview lets go of a popout window, while that window is still
-     * open, carrying its live `Window` handle. Covers every popout the
-     * component opened - `addPopoutGroup`, the group context menu, a restored
-     * layout - and every reason for closing one, including component disposal.
+     * open, carrying its live `Window` handle. Covers every popout the component
+     * opened and every reason for closing one, disposal included;
+     * {@link onDidAddPopoutGroup} is the opening half.
      *
-     * Made for hosts that own their windows: in a desktop webview the page's
-     * `window.close()` can be a no-op, so the shell has to be told to close the
-     * real window. {@link onDidAddPopoutGroup} is the opening half.
+     * For hosts that own their windows: in a desktop webview the page's own
+     * `close()` can be a no-op, so the shell has to be told.
      */
     get onWillClosePopoutWindow(): Event<PopoutWindowEvent> {
         return this.component.onWillClosePopoutWindow;

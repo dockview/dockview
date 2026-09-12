@@ -4,9 +4,8 @@ import { CompositeDisposable, Disposable, IDisposable } from './lifecycle';
 import { Box } from './types';
 
 /**
- * A popout window at a lifecycle boundary. `id` is the window's dockview target
- * id, `window` its live handle - still open, so a listener can read from it or
- * act on it before dockview lets go.
+ * A popout window at a lifecycle boundary. `id` is the target name dockview
+ * passed to `window.open`; `window` is the live handle.
  */
 export interface PopoutWindowEvent {
     readonly id: string;
@@ -44,11 +43,7 @@ const UNSAFE_POPOUT_PROTOCOLS = new Set([
     'file:',
 ]);
 
-/**
- * How often an open popout window's `closed` flag is checked. Fast enough that
- * a group comes home promptly after a close dockview was not told about, slow
- * enough to be free next to everything else a popout window costs.
- */
+/** How often an open popout window's `closed` flag is checked. */
 const CLOSED_POLL_INTERVAL_MS = 250;
 
 /**
@@ -60,10 +55,8 @@ const CLOSED_POLL_INTERVAL_MS = 250;
  * opener via `window.opener`.
  *
  * Callers that can recover from a refusal use this rather than catching, so it
- * can be handled without a rejected promise. Public, so an application can
- * pre-flight a popout URL - and report *why* it was refused - rather than
- * reimplementing the same rules; `page` describes the page the URL resolves
- * against, and defaults to this one.
+ * can be handled without a rejected promise. `page` is what the URL resolves
+ * against, and defaults to this page.
  */
 export function getPopoutUrlError(
     url: string,
@@ -146,10 +139,8 @@ export class PopoutWindow extends CompositeDisposable {
             return;
         }
 
-        // Cleared before the teardown below, which closes the window: a host
-        // that answers `close()` by synchronously running the document's unload
-        // handlers re-enters here through the `beforeunload` listener, and would
-        // otherwise announce the same close twice.
+        // Cleared before the teardown that closes the window: a host running the
+        // document's unload handlers there re-enters through `beforeunload`.
         this._window = null;
 
         this._onWillClose.fire();
@@ -226,17 +217,12 @@ export class PopoutWindow extends CompositeDisposable {
 
         return new Promise<HTMLElement | null>((resolve) => {
             /**
-             * A window the opener cannot script is no more usable than one that
-             * never opened: a popout is populated by moving panel DOM into its
-             * document. Hosts answer `window.open` in their own way, and one
-             * that hands back a window in a separate JavaScript context (a
-             * webview unrelated to the opener, as a desktop shell can do)
-             * throws on every access to it.
-             *
-             * Settle with `null`, the same signal a blocked popup gives, so the
-             * caller takes its existing fallback and returns the group to the
-             * grid. Rejecting instead left the window on screen and the group
-             * nowhere.
+             * A window the opener cannot script is as unusable as one that never
+             * opened, since a popout is filled by moving panel DOM into its
+             * document. A host can answer `window.open` with a window in its own
+             * JavaScript context, which throws on first touch; settle with
+             * `null`, as a blocked popup does, so the caller's fallback returns
+             * the group to the grid.
              */
             const abandon = (err: unknown): void => {
                 console.warn(
@@ -307,9 +293,7 @@ export class PopoutWindow extends CompositeDisposable {
 
                     resolve(container);
                 } catch (err) {
-                    // The window opened but its document cannot be reached
-                    // (a separate JavaScript context, or a test whose DOM is
-                    // not set up).
+                    // opened, but its document cannot be reached
                     abandon(err);
                 }
             });
@@ -317,21 +301,14 @@ export class PopoutWindow extends CompositeDisposable {
     }
 
     /**
-     * `beforeunload` on the popout document is the primary signal that its
-     * window went away, but it is not a guaranteed one: a native shell that
-     * destroys the webview - and a browser discarding the page - tears the
-     * document down without running unload handlers, which would leave the
-     * group registered against a window that no longer exists and lost with it.
-     *
-     * `closed` is readable on any window handle, a cross-origin one included,
-     * so poll it as a backstop. Whichever signal arrives first wins; `close()`
-     * is idempotent and stops the poll.
+     * Backstop for the `beforeunload` signal, which a window torn down without
+     * running its unload handlers never sends: a native shell destroying the
+     * webview, or a browser discarding the page. `closed` is readable on any
+     * handle, cross-origin included. Whichever signal arrives first wins.
      */
     private watchForClose(externalWindow: Window): IDisposable {
         if (typeof externalWindow.closed !== 'boolean') {
-            // Nothing to observe: a handle that doesn't report `closed` (a stub
-            // in a test, an exotic host) leaves `beforeunload` as the only
-            // signal, so don't run a timer that can never fire.
+            // nothing to observe, so no timer that can never fire
             return Disposable.NONE;
         }
 

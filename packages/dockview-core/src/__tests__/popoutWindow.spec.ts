@@ -33,9 +33,8 @@ describe('PopoutWindow', () => {
         };
 
         /**
-         * The window goes away without its document running unload handlers -
-         * a native shell destroying the webview, or a browser discarding the
-         * page. All the opener is left with is `closed`.
+         * The window goes away without its document running unload handlers, so
+         * all the opener is left with is `closed`.
          */
         const simulateSilentClose = () => {
             closed = true;
@@ -135,11 +134,9 @@ describe('PopoutWindow', () => {
         });
 
         /**
-         * `beforeunload` on the popout document is the only signal dockview gets
-         * that its window went away - and it is not guaranteed. A native shell
-         * tearing the webview down, or a browser discarding the page, skips the
-         * page's unload handlers entirely, which would leave the group
-         * registered against a window that no longer exists.
+         * A native shell tearing the webview down, or a browser discarding the
+         * page, skips the document's unload handlers, so `beforeunload` never
+         * arrives and the group would be left behind.
          */
         test('notices a window that closed without unloading', async () => {
             jest.useFakeTimers();
@@ -198,13 +195,9 @@ describe('PopoutWindow', () => {
         });
 
         /**
-         * A window the opener cannot script is no more usable than one that
-         * never opened, because a popout is populated by moving DOM into its
-         * document. Some hosts answer `window.open` with a window in a separate
-         * JavaScript context; touching it then throws. That has to settle the
-         * open as a blocked window rather than reject, so the caller's fallback
-         * returns the group to the grid instead of losing it to a window left
-         * standing on screen.
+         * A host can answer `window.open` with a window in a separate JavaScript
+         * context, where every access throws. It has to settle as a blocked
+         * window so the caller's fallback returns the group to the grid.
          */
         test('an unscriptable window settles as a blocked one', async () => {
             const { externalWindow } = makeFakeExternalWindow();
@@ -251,10 +244,9 @@ describe('PopoutWindow', () => {
         });
 
         /**
-         * `close()` closes the window, and a host may answer that by running
-         * the document's unload handlers there and then - which re-enters
-         * `close()` through the `beforeunload` listener dockview registered on
-         * the popout. One close is one close, however it arrives.
+         * A host may answer `close()` by running the document's unload handlers
+         * there and then, re-entering through dockview's own `beforeunload`
+         * listener. One close is one close.
          */
         test('a host that unloads the document inside close() still closes once', async () => {
             const { externalWindow, fireLoad } = makeFakeExternalWindow();

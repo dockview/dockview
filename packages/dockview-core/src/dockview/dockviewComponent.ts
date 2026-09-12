@@ -206,16 +206,13 @@ export interface DockviewPopoutGroupOptions {
      */
     popoutUrl?: string;
     /**
-     * Called once this popout's window has opened, before its group is moved
-     * in. Scoped to this call: for every popout window a component opens -
-     * including those opened from the group context menu or restored from a
-     * layout - listen to {@link IDockviewComponent.onDidAddPopoutGroup}.
+     * Called once this popout's window has opened, before its group is moved in.
+     * Scoped to this call; `onDidAddPopoutGroup` covers every popout.
      */
     onDidOpen?: (event: PopoutWindowEvent) => void;
     /**
      * Called while this popout's window is still open, as dockview lets go of
-     * it. Scoped to this call: for every popout window a component opens, use
-     * {@link IDockviewComponent.onWillClosePopoutWindow}.
+     * it. Scoped to this call; `onWillClosePopoutWindow` covers every popout.
      */
     onWillClose?: (event: PopoutWindowEvent) => void;
 }
@@ -683,9 +680,7 @@ export class DockviewComponent
     private readonly _onWillClosePopoutWindow =
         new Emitter<PopoutWindowEvent>();
     /** Fires for every popout window this component opened, however it was
-     *  opened, while the window is still there. `onDidAddPopoutGroup` is the
-     *  other half; this one carries the live handle a host needs to act on a
-     *  window the page's own `close()` cannot reach. */
+     *  opened, while that window is still there. See `DockviewApi`. */
     readonly onWillClosePopoutWindow: Event<PopoutWindowEvent> =
         this._onWillClosePopoutWindow.event;
 
@@ -821,12 +816,7 @@ export class DockviewComponent
         return this.groups.flatMap((group) => group.panels);
     }
 
-    /**
-     * The drag-and-drop backends currently live, i.e. `dndStrategy` resolved
-     * against this device. Recomputed on read, since `'auto'` reads the primary
-     * input device and an embedded webview can report a coarse pointer where a
-     * mouse is attached.
-     */
+    /** `dndStrategy` resolved against this device; see `DockviewApi`. */
     get dndCapabilities(): DndCapabilities {
         return resolveDndCapabilities(this.options);
     }
@@ -1811,11 +1801,9 @@ export class DockviewComponent
                 this._moduleRegistry.dispose();
                 this._shellManager?.dispose();
             }),
-            // Deliberately disposed after the registry above, which is what
-            // closes any open popout windows: teardown is precisely when a host
-            // owning real windows still has them to close, so its
-            // `onWillClosePopoutWindow` listeners must outlive that step.
-            // Disposables run in registration order.
+            // Disposed after the registry above, which closes any open popout
+            // windows: its listeners have to outlive that step, and disposables
+            // run in registration order.
             this._onWillClosePopoutWindow
         );
 
@@ -2020,13 +2008,7 @@ export class DockviewComponent
                 height: box.height,
                 onDidOpen: options?.onDidOpen,
                 onWillClose: (event) => {
-                    // The per-call callback first, then the component-wide
-                    // event: a caller that passed both sees the specific hook
-                    // run before the general one. The event fires whatever
-                    // opened this window - `api.addPopoutGroup`, the group
-                    // context menu, a restored layout - and whatever is closing
-                    // it, component disposal included, since that is exactly
-                    // when a host with windows of its own still has work to do.
+                    // the call's own callback first, then the component-wide event
                     options?.onWillClose?.(event);
                     this._onWillClosePopoutWindow.fire(event);
                 },

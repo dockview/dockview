@@ -56,16 +56,10 @@ export function detectEngine(userAgent: string): WebviewEngine {
 }
 
 /**
- * Asks dockview's own guard whether a popout URL is usable, and reports *why*
- * when it is not, rather than only surfacing the throw. The guard is exported,
- * so the verdict here is the one the library will reach when the window is
- * opened - not a copy of its rules that can drift from them.
- *
- * It requires the URL to be same-origin with the page by scheme and host, and
- * refuses the `javascript:`, `data:`, `blob:`, `vbscript:` and `file:` schemes
- * outright. A custom app scheme qualifies: a macOS/Linux release build serves
- * the app from `tauri://localhost`, and a popout at
- * `tauri://localhost/popout.html` is same-origin with it.
+ * dockview's own verdict on a popout URL, with the reason surfaced rather than
+ * thrown. The guard wants the same scheme and host as the page, so a custom app
+ * scheme qualifies: a macOS/Linux release build serves the app from
+ * `tauri://localhost`, and `tauri://localhost/popout.html` is same-origin there.
  */
 export function diagnosePopoutUrl(url = '/popout.html'): PopoutUrlDiagnosis {
     const page = globalThis.location;
@@ -82,8 +76,7 @@ export function diagnosePopoutUrl(url = '/popout.html'): PopoutUrlDiagnosis {
         ? {
               supported: false,
               url: resolved,
-              // the message already names the rule that was broken; the URL is
-              // reported separately
+              // the message names the rule; the URL is reported separately
               reason: error.message
                   .replace(/^dockview: /, '')
                   .replace(/; got: .*$/, ''),

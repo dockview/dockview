@@ -129,11 +129,9 @@ describe('resolveDndCapabilities', () => {
 });
 
 /**
- * `'auto'` resolves against the device, so a consumer cannot predict what it
- * chose - and the choice is load-bearing: only an HTML5 drag rides an OS drag
- * session, so only an HTML5 drag can leave the window it started in. An
- * embedded webview reporting a coarse pointer is exactly where that bites, and
- * inferring it from the DOM (counting natively draggable tabs) is not an answer.
+ * `'auto'` resolves against the device, and the choice is load-bearing: only an
+ * HTML5 drag can leave the window it started in, and an embedded webview
+ * reporting a coarse pointer is where that bites.
  */
 describe('api.dndCapabilities', () => {
     class TestPanel implements IContentRenderer {
