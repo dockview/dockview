@@ -120,21 +120,6 @@ export function getPopoutUrlError(
  * comes back absolute; the result is the same origin either way, and a host
  * reading the URL of a window it is asked to open sees which popout it is.
  */
-export function withPopoutWindowId(
-    url: string,
-    param: string,
-    id: string
-): string {
-    try {
-        const resolved = new URL(url, globalThis.location.href);
-        resolved.searchParams.set(param, id);
-        return resolved.href;
-    } catch {
-        // unparsable, so leave it alone for the guard to refuse
-        return url;
-    }
-}
-
 export class PopoutWindow extends CompositeDisposable {
     private readonly _onWillClose = new Emitter<void>();
     readonly onWillClose = this._onWillClose.event;

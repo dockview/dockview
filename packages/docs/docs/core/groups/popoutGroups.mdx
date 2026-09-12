@@ -110,7 +110,7 @@ Floating overlays, including drag-target indicators, the tab context menu, and t
 
 ## Popout window events
 
-`DockviewApi` exposes three events specific to popout windows:
+`DockviewApi` exposes four events specific to popout windows:
 
 ```ts
 // Fires when the popout window is resized by the user
@@ -123,9 +123,11 @@ api.onDidPopoutGroupPositionChange((event: PopoutGroupChangePositionEvent) => {
     console.log('popout moved:', event);
 });
 
-// Fires when the browser blocked opening the popout window (e.g. popup blocker)
-api.onDidOpenPopoutWindowFail(() => {
-    alert('Please allow popups for this site to use this feature.');
+// Fires when a popout window could not be used, saying which way it failed
+api.onDidOpenPopoutWindowFail((failure) => {
+    if (failure.reason === 'blocked') {
+        alert('Please allow popups for this site to use this feature.');
+    }
 });
 
 // Fires as Dockview lets go of a popout window, while the window is still open
@@ -145,24 +147,6 @@ desktop webview (Tauri, Electron and friends), the page's own `window.close()`
 may not close the real window, so the shell has to be asked to close it -
 `onWillClosePopoutWindow` hands over the live handle at the one moment that is
 still possible. `onDidAddPopoutGroup` is the opening half of the same pair.
-
-## Identifying a popout window to the host
-
-A host that answers `window.open` itself decides what kind of window comes back,
-and its handler usually sees only the URL, not the target name Dockview passed.
-Set `popoutWindowIdParam` to carry the window's id in the URL:
-
-```tsx
-const api = createDockview(element, {
-    popoutWindowIdParam: 'dv-window',
-    // ...
-});
-// opens /popout.html?dv-window=1-2
-```
-
-The value matches `event.id` on `onWillClosePopoutWindow`, so the host can label
-the window it creates and the page can later name it back. Off unless set, and
-saved layouts keep `popoutUrl` as you configured it, without the parameter.
 
 ## See also
 

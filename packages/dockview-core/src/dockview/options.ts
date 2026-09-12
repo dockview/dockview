@@ -395,16 +395,6 @@ export interface DockviewOptions {
      */
     floatingGroupDragHandle?: 'titlebar' | 'tabbar';
     popoutUrl?: string;
-    /**
-     * Append the popout window's id to its URL as this query parameter, for a
-     * host that only sees the URL when the page opens a window: a desktop
-     * shell's new-window handler, say, which can then identify the window it is
-     * about to create. The id matches `PopoutWindowEvent.id` and the
-     * `window.open` target name.
-     *
-     * Off unless set. Saved layouts keep the URL as configured, without it.
-     */
-    popoutWindowIdParam?: string;
     nonce?: CspNonceProvider;
     defaultRenderer?: DockviewPanelRenderer;
     defaultHeaderPosition?: DockviewHeaderPosition;
@@ -794,7 +784,6 @@ export const PROPERTY_KEYS_DOCKVIEW: (keyof DockviewOptions)[] = (() => {
         smartGuides: undefined,
         floatingGroupDragHandle: undefined,
         popoutUrl: undefined,
-        popoutWindowIdParam: undefined,
         nonce: undefined,
         defaultRenderer: undefined,
         defaultHeaderPosition: undefined,

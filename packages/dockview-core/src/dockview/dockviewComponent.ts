@@ -130,7 +130,6 @@ import {
     PopoutWindow,
     PopoutWindowEvent,
     PopoutWindowFailure,
-    withPopoutWindowId,
 } from '../popoutWindow';
 import { StrictEventsSequencing } from './strictEventsSequencing';
 import { PopupService } from './components/popupService';
@@ -2002,17 +2001,7 @@ export class DockviewComponent
 
         const popoutWindowId = `${this.id}-${groupId}`;
 
-        // `popoutWindowIdParam` carries that id in the URL, the only part of a
-        // `window.open` a host is sure to see. Applied here rather than to
-        // `resolvedPopoutUrl`, so it does not reach saved layouts.
-        const idParam = this.options?.popoutWindowIdParam;
-        const popoutUrl = idParam
-            ? withPopoutWindowId(
-                  resolvedPopoutUrl ?? '/popout.html',
-                  idParam,
-                  popoutWindowId
-              )
-            : (resolvedPopoutUrl ?? '/popout.html');
+        const popoutUrl = resolvedPopoutUrl ?? '/popout.html';
 
         const _window = new PopoutWindow(popoutWindowId, theme ?? '', {
             url: popoutUrl,
