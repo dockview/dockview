@@ -10,14 +10,35 @@ describe('PopoutWindow', () => {
             document.implementation.createHTMLDocument('popout');
         const listeners: Record<string, EventListener[]> = {};
 
+        let closed = false;
+
         const externalWindow: any = {
             document: externalDoc,
-            close: jest.fn(),
+            get closed() {
+                return closed;
+            },
+            close: jest.fn(() => {
+                closed = true;
+            }),
             addEventListener: (type: string, fn: EventListener) => {
                 (listeners[type] ||= []).push(fn);
             },
             removeEventListener: jest.fn(),
-            dispatchEvent: jest.fn(),
+            dispatchEvent: (event: Event) => {
+                for (const fn of listeners[event.type] ?? []) {
+                    fn(event);
+                }
+                return true;
+            },
+        };
+
+        /**
+         * The window goes away without its document running unload handlers -
+         * a native shell destroying the webview, or a browser discarding the
+         * page. All the opener is left with is `closed`.
+         */
+        const simulateSilentClose = () => {
+            closed = true;
         };
 
         const fireLoad = () => {
@@ -32,7 +53,13 @@ describe('PopoutWindow', () => {
             }
         };
 
-        return { externalWindow, externalDoc, fireLoad, fireUnload };
+        return {
+            externalWindow,
+            externalDoc,
+            fireLoad,
+            fireUnload,
+            simulateSilentClose,
+        };
     }
 
     /**
@@ -101,6 +128,159 @@ describe('PopoutWindow', () => {
                 popout.close();
 
                 await expect(opened).resolves.toBeNull();
+            } finally {
+                openSpy.mockRestore();
+                popout.dispose();
+            }
+        });
+
+        /**
+         * `beforeunload` on the popout document is the only signal dockview gets
+         * that its window went away - and it is not guaranteed. A native shell
+         * tearing the webview down, or a browser discarding the page, skips the
+         * page's unload handlers entirely, which would leave the group
+         * registered against a window that no longer exists.
+         */
+        test('notices a window that closed without unloading', async () => {
+            jest.useFakeTimers();
+            const { externalWindow, fireLoad, simulateSilentClose } =
+                makeFakeExternalWindow();
+            const { popout, openSpy } = openWindow(externalWindow);
+
+            try {
+                const opened = popout.open();
+                fireLoad();
+                await opened;
+                expect(popout.window).toBe(externalWindow);
+
+                const closes: number[] = [];
+                popout.onDidClose(() => closes.push(1));
+
+                simulateSilentClose();
+                expect(closes).toHaveLength(0);
+
+                jest.advanceTimersByTime(1000);
+
+                expect(closes).toHaveLength(1);
+                expect(popout.window).toBeNull();
+            } finally {
+                openSpy.mockRestore();
+                popout.dispose();
+                jest.useRealTimers();
+            }
+        });
+
+        test('stops polling for a close once the popout is closed', async () => {
+            jest.useFakeTimers();
+            const { externalWindow, fireLoad } = makeFakeExternalWindow();
+            const { popout, openSpy } = openWindow(externalWindow);
+
+            try {
+                const opened = popout.open();
+                fireLoad();
+                await opened;
+
+                popout.close();
+
+                const closes: number[] = [];
+                popout.onDidClose(() => closes.push(1));
+
+                // `close()` above already set the window's `closed` flag; a
+                // poller left running would fire close again on every tick.
+                jest.advanceTimersByTime(5000);
+
+                expect(closes).toHaveLength(0);
+            } finally {
+                openSpy.mockRestore();
+                popout.dispose();
+                jest.useRealTimers();
+            }
+        });
+
+        /**
+         * A window the opener cannot script is no more usable than one that
+         * never opened, because a popout is populated by moving DOM into its
+         * document. Some hosts answer `window.open` with a window in a separate
+         * JavaScript context; touching it then throws. That has to settle the
+         * open as a blocked window rather than reject, so the caller's fallback
+         * returns the group to the grid instead of losing it to a window left
+         * standing on screen.
+         */
+        test('an unscriptable window settles as a blocked one', async () => {
+            const { externalWindow } = makeFakeExternalWindow();
+            const warn = jest.spyOn(console, 'warn').mockImplementation();
+            externalWindow.addEventListener = () => {
+                throw new DOMException('blocked a frame', 'SecurityError');
+            };
+
+            const { popout, openSpy } = openWindow(externalWindow);
+
+            try {
+                await expect(popout.open()).resolves.toBeNull();
+                expect(externalWindow.close).toHaveBeenCalled();
+                expect(popout.window).toBeNull();
+            } finally {
+                openSpy.mockRestore();
+                warn.mockRestore();
+                popout.dispose();
+            }
+        });
+
+        test('a document that cannot be reached after load settles as blocked', async () => {
+            const { externalWindow, fireLoad } = makeFakeExternalWindow();
+            const warn = jest.spyOn(console, 'warn').mockImplementation();
+            Object.defineProperty(externalWindow, 'document', {
+                get() {
+                    throw new DOMException('blocked a frame', 'SecurityError');
+                },
+            });
+
+            const { popout, openSpy } = openWindow(externalWindow);
+
+            try {
+                const opened = popout.open();
+                fireLoad();
+
+                await expect(opened).resolves.toBeNull();
+                expect(externalWindow.close).toHaveBeenCalled();
+            } finally {
+                openSpy.mockRestore();
+                warn.mockRestore();
+                popout.dispose();
+            }
+        });
+
+        /**
+         * `close()` closes the window, and a host may answer that by running
+         * the document's unload handlers there and then - which re-enters
+         * `close()` through the `beforeunload` listener dockview registered on
+         * the popout. One close is one close, however it arrives.
+         */
+        test('a host that unloads the document inside close() still closes once', async () => {
+            const { externalWindow, fireLoad } = makeFakeExternalWindow();
+            const { popout, openSpy } = openWindow(externalWindow);
+
+            try {
+                const opened = popout.open();
+                fireLoad();
+                await opened;
+
+                const willClose: number[] = [];
+                const didClose: number[] = [];
+                popout.onWillClose(() => willClose.push(1));
+                popout.onDidClose(() => didClose.push(1));
+
+                // the host runs the document's unload handlers as part of
+                // closing the window, which reaches the `beforeunload` listener
+                // dockview registered on the popout
+                externalWindow.close.mockImplementation(() => {
+                    externalWindow.dispatchEvent(new Event('beforeunload'));
+                });
+
+                popout.close();
+
+                expect(willClose).toHaveLength(1);
+                expect(didClose).toHaveLength(1);
             } finally {
                 openSpy.mockRestore();
                 popout.dispose();
