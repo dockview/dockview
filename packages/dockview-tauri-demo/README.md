@@ -105,35 +105,42 @@ stop being free:
    wry's own per-platform window creation, kept behind `DOCKVIEW_POPOUT=allow`
    for comparison; on WebKitGTK it ignores the features and opens 200×200.
 
-### Drag-and-drop: pointer by default, HTML5 switchable
+### Drag-and-drop: dockview's default, and why it matters across windows
 
-dockview's default `dndStrategy` is `'auto'`: HTML5 drag-and-drop for mouse
-input, pointer events for touch and pen. The demo sets `dndStrategy: 'pointer'`
-because an HTML5 tab drag in an embedded webview can look like it is working
-right up until nothing happens: the browser renders a native drag image, but
-if the webview never delivers `dragover` to the page the drop targets do not
-light up and there is nothing to drop onto. That was the experience that
-prompted the default; it is host-specific, so the demo makes it measurable:
+The demo runs dockview's default `dndStrategy`, `'auto'`: HTML5 drag-and-drop
+for mouse input, pointer events for touch and pen. The pointer backend is a
+deliberate fallback, not the default, and the distinction matters here: only
+an HTML5 drag rides an OS drag session, so only an HTML5 drag can leave the
+window it started in. Pointer events stop at the window edge, which makes a
+drag between a popout and the main window impossible on the pointer backend
+no matter what the host does.
 
-- `?dnd=html5` on the URL (or `VITE_DND=html5` at build time) switches the
-  backend to HTML5.
-- The Host panel reports the active backend, how many tabs are natively
-  draggable, and a live `drop overlays seen` count — a drag that docks a panel
-  with a count of 0 is the pointer path, a count that rises during an HTML5
-  drag means `dragover` reached the page.
+The demo used to force `'pointer'`, on the strength of an HTML5 tab drag in an
+embedded webview that rendered a native drag image while the page never got
+`dragover`. That symptom is host-specific and now measurable rather than
+assumed:
+
+- `?dnd=html5` or `?dnd=pointer` on the URL (or `VITE_DND` at build time)
+  forces a backend.
+- The Host panel reports the active strategy, how many tabs are natively
+  draggable (an HTML5 drag needs at least one), and a live `drop overlays
+  seen` count: a drag that docks a panel with a count of 0 is the pointer
+  path; a count that rises during an HTML5 drag means `dragover` reached the
+  page.
 - Every window is built with `disable_drag_drop_handler()` (the
   `dragDropEnabled: false` window option). Tauri's own drag-drop interception
   is the documented reason HTML5 drag-and-drop misbehaves in WebView2, and
   the demo does not use file drops.
 
 Measured on Linux (WebKitGTK 2.52.6, release build, driven under Xvfb with
-`xdotool`): with the HTML5 backend, dragging the Scratch tab into another group
-raised `drop overlays seen` to 1 and docked the panel, both with
-`dragDropEnabled` at its default and with it off. So on this host the HTML5
-backend works, and the "ghost but no overlay" symptom is not a WebKitGTK
-limitation as such. macOS (WKWebView) and Windows (WebView2) are not measured
-here; if either shows the symptom, `?dnd=html5` plus the Host readout will say
-whether `dragover` is arriving at all.
+`xdotool`) with the HTML5 backend: dragging the Scratch tab into another group
+raised `drop overlays seen` to 1 and docked the panel, with `dragDropEnabled`
+at its default and with it off; and dragging a tab out of a popout window
+into the main window docked it there and closed the emptied popout. One
+harness note: under Xvfb there is no pointing device, WebKit reports a coarse
+primary pointer, and `'auto'` therefore resolves to the pointer backend, so
+those runs force `VITE_DND=html5`; on a desktop `'auto'` gives HTML5 for the
+mouse.
 
 ### Measured in a release build
 
