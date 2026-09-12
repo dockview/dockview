@@ -194,9 +194,12 @@ api.onDidPopoutGroupPositionChange(
     (event: PopoutGroupChangePositionEvent) => {}
 );
 
-// Fires when the browser blocked opening a popout window (e.g. popup blocker)
-api.onDidOpenPopoutWindowFail(() => {
-    console.warn('popup was blocked by the browser');
+// Fires when a popout window could not be used, saying which way it failed:
+// 'blocked' (popup blocker), 'url-refused' (the same-origin guard),
+// 'unscriptable' (the host returned a window the opener cannot reach into) or
+// 'closed' (it went away before loading).
+api.onDidOpenPopoutWindowFail((failure: PopoutWindowFailure) => {
+    console.warn('popout failed:', failure.reason, failure.error);
 });
 
 // Fires as Dockview lets go of a popout window, while that window is still

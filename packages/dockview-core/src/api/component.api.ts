@@ -13,7 +13,7 @@ import {
     PopoutGroupChangeSizeEvent,
     SerializedDockview,
 } from '../dockview/dockviewComponent';
-import { PopoutWindowEvent } from '../popoutWindow';
+import { PopoutWindowEvent, PopoutWindowFailure } from '../popoutWindow';
 import { DndCapabilities } from '../dockview/dndCapabilities';
 import {
     AddGroupOptions,
@@ -845,7 +845,13 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
         return this.component.dndCapabilities;
     }
 
-    get onDidOpenPopoutWindowFail(): Event<void> {
+    /**
+     * Fires when a popout window could not be used, carrying which way it
+     * failed: the URL was refused, the browser blocked the window, the host
+     * returned a window whose document the opener cannot reach, or it closed
+     * before loading. The group stays in (or returns to) the main grid.
+     */
+    get onDidOpenPopoutWindowFail(): Event<PopoutWindowFailure> {
         return this.component.onDidOpenPopoutWindowFail;
     }
 

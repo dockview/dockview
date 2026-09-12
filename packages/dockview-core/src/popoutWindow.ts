@@ -12,6 +12,29 @@ export interface PopoutWindowEvent {
     readonly window: Window;
 }
 
+/**
+ * Why a popout window could not be used:
+ *
+ * - `url-refused`: the URL failed {@link getPopoutUrlError}.
+ * - `blocked`: `window.open` returned nothing, the browser's popup blocker
+ *   being the usual reason.
+ * - `unscriptable`: a window opened, but the opener cannot reach its document,
+ *   so panel DOM cannot be moved into it. Hosts that answer `window.open`
+ *   themselves can do this.
+ * - `closed`: the window went away before it finished loading.
+ */
+export type PopoutWindowFailureReason =
+    | 'url-refused'
+    | 'blocked'
+    | 'unscriptable'
+    | 'closed';
+
+export interface PopoutWindowFailure {
+    readonly reason: PopoutWindowFailureReason;
+    /** The refusal itself, where there was one. */
+    readonly error?: Error;
+}
+
 export type PopoutWindowOptions = {
     url: string;
     onDidOpen?: (event: PopoutWindowEvent) => void;
@@ -92,6 +115,26 @@ export function getPopoutUrlError(
     return undefined;
 }
 
+/**
+ * `url` with `param` set to `id`. Resolved against the page, so a relative URL
+ * comes back absolute; the result is the same origin either way, and a host
+ * reading the URL of a window it is asked to open sees which popout it is.
+ */
+export function withPopoutWindowId(
+    url: string,
+    param: string,
+    id: string
+): string {
+    try {
+        const resolved = new URL(url, globalThis.location.href);
+        resolved.searchParams.set(param, id);
+        return resolved.href;
+    } catch {
+        // unparsable, so leave it alone for the guard to refuse
+        return url;
+    }
+}
+
 export class PopoutWindow extends CompositeDisposable {
     private readonly _onWillClose = new Emitter<void>();
     readonly onWillClose = this._onWillClose.event;
@@ -100,9 +143,15 @@ export class PopoutWindow extends CompositeDisposable {
     readonly onDidClose = this._onDidClose.event;
 
     private _window: { value: Window; disposable: IDisposable } | null = null;
+    private _failure: PopoutWindowFailure | undefined;
 
     get window(): Window | null {
         return this._window?.value ?? null;
+    }
+
+    /** Set when {@link open} resolved `null`, saying which way it failed. */
+    get failure(): PopoutWindowFailure | undefined {
+        return this._failure;
     }
 
     constructor(
@@ -178,9 +227,7 @@ export class PopoutWindow extends CompositeDisposable {
         const externalWindow = window.open(url, this.target, features);
 
         if (!externalWindow) {
-            /**
-             * Popup blocked
-             */
+            this._failure = { reason: 'blocked' };
             return null;
         }
 
@@ -225,10 +272,10 @@ export class PopoutWindow extends CompositeDisposable {
              * the group to the grid.
              */
             const abandon = (err: unknown): void => {
-                console.warn(
-                    'dockview: the popout window is not scriptable, so the group cannot be moved into it',
-                    err
-                );
+                this._failure = {
+                    reason: 'unscriptable',
+                    error: err instanceof Error ? err : new Error(String(err)),
+                };
                 this.close();
                 resolve(null);
             };
@@ -255,7 +302,12 @@ export class PopoutWindow extends CompositeDisposable {
              * gives and one the caller already handles. `resolve` after the
              * fact is a no-op, so a `load` that arrived first still wins.
              */
-            disposable.addDisposables(this.onWillClose(() => resolve(null)));
+            disposable.addDisposables(
+                this.onWillClose(() => {
+                    this._failure ??= { reason: 'closed' };
+                    resolve(null);
+                })
+            );
 
             externalWindow.addEventListener('load', () => {
                 /**

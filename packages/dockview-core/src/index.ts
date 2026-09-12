@@ -29,6 +29,8 @@ export * from './panel/types';
 export {
     getPopoutUrlError,
     type PopoutWindowEvent,
+    type PopoutWindowFailure,
+    type PopoutWindowFailureReason,
 } from './popoutWindow';
 
 /** Readable through `api.dndCapabilities`. */

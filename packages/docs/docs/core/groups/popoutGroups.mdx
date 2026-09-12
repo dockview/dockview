@@ -72,7 +72,8 @@ popout could not be created: the browser blocked the window, the window was
 closed before it finished loading, or the item cannot be popped out at all (an
 edge group). The panels are left in the main grid, or returned to the group they
 came from, and `onDidOpenPopoutWindowFail` fires for a window that never became
-usable.
+usable, carrying which way it failed: `'blocked'`, `'url-refused'`,
+`'unscriptable'` or `'closed'`.
 
 The [layout transaction](/docs/core/events#mutation-boundary) covers the whole
 operation: `onWillMutateLayout` fires with `kind: 'popout'` before the window is
@@ -144,6 +145,24 @@ desktop webview (Tauri, Electron and friends), the page's own `window.close()`
 may not close the real window, so the shell has to be asked to close it -
 `onWillClosePopoutWindow` hands over the live handle at the one moment that is
 still possible. `onDidAddPopoutGroup` is the opening half of the same pair.
+
+## Identifying a popout window to the host
+
+A host that answers `window.open` itself decides what kind of window comes back,
+and its handler usually sees only the URL, not the target name Dockview passed.
+Set `popoutWindowIdParam` to carry the window's id in the URL:
+
+```tsx
+const api = createDockview(element, {
+    popoutWindowIdParam: 'dv-window',
+    // ...
+});
+// opens /popout.html?dv-window=1-2
+```
+
+The value matches `event.id` on `onWillClosePopoutWindow`, so the host can label
+the window it creates and the page can later name it back. Off unless set, and
+saved layouts keep `popoutUrl` as you configured it, without the parameter.
 
 ## See also
 

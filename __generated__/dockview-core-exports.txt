@@ -258,6 +258,8 @@ PopoutGroup
 PopoutGroupChangePositionEvent
 PopoutGroupChangeSizeEvent
 PopoutWindowEvent
+PopoutWindowFailure
+PopoutWindowFailureReason
 Position
 PositionResolver
 PositionResolverArgs

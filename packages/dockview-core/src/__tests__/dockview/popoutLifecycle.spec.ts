@@ -1,4 +1,6 @@
+import { fromPartial } from '@total-typescript/shoehorn';
 import { DockviewComponent } from '../../dockview/dockviewComponent';
+import { PopoutWindowFailure } from '../../popoutWindow';
 import { IContentRenderer } from '../../dockview/types';
 import { setupMockWindow } from '../__mocks__/mockWindow';
 
@@ -172,6 +174,143 @@ describe('popout lifecycle', () => {
         local.dispose();
 
         expect(closing).toEqual([popoutWindow]);
+    });
+
+    /**
+     * The remedy differs per reason - allow popups, fix the URL, or stop
+     * offering popouts in this host - so the event has to say which.
+     */
+    describe('onDidOpenPopoutWindowFail says why', () => {
+        test("a blocked window reports 'blocked'", async () => {
+            window.open = () => null;
+            const failures: PopoutWindowFailure[] = [];
+            dockview.onDidOpenPopoutWindowFail((e) => failures.push(e));
+
+            const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+            expect(await dockview.addPopoutGroup(panel)).toBe(false);
+
+            expect(failures).toEqual([{ reason: 'blocked' }]);
+        });
+
+        test("a refused URL reports 'url-refused' with the error", async () => {
+            const failures: PopoutWindowFailure[] = [];
+            dockview.onDidOpenPopoutWindowFail((e) => failures.push(e));
+
+            const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+            expect(
+                await dockview.addPopoutGroup(panel, {
+                    popoutUrl: 'https://evil.example/popout.html',
+                })
+            ).toBe(false);
+
+            expect(failures).toHaveLength(1);
+            expect(failures[0].reason).toBe('url-refused');
+            expect(failures[0].error?.message).toMatch(/dockview: popout URL/);
+        });
+
+        test("a window the opener cannot script reports 'unscriptable'", async () => {
+            window.open = () =>
+                fromPartial<Window>({
+                    addEventListener: () => {
+                        throw new DOMException('blocked', 'SecurityError');
+                    },
+                    close: () => {
+                        // the host still honours close()
+                    },
+                });
+            const failures: PopoutWindowFailure[] = [];
+            dockview.onDidOpenPopoutWindowFail((e) => failures.push(e));
+
+            const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+            expect(await dockview.addPopoutGroup(panel)).toBe(false);
+
+            expect(failures).toHaveLength(1);
+            expect(failures[0].reason).toBe('unscriptable');
+            expect(failures[0].error?.name).toBe('SecurityError');
+            // the group is left where it was, not lost to the window
+            expect(dockview.panels.map((p) => p.id)).toEqual(['p1']);
+        });
+    });
+
+    /**
+     * A host that answers `window.open` itself sees the URL, but not the target
+     * name, so the id has to be able to travel in the URL.
+     */
+    describe('popoutWindowIdParam', () => {
+        function captureOpenUrl(): { current: string | undefined } {
+            const ref: { current: string | undefined } = { current: undefined };
+            window.open = ((url?: string | URL) => {
+                ref.current = url?.toString();
+                return setupMockWindow();
+            }) as typeof window.open;
+            return ref;
+        }
+
+        test('carries the popout window id, and matches the event id', async () => {
+            const opened = captureOpenUrl();
+            const local = new DockviewComponent(document.createElement('div'), {
+                createComponent: () => new TestPanel(),
+                popoutWindowIdParam: 'dv-window',
+            });
+            local.layout(1000, 1000);
+
+            try {
+                const panel = local.addPanel({
+                    id: 'p1',
+                    component: 'default',
+                });
+                await local.addPopoutGroup(panel);
+
+                const url = new URL(opened.current!);
+                expect(url.pathname).toBe('/popout.html');
+
+                const id = url.searchParams.get('dv-window');
+                expect(id).toBeTruthy();
+
+                // the same id the events carry, so a host can match the window
+                // it was asked to open against the one dockview reports on
+                const closing: string[] = [];
+                local.onWillClosePopoutWindow((e) => closing.push(e.id));
+                local.getPopouts()[0].window.close();
+
+                expect(closing).toEqual([id]);
+            } finally {
+                local.dispose();
+            }
+        });
+
+        test('saved layouts keep the configured URL', async () => {
+            captureOpenUrl();
+            const local = new DockviewComponent(document.createElement('div'), {
+                createComponent: () => new TestPanel(),
+                popoutWindowIdParam: 'dv-window',
+            });
+            local.layout(1000, 1000);
+
+            try {
+                const panel = local.addPanel({
+                    id: 'p1',
+                    component: 'default',
+                });
+                await local.addPopoutGroup(panel, {
+                    popoutUrl: '/custom.html',
+                });
+
+                expect(local.toJSON().popoutGroups?.[0].url).toBe(
+                    '/custom.html'
+                );
+            } finally {
+                local.dispose();
+            }
+        });
+
+        test('is off unless set', async () => {
+            const opened = captureOpenUrl();
+            const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+            await dockview.addPopoutGroup(panel);
+
+            expect(opened.current).toBe('/popout.html');
+        });
     });
 
     test('onDidRemovePopoutGroup does not fire on component disposal', async () => {
