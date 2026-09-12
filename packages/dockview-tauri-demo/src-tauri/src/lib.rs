@@ -86,7 +86,6 @@ fn open_related_window(
     match built {
         Ok(window) => {
             honour_script_close(&window);
-            unload_before_close(&window);
             NewWindowResponse::Create { window }
         }
         Err(err) => {
@@ -121,27 +120,6 @@ fn honour_script_close(window: &WebviewWindow) {
     {
         let _ = window;
     }
-}
-
-/// A native close tears the webview down without running the page's unload
-/// handlers, and dockview learns that a popout is gone from `beforeunload`
-/// on the popout document: skip it and the group is lost with the window.
-/// So the close request is held, the page told to unload (which on
-/// platforms that honour `window.close()` also closes the window), and the
-/// window destroyed once the page has had its turn.
-fn unload_before_close(window: &WebviewWindow) {
-    let handle = window.clone();
-    window.on_window_event(move |event| {
-        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-            api.prevent_close();
-            let _ = handle.eval("window.dispatchEvent(new Event('beforeunload')); window.close();");
-            let target = handle.clone();
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_millis(300));
-                let _ = target.destroy();
-            });
-        }
-    });
 }
 
 /// Destroys a window this shell created for `window.open`. wry's macOS UI
