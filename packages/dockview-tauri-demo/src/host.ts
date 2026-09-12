@@ -5,6 +5,8 @@
  * the host's, not the browser's.
  */
 
+import { getPopoutUrlError } from 'dockview';
+
 export type WebviewEngine =
     | 'WKWebView'
     | 'WebKitGTK'
@@ -54,54 +56,43 @@ export function detectEngine(userAgent: string): WebviewEngine {
 }
 
 /**
- * Mirrors dockview's internal `getPopoutUrlError` guard so the demo can report
- * *why* a popout would be refused instead of only surfacing the throw.
+ * Asks dockview's own guard whether a popout URL is usable, and reports *why*
+ * when it is not, rather than only surfacing the throw. The guard is exported,
+ * so the verdict here is the one the library will reach when the window is
+ * opened - not a copy of its rules that can drift from them.
  *
- * The guard requires the URL to be same-origin with the page by scheme and
- * host, and refuses the `javascript:`, `data:`, `blob:`, `vbscript:` and
- * `file:` schemes outright. A custom app scheme qualifies: a macOS/Linux
- * release build serves the app from `tauri://localhost`, and a popout at
+ * It requires the URL to be same-origin with the page by scheme and host, and
+ * refuses the `javascript:`, `data:`, `blob:`, `vbscript:` and `file:` schemes
+ * outright. A custom app scheme qualifies: a macOS/Linux release build serves
+ * the app from `tauri://localhost`, and a popout at
  * `tauri://localhost/popout.html` is same-origin with it.
  */
-const UNSAFE_PROTOCOLS = new Set([
-    'javascript:',
-    'data:',
-    'blob:',
-    'vbscript:',
-    'file:',
-]);
-
 export function diagnosePopoutUrl(url = '/popout.html'): PopoutUrlDiagnosis {
-    let resolved: URL;
+    const page = globalThis.location;
+    const error = getPopoutUrlError(url);
 
+    let resolved: string;
     try {
-        resolved = new URL(url, globalThis.location.href);
+        resolved = new URL(url, page.href).href;
     } catch {
         return { supported: false, url, reason: 'not a parsable URL' };
     }
 
-    if (UNSAFE_PROTOCOLS.has(resolved.protocol)) {
-        return {
-            supported: false,
-            url: resolved.href,
-            reason: `protocol "${resolved.protocol}" would run in the opener's context`,
-        };
-    }
-
-    const page = globalThis.location;
-    if (resolved.protocol !== page.protocol || resolved.host !== page.host) {
-        return {
-            supported: false,
-            url: resolved.href,
-            reason: `cross-origin with the host page (${page.protocol}//${page.host})`,
-        };
-    }
-
-    return {
-        supported: true,
-        url: resolved.href,
-        reason: `same-origin (${page.protocol}//${page.host})`,
-    };
+    return error
+        ? {
+              supported: false,
+              url: resolved,
+              // the message already names the rule that was broken; the URL is
+              // reported separately
+              reason: error.message
+                  .replace(/^dockview: /, '')
+                  .replace(/; got: .*$/, ''),
+          }
+        : {
+              supported: true,
+              url: resolved,
+              reason: `same-origin (${page.protocol}//${page.host})`,
+          };
 }
 
 export function readHostReport(): HostReport {

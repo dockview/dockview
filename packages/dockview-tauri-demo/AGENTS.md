@@ -39,6 +39,10 @@ not a published package and not a supported example.
 - `src-tauri/Cargo.lock` is committed, as it is for any application crate.
   Update it through cargo rather than by hand, and keep `cargo check --locked`
   passing.
-- `host.ts` mirrors dockview's internal `assertSameOriginPopoutUrl` guard. If
-  that guard changes in `dockview-core`, mirror the change here — the whole
-  point of the panel is to explain *why* a popout would be refused.
+- `host.ts` asks dockview's exported `getPopoutUrlError` for its verdict rather
+  than restating the rules, so the panel cannot drift from the library while
+  still explaining *why* a popout would be refused.
+- Closing popout windows goes through `api.onWillClosePopoutWindow` in
+  `src/main.ts`, registered once: it covers every popout the component opens,
+  including the ones dockview opens for itself (the group context menu, a
+  restored layout), which per-call `addPopoutGroup` options do not.

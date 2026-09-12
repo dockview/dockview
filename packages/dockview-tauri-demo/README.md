@@ -47,7 +47,8 @@ per-platform icon set if you need a signed, distributable build.
 ## What each panel is for
 
 **Host** — what the page thinks it is running inside: origin, protocol, webview
-engine, and whether dockview would accept this origin as a popout target.
+engine, and whether dockview would accept this origin as a popout target (asked
+of dockview's own exported guard, `getPopoutUrlError`).
 
 **Popouts** — the popout mechanism, checked in pieces. It reports the popout URL
 verdict, probes `window.open` directly (does a handle come back, and is the
@@ -179,13 +180,17 @@ Each alone is not enough, and closing needs two more pieces, both in
   destroys the window in wry itself. macOS is different: wry's UI delegate
   has no `webViewDidClose:`, so `close()` does nothing there and the opener,
   which has IPC, asks the shell instead (`close_popout`, keyed by a label the
-  shell injects into the popout document); the demo routes both the
-  `window.open` probe and dockview's own `close()` through it.
+  shell injects into the popout document). dockview reports every popout it
+  lets go of through `api.onWillClosePopoutWindow`, while the window is still
+  there, so `src/main.ts` routes them all through the shell with one listener;
+  the `window.open` probe asks directly.
 - **The user closing the window.** A native close tears the webview down
-  without running the page's unload handlers, and dockview learns that a
-  popout is gone from `beforeunload` on the popout document: skip it and the
-  group is lost with the window. So the close request is held, the page
-  told to unload, and the window destroyed once it has had its turn.
+  without running the page's unload handlers, and `beforeunload` on the popout
+  document is dockview's primary signal that a popout is gone. It is no longer
+  the only one — dockview also polls the window's `closed` flag, so a group
+  comes home within a tick of a close nothing announced — but the shell still
+  gives the page its turn: the close request is held, the page told to unload,
+  and the window destroyed once it has had it.
 
 Measured on Linux: the probe's window closes on `handle.close()`, closing a
 popped-out group's last tab closes its window, and closing the popout window

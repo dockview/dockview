@@ -6,6 +6,7 @@ import './styles.css';
 import 'dockview-enterprise';
 
 import { type IContentRenderer, createDockview, themeAbyss } from 'dockview';
+import { closeNativePopout } from './bridge';
 import { resolveDndStrategy } from './dnd';
 import {
     HostPanel,
@@ -36,6 +37,17 @@ const api = createDockview(container, {
     dndStrategy,
     createComponent: (options) =>
         renderers[options.name]?.() ?? new ScratchPanel(),
+});
+
+/**
+ * dockview closes a popout by calling `close()` on its window when the group is
+ * closed or redocked. wry's macOS UI delegate has no `webViewDidClose:`, so that
+ * is a no-op there and the shell has to destroy the window instead. Registered
+ * once, for every popout window the component opens - including the ones it
+ * opens for itself, from the group context menu or when restoring a layout.
+ */
+api.onWillClosePopoutWindow(({ window }) => {
+    void closeNativePopout(window);
 });
 
 const width = (fraction: number) =>
