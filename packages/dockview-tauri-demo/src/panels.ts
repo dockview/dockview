@@ -50,9 +50,10 @@ function section(title: string, ...children: (Node | string)[]): HTMLElement {
 
 /** What the page thinks it is running inside. */
 export class HostPanel extends DemoPanel {
-    init(): void {
+    init(parameters: GroupPanelPartInitParameters): void {
         const body = el('div');
-        const dndStrategy = resolveDndStrategy();
+        const api = parameters.containerApi;
+        const requested = resolveDndStrategy();
 
         // Live, because the interesting moment is mid-drag: a pointer drag
         // that selects the text it crosses cannot be measured by anything
@@ -60,8 +61,8 @@ export class HostPanel extends DemoPanel {
         // selection. `peak` keeps the high-water mark for the same reason.
         let peak = 0;
         let shieldSeen = false;
-        let overlaysSeen = 0;
-        let overlayUp = false;
+        let overlayEvents = 0;
+        let renderedOverlayEvents = 0;
         let selectStarts = 0;
         let selectStartsPrevented = 0;
         const selection = el('div', { class: 'demo-diag' });
@@ -69,15 +70,23 @@ export class HostPanel extends DemoPanel {
         const renderSelection = () => {
             const length = globalThis.getSelection()?.toString().length ?? 0;
             peak = Math.max(peak, length);
+            const caps = api.dndCapabilities;
             selection.replaceChildren(
                 field(
                     'dnd backend',
-                    `${dndStrategy} (${
-                        document.querySelectorAll('.dv-tab[draggable="true"]')
-                            .length
-                    } tabs natively draggable)`
+                    `${requested} → ${
+                        [
+                            caps.html5 && 'html5',
+                            caps.pointer &&
+                                (caps.pointerHandlesMouse
+                                    ? 'pointer (incl. mouse)'
+                                    : 'pointer (touch/pen)'),
+                        ]
+                            .filter(Boolean)
+                            .join(' + ') || 'none'
+                    }`
                 ),
-                field('drop overlays seen', String(overlaysSeen)),
+                field('drop overlay events', String(overlayEvents)),
                 field('selected chars', `${length} (peak ${peak})`),
                 field('shield seen active', shieldSeen ? 'yes' : 'no'),
                 field(
@@ -87,8 +96,18 @@ export class HostPanel extends DemoPanel {
             );
         };
 
-        // Sampled rather than event-driven: the shield is applied and released
-        // inside a drag, between any events this panel would otherwise see.
+        // A drop overlay means the drag reached dockview: on the HTML5 backend
+        // that is the page receiving `dragover`, which is the thing a host can
+        // break. dockview reports it, so nothing here reads its DOM.
+        const overlays = api.onWillShowOverlay(() => {
+            overlayEvents += 1;
+        });
+        this.onDispose(() => overlays.dispose());
+
+        // The selection shield is internal by nature - a `user-select` applied
+        // and released inside a single drag - so it is sampled rather than
+        // observed. The overlay count is rendered from here too, to keep a
+        // dragover-rate event off the render path.
         const sample = setInterval(() => {
             const applied =
                 document.documentElement.style.getPropertyValue(
@@ -98,14 +117,10 @@ export class HostPanel extends DemoPanel {
                 shieldSeen = true;
                 renderSelection();
             }
-            // `dv-drop-target` is a class toggled on an existing element
-            // while a drag hovers something that accepts it.
-            const overlay = document.querySelector('.dv-drop-target') !== null;
-            if (overlay && !overlayUp) {
-                overlaysSeen += 1;
+            if (overlayEvents !== renderedOverlayEvents) {
+                renderedOverlayEvents = overlayEvents;
                 renderSelection();
             }
-            overlayUp = overlay;
         }, 50);
 
         // Capture phase, so it runs before the shield's own handler and can

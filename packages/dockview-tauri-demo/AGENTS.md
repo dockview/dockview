@@ -39,6 +39,11 @@ not a published package and not a supported example.
 - `src-tauri/Cargo.lock` is committed, as it is for any application crate.
   Update it through cargo rather than by hand, and keep `cargo check --locked`
   passing.
+- The probe panels read dockview through its public API, never its DOM or CSS
+  classes: `api.dndCapabilities` for the resolved drag-and-drop backends,
+  `api.onWillShowOverlay` for drop-overlay activity. The selection shield is
+  the one exception, sampled from `user-select` because it is applied and
+  released inside a single drag with nothing public to observe.
 - `host.ts` asks dockview's exported `getPopoutUrlError` for its verdict rather
   than restating the rules, so the panel cannot drift from the library while
   still explaining *why* a popout would be refused.
