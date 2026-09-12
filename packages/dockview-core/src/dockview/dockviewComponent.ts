@@ -16,6 +16,7 @@ import {
     PositionResolver,
 } from '../dnd/droptarget';
 import { tail, sequenceEquals } from '../array';
+import { DndCapabilities, resolveDndCapabilities } from './dndCapabilities';
 import { DockviewPanel, IDockviewPanel } from './dockviewPanel';
 import {
     CompositeDisposable,
@@ -124,7 +125,12 @@ import {
     DockviewPanelRenderer,
     OverlayRenderContainer,
 } from '../overlay/overlayRenderContainer';
-import { getPopoutUrlError, PopoutWindow } from '../popoutWindow';
+import {
+    getPopoutUrlError,
+    PopoutWindow,
+    PopoutWindowEvent,
+    PopoutWindowFailure,
+} from '../popoutWindow';
 import { StrictEventsSequencing } from './strictEventsSequencing';
 import { PopupService } from './components/popupService';
 import { IRootDropTargetHost } from './rootDropTargetService';
@@ -147,17 +153,19 @@ import {
 } from './tabGroupAccent';
 
 /**
- * A popout window that never opened was either refused outright - an invalid
- * URL, reported with the error - or blocked by the browser, where naming the
- * usual cause is the more useful message.
+ * A popout window that could not be used. An error says the most about why, so
+ * it wins; a blocked window has none, and naming the usual cause is more useful
+ * than naming the reason.
  */
-function logFailedPopout(error: Error | undefined): void {
-    if (error) {
-        console.error('dockview: failed to create popout.', error);
-    } else {
+function logFailedPopout(failure: PopoutWindowFailure): void {
+    if (failure.error) {
+        console.error('dockview: failed to create popout.', failure.error);
+    } else if (failure.reason === 'blocked') {
         console.error(
             'dockview: failed to create popout. perhaps you need to allow pop-ups for this website'
         );
+    } else {
+        console.error(`dockview: failed to create popout (${failure.reason}).`);
     }
 }
 
@@ -200,8 +208,16 @@ export interface DockviewPopoutGroupOptions {
      * Defaults to `/popout.html` if not provided
      */
     popoutUrl?: string;
-    onDidOpen?: (event: { id: string; window: Window }) => void;
-    onWillClose?: (event: { id: string; window: Window }) => void;
+    /**
+     * Called once this popout's window has opened, before its group is moved in.
+     * Scoped to this call; `onDidAddPopoutGroup` covers every popout.
+     */
+    onDidOpen?: (event: PopoutWindowEvent) => void;
+    /**
+     * Called while this popout's window is still open, as dockview lets go of
+     * it. Scoped to this call; `onWillClosePopoutWindow` covers every popout.
+     */
+    onWillClose?: (event: PopoutWindowEvent) => void;
 }
 
 interface DockviewPopoutGroupOptionsInternal
@@ -432,7 +448,8 @@ export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
     readonly onDidPopoutGroupPositionChange: Event<PopoutGroupChangePositionEvent>;
     readonly onDidAddPopoutGroup: Event<PopoutGroup>;
     readonly onDidRemovePopoutGroup: Event<PopoutGroup>;
-    readonly onDidOpenPopoutWindowFail: Event<void>;
+    readonly onDidOpenPopoutWindowFail: Event<PopoutWindowFailure>;
+    readonly onWillClosePopoutWindow: Event<PopoutWindowEvent>;
     getPopouts(): PopoutGroup[];
     readonly onDidCreateTabGroup: Event<DockviewTabGroupChangeEvent>;
     readonly onDidDestroyTabGroup: Event<DockviewTabGroupChangeEvent>;
@@ -441,6 +458,7 @@ export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
     readonly onDidTabGroupChange: Event<DockviewTabGroupChangeEvent>;
     readonly onDidTabGroupCollapsedChange: Event<DockviewTabGroupCollapsedChangeEvent>;
     readonly options: DockviewComponentOptions;
+    readonly dndCapabilities: DndCapabilities;
     readonly tabGroupColorPalette: TabGroupColorPalette;
     updateOptions(options: DockviewOptions): void;
     moveGroupOrPanel(options: MoveGroupOrPanelOptions): void;
@@ -658,9 +676,17 @@ export class DockviewComponent
      *  state (e.g. a live region in each popout). */
     readonly onDidChangePopouts: Event<void> = this._onDidChangePopouts.event;
 
-    private readonly _onDidOpenPopoutWindowFail = new Emitter<void>();
-    readonly onDidOpenPopoutWindowFail: Event<void> =
+    private readonly _onDidOpenPopoutWindowFail =
+        new Emitter<PopoutWindowFailure>();
+    readonly onDidOpenPopoutWindowFail: Event<PopoutWindowFailure> =
         this._onDidOpenPopoutWindowFail.event;
+
+    private readonly _onWillClosePopoutWindow =
+        new Emitter<PopoutWindowEvent>();
+    /** Fires for every popout window this component opened, however it was
+     *  opened, while that window is still there. See `DockviewApi`. */
+    readonly onWillClosePopoutWindow: Event<PopoutWindowEvent> =
+        this._onWillClosePopoutWindow.event;
 
     private readonly _onDidStartFloatingGroupDrag =
         new Emitter<DockviewGroupPanel>();
@@ -792,6 +818,11 @@ export class DockviewComponent
 
     get panels(): IDockviewPanel[] {
         return this.groups.flatMap((group) => group.panels);
+    }
+
+    /** `dndStrategy` resolved against this device; see `DockviewApi`. */
+    get dndCapabilities(): DndCapabilities {
+        return resolveDndCapabilities(this.options);
     }
 
     get options(): DockviewComponentOptions {
@@ -1773,7 +1804,11 @@ export class DockviewComponent
                 // don't hang. See issue #851.
                 this._moduleRegistry.dispose();
                 this._shellManager?.dispose();
-            })
+            }),
+            // Disposed after the registry above, which closes any open popout
+            // windows: its listeners have to outlive that step, and disposables
+            // run in registration order.
+            this._onWillClosePopoutWindow
         );
 
         // Root edge-drop wiring lives with its (optional) module; guard it so
@@ -1976,7 +2011,11 @@ export class DockviewComponent
                 width: box.width,
                 height: box.height,
                 onDidOpen: options?.onDidOpen,
-                onWillClose: options?.onWillClose,
+                onWillClose: (event) => {
+                    // the call's own callback first, then the component-wide event
+                    options?.onWillClose?.(event);
+                    this._onWillClosePopoutWindow.fire(event);
+                },
                 nonce: this.options?.nonce,
             }
         );
@@ -1999,6 +2038,16 @@ export class DockviewComponent
         return (openError ? Promise.resolve(null) : _window.open())
             .then((popoutContainer) => {
                 if (_window.isDisposed) {
+                    // The window went away while it was opening: closed
+                    // mid-load, or unscriptable and abandoned. Nothing has left
+                    // the grid yet, so there is no group to return, but the
+                    // caller is still owed the reason - unless this component is
+                    // itself being disposed, which is not a failure to report.
+                    const failure = _window.failure;
+                    if (failure && !this.isDisposed) {
+                        logFailedPopout(failure);
+                        this._onDidOpenPopoutWindowFail.fire(failure);
+                    }
                     return false;
                 }
 
@@ -2041,7 +2090,9 @@ export class DockviewComponent
                         referenceGroup,
                         options,
                         popoutWindowDisposable,
-                        error: openError,
+                        failure: openError
+                            ? { reason: 'url-refused', error: openError }
+                            : (_window.failure ?? { reason: 'blocked' }),
                     });
                     return false;
                 }
@@ -2355,21 +2406,21 @@ export class DockviewComponent
         referenceGroup: DockviewGroupPanel;
         options?: DockviewPopoutGroupOptionsInternal;
         popoutWindowDisposable: CompositeDisposable;
-        /** Set when the window was refused rather than blocked. */
-        error?: Error;
+        /** Which way the window failed, reported to consumers. */
+        failure: PopoutWindowFailure;
     }): void {
         const {
             group,
             referenceGroup,
             options,
             popoutWindowDisposable,
-            error,
+            failure,
         } = params;
 
-        logFailedPopout(error);
+        logFailedPopout(failure);
 
         popoutWindowDisposable.dispose();
-        this._onDidOpenPopoutWindowFail.fire();
+        this._onDidOpenPopoutWindowFail.fire(failure);
 
         if (options?.overridePopoutGridview) {
             // Restoring a multi-group popout window: its nested gridview was

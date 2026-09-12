@@ -21,6 +21,22 @@ export {
 
 export * from './panel/types';
 
+/**
+ * `getPopoutUrlError` is the guard dockview applies when opening a popout, so an
+ * application can check a `popoutUrl` - and report why it was refused - rather
+ * than keeping a copy of the rules that can drift. The rest are the payloads of
+ * the popout window events.
+ */
+export {
+    getPopoutUrlError,
+    type PopoutWindowEvent,
+    type PopoutWindowFailure,
+    type PopoutWindowFailureReason,
+} from './popoutWindow';
+
+/** Readable through `api.dndCapabilities`. */
+export { type DndCapabilities } from './dockview/dndCapabilities';
+
 export * from './splitview/splitview';
 export {
     type SplitviewComponentOptions,

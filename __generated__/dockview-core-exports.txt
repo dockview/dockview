@@ -36,6 +36,7 @@ DefaultTab
 Direction
 DismissableLayerOptions
 DistributeSizing
+DndCapabilities
 DockviewActivePanelChangeEvent
 DockviewApi
 DockviewComponent
@@ -256,6 +257,9 @@ PinnedTabsOptions
 PopoutGroup
 PopoutGroupChangePositionEvent
 PopoutGroupChangeSizeEvent
+PopoutWindowEvent
+PopoutWindowFailure
+PopoutWindowFailureReason
 Position
 PositionResolver
 PositionResolverArgs
@@ -324,6 +328,7 @@ getGridLocation
 getLocationOrientation
 getPaneData
 getPanelData
+getPopoutUrlError
 getRegisteredModules
 getRelativeLocation
 indexInParent

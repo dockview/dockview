@@ -13,6 +13,8 @@ import {
     PopoutGroupChangeSizeEvent,
     SerializedDockview,
 } from '../dockview/dockviewComponent';
+import { PopoutWindowEvent, PopoutWindowFailure } from '../popoutWindow';
+import { DndCapabilities } from '../dockview/dndCapabilities';
 import {
     AddGroupOptions,
     AddPanelOptions,
@@ -807,6 +809,16 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
         return this.component.onUnhandledDragOver;
     }
 
+    /**
+     * The drag-and-drop backends currently live: `dndStrategy` resolved against
+     * this device, which `'auto'` reads from the primary input device. Only an
+     * HTML5 drag can leave the window it started in, so check `html5` before
+     * relying on a drag between a popout window and the main window.
+     */
+    get dndCapabilities(): DndCapabilities {
+        return this.component.dndCapabilities;
+    }
+
     get onDidPopoutGroupSizeChange(): Event<PopoutGroupChangeSizeEvent> {
         return this.component.onDidPopoutGroupSizeChange;
     }
@@ -833,8 +845,27 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
         return this.component.onDidRemovePopoutGroup;
     }
 
-    get onDidOpenPopoutWindowFail(): Event<void> {
+    /**
+     * Fires when a popout window could not be used, carrying which way it
+     * failed: the URL was refused, the browser blocked the window, the host
+     * returned a window whose document the opener cannot reach, or it closed
+     * before loading. The group stays in (or returns to) the main grid.
+     */
+    get onDidOpenPopoutWindowFail(): Event<PopoutWindowFailure> {
         return this.component.onDidOpenPopoutWindowFail;
+    }
+
+    /**
+     * Fires as dockview lets go of a popout window, while that window is still
+     * open, carrying its live `Window` handle. Covers every popout the component
+     * opened and every reason for closing one, disposal included;
+     * {@link onDidAddPopoutGroup} is the opening half.
+     *
+     * For hosts that own their windows: in a desktop webview the page's own
+     * `close()` can be a no-op, so the shell has to be told.
+     */
+    get onWillClosePopoutWindow(): Event<PopoutWindowEvent> {
+        return this.component.onWillClosePopoutWindow;
     }
 
     /** Enumerate the popout groups currently open in their own windows. */

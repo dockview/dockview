@@ -1,6 +1,11 @@
+import { fromPartial } from '@total-typescript/shoehorn';
 import { DockviewComponent } from '../../dockview/dockviewComponent';
+import { PopoutWindowFailure } from '../../popoutWindow';
 import { IContentRenderer } from '../../dockview/types';
-import { setupMockWindow } from '../__mocks__/mockWindow';
+import {
+    setupDeferredMockWindow,
+    setupMockWindow,
+} from '../__mocks__/mockWindow';
 
 class TestPanel implements IContentRenderer {
     element = document.createElement('div');
@@ -97,6 +102,171 @@ describe('popout lifecycle', () => {
         expect(removed).toEqual([popoutId]);
         expect(dockview.getPopouts()).toEqual([]);
         expect(dockview.panels.find((p) => p.id === 'p1')).toBeDefined();
+    });
+
+    /**
+     * A host that owns its windows needs the handle while the window is still
+     * there, and the per-call `onWillClose` option cannot cover the popouts
+     * dockview opens for itself, so the component fires for all of them.
+     */
+    test('onWillClosePopoutWindow fires with the live window, without any options passed', async () => {
+        // the id is the window's own target - what dockview passed to
+        // `window.open`, and what a host intercepting that call sees
+        let target: string | undefined;
+        window.open = ((_url?: string | URL, name?: string) => {
+            target = name;
+            return setupMockWindow();
+        }) as typeof window.open;
+
+        const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+        await dockview.addPopoutGroup(panel);
+
+        const popout = dockview.getPopouts()[0];
+        const closing: { id: string; window: Window }[] = [];
+        dockview.onWillClosePopoutWindow((e) => closing.push(e));
+
+        popout.window.close();
+
+        expect(closing).toHaveLength(1);
+        expect(closing[0].id).toBe(target);
+        // the handle is still the live window, not a stale or null one
+        expect(closing[0].window).toBe(popout.window);
+    });
+
+    test('onWillClosePopoutWindow runs after a per-call onWillClose', async () => {
+        const order: string[] = [];
+        dockview.onWillClosePopoutWindow(() => order.push('event'));
+
+        const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+        await dockview.addPopoutGroup(panel, {
+            onWillClose: () => order.push('option'),
+        });
+
+        dockview.getPopouts()[0].window.close();
+
+        expect(order).toEqual(['option', 'event']);
+    });
+
+    test('the DockviewApi exposes onWillClosePopoutWindow', async () => {
+        const closing: Window[] = [];
+        dockview.api.onWillClosePopoutWindow((e) => closing.push(e.window));
+
+        const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+        await dockview.addPopoutGroup(panel);
+        const popoutWindow = dockview.getPopouts()[0].window;
+
+        popoutWindow.close();
+
+        expect(closing).toEqual([popoutWindow]);
+    });
+
+    /** Unlike `onDidRemovePopoutGroup`, this one fires during teardown too. */
+    test('onWillClosePopoutWindow fires on component disposal', async () => {
+        const localContainer = document.createElement('div');
+        const local = new DockviewComponent(localContainer, {
+            createComponent: () => new TestPanel(),
+        });
+        local.layout(1000, 1000);
+        const panel = local.addPanel({ id: 'p1', component: 'default' });
+        await local.addPopoutGroup(panel);
+
+        const closing: Window[] = [];
+        local.onWillClosePopoutWindow((e) => closing.push(e.window));
+        const popoutWindow = local.getPopouts()[0].window;
+
+        local.dispose();
+
+        expect(closing).toEqual([popoutWindow]);
+    });
+
+    /**
+     * The remedy differs per reason - allow popups, fix the URL, or stop
+     * offering popouts in this host - so the event has to say which.
+     */
+    describe('onDidOpenPopoutWindowFail says why', () => {
+        test("a blocked window reports 'blocked'", async () => {
+            window.open = () => null;
+            const failures: PopoutWindowFailure[] = [];
+            dockview.onDidOpenPopoutWindowFail((e) => failures.push(e));
+
+            const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+            expect(await dockview.addPopoutGroup(panel)).toBe(false);
+
+            expect(failures).toEqual([{ reason: 'blocked' }]);
+        });
+
+        test("a refused URL reports 'url-refused' with the error", async () => {
+            const failures: PopoutWindowFailure[] = [];
+            dockview.onDidOpenPopoutWindowFail((e) => failures.push(e));
+
+            const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+            expect(
+                await dockview.addPopoutGroup(panel, {
+                    popoutUrl: 'https://evil.example/popout.html',
+                })
+            ).toBe(false);
+
+            expect(failures).toHaveLength(1);
+            expect(failures[0].reason).toBe('url-refused');
+            expect(failures[0].error?.message).toMatch(/dockview: popout URL/);
+        });
+
+        /**
+         * A window that disappears mid-load has no unload handlers registered on
+         * it yet - dockview adds those on `load` - so the `closed` poll is what
+         * notices, and the open has to settle rather than hang.
+         */
+        test("a window closed before it loads reports 'closed'", async () => {
+            jest.useFakeTimers();
+            const deferred = setupDeferredMockWindow();
+            let closed = false;
+            Object.defineProperty(deferred.window, 'closed', {
+                get: () => closed,
+            });
+            window.open = () => deferred.window;
+            const failures: PopoutWindowFailure[] = [];
+            dockview.onDidOpenPopoutWindowFail((e) => failures.push(e));
+
+            try {
+                const panel = dockview.addPanel({
+                    id: 'p1',
+                    component: 'default',
+                });
+                const opening = dockview.addPopoutGroup(panel);
+
+                closed = true;
+                jest.advanceTimersByTime(1000);
+
+                expect(await opening).toBe(false);
+                expect(failures).toEqual([{ reason: 'closed' }]);
+                expect(dockview.panels.map((p) => p.id)).toEqual(['p1']);
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        test("a window the opener cannot script reports 'unscriptable'", async () => {
+            window.open = () =>
+                fromPartial<Window>({
+                    addEventListener: () => {
+                        throw new DOMException('blocked', 'SecurityError');
+                    },
+                    close: () => {
+                        // the host still honours close()
+                    },
+                });
+            const failures: PopoutWindowFailure[] = [];
+            dockview.onDidOpenPopoutWindowFail((e) => failures.push(e));
+
+            const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+            expect(await dockview.addPopoutGroup(panel)).toBe(false);
+
+            expect(failures).toHaveLength(1);
+            expect(failures[0].reason).toBe('unscriptable');
+            expect(failures[0].error?.name).toBe('SecurityError');
+            // the group is left where it was, not lost to the window
+            expect(dockview.panels.map((p) => p.id)).toEqual(['p1']);
+        });
     });
 
     test('onDidRemovePopoutGroup does not fire on component disposal', async () => {

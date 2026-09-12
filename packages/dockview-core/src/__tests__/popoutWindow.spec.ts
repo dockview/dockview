@@ -1,4 +1,8 @@
-import { PopoutWindow, assertSameOriginPopoutUrl } from '../popoutWindow';
+import {
+    PopoutWindow,
+    assertSameOriginPopoutUrl,
+    getPopoutUrlError,
+} from '../popoutWindow';
 
 describe('PopoutWindow', () => {
     function makeFakeExternalWindow() {
@@ -6,14 +10,34 @@ describe('PopoutWindow', () => {
             document.implementation.createHTMLDocument('popout');
         const listeners: Record<string, EventListener[]> = {};
 
+        let closed = false;
+
         const externalWindow: any = {
             document: externalDoc,
-            close: jest.fn(),
+            get closed() {
+                return closed;
+            },
+            close: jest.fn(() => {
+                closed = true;
+            }),
             addEventListener: (type: string, fn: EventListener) => {
                 (listeners[type] ||= []).push(fn);
             },
             removeEventListener: jest.fn(),
-            dispatchEvent: jest.fn(),
+            dispatchEvent: (event: Event) => {
+                for (const fn of listeners[event.type] ?? []) {
+                    fn(event);
+                }
+                return true;
+            },
+        };
+
+        /**
+         * The window goes away without its document running unload handlers, so
+         * all the opener is left with is `closed`.
+         */
+        const simulateSilentClose = () => {
+            closed = true;
         };
 
         const fireLoad = () => {
@@ -28,7 +52,13 @@ describe('PopoutWindow', () => {
             }
         };
 
-        return { externalWindow, externalDoc, fireLoad, fireUnload };
+        return {
+            externalWindow,
+            externalDoc,
+            fireLoad,
+            fireUnload,
+            simulateSilentClose,
+        };
     }
 
     /**
@@ -97,6 +127,152 @@ describe('PopoutWindow', () => {
                 popout.close();
 
                 await expect(opened).resolves.toBeNull();
+            } finally {
+                openSpy.mockRestore();
+                popout.dispose();
+            }
+        });
+
+        /**
+         * A native shell tearing the webview down, or a browser discarding the
+         * page, skips the document's unload handlers, so `beforeunload` never
+         * arrives and the group would be left behind.
+         */
+        test('notices a window that closed without unloading', async () => {
+            jest.useFakeTimers();
+            const { externalWindow, fireLoad, simulateSilentClose } =
+                makeFakeExternalWindow();
+            const { popout, openSpy } = openWindow(externalWindow);
+
+            try {
+                const opened = popout.open();
+                fireLoad();
+                await opened;
+                expect(popout.window).toBe(externalWindow);
+
+                const closes: number[] = [];
+                popout.onDidClose(() => closes.push(1));
+
+                simulateSilentClose();
+                expect(closes).toHaveLength(0);
+
+                jest.advanceTimersByTime(1000);
+
+                expect(closes).toHaveLength(1);
+                expect(popout.window).toBeNull();
+            } finally {
+                openSpy.mockRestore();
+                popout.dispose();
+                jest.useRealTimers();
+            }
+        });
+
+        test('stops polling for a close once the popout is closed', async () => {
+            jest.useFakeTimers();
+            const { externalWindow, fireLoad } = makeFakeExternalWindow();
+            const { popout, openSpy } = openWindow(externalWindow);
+
+            try {
+                const opened = popout.open();
+                fireLoad();
+                await opened;
+
+                popout.close();
+
+                const closes: number[] = [];
+                popout.onDidClose(() => closes.push(1));
+
+                // `close()` above already set the window's `closed` flag; a
+                // poller left running would fire close again on every tick.
+                jest.advanceTimersByTime(5000);
+
+                expect(closes).toHaveLength(0);
+            } finally {
+                openSpy.mockRestore();
+                popout.dispose();
+                jest.useRealTimers();
+            }
+        });
+
+        /**
+         * A host can answer `window.open` with a window in a separate JavaScript
+         * context, where every access throws. It has to settle as a blocked
+         * window so the caller's fallback returns the group to the grid.
+         */
+        test('an unscriptable window settles as a blocked one', async () => {
+            const { externalWindow } = makeFakeExternalWindow();
+            const warn = jest.spyOn(console, 'warn').mockImplementation();
+            externalWindow.addEventListener = () => {
+                throw new DOMException('blocked a frame', 'SecurityError');
+            };
+
+            const { popout, openSpy } = openWindow(externalWindow);
+
+            try {
+                await expect(popout.open()).resolves.toBeNull();
+                expect(externalWindow.close).toHaveBeenCalled();
+                expect(popout.window).toBeNull();
+            } finally {
+                openSpy.mockRestore();
+                warn.mockRestore();
+                popout.dispose();
+            }
+        });
+
+        test('a document that cannot be reached after load settles as blocked', async () => {
+            const { externalWindow, fireLoad } = makeFakeExternalWindow();
+            const warn = jest.spyOn(console, 'warn').mockImplementation();
+            Object.defineProperty(externalWindow, 'document', {
+                get() {
+                    throw new DOMException('blocked a frame', 'SecurityError');
+                },
+            });
+
+            const { popout, openSpy } = openWindow(externalWindow);
+
+            try {
+                const opened = popout.open();
+                fireLoad();
+
+                await expect(opened).resolves.toBeNull();
+                expect(externalWindow.close).toHaveBeenCalled();
+            } finally {
+                openSpy.mockRestore();
+                warn.mockRestore();
+                popout.dispose();
+            }
+        });
+
+        /**
+         * A host may answer `close()` by running the document's unload handlers
+         * there and then, re-entering through dockview's own `beforeunload`
+         * listener. One close is one close.
+         */
+        test('a host that unloads the document inside close() still closes once', async () => {
+            const { externalWindow, fireLoad } = makeFakeExternalWindow();
+            const { popout, openSpy } = openWindow(externalWindow);
+
+            try {
+                const opened = popout.open();
+                fireLoad();
+                await opened;
+
+                const willClose: number[] = [];
+                const didClose: number[] = [];
+                popout.onWillClose(() => willClose.push(1));
+                popout.onDidClose(() => didClose.push(1));
+
+                // the host runs the document's unload handlers as part of
+                // closing the window, which reaches the `beforeunload` listener
+                // dockview registered on the popout
+                externalWindow.close.mockImplementation(() => {
+                    externalWindow.dispatchEvent(new Event('beforeunload'));
+                });
+
+                popout.close();
+
+                expect(willClose).toHaveLength(1);
+                expect(didClose).toHaveLength(1);
             } finally {
                 openSpy.mockRestore();
                 popout.dispose();
@@ -290,5 +466,52 @@ describe('assertSameOriginPopoutUrl', () => {
                 /dockview: popout URL/
             );
         });
+    });
+});
+
+describe('getPopoutUrlError on a custom app scheme', () => {
+    // A packaged desktop webview serves the app from its own scheme (Tauri on
+    // macOS and Linux: `tauri://localhost`). The URL spec gives such schemes
+    // an opaque origin, so `origin` comparison cannot tell same-app from
+    // cross-app; scheme + host can.
+    const page = {
+        href: 'tauri://localhost/index.html',
+        protocol: 'tauri:',
+        host: 'localhost',
+    };
+
+    test.each([
+        '/popout.html',
+        'popout.html',
+        'tauri://localhost/popout.html',
+        'tauri://localhost/nested/popout.html?x=1#y',
+    ])('accepts %s', (url) => {
+        expect(getPopoutUrlError(url, page)).toBeUndefined();
+    });
+
+    test.each([
+        // a different app, or a different scheme, is another origin
+        ['tauri://other-app/popout.html'],
+        ['http://localhost/popout.html'],
+        ['https://localhost/popout.html'],
+        // the unsafe schemes stay refused whatever the page's scheme is
+        ['javascript:alert(1)'],
+        ['data:text/html,<script>alert(1)</script>'],
+        ['blob:tauri://localhost/abc-123'],
+        ['vbscript:msgbox(1)'],
+        ['file:///etc/passwd'],
+    ])('rejects %s', (url) => {
+        expect(getPopoutUrlError(url, page)).toBeInstanceOf(Error);
+    });
+
+    test('a file: page still cannot pop out file: URLs', () => {
+        const filePage = {
+            href: 'file:///app/index.html',
+            protocol: 'file:',
+            host: '',
+        };
+        expect(getPopoutUrlError('/popout.html', filePage)).toBeInstanceOf(
+            Error
+        );
     });
 });

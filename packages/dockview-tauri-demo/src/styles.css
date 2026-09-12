@@ -1,0 +1,123 @@
+:root {
+    color-scheme: dark;
+    font-family:
+        system-ui,
+        -apple-system,
+        'Segoe UI',
+        sans-serif;
+    font-size: 13px;
+}
+
+html,
+body,
+#app {
+    height: 100%;
+    margin: 0;
+}
+
+.demo-panel {
+    height: 100%;
+    overflow: auto;
+    padding: 12px 14px;
+    box-sizing: border-box;
+    color: var(--dv-activegroup-visiblepanel-tab-color, #f0f0f0);
+}
+
+.demo-heading {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    opacity: 0.75;
+}
+
+.demo-section + .demo-section {
+    margin-top: 16px;
+}
+
+.demo-field {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 10px;
+    padding: 2px 0;
+    align-items: baseline;
+}
+
+.demo-field-label {
+    flex: 0 1 auto;
+    min-width: 9em;
+    opacity: 0.6;
+}
+
+.demo-field-value {
+    flex: 1 1 auto;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    overflow-wrap: anywhere;
+}
+
+.demo-note {
+    margin: 10px 0;
+    line-height: 1.5;
+    opacity: 0.7;
+}
+
+.demo-verdict {
+    margin: 10px 0 0;
+    padding: 8px 10px;
+    border-radius: 4px;
+    border-left: 3px solid currentcolor;
+    line-height: 1.5;
+}
+
+.demo-verdict-ok {
+    color: #7bd88f;
+    background: rgb(123 216 143 / 10%);
+}
+
+.demo-verdict-bad {
+    color: #ff9d7a;
+    background: rgb(255 157 122 / 10%);
+}
+
+.demo-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 10px 0;
+}
+
+.demo-button {
+    font: inherit;
+    color: inherit;
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: 1px solid rgb(255 255 255 / 20%);
+    background: rgb(255 255 255 / 6%);
+    cursor: pointer;
+}
+
+.demo-button:hover {
+    background: rgb(255 255 255 / 12%);
+}
+
+.demo-log {
+    margin-top: 10px;
+    max-height: 260px;
+    overflow: auto;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    border-top: 1px solid rgb(255 255 255 / 12%);
+}
+
+.demo-log-line {
+    padding: 3px 0;
+    border-bottom: 1px solid rgb(255 255 255 / 6%);
+    overflow-wrap: anywhere;
+}
+
+.demo-diag {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    background: rgb(255 255 255 / 5%);
+}

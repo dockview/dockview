@@ -42,7 +42,9 @@ api.addPopoutGroup(
 
 :::warning Security: same-origin only
 
-`popoutUrl` must point to a same-origin `http(s)` location. Dockview rejects `javascript:`, `data:`, `blob:`, and cross-origin URLs to prevent a malicious value (for example, from a layout JSON loaded from an untrusted source) from executing script in a context the browser still associates with your application via `window.opener`. The guard runs automatically when the popout is opened, including on layouts restored via `fromJSON()`.
+`popoutUrl` must point to a same-origin location: the same scheme and host as the page, which includes an app's own scheme in a desktop webview (for example `tauri://localhost`). Dockview rejects `javascript:`, `data:`, `blob:`, `vbscript:`, `file:` and cross-origin URLs to prevent a malicious value (for example, from a layout JSON loaded from an untrusted source) from executing script in a context the browser still associates with your application via `window.opener`. The guard runs automatically when the popout is opened, including on layouts restored via `fromJSON()`.
+
+To check a URL yourself - to disable a "pop out" affordance, or to report why it was refused - call `getPopoutUrlError(url)`, the same guard Dockview applies. It returns the `Error` it would have raised, or `undefined` when the URL is allowed.
 :::
 
 From within a panel you may say
@@ -70,7 +72,8 @@ popout could not be created: the browser blocked the window, the window was
 closed before it finished loading, or the item cannot be popped out at all (an
 edge group). The panels are left in the main grid, or returned to the group they
 came from, and `onDidOpenPopoutWindowFail` fires for a window that never became
-usable.
+usable, carrying which way it failed: `'blocked'`, `'url-refused'`,
+`'unscriptable'` or `'closed'`.
 
 The [layout transaction](/docs/core/events#mutation-boundary) covers the whole
 operation: `onWillMutateLayout` fires with `kind: 'popout'` before the window is
@@ -107,7 +110,7 @@ Floating overlays, including drag-target indicators, the tab context menu, and t
 
 ## Popout window events
 
-`DockviewApi` exposes three events specific to popout windows:
+`DockviewApi` exposes four events specific to popout windows:
 
 ```ts
 // Fires when the popout window is resized by the user
@@ -120,11 +123,30 @@ api.onDidPopoutGroupPositionChange((event: PopoutGroupChangePositionEvent) => {
     console.log('popout moved:', event);
 });
 
-// Fires when the browser blocked opening the popout window (e.g. popup blocker)
-api.onDidOpenPopoutWindowFail(() => {
-    alert('Please allow popups for this site to use this feature.');
+// Fires when a popout window could not be used, saying which way it failed
+api.onDidOpenPopoutWindowFail((failure) => {
+    if (failure.reason === 'blocked') {
+        alert('Please allow popups for this site to use this feature.');
+    }
+});
+
+// Fires as Dockview lets go of a popout window, while the window is still open
+api.onWillClosePopoutWindow((event) => {
+    console.log('closing', event.id, event.window);
 });
 ```
+
+`onWillClosePopoutWindow` fires for every popout window the component opened,
+however it was opened, and whatever is closing it - component disposal included.
+The per-call `onDidOpen` / `onWillClose` options on `addPopoutGroup` only see the
+popout that call opened, so they miss the ones Dockview opens for itself: from
+the group context menu, or when restoring a saved layout.
+
+That matters when the host owns its windows rather than the browser. In a
+desktop webview (Tauri, Electron and friends), the page's own `window.close()`
+may not close the real window, so the shell has to be asked to close it -
+`onWillClosePopoutWindow` hands over the live handle at the one moment that is
+still possible. `onDidAddPopoutGroup` is the opening half of the same pair.
 
 ## See also
 

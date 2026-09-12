@@ -1,0 +1,5 @@
+dist/
+
+# Rust build output and Tauri's generated mobile/desktop scaffolding.
+src-tauri/target/
+src-tauri/gen/

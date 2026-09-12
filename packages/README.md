@@ -20,6 +20,11 @@ This mono-repository has a number of packages containing the code for the dockvi
 -   Depends on `dockview`; peer dependency on `react`.
 -   Published as [dockview-react](https://www.npmjs.com/package/dockview-react) on npm, the canonical install name for React.
 
+## dockview-tauri-demo
+
+-   A private Tauri desktop shell hosting dockview, used to test host-environment behaviour: popout groups in a native webview, native window isolation, and cross-process layout sync.
+-   Not published, and not a supported example.
+
 ## docs
 
 -   Code for [dockview.dev](dockview.dev).
