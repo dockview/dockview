@@ -16,6 +16,7 @@ import {
     PositionResolver,
 } from '../dnd/droptarget';
 import { tail, sequenceEquals } from '../array';
+import { DndCapabilities, resolveDndCapabilities } from './dndCapabilities';
 import { DockviewPanel, IDockviewPanel } from './dockviewPanel';
 import {
     CompositeDisposable,
@@ -457,6 +458,7 @@ export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
     readonly onDidTabGroupChange: Event<DockviewTabGroupChangeEvent>;
     readonly onDidTabGroupCollapsedChange: Event<DockviewTabGroupCollapsedChangeEvent>;
     readonly options: DockviewComponentOptions;
+    readonly dndCapabilities: DndCapabilities;
     readonly tabGroupColorPalette: TabGroupColorPalette;
     updateOptions(options: DockviewOptions): void;
     moveGroupOrPanel(options: MoveGroupOrPanelOptions): void;
@@ -817,6 +819,16 @@ export class DockviewComponent
 
     get panels(): IDockviewPanel[] {
         return this.groups.flatMap((group) => group.panels);
+    }
+
+    /**
+     * The drag-and-drop backends currently live, i.e. `dndStrategy` resolved
+     * against this device. Recomputed on read, since `'auto'` reads the primary
+     * input device and an embedded webview can report a coarse pointer where a
+     * mouse is attached.
+     */
+    get dndCapabilities(): DndCapabilities {
+        return resolveDndCapabilities(this.options);
     }
 
     get options(): DockviewComponentOptions {

@@ -36,6 +36,7 @@ DefaultTab
 Direction
 DismissableLayerOptions
 DistributeSizing
+DndCapabilities
 DockviewActivePanelChangeEvent
 DockviewApi
 DockviewComponent

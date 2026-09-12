@@ -31,6 +31,9 @@ export {
     type PopoutWindowEvent,
 } from './popoutWindow';
 
+/** Readable through `api.dndCapabilities`. */
+export { type DndCapabilities } from './dockview/dndCapabilities';
+
 export * from './splitview/splitview';
 export {
     type SplitviewComponentOptions,

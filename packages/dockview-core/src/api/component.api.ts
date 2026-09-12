@@ -14,6 +14,7 @@ import {
     SerializedDockview,
 } from '../dockview/dockviewComponent';
 import { PopoutWindowEvent } from '../popoutWindow';
+import { DndCapabilities } from '../dockview/dndCapabilities';
 import {
     AddGroupOptions,
     AddPanelOptions,
@@ -832,6 +833,17 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
      */
     get onDidRemovePopoutGroup(): Event<PopoutGroup> {
         return this.component.onDidRemovePopoutGroup;
+    }
+
+    /**
+     * The drag-and-drop backends currently live: the `dndStrategy` option
+     * resolved against this device. `'auto'` (the default) decides from the
+     * primary input device, so this is the only way to know what it chose - and
+     * the distinction matters, because only an HTML5 drag rides an OS drag
+     * session and so only an HTML5 drag can leave the window it started in.
+     */
+    get dndCapabilities(): DndCapabilities {
+        return this.component.dndCapabilities;
     }
 
     get onDidOpenPopoutWindowFail(): Event<void> {
