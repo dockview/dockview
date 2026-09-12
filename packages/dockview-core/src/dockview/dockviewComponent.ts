@@ -124,7 +124,11 @@ import {
     DockviewPanelRenderer,
     OverlayRenderContainer,
 } from '../overlay/overlayRenderContainer';
-import { getPopoutUrlError, PopoutWindow } from '../popoutWindow';
+import {
+    getPopoutUrlError,
+    PopoutWindow,
+    PopoutWindowEvent,
+} from '../popoutWindow';
 import { StrictEventsSequencing } from './strictEventsSequencing';
 import { PopupService } from './components/popupService';
 import { IRootDropTargetHost } from './rootDropTargetService';
@@ -200,8 +204,19 @@ export interface DockviewPopoutGroupOptions {
      * Defaults to `/popout.html` if not provided
      */
     popoutUrl?: string;
-    onDidOpen?: (event: { id: string; window: Window }) => void;
-    onWillClose?: (event: { id: string; window: Window }) => void;
+    /**
+     * Called once this popout's window has opened, before its group is moved
+     * in. Scoped to this call: for every popout window a component opens -
+     * including those opened from the group context menu or restored from a
+     * layout - listen to {@link IDockviewComponent.onDidAddPopoutGroup}.
+     */
+    onDidOpen?: (event: PopoutWindowEvent) => void;
+    /**
+     * Called while this popout's window is still open, as dockview lets go of
+     * it. Scoped to this call: for every popout window a component opens, use
+     * {@link IDockviewComponent.onWillClosePopoutWindow}.
+     */
+    onWillClose?: (event: PopoutWindowEvent) => void;
 }
 
 interface DockviewPopoutGroupOptionsInternal
@@ -433,6 +448,7 @@ export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
     readonly onDidAddPopoutGroup: Event<PopoutGroup>;
     readonly onDidRemovePopoutGroup: Event<PopoutGroup>;
     readonly onDidOpenPopoutWindowFail: Event<void>;
+    readonly onWillClosePopoutWindow: Event<PopoutWindowEvent>;
     getPopouts(): PopoutGroup[];
     readonly onDidCreateTabGroup: Event<DockviewTabGroupChangeEvent>;
     readonly onDidDestroyTabGroup: Event<DockviewTabGroupChangeEvent>;
@@ -661,6 +677,15 @@ export class DockviewComponent
     private readonly _onDidOpenPopoutWindowFail = new Emitter<void>();
     readonly onDidOpenPopoutWindowFail: Event<void> =
         this._onDidOpenPopoutWindowFail.event;
+
+    private readonly _onWillClosePopoutWindow =
+        new Emitter<PopoutWindowEvent>();
+    /** Fires for every popout window this component opened, however it was
+     *  opened, while the window is still there. `onDidAddPopoutGroup` is the
+     *  other half; this one carries the live handle a host needs to act on a
+     *  window the page's own `close()` cannot reach. */
+    readonly onWillClosePopoutWindow: Event<PopoutWindowEvent> =
+        this._onWillClosePopoutWindow.event;
 
     private readonly _onDidStartFloatingGroupDrag =
         new Emitter<DockviewGroupPanel>();
@@ -1773,7 +1798,13 @@ export class DockviewComponent
                 // don't hang. See issue #851.
                 this._moduleRegistry.dispose();
                 this._shellManager?.dispose();
-            })
+            }),
+            // Deliberately disposed after the registry above, which is what
+            // closes any open popout windows: teardown is precisely when a host
+            // owning real windows still has them to close, so its
+            // `onWillClosePopoutWindow` listeners must outlive that step.
+            // Disposables run in registration order.
+            this._onWillClosePopoutWindow
         );
 
         // Root edge-drop wiring lives with its (optional) module; guard it so
@@ -1976,7 +2007,17 @@ export class DockviewComponent
                 width: box.width,
                 height: box.height,
                 onDidOpen: options?.onDidOpen,
-                onWillClose: options?.onWillClose,
+                onWillClose: (event) => {
+                    // The per-call callback first, then the component-wide
+                    // event: a caller that passed both sees the specific hook
+                    // run before the general one. The event fires whatever
+                    // opened this window - `api.addPopoutGroup`, the group
+                    // context menu, a restored layout - and whatever is closing
+                    // it, component disposal included, since that is exactly
+                    // when a host with windows of its own still has work to do.
+                    options?.onWillClose?.(event);
+                    this._onWillClosePopoutWindow.fire(event);
+                },
                 nonce: this.options?.nonce,
             }
         );

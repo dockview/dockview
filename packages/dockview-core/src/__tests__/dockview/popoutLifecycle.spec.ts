@@ -99,6 +99,86 @@ describe('popout lifecycle', () => {
         expect(dockview.panels.find((p) => p.id === 'p1')).toBeDefined();
     });
 
+    /**
+     * A host that owns its windows (a desktop webview, where the page's own
+     * `close()` can be a no-op) has to be told to close the real window, and
+     * needs the handle while it is still there. The per-call `onWillClose`
+     * option cannot cover popouts dockview opens for itself - the group context
+     * menu, a restored layout - so the component fires for all of them.
+     */
+    test('onWillClosePopoutWindow fires with the live window, without any options passed', async () => {
+        // the id is the window's own target - what dockview passed to
+        // `window.open`, and what a host intercepting that call sees
+        let target: string | undefined;
+        window.open = ((_url?: string | URL, name?: string) => {
+            target = name;
+            return setupMockWindow();
+        }) as typeof window.open;
+
+        const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+        await dockview.addPopoutGroup(panel);
+
+        const popout = dockview.getPopouts()[0];
+        const closing: { id: string; window: Window }[] = [];
+        dockview.onWillClosePopoutWindow((e) => closing.push(e));
+
+        popout.window.close();
+
+        expect(closing).toHaveLength(1);
+        expect(closing[0].id).toBe(target);
+        // the handle is still the live window, not a stale or null one
+        expect(closing[0].window).toBe(popout.window);
+    });
+
+    test('onWillClosePopoutWindow runs after a per-call onWillClose', async () => {
+        const order: string[] = [];
+        dockview.onWillClosePopoutWindow(() => order.push('event'));
+
+        const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+        await dockview.addPopoutGroup(panel, {
+            onWillClose: () => order.push('option'),
+        });
+
+        dockview.getPopouts()[0].window.close();
+
+        expect(order).toEqual(['option', 'event']);
+    });
+
+    test('the DockviewApi exposes onWillClosePopoutWindow', async () => {
+        const closing: Window[] = [];
+        dockview.api.onWillClosePopoutWindow((e) => closing.push(e.window));
+
+        const panel = dockview.addPanel({ id: 'p1', component: 'default' });
+        await dockview.addPopoutGroup(panel);
+        const popoutWindow = dockview.getPopouts()[0].window;
+
+        popoutWindow.close();
+
+        expect(closing).toEqual([popoutWindow]);
+    });
+
+    /**
+     * Unlike `onDidRemovePopoutGroup`, this one does fire during teardown: a
+     * host with real windows open has work left to do at exactly that moment.
+     */
+    test('onWillClosePopoutWindow fires on component disposal', async () => {
+        const localContainer = document.createElement('div');
+        const local = new DockviewComponent(localContainer, {
+            createComponent: () => new TestPanel(),
+        });
+        local.layout(1000, 1000);
+        const panel = local.addPanel({ id: 'p1', component: 'default' });
+        await local.addPopoutGroup(panel);
+
+        const closing: Window[] = [];
+        local.onWillClosePopoutWindow((e) => closing.push(e.window));
+        const popoutWindow = local.getPopouts()[0].window;
+
+        local.dispose();
+
+        expect(closing).toEqual([popoutWindow]);
+    });
+
     test('onDidRemovePopoutGroup does not fire on component disposal', async () => {
         // use a dedicated component so the shared afterEach doesn't double-dispose
         const localContainer = document.createElement('div');

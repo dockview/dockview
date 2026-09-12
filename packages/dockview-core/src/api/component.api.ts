@@ -13,6 +13,7 @@ import {
     PopoutGroupChangeSizeEvent,
     SerializedDockview,
 } from '../dockview/dockviewComponent';
+import { PopoutWindowEvent } from '../popoutWindow';
 import {
     AddGroupOptions,
     AddPanelOptions,
@@ -835,6 +836,20 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
 
     get onDidOpenPopoutWindowFail(): Event<void> {
         return this.component.onDidOpenPopoutWindowFail;
+    }
+
+    /**
+     * Fires as dockview lets go of a popout window, while that window is still
+     * open, carrying its live `Window` handle. Covers every popout the
+     * component opened - `addPopoutGroup`, the group context menu, a restored
+     * layout - and every reason for closing one, including component disposal.
+     *
+     * Made for hosts that own their windows: in a desktop webview the page's
+     * `window.close()` can be a no-op, so the shell has to be told to close the
+     * real window. {@link onDidAddPopoutGroup} is the opening half.
+     */
+    get onWillClosePopoutWindow(): Event<PopoutWindowEvent> {
+        return this.component.onWillClosePopoutWindow;
     }
 
     /** Enumerate the popout groups currently open in their own windows. */

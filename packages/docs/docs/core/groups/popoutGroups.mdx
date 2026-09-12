@@ -124,7 +124,24 @@ api.onDidPopoutGroupPositionChange((event: PopoutGroupChangePositionEvent) => {
 api.onDidOpenPopoutWindowFail(() => {
     alert('Please allow popups for this site to use this feature.');
 });
+
+// Fires as Dockview lets go of a popout window, while the window is still open
+api.onWillClosePopoutWindow((event) => {
+    console.log('closing', event.id, event.window);
+});
 ```
+
+`onWillClosePopoutWindow` fires for every popout window the component opened,
+however it was opened, and whatever is closing it - component disposal included.
+The per-call `onDidOpen` / `onWillClose` options on `addPopoutGroup` only see the
+popout that call opened, so they miss the ones Dockview opens for itself: from
+the group context menu, or when restoring a saved layout.
+
+That matters when the host owns its windows rather than the browser. In a
+desktop webview (Tauri, Electron and friends), the page's own `window.close()`
+may not close the real window, so the shell has to be asked to close it -
+`onWillClosePopoutWindow` hands over the live handle at the one moment that is
+still possible. `onDidAddPopoutGroup` is the opening half of the same pair.
 
 ## See also
 

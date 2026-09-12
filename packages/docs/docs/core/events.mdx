@@ -198,6 +198,15 @@ api.onDidPopoutGroupPositionChange(
 api.onDidOpenPopoutWindowFail(() => {
     console.warn('popup was blocked by the browser');
 });
+
+// Fires as Dockview lets go of a popout window, while that window is still
+// open. Covers every popout the component opened - `addPopoutGroup`, the group
+// context menu, a restored layout - and every reason for closing one, component
+// disposal included.
+api.onWillClosePopoutWindow((event: PopoutWindowEvent) => {
+    // event.window is still live here; event.id is the window's target name,
+    // as passed to `window.open`
+});
 ```
 
 Enumerate the popout groups currently open at any time:
