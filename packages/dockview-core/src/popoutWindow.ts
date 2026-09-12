@@ -115,11 +115,6 @@ export function getPopoutUrlError(
     return undefined;
 }
 
-/**
- * `url` with `param` set to `id`. Resolved against the page, so a relative URL
- * comes back absolute; the result is the same origin either way, and a host
- * reading the URL of a window it is asked to open sees which popout it is.
- */
 export class PopoutWindow extends CompositeDisposable {
     private readonly _onWillClose = new Emitter<void>();
     readonly onWillClose = this._onWillClose.event;

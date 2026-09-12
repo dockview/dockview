@@ -22,9 +22,10 @@ export {
 export * from './panel/types';
 
 /**
- * The popout URL guard, so an application can check a `popoutUrl` - and report
- * why it was refused - with the same rules dockview applies when opening the
- * window, rather than a copy of them that can drift.
+ * `getPopoutUrlError` is the guard dockview applies when opening a popout, so an
+ * application can check a `popoutUrl` - and report why it was refused - rather
+ * than keeping a copy of the rules that can drift. The rest are the payloads of
+ * the popout window events.
  */
 export {
     getPopoutUrlError,

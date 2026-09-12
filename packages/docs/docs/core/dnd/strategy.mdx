@@ -24,7 +24,9 @@ import { DocRef } from '@site/src/components/ui/reference/docRef';
 const { html5, pointer, pointerHandlesMouse } = api.dndCapabilities;
 ```
 
-It is read fresh each time, and follows `updateOptions`. This matters where a drag has to cross a window boundary: only an HTML5 drag rides an OS drag session, so only an HTML5 drag can move a tab between a popout window and the main window. An embedded webview that reports a coarse pointer with no fine pointer resolves `'auto'` to the pointer backend, where such a drag cannot work however the host is configured, so check `html5` rather than assuming it.
+It is read fresh each time, and follows `updateOptions`.
+
+This matters most for drags that cross a window boundary. Only an HTML5 drag rides an OS drag session, so only an HTML5 drag can move a tab between a popout window and the main window. An embedded webview reporting a coarse pointer and no fine pointer resolves `'auto'` to the pointer backend, where no host configuration will make that drag work. Check `html5` rather than assuming it.
 
 ## Touch gestures
 

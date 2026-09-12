@@ -809,6 +809,16 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
         return this.component.onUnhandledDragOver;
     }
 
+    /**
+     * The drag-and-drop backends currently live: `dndStrategy` resolved against
+     * this device, which `'auto'` reads from the primary input device. Only an
+     * HTML5 drag can leave the window it started in, so check `html5` before
+     * relying on a drag between a popout window and the main window.
+     */
+    get dndCapabilities(): DndCapabilities {
+        return this.component.dndCapabilities;
+    }
+
     get onDidPopoutGroupSizeChange(): Event<PopoutGroupChangeSizeEvent> {
         return this.component.onDidPopoutGroupSizeChange;
     }
@@ -833,16 +843,6 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
      */
     get onDidRemovePopoutGroup(): Event<PopoutGroup> {
         return this.component.onDidRemovePopoutGroup;
-    }
-
-    /**
-     * The drag-and-drop backends currently live: `dndStrategy` resolved against
-     * this device, which `'auto'` reads from the primary input device. Only an
-     * HTML5 drag can leave the window it started in, so check `html5` before
-     * relying on a drag between a popout window and the main window.
-     */
-    get dndCapabilities(): DndCapabilities {
-        return this.component.dndCapabilities;
     }
 
     /**

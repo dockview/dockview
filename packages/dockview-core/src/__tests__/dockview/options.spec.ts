@@ -154,10 +154,11 @@ describe('api.dndCapabilities', () => {
         const component = componentWith({ dndStrategy: 'auto' });
         try {
             // jsdom has no matchMedia, so 'auto' resolves to the desktop shape
-            expect(component.api.dndCapabilities).toEqual(
-                resolveDndCapabilities({ dndStrategy: 'auto' })
-            );
-            expect(component.api.dndCapabilities.html5).toBe(true);
+            expect(component.api.dndCapabilities).toEqual({
+                html5: true,
+                pointer: true,
+                pointerHandlesMouse: false,
+            });
         } finally {
             component.dispose();
         }

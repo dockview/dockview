@@ -153,9 +153,9 @@ import {
 } from './tabGroupAccent';
 
 /**
- * A popout window that never opened was either refused outright - an invalid
- * URL, reported with the error - or blocked by the browser, where naming the
- * usual cause is the more useful message.
+ * A popout window that could not be used. An error says the most about why, so
+ * it wins; a blocked window has none, and naming the usual cause is more useful
+ * than naming the reason.
  */
 function logFailedPopout(failure: PopoutWindowFailure): void {
     if (failure.error) {
@@ -1999,24 +1999,26 @@ export class DockviewComponent
         // actually opening the window, not baked into saved layouts.
         const resolvedPopoutUrl = options?.popoutUrl ?? this.options?.popoutUrl;
 
-        const popoutWindowId = `${this.id}-${groupId}`;
-
         const popoutUrl = resolvedPopoutUrl ?? '/popout.html';
 
-        const _window = new PopoutWindow(popoutWindowId, theme ?? '', {
-            url: popoutUrl,
-            left: box.left,
-            top: box.top,
-            width: box.width,
-            height: box.height,
-            onDidOpen: options?.onDidOpen,
-            onWillClose: (event) => {
-                // the call's own callback first, then the component-wide event
-                options?.onWillClose?.(event);
-                this._onWillClosePopoutWindow.fire(event);
-            },
-            nonce: this.options?.nonce,
-        });
+        const _window = new PopoutWindow(
+            `${this.id}-${groupId}`, // unique id
+            theme ?? '',
+            {
+                url: popoutUrl,
+                left: box.left,
+                top: box.top,
+                width: box.width,
+                height: box.height,
+                onDidOpen: options?.onDidOpen,
+                onWillClose: (event) => {
+                    // the call's own callback first, then the component-wide event
+                    options?.onWillClose?.(event);
+                    this._onWillClosePopoutWindow.fire(event);
+                },
+                nonce: this.options?.nonce,
+            }
+        );
 
         const popoutWindowDisposable = new CompositeDisposable(
             _window,
@@ -2039,9 +2041,10 @@ export class DockviewComponent
                     // The window went away while it was opening: closed
                     // mid-load, or unscriptable and abandoned. Nothing has left
                     // the grid yet, so there is no group to return, but the
-                    // caller is still owed the reason.
+                    // caller is still owed the reason - unless this component is
+                    // itself being disposed, which is not a failure to report.
                     const failure = _window.failure;
-                    if (failure) {
+                    if (failure && !this.isDisposed) {
                         logFailedPopout(failure);
                         this._onDidOpenPopoutWindowFail.fire(failure);
                     }

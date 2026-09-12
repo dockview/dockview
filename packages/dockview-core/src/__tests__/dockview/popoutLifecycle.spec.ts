@@ -2,7 +2,10 @@ import { fromPartial } from '@total-typescript/shoehorn';
 import { DockviewComponent } from '../../dockview/dockviewComponent';
 import { PopoutWindowFailure } from '../../popoutWindow';
 import { IContentRenderer } from '../../dockview/types';
-import { setupMockWindow } from '../__mocks__/mockWindow';
+import {
+    setupDeferredMockWindow,
+    setupMockWindow,
+} from '../__mocks__/mockWindow';
 
 class TestPanel implements IContentRenderer {
     element = document.createElement('div');
@@ -206,6 +209,40 @@ describe('popout lifecycle', () => {
             expect(failures).toHaveLength(1);
             expect(failures[0].reason).toBe('url-refused');
             expect(failures[0].error?.message).toMatch(/dockview: popout URL/);
+        });
+
+        /**
+         * A window that disappears mid-load has no unload handlers registered on
+         * it yet - dockview adds those on `load` - so the `closed` poll is what
+         * notices, and the open has to settle rather than hang.
+         */
+        test("a window closed before it loads reports 'closed'", async () => {
+            jest.useFakeTimers();
+            const deferred = setupDeferredMockWindow();
+            let closed = false;
+            Object.defineProperty(deferred.window, 'closed', {
+                get: () => closed,
+            });
+            window.open = () => deferred.window;
+            const failures: PopoutWindowFailure[] = [];
+            dockview.onDidOpenPopoutWindowFail((e) => failures.push(e));
+
+            try {
+                const panel = dockview.addPanel({
+                    id: 'p1',
+                    component: 'default',
+                });
+                const opening = dockview.addPopoutGroup(panel);
+
+                closed = true;
+                jest.advanceTimersByTime(1000);
+
+                expect(await opening).toBe(false);
+                expect(failures).toEqual([{ reason: 'closed' }]);
+                expect(dockview.panels.map((p) => p.id)).toEqual(['p1']);
+            } finally {
+                jest.useRealTimers();
+            }
         });
 
         test("a window the opener cannot script reports 'unscriptable'", async () => {
