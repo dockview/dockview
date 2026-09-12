@@ -43,6 +43,8 @@ api.addPopoutGroup(
 :::warning Security: same-origin only
 
 `popoutUrl` must point to a same-origin location: the same scheme and host as the page, which includes an app's own scheme in a desktop webview (for example `tauri://localhost`). Dockview rejects `javascript:`, `data:`, `blob:`, `vbscript:`, `file:` and cross-origin URLs to prevent a malicious value (for example, from a layout JSON loaded from an untrusted source) from executing script in a context the browser still associates with your application via `window.opener`. The guard runs automatically when the popout is opened, including on layouts restored via `fromJSON()`.
+
+To check a URL yourself - to disable a "pop out" affordance, or to report why it was refused - call `getPopoutUrlError(url)`, the same guard Dockview applies. It returns the `Error` it would have raised, or `undefined` when the URL is allowed.
 :::
 
 From within a panel you may say

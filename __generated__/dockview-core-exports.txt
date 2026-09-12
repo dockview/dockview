@@ -256,6 +256,7 @@ PinnedTabsOptions
 PopoutGroup
 PopoutGroupChangePositionEvent
 PopoutGroupChangeSizeEvent
+PopoutWindowEvent
 Position
 PositionResolver
 PositionResolverArgs
@@ -324,6 +325,7 @@ getGridLocation
 getLocationOrientation
 getPaneData
 getPanelData
+getPopoutUrlError
 getRegisteredModules
 getRelativeLocation
 indexInParent

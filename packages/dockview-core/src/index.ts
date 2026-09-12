@@ -21,6 +21,16 @@ export {
 
 export * from './panel/types';
 
+/**
+ * The popout URL guard, so an application can check a `popoutUrl` - and report
+ * why it was refused - with the same rules dockview applies when opening the
+ * window, rather than a copy of them that can drift.
+ */
+export {
+    getPopoutUrlError,
+    type PopoutWindowEvent,
+} from './popoutWindow';
+
 export * from './splitview/splitview';
 export {
     type SplitviewComponentOptions,
