@@ -34,11 +34,6 @@ const api = createDockview(container, {
         renderers[options.name]?.() ?? new ScratchPanel(),
 });
 
-// The grid is measured by a ResizeObserver, which has not fired yet. Seed it
-// with the container's size so the panels below split proportionally instead
-// of collapsing to their minimum width.
-api.layout(container.clientWidth, container.clientHeight);
-
 const width = (fraction: number) =>
     Math.round(container.clientWidth * fraction);
 const height = (fraction: number) =>
