@@ -1,0 +1,38 @@
+{
+  "name": "dockview-tauri-demo",
+  "version": "8.3.1",
+  "private": true,
+  "description": "Tauri desktop shell hosting dockview — a testbed for host-environment behaviour (popouts, native windows, cross-process layout sync)",
+  "license": "MIT",
+  "author": "https://github.com/mathuo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dockview/dockview.git",
+    "directory": "packages/dockview-tauri-demo"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build:web": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "clean": "rimraf dist/ src-tauri/target/",
+    "lint": "biome lint src",
+    "lint:fix": "biome lint --write src",
+    "format": "biome format --write src",
+    "format:check": "biome format src"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.1",
+    "dockview": "^8.3.1",
+    "dockview-enterprise": "^8.3.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
+    "typescript": "~5.9.0",
+    "vite": "^7.3.3"
+  }
+}

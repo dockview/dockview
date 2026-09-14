@@ -1,0 +1,30 @@
+{
+    "$schema": "https://schema.tauri.app/config/2",
+    "productName": "dockview-tauri-demo",
+    "version": "0.0.0",
+    "identifier": "dev.dockview.tauri-demo",
+    "build": {
+        "beforeDevCommand": "yarn dev",
+        "devUrl": "http://localhost:1420",
+        "beforeBuildCommand": "yarn build:web",
+        "frontendDist": "../dist"
+    },
+    "app": {
+        "windows": [
+            {
+                "label": "main",
+                "title": "dockview + Tauri",
+                "width": 1280,
+                "height": 820
+            }
+        ],
+        "security": {
+            "csp": null
+        }
+    },
+    "bundle": {
+        "active": true,
+        "targets": "all",
+        "icon": ["icons/icon.png"]
+    }
+}
