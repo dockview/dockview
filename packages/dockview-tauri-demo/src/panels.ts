@@ -15,6 +15,7 @@ import {
 import { LogView, button, el, field, verdict } from './dom';
 import { diagnosePopoutUrl, readHostReport } from './host';
 import { describe, probeWindowOpen } from './probes';
+import { RELEASE_ORIGIN_URL, simulateReleaseOriginRestore } from './simulate';
 
 abstract class DemoPanel implements IContentRenderer {
     protected readonly root = el('div', { class: 'demo-panel' });
@@ -117,18 +118,60 @@ export class PopoutPanel extends DemoPanel {
                         popOut(api, group, log);
                     })
                 ),
+                el(
+                    'p',
+                    { class: 'demo-note' },
+                    'A release build on macOS or Linux serves the app from a custom protocol, which the guard refuses. These reproduce that from any origin, by aiming a popout at one.'
+                ),
+                el(
+                    'div',
+                    { class: 'demo-buttons' },
+                    button('Pop out on a refused origin', () => {
+                        popOut(api, group, log, RELEASE_ORIGIN_URL);
+                    }),
+                    button('Restore a layout on a refused origin', () => {
+                        runRestoreSimulation(log);
+                    })
+                ),
                 log.element
             )
         );
     }
 }
 
+/**
+ * Runs the saved-layout reproduction and reports whether any group came back
+ * registered but unrendered.
+ */
+function runRestoreSimulation(log: LogView): void {
+    log.append('simulating a restore on a refused origin…');
+
+    simulateReleaseOriginRestore().then(
+        (result) => {
+            for (const step of result.steps) {
+                log.append(step);
+            }
+            log.append(
+                `groups=${result.groups} orphaned=${result.orphanedGroups} panels=${result.panels} tabs=${result.visibleTabs}`
+            );
+            log.append(
+                result.orphanedGroups === 0 &&
+                    result.visibleTabs === result.panels
+                    ? 'every panel came back visible in the grid'
+                    : 'a group came back registered but rendering nowhere'
+            );
+        },
+        (err: unknown) => log.append(`simulation failed — ${describe(err)}`)
+    );
+}
+
 function popOut(
     api: DockviewApi,
     group: DockviewGroupPanel,
-    log: LogView
+    log: LogView,
+    popoutUrl?: string
 ): void {
-    api.addPopoutGroup(group).then(
+    api.addPopoutGroup(group, popoutUrl ? { popoutUrl } : undefined).then(
         (opened) => {
             log.append(
                 opened

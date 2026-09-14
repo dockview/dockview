@@ -39,6 +39,13 @@ engine, and whether dockview would accept this origin as a popout target.
 verdict, probes `window.open` directly (does a handle come back, and is the
 document reachable), and pops out its own group.
 
+It also reproduces the refused-origin case from any origin, by aiming a popout
+at a `tauri://` URL — the guard resolves the popout URL against the page and
+fails at the same check either way. One button takes the interactive path, the
+other saves a layout containing a popout, reopens it on the refused origin, and
+reports whether every panel came back visible. Both run in a plain browser, so
+the macOS/Linux release behaviour can be checked without packaging anything.
+
 **Native windows** — asks Rust to build a second native window running the same
 frontend. That webview has its own JavaScript context, so nothing can be moved
 into it from here.
