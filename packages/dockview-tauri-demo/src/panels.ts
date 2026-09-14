@@ -183,7 +183,9 @@ export class PopoutPanel extends DemoPanel {
     init(parameters: GroupPanelPartInitParameters): void {
         const log = new LogView();
         const api = parameters.containerApi;
-        const group = parameters.api.group;
+        // read per click: the panel can be dragged into another group, and
+        // `api.group` follows it
+        const group = () => parameters.api.group;
 
         this.root.append(
             section(
@@ -207,7 +209,7 @@ export class PopoutPanel extends DemoPanel {
                         log.append(`${result.title} — ${result.detail}`);
                     }),
                     button('Pop out this group', () => {
-                        popOut(api, group, log);
+                        popOut(api, group(), log);
                     })
                 ),
                 el(
@@ -219,7 +221,7 @@ export class PopoutPanel extends DemoPanel {
                     'div',
                     { class: 'demo-buttons' },
                     button('Pop out on a refused origin', () => {
-                        popOut(api, group, log, RELEASE_ORIGIN_URL);
+                        popOut(api, group(), log, RELEASE_ORIGIN_URL);
                     }),
                     button('Restore a layout on a refused origin', () => {
                         runRestoreSimulation(log);
