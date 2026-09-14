@@ -1,12 +1,9 @@
 export type DndStrategy = 'auto' | 'html5' | 'pointer';
 
 /**
- * dockview's default, `'auto'`: HTML5 drag-and-drop for mouse input, pointer
- * events for touch and pen. HTML5 is the only backend whose drag crosses
- * windows - it rides an OS drag session - so a tab can travel between a
- * popout and the main window; pointer events stop at the window edge.
- * `?dnd=pointer` or `?dnd=html5` (or `VITE_DND` at build time) forces a
- * backend so each can be measured on its own per host.
+ * `?dnd=pointer` or `?dnd=html5` (or `VITE_DND` at build time) forces a backend
+ * so each can be measured on its own per host; otherwise dockview's default
+ * `'auto'`, which only an HTML5 drag can leave the window with.
  */
 export function resolveDndStrategy(): DndStrategy {
     const requested =
