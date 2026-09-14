@@ -162,15 +162,28 @@ The popout is a second native window showing the group with dockview's styles
 cloned in; both answers render it. Before either half was in place the
 probes failed independently: the guard refused the `tauri:` scheme, and
 `window.open` returned null because no window had an `on_new_window` handler.
-Each alone is not enough. A third piece is `window.close()` from script,
-which dockview calls on a popout when its group is closed or redocked. wry
-answers WebKitGTK's `close` signal by destroying the webview widget only,
-leaving the window on screen blank, so the demo closes the Tauri window from
-the widget's `destroy` (`honour_script_close`); measured: the `window.open`
-probe's window goes away on `handle.close()`, and closing the popped-out
-group's last tab closes its window. On Windows wry destroys the window
-itself. On macOS wry's UI delegate has no `webViewDidClose:`, so a closed
-popout leaves an empty window there until that lands upstream. Windows created through Tauri's own API remain
+Each alone is not enough, and closing needs two more pieces, both in
+`src-tauri/src/lib.rs`:
+
+- **The page closing the window.** dockview calls `close()` on a popout when
+  its group is closed or redocked. wry answers WebKitGTK's `close` signal by
+  destroying the webview widget only, leaving the window on screen blank, so
+  the demo destroys the Tauri window from the widget's `destroy`. Windows
+  destroys the window in wry itself. macOS is different: wry's UI delegate
+  has no `webViewDidClose:`, so `close()` does nothing there and the opener,
+  which has IPC, asks the shell instead (`close_popout`, keyed by a label the
+  shell injects into the popout document); the demo routes both the
+  `window.open` probe and dockview's own `close()` through it.
+- **The user closing the window.** A native close tears the webview down
+  without running the page's unload handlers, and dockview learns that a
+  popout is gone from `beforeunload` on the popout document: skip it and the
+  group is lost with the window. So the close request is held, the page
+  told to unload, and the window destroyed once it has had its turn.
+
+Measured on Linux: the probe's window closes on `handle.close()`, closing a
+popped-out group's last tab closes its window, and closing the popout window
+from the window manager returns the group to the main window.
+Windows created through Tauri's own API remain
 separate contexts; sharing layout state across those over IPC is still the
 route for them, which is what the Native windows and Layout sync panels are
 for.

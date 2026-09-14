@@ -78,3 +78,34 @@ export async function onLayoutBroadcast(
         handler(event.payload)
     );
 }
+
+/** The label the shell injects into every window it creates for `window.open`. */
+function nativePopoutLabel(win: Window): string | undefined {
+    return (win as { __DOCKVIEW_POPOUT_LABEL__?: string })
+        .__DOCKVIEW_POPOUT_LABEL__;
+}
+
+/**
+ * Destroys the native window behind a `window.open` handle. wry's macOS UI
+ * delegate has no `webViewDidClose:`, so `handle.close()` is a no-op there and
+ * the opener asks the shell instead. The label is injected as the popout
+ * document loads, so a handle closed straight after opening is polled for
+ * it briefly. No-op outside Tauri, and once the window is gone.
+ */
+export async function closeNativePopout(win: Window): Promise<void> {
+    if (!isTauri()) {
+        return;
+    }
+    let label: string | undefined;
+    for (let attempt = 0; attempt < 10 && !label; attempt += 1) {
+        label = nativePopoutLabel(win);
+        if (!label) {
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+    }
+    if (!label) {
+        return;
+    }
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('close_popout', { label });
+}
