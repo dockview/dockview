@@ -67,7 +67,9 @@ into it from here.
 
 **Layout sync** — serializes the layout and fans it out over Tauri's event bus,
 so windows on either side of the process boundary converge on the same
-arrangement without sharing a DOM.
+arrangement without sharing a DOM. What that whole-layout resync costs, and
+what dockview would need for a group to run in a window it cannot script, is
+measured in [docs/unscriptable-windows.md](docs/unscriptable-windows.md).
 
 The frontend degrades in a plain browser: the Tauri-only panels report that the
 shell is missing instead of failing.
@@ -210,6 +212,7 @@ Enterprise features are governed by a licence key; set one with
 ## Layout
 
 ```
+docs/           design notes
 src/            frontend
   main.ts       builds the dockview instance and its panels
   panels.ts     the four probe panels plus a scratch panel
