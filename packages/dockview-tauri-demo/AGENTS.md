@@ -31,6 +31,9 @@ not a published package and not a supported example.
   `bridge.ts` is lazily imported and guarded by `isTauri()`, so the same build
   can be compared side by side in Chrome and in the shell. Do not import
   `@tauri-apps/api` at module scope.
+- `src-tauri/Cargo.lock` is committed, as it is for any application crate.
+  Update it through cargo rather than by hand, and keep `cargo check --locked`
+  passing.
 - `host.ts` mirrors dockview's internal `assertSameOriginPopoutUrl` guard. If
   that guard changes in `dockview-core`, mirror the change here — the whole
   point of the panel is to explain *why* a popout would be refused.
