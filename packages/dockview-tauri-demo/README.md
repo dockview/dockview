@@ -76,6 +76,32 @@ stop being free:
    contexts. That isolation is the point of the Native windows panel, and the
    reason the Layout sync panel moves serialized state rather than DOM.
 
+### Measured in a release build
+
+Running a packaged build on Linux (WebKitGTK, tauri 2.11.5, webview 2.52.6),
+the Host panel reports:
+
+```
+runtime                     tauri
+engine                      WebKitGTK
+origin                      tauri://localhost
+protocol                    tauri:
+release origin is http(s)   false
+```
+
+and the two popout probes both fail, independently:
+
+```
+refused: tauri://localhost/popout.html — protocol "tauri:" is not http(s)
+window.open returned null — the host blocked the popup or routed the URL elsewhere
+```
+
+The second is the one worth knowing: even with the origin check out of the way,
+the host hands back no window at all, so popout groups are not merely gated on
+this platform — there is nothing to put a group into. Sharing layout state
+across native windows over IPC is the available route, not a stylistic
+preference.
+
 Enterprise features are governed by a licence key; set one with
 `LicenseManager.setLicenseKey()` in `src/main.ts` when exercising them. See
 <https://dockview.dev/enterprise>.
