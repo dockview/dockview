@@ -1,0 +1,4 @@
+# Cargo resolves and writes this; it is committed for reproducible builds of
+# the Tauri demo, not read by hand. Marking it generated collapses it in diffs
+# and keeps it out of the repository's language statistics.
+packages/dockview-tauri-demo/src-tauri/Cargo.lock linguist-generated=true -diff
