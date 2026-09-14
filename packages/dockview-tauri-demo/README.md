@@ -123,11 +123,12 @@ assumed:
 
 - `?dnd=html5` or `?dnd=pointer` on the URL (or `VITE_DND` at build time)
   forces a backend.
-- The Host panel reports the active strategy, how many tabs are natively
-  draggable (an HTML5 drag needs at least one), and a live `drop overlays
-  seen` count: a drag that docks a panel with a count of 0 is the pointer
-  path; a count that rises during an HTML5 drag means `dragover` reached the
-  page.
+- The Host panel reports the requested strategy and the backends it resolved
+  to (`api.dndCapabilities`, since `'auto'` decides from the device), plus a
+  live count of drop-overlay events (`api.onWillShowOverlay`): a drag that
+  docks a panel without raising it is the pointer path; a count that rises
+  during an HTML5 drag means `dragover` reached the page. Both come from
+  dockview rather than from reading its DOM.
 - Every window is built with `disable_drag_drop_handler()` (the
   `dragDropEnabled: false` window option). Tauri's own drag-drop interception
   is the documented reason HTML5 drag-and-drop misbehaves in WebView2, and
@@ -135,7 +136,7 @@ assumed:
 
 Measured on Linux (WebKitGTK 2.52.6, release build, driven under Xvfb with
 `xdotool`) with the HTML5 backend: dragging the Scratch tab into another group
-raised `drop overlays seen` to 1 and docked the panel, with `dragDropEnabled`
+raised the drop-overlay count off zero and docked the panel, with `dragDropEnabled`
 at its default and with it off; and dragging a tab out of a popout window
 into the main window docked it there and closed the emptied popout. One
 harness note: under Xvfb there is no pointing device, WebKit reports a coarse
