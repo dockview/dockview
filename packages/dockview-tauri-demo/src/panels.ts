@@ -12,6 +12,7 @@ import {
     openNativeWindow,
     windowLabel,
 } from './bridge';
+import { resolveDndStrategy } from './dnd';
 import { LogView, button, el, field, verdict } from './dom';
 import { diagnosePopoutUrl, readHostReport } from './host';
 import { describe, probeWindowOpen } from './probes';
@@ -43,7 +44,7 @@ function section(title: string, ...children: (Node | string)[]): HTMLElement {
         'section',
         { class: 'demo-section' },
         el('h2', { class: 'demo-heading' }, title),
-        ...children
+        ...children,
     );
 }
 
@@ -51,6 +52,7 @@ function section(title: string, ...children: (Node | string)[]): HTMLElement {
 export class HostPanel extends DemoPanel {
     init(): void {
         const body = el('div');
+        const dndStrategy = resolveDndStrategy();
 
         // Live, because the interesting moment is mid-drag: a pointer drag
         // that selects the text it crosses cannot be measured by anything
@@ -58,6 +60,8 @@ export class HostPanel extends DemoPanel {
         // selection. `peak` keeps the high-water mark for the same reason.
         let peak = 0;
         let shieldSeen = false;
+        let overlaysSeen = 0;
+        let overlayUp = false;
         let selectStarts = 0;
         let selectStartsPrevented = 0;
         const selection = el('div', { class: 'demo-diag' });
@@ -66,12 +70,20 @@ export class HostPanel extends DemoPanel {
             const length = globalThis.getSelection()?.toString().length ?? 0;
             peak = Math.max(peak, length);
             selection.replaceChildren(
+                field(
+                    'dnd backend',
+                    `${dndStrategy} (${
+                        document.querySelectorAll('.dv-tab[draggable="true"]')
+                            .length
+                    } tabs natively draggable)`,
+                ),
+                field('drop overlays seen', String(overlaysSeen)),
                 field('selected chars', `${length} (peak ${peak})`),
                 field('shield seen active', shieldSeen ? 'yes' : 'no'),
                 field(
                     'selectstart seen / blocked',
-                    `${selectStarts} / ${selectStartsPrevented}`
-                )
+                    `${selectStarts} / ${selectStartsPrevented}`,
+                ),
             );
         };
 
@@ -80,12 +92,20 @@ export class HostPanel extends DemoPanel {
         const sample = setInterval(() => {
             const applied =
                 document.documentElement.style.getPropertyValue(
-                    'user-select'
+                    'user-select',
                 ) === 'none';
             if (applied && !shieldSeen) {
                 shieldSeen = true;
                 renderSelection();
             }
+            // `dv-drop-target` is a class toggled on an existing element
+            // while a drag hovers something that accepts it.
+            const overlay = document.querySelector('.dv-drop-target') !== null;
+            if (overlay && !overlayUp) {
+                overlaysSeen += 1;
+                renderSelection();
+            }
+            overlayUp = overlay;
         }, 50);
 
         // Capture phase, so it runs before the shield's own handler and can
@@ -122,8 +142,8 @@ export class HostPanel extends DemoPanel {
                     report.popout.supported,
                     report.popout.supported
                         ? `Popouts allowed here — ${report.popout.reason}.`
-                        : `Popouts refused here — ${report.popout.reason}.`
-                )
+                        : `Popouts refused here — ${report.popout.reason}.`,
+                ),
             );
         };
 
@@ -138,9 +158,9 @@ export class HostPanel extends DemoPanel {
                 el(
                     'p',
                     { class: 'demo-note' },
-                    'Under "tauri dev" the webview loads the Vite dev server over http, so this reads the same as a browser. A release build is where the host and the browser diverge.'
-                )
-            )
+                    'Under "tauri dev" the webview loads the Vite dev server over http, so this reads the same as a browser. A release build is where the host and the browser diverge.',
+                ),
+            ),
         );
     }
 }
@@ -158,7 +178,7 @@ export class PopoutPanel extends DemoPanel {
                 el(
                     'p',
                     { class: 'demo-note' },
-                    'A popout group opens a second window and moves the group’s DOM into it. That needs a same-origin http(s) URL and a script-accessible document.'
+                    'A popout group opens a second window and moves the group’s DOM into it. That needs a same-origin http(s) URL and a script-accessible document.',
                 ),
                 el(
                     'div',
@@ -166,7 +186,7 @@ export class PopoutPanel extends DemoPanel {
                     button('Check the popout URL', () => {
                         const result = diagnosePopoutUrl();
                         log.append(
-                            `${result.supported ? 'allowed' : 'refused'}: ${result.url} — ${result.reason}`
+                            `${result.supported ? 'allowed' : 'refused'}: ${result.url} — ${result.reason}`,
                         );
                     }),
                     button('Probe window.open', () => {
@@ -175,12 +195,12 @@ export class PopoutPanel extends DemoPanel {
                     }),
                     button('Pop out this group', () => {
                         popOut(api, group, log);
-                    })
+                    }),
                 ),
                 el(
                     'p',
                     { class: 'demo-note' },
-                    'A release build on macOS or Linux serves the app from a custom protocol, which the guard refuses. These reproduce that from any origin, by aiming a popout at one.'
+                    'A release build on macOS or Linux serves the app from a custom protocol, which the guard refuses. These reproduce that from any origin, by aiming a popout at one.',
                 ),
                 el(
                     'div',
@@ -190,10 +210,10 @@ export class PopoutPanel extends DemoPanel {
                     }),
                     button('Restore a layout on a refused origin', () => {
                         runRestoreSimulation(log);
-                    })
+                    }),
                 ),
-                log.element
-            )
+                log.element,
+            ),
         );
     }
 }
@@ -211,16 +231,16 @@ function runRestoreSimulation(log: LogView): void {
                 log.append(step);
             }
             log.append(
-                `groups=${result.groups} orphaned=${result.orphanedGroups} panels=${result.panels} tabs=${result.visibleTabs}`
+                `groups=${result.groups} orphaned=${result.orphanedGroups} panels=${result.panels} tabs=${result.visibleTabs}`,
             );
             log.append(
                 result.orphanedGroups === 0 &&
                     result.visibleTabs === result.panels
                     ? 'every panel came back visible in the grid'
-                    : 'a group came back registered but rendering nowhere'
+                    : 'a group came back registered but rendering nowhere',
             );
         },
-        (err: unknown) => log.append(`simulation failed — ${describe(err)}`)
+        (err: unknown) => log.append(`simulation failed — ${describe(err)}`),
     );
 }
 
@@ -228,19 +248,19 @@ function popOut(
     api: DockviewApi,
     group: DockviewGroupPanel,
     log: LogView,
-    popoutUrl?: string
+    popoutUrl?: string,
 ): void {
     api.addPopoutGroup(group, popoutUrl ? { popoutUrl } : undefined).then(
         (opened) => {
             log.append(
                 opened
                     ? 'popout group opened'
-                    : 'addPopoutGroup resolved false — the host refused the window'
+                    : 'addPopoutGroup resolved false — the host refused the window',
             );
         },
         (err: unknown) => {
             log.append(`addPopoutGroup rejected — ${describe(err)}`);
-        }
+        },
     );
 }
 
@@ -268,14 +288,14 @@ export class NativeWindowPanel extends DemoPanel {
                           field('webview', native.webviewVersion),
                           field(
                               'platform',
-                              `${native.platform} (${native.arch})`
+                              `${native.platform} (${native.arch})`,
                           ),
                           field(
                               'release origin is http(s)',
-                              String(native.httpOrigin)
+                              String(native.httpOrigin),
                           ),
                       ]
-                    : [field('shell', 'not running under Tauri')])
+                    : [field('shell', 'not running under Tauri')]),
             );
         };
 
@@ -297,18 +317,18 @@ export class NativeWindowPanel extends DemoPanel {
                             () => log.append(`opened native window ${label}`),
                             (err: unknown) =>
                                 log.append(
-                                    `could not open ${label} — ${describe(err)}`
-                                )
+                                    `could not open ${label} — ${describe(err)}`,
+                                ),
                         );
-                    })
+                    }),
                 ),
                 el(
                     'p',
                     { class: 'demo-note' },
-                    'The second window runs a separate webview with its own dockview instance. Panels cannot be dragged between the two — share layout state over IPC instead.'
+                    'The second window runs a separate webview with its own dockview instance. Panels cannot be dragged between the two — share layout state over IPC instead.',
                 ),
-                log.element
-            )
+                log.element,
+            ),
         );
     }
 }
@@ -345,7 +365,7 @@ export class LayoutSyncPanel extends DemoPanel {
                 el(
                     'p',
                     { class: 'demo-note' },
-                    'Serialized layout travels over Tauri’s event bus, so every native window can converge on the same arrangement without sharing a DOM.'
+                    'Serialized layout travels over Tauri’s event bus, so every native window can converge on the same arrangement without sharing a DOM.',
                 ),
                 el(
                     'div',
@@ -355,13 +375,13 @@ export class LayoutSyncPanel extends DemoPanel {
                             () => log.append('layout broadcast'),
                             (err: unknown) =>
                                 log.append(
-                                    `broadcast failed — ${describe(err)}`
-                                )
+                                    `broadcast failed — ${describe(err)}`,
+                                ),
                         );
-                    })
+                    }),
                 ),
-                log.element
-            )
+                log.element,
+            ),
         );
     }
 }
@@ -375,9 +395,9 @@ export class ScratchPanel extends DemoPanel {
                 el(
                     'p',
                     { class: 'demo-note' },
-                    'Drag, split and float this panel to exercise the enterprise features the demo pulls in.'
-                )
-            )
+                    'Drag, split and float this panel to exercise the enterprise features the demo pulls in.',
+                ),
+            ),
         );
     }
 }

@@ -90,19 +90,34 @@ stop being free:
    contexts. That isolation is the point of the Native windows panel, and the
    reason the Layout sync panel moves serialized state rather than DOM.
 
-### Drag-and-drop needs the pointer backend
+### Drag-and-drop: pointer by default, HTML5 switchable
 
 dockview's default `dndStrategy` is `'auto'`: HTML5 drag-and-drop for mouse
-input, pointer events for touch and pen. WebKitGTK implements HTML5
-drag-and-drop only partly — a drag starts and the browser renders a (blank)
-native drag image, but the drop targets never light up, so there is nothing to
-drop onto. Measured in a release build: dragging a tab produced a drag ghost
-and no overlay at all.
+input, pointer events for touch and pen. The demo sets `dndStrategy: 'pointer'`
+because an HTML5 tab drag in an embedded webview can look like it is working
+right up until nothing happens: the browser renders a native drag image, but
+if the webview never delivers `dragover` to the page the drop targets do not
+light up and there is nothing to drop onto. That was the experience that
+prompted the default; it is host-specific, so the demo makes it measurable:
 
-The demo therefore sets `dndStrategy: 'pointer'`, and with it the overlay
-renders and the drop docks the panel normally. Anything hosting dockview in an
-embedded webview will want the same, and the symptom if it is missed is easy to
-misread: the drag looks like it is working right up until nothing happens.
+- `?dnd=html5` on the URL (or `VITE_DND=html5` at build time) switches the
+  backend to HTML5.
+- The Host panel reports the active backend, how many tabs are natively
+  draggable, and a live `drop overlays seen` count — a drag that docks a panel
+  with a count of 0 is the pointer path, a count that rises during an HTML5
+  drag means `dragover` reached the page.
+- `dragDropEnabled: false` is set on the main window in `tauri.conf.json`.
+  Tauri's own drag-drop interception is the documented reason HTML5
+  drag-and-drop misbehaves in WebView2, and the demo does not use file drops.
+
+Measured on Linux (WebKitGTK 2.52.6, release build, driven under Xvfb with
+`xdotool`): with the HTML5 backend, dragging the Scratch tab into another group
+raised `drop overlays seen` to 1 and docked the panel, both with
+`dragDropEnabled` at its default and with it off. So on this host the HTML5
+backend works, and the "ghost but no overlay" symptom is not a WebKitGTK
+limitation as such. macOS (WKWebView) and Windows (WebView2) are not measured
+here; if either shows the symptom, `?dnd=html5` plus the Host readout will say
+whether `dragover` is arriving at all.
 
 ### Measured in a release build
 
