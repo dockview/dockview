@@ -19,13 +19,27 @@ yarn build && yarn build:bundle
 Then, from this directory:
 
 ```sh
-yarn tauri:dev      # desktop shell (needs a Rust toolchain)
-yarn dev            # the same frontend in a browser, for comparison
+yarn dev            # the frontend in a browser, no Rust needed
+yarn tauri:dev      # the desktop shell
 ```
 
-`yarn tauri:build` produces a release bundle. Tauri's
+The shell drives Tauri through the Rust CLI rather than the npm one, so that
+its ~36MB of prebuilt binaries stay out of everyone else's `yarn install`.
+Install it once:
+
+```sh
+cargo install tauri-cli --version "^2"
+```
+
+`yarn tauri:build` produces a release bundle; `cargo tauri build --no-bundle`
+stops at the binary. Tauri's
 [prerequisites](https://tauri.app/start/prerequisites/) cover the platform
-toolchains; on Linux that means the WebKitGTK development packages.
+toolchains; on Linux that means the WebKitGTK development packages:
+
+```sh
+sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+  librsvg2-dev libxdo-dev libssl-dev pkg-config build-essential
+```
 
 The bundle icon is a single PNG. Run `yarn tauri icon` to generate the full
 per-platform icon set if you need a signed, distributable build.
