@@ -46,11 +46,6 @@ function offscreenHost(): HTMLElement {
     return host;
 }
 
-const settle = (ms: number) =>
-    new Promise<void>((resolve) => {
-        setTimeout(resolve, ms);
-    });
-
 /**
  * Saves a layout containing a popout group, reopens it with the popout pointed
  * at a refused origin, and reports what survived. Runs against a throwaway
@@ -98,7 +93,9 @@ export async function simulateReleaseOriginRestore(): Promise<SimulationResult> 
 
         api.clear();
         api.fromJSON(saved);
-        await settle(800);
+        // dockview re-opens popout windows asynchronously and says when it has
+        // finished, so there is nothing to guess at here
+        await api.popoutRestorationPromise;
         steps.push('restored the layout on the refused origin');
 
         const orphaned = api.groups.filter(
