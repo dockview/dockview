@@ -30,6 +30,10 @@ if (!container) {
 
 const api = createDockview(container, {
     theme: themeAbyss,
+    // WebKitGTK and WKWebView implement HTML5 drag-and-drop only partly: a
+    // drag starts, but the drop targets never light up, so a tab cannot be
+    // docked. Pointer events drive every input type instead.
+    dndStrategy: 'pointer',
     createComponent: (options) =>
         renderers[options.name]?.() ?? new ScratchPanel(),
 });

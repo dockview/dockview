@@ -90,6 +90,20 @@ stop being free:
    contexts. That isolation is the point of the Native windows panel, and the
    reason the Layout sync panel moves serialized state rather than DOM.
 
+### Drag-and-drop needs the pointer backend
+
+dockview's default `dndStrategy` is `'auto'`: HTML5 drag-and-drop for mouse
+input, pointer events for touch and pen. WebKitGTK implements HTML5
+drag-and-drop only partly — a drag starts and the browser renders a (blank)
+native drag image, but the drop targets never light up, so there is nothing to
+drop onto. Measured in a release build: dragging a tab produced a drag ghost
+and no overlay at all.
+
+The demo therefore sets `dndStrategy: 'pointer'`, and with it the overlay
+renders and the drop docks the panel normally. Anything hosting dockview in an
+embedded webview will want the same, and the symptom if it is missed is easy to
+misread: the drag looks like it is working right up until nothing happens.
+
 ### Measured in a release build
 
 Running a packaged build on Linux (WebKitGTK, tauri 2.11.5, webview 2.52.6),
