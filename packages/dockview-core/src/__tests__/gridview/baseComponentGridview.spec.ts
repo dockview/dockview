@@ -659,15 +659,21 @@ describe('baseComponentGridview', () => {
             cut.dispose();
         });
 
-        test('ignores the unsupported proportionalLayout and styles options', () => {
+        test('toggles proportionalLayout and ignores the unsupported styles option', () => {
             const cut = createCut();
 
-            expect(() =>
-                cut.updateOptions({
-                    proportionalLayout: false,
-                    styles: undefined,
-                })
-            ).not.toThrow();
+            expect(cut.gridview.proportionalLayout).toBe(true);
+
+            cut.updateOptions({
+                proportionalLayout: false,
+                styles: undefined,
+            });
+
+            expect(cut.gridview.proportionalLayout).toBe(false);
+
+            cut.updateOptions({ proportionalLayout: true });
+
+            expect(cut.gridview.proportionalLayout).toBe(true);
 
             cut.dispose();
         });
