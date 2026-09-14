@@ -185,17 +185,19 @@ Each alone is not enough, and closing needs two more pieces, both in
   lets go of through `api.onWillClosePopoutWindow`, while the window is still
   there, so `src/main.ts` routes them all through the shell with one listener;
   the `window.open` probe asks directly.
-- **The user closing the window.** A native close tears the webview down
-  without running the page's unload handlers, and `beforeunload` on the popout
-  document is dockview's primary signal that a popout is gone. It is no longer
-  the only one — dockview also polls the window's `closed` flag, so a group
-  comes home within a tick of a close nothing announced — but the shell still
-  gives the page its turn: the close request is held, the page told to unload,
-  and the window destroyed once it has had it.
+- **The user closing the window.** Nothing, as of dockview 8.4: a native close
+  tears the webview down without running the page's unload handlers, so the
+  `beforeunload` dockview once relied on never arrives, but it also polls the
+  window's `closed` flag and that flag does flip when wry destroys the webview.
+  The shell used to hold the close request, tell the page to unload and destroy
+  the window afterwards; that is no longer needed.
 
 Measured on Linux: the probe's window closes on `handle.close()`, closing a
 popped-out group's last tab closes its window, and closing the popout window
-from the window manager returns the group to the main window.
+from the window manager returns the group to the main window. That last one was
+re-measured with nothing held on the Rust side (WebKitGTK 2.52.6, under Xvfb,
+the popout closed with `wmctrl -c`): the opener's handle reported `closed`, and
+the group was back in the main window a tick later, with every panel intact.
 Windows created through Tauri's own API remain
 separate contexts; sharing layout state across those over IPC is still the
 route for them, which is what the Native windows and Layout sync panels are
