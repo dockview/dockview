@@ -53,10 +53,30 @@ fn open_related_window(
     url: Url,
     features: NewWindowFeatures,
 ) -> NewWindowResponse<tauri::Wry> {
+    // Two ways to answer. `Allow` is wry's own per-platform window creation:
+    // it navigates nothing itself, so the engine loads the requested URL into
+    // the new webview exactly once, and it sizes the window from the
+    // `window.open` features on macOS and Windows (on WebKitGTK it ignores
+    // them and opens 200x200). `Create` is a Tauri-built window, which must
+    // be given a URL; its `about:blank` load races the engine's load of the
+    // request, and where `about:blank` lands last it wipes the document
+    // dockview has already moved the group into, leaving a blank window.
+    // Measured: the order holds on WebKitGTK and does not on WKWebView.
+    // `DOCKVIEW_POPOUT=create|allow` overrides the default for comparison.
+    let mode = std::env::var("DOCKVIEW_POPOUT").unwrap_or_default();
+    let create = match mode.as_str() {
+        "create" => true,
+        "allow" => false,
+        _ => cfg!(target_os = "linux"),
+    };
+    if !create {
+        return NewWindowResponse::Allow;
+    }
+
     let label = format!("popout-{}", POPOUT_COUNT.fetch_add(1, Ordering::Relaxed));
 
     // `about:blank`: the engine itself navigates the new webview to the
-    // requested URL, so the builder must not load it a second time.
+    // requested URL; loading it here too would be a second navigation.
     let built = WebviewWindowBuilder::new(
         app,
         label,

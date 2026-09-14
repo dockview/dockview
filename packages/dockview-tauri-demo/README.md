@@ -97,7 +97,19 @@ stop being free:
    exposes that as `WebviewWindowBuilder::on_new_window`; a window declared
    in `tauri.conf.json` has no handler, and `window.open` returns null from
    it. The demo therefore builds every window in Rust (`src-tauri/src/lib.rs`)
-   and answers `window.open` with a related window, labelled `popout-N`.
+   and answers `window.open` there.
+
+   There are two ways to answer, and the choice matters. `Allow` is wry's own
+   per-platform window creation: it navigates nothing itself, so the engine
+   loads the requested URL into the new webview exactly once; it sizes the
+   window from the `window.open` features on macOS and Windows, but ignores
+   them on WebKitGTK and opens 200×200. `Create` returns a Tauri-built window
+   (labelled `popout-N`), which has to be given a URL: its `about:blank` load
+   races the engine's load of the request, and where `about:blank` lands last
+   it wipes the document dockview has already moved the group into, leaving a
+   blank window. Measured: the order holds on WebKitGTK and does not on
+   WKWebView, so the demo uses `Create` on Linux and `Allow` elsewhere.
+   `DOCKVIEW_POPOUT=create` or `=allow` overrides that for comparison.
 
 ### Drag-and-drop: pointer by default, HTML5 switchable
 
@@ -152,8 +164,9 @@ dockview can move panel DOM into it.
 popout group opened
 ```
 
-The popout is a second native window titled after its document, showing the
-group with dockview's styles cloned in. Before either half was in place the
+The popout is a second native window showing the group with dockview's styles
+cloned in; on Linux both answers render it, the Tauri-built window at 800×600
+and wry's at 200×200. Before either half was in place the
 probes failed independently: the guard refused the `tauri:` scheme, and
 `window.open` returned null because no window had an `on_new_window` handler.
 Each alone is not enough. One seam remains: `window.close()` from script does
