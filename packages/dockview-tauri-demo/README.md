@@ -54,8 +54,8 @@ verdict, probes `window.open` directly (does a handle come back, and is the
 document reachable), and pops out its own group.
 
 It also reproduces the refused-origin case from any origin, by aiming a popout
-at a `tauri://` URL — the guard resolves the popout URL against the page and
-fails at the same check either way. One button takes the interactive path, the
+at a `tauri://` URL — from a page served over http that is another origin, so
+the guard fails at the same check as a genuine cross-origin popout would. One button takes the interactive path, the
 other saves a layout containing a popout, reopens it on the refused origin, and
 reports whether every panel came back visible. Both run in a plain browser, so
 the macOS/Linux release behaviour can be checked without packaging anything.
@@ -77,18 +77,27 @@ dockview opens popout groups with `window.open` and then moves the group's DOM
 into the new document. Two things have to hold, and a native shell is where they
 stop being free:
 
-1. **The page must be served over same-origin `http(s)`.** dockview rejects
-   anything else, because a popout on a custom protocol still shares
-   `window.opener` with the host page. Under `tauri dev` the webview loads the
-   Vite dev server over http and the check passes. Release builds differ by
-   platform: Windows and Android serve the app from `http://tauri.localhost`,
-   while macOS and Linux serve it from `tauri://localhost` — where the check
-   fails. The Host panel reports which case you are in.
+1. **The popout URL must be same-origin with the page.** dockview compares
+   scheme and host and refuses `javascript:`, `data:`, `blob:`, `vbscript:`
+   and `file:` outright, because a popout still shares `window.opener` with
+   the host page. Under `tauri dev` the webview loads the Vite dev server over
+   http. Release builds differ by platform: Windows and Android serve the app
+   from `http://tauri.localhost`, macOS and Linux from `tauri://localhost`.
+   Both are origins of their own, so `/popout.html` resolves same-origin in
+   every case; the Host panel reports which one you are in.
 
-2. **The opened window must be script-accessible.** Native windows built through
-   Tauri's API are not: they are separate webviews with separate JavaScript
-   contexts. That isolation is the point of the Native windows panel, and the
-   reason the Layout sync panel moves serialized state rather than DOM.
+2. **The opened window must be script-accessible.** That depends on how the
+   window was created. Windows built through Tauri's `WebviewWindow` API are
+   separate webviews with separate JavaScript contexts, which is the point of
+   the Native windows panel and the reason the Layout sync panel moves
+   serialized state rather than DOM. A window that the page opens with
+   `window.open` is scriptable only if the host answers the request with a
+   webview *related* to the opener: the same web process on WebKitGTK, the
+   same configuration on WKWebView, the same environment on WebView2. Tauri
+   exposes that as `WebviewWindowBuilder::on_new_window`; a window declared
+   in `tauri.conf.json` has no handler, and `window.open` returns null from
+   it. The demo therefore builds every window in Rust (`src-tauri/src/lib.rs`)
+   and answers `window.open` with a related window, labelled `popout-N`.
 
 ### Drag-and-drop: pointer by default, HTML5 switchable
 
@@ -106,9 +115,10 @@ prompted the default; it is host-specific, so the demo makes it measurable:
   draggable, and a live `drop overlays seen` count — a drag that docks a panel
   with a count of 0 is the pointer path, a count that rises during an HTML5
   drag means `dragover` reached the page.
-- `dragDropEnabled: false` is set on the main window in `tauri.conf.json`.
-  Tauri's own drag-drop interception is the documented reason HTML5
-  drag-and-drop misbehaves in WebView2, and the demo does not use file drops.
+- Every window is built with `disable_drag_drop_handler()` (the
+  `dragDropEnabled: false` window option). Tauri's own drag-drop interception
+  is the documented reason HTML5 drag-and-drop misbehaves in WebView2, and
+  the demo does not use file drops.
 
 Measured on Linux (WebKitGTK 2.52.6, release build, driven under Xvfb with
 `xdotool`): with the HTML5 backend, dragging the Scratch tab into another group
@@ -132,18 +142,27 @@ protocol                    tauri:
 release origin is http(s)   false
 ```
 
-and the two popout probes both fail, independently:
+and, with the guard comparing scheme and host and the Rust side answering
+`window.open`, both popout probes pass and a real popout opens:
 
 ```
-refused: tauri://localhost/popout.html — protocol "tauri:" is not http(s)
-window.open returned null — the host blocked the popup or routed the URL elsewhere
+allowed: tauri://localhost/popout.html — same-origin (tauri://localhost)
+window.open is scriptable — The opener can reach the new window's document, so
+dockview can move panel DOM into it.
+popout group opened
 ```
 
-The second is the one worth knowing: even with the origin check out of the way,
-the host hands back no window at all, so popout groups are not merely gated on
-this platform — there is nothing to put a group into. Sharing layout state
-across native windows over IPC is the available route, not a stylistic
-preference.
+The popout is a second native window titled after its document, showing the
+group with dockview's styles cloned in. Before either half was in place the
+probes failed independently: the guard refused the `tauri:` scheme, and
+`window.open` returned null because no window had an `on_new_window` handler.
+Each alone is not enough. One seam remains: `window.close()` from script does
+not close the window Tauri created, so the `window.open` probe leaves its
+blank window behind and a popout group that is closed leaves an empty native
+window. Windows created through Tauri's own API remain
+separate contexts; sharing layout state across those over IPC is still the
+route for them, which is what the Native windows and Layout sync panels are
+for.
 
 Enterprise features are governed by a licence key; set one with
 `LicenseManager.setLicenseKey()` in `src/main.ts` when exercising them. See

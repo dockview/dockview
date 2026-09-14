@@ -178,7 +178,7 @@ export class PopoutPanel extends DemoPanel {
                 el(
                     'p',
                     { class: 'demo-note' },
-                    'A popout group opens a second window and moves the group’s DOM into it. That needs a same-origin http(s) URL and a script-accessible document.'
+                    'A popout group opens a second window and moves the group’s DOM into it. That needs a same-origin URL and a script-accessible document.'
                 ),
                 el(
                     'div',
@@ -200,7 +200,7 @@ export class PopoutPanel extends DemoPanel {
                 el(
                     'p',
                     { class: 'demo-note' },
-                    'A release build on macOS or Linux serves the app from a custom protocol, which the guard refuses. These reproduce that from any origin, by aiming a popout at one.'
+                    'A popout aimed at another origin is refused. These reproduce that from any origin, by aiming a popout at the origin a macOS or Linux release build serves from.'
                 ),
                 el(
                     'div',

@@ -54,14 +54,23 @@ export function detectEngine(userAgent: string): WebviewEngine {
 }
 
 /**
- * Mirrors dockview's internal `assertSameOriginPopoutUrl` guard so the demo can
- * report *why* a popout would be refused instead of only surfacing the throw.
+ * Mirrors dockview's internal `getPopoutUrlError` guard so the demo can report
+ * *why* a popout would be refused instead of only surfacing the throw.
  *
- * The guard requires a same-origin `http:`/`https:` URL. That holds under
- * `tauri dev` (the webview loads the Vite dev server over http) and under
- * Windows/Android release builds (`http://tauri.localhost`), but not under
- * macOS/Linux release builds, which serve the app from `tauri://localhost`.
+ * The guard requires the URL to be same-origin with the page by scheme and
+ * host, and refuses the `javascript:`, `data:`, `blob:`, `vbscript:` and
+ * `file:` schemes outright. A custom app scheme qualifies: a macOS/Linux
+ * release build serves the app from `tauri://localhost`, and a popout at
+ * `tauri://localhost/popout.html` is same-origin with it.
  */
+const UNSAFE_PROTOCOLS = new Set([
+    'javascript:',
+    'data:',
+    'blob:',
+    'vbscript:',
+    'file:',
+]);
+
 export function diagnosePopoutUrl(url = '/popout.html'): PopoutUrlDiagnosis {
     let resolved: URL;
 
@@ -71,26 +80,27 @@ export function diagnosePopoutUrl(url = '/popout.html'): PopoutUrlDiagnosis {
         return { supported: false, url, reason: 'not a parsable URL' };
     }
 
-    if (resolved.protocol !== 'http:' && resolved.protocol !== 'https:') {
+    if (UNSAFE_PROTOCOLS.has(resolved.protocol)) {
         return {
             supported: false,
             url: resolved.href,
-            reason: `protocol "${resolved.protocol}" is not http(s) — dockview refuses popouts from custom protocols`,
+            reason: `protocol "${resolved.protocol}" would run in the opener's context`,
         };
     }
 
-    if (resolved.origin !== globalThis.location.origin) {
+    const page = globalThis.location;
+    if (resolved.protocol !== page.protocol || resolved.host !== page.host) {
         return {
             supported: false,
             url: resolved.href,
-            reason: `cross-origin with the host page (${globalThis.location.origin})`,
+            reason: `cross-origin with the host page (${page.protocol}//${page.host})`,
         };
     }
 
     return {
         supported: true,
         url: resolved.href,
-        reason: 'same-origin http(s)',
+        reason: `same-origin (${page.protocol}//${page.host})`,
     };
 }
 
