@@ -23,6 +23,8 @@
         }
 
         &:not(:first-child) {
+            border-left: none;
+            border-top: none;
             .dv-pane > .dv-pane-header {
                 border-top: 1px solid var(--dv-paneview-header-border-color);
             }
