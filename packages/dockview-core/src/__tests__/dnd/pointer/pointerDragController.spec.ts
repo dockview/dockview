@@ -107,6 +107,49 @@ describe('PointerDragController', () => {
         document.body.removeChild(targetEl);
     });
 
+    test('hit-tests through the shadow root when the source is inside one', () => {
+        const controller = PointerDragController.getInstance();
+
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        const shadowRoot = host.attachShadow({ mode: 'open' });
+        const source = document.createElement('div');
+        const targetEl = document.createElement('div');
+        shadowRoot.append(source, targetEl);
+
+        // Hit-testing on the document stops at the shadow host; only the
+        // shadow root sees the target. (jsdom lacks the method on shadow
+        // roots, so define it.)
+        const documentSpy = jest
+            .spyOn(document, 'elementsFromPoint')
+            .mockReturnValue([host, document.body]);
+        Object.assign(shadowRoot, {
+            elementsFromPoint: jest
+                .fn()
+                .mockReturnValue([targetEl, host, document.body]),
+        });
+
+        const { target, handleDragOver } = makeTarget(targetEl);
+        const reg = controller.registerTarget(target);
+
+        controller.beginDrag({
+            pointerEvent: makePointerEvent('pointermove'),
+            source,
+            getData: () => ({ dispose: jest.fn() }),
+        });
+
+        window.dispatchEvent(
+            makePointerEvent('pointermove', { clientX: 50, clientY: 50 })
+        );
+
+        expect(handleDragOver).toHaveBeenCalledTimes(1);
+
+        controller.cancel();
+        reg.dispose();
+        documentSpy.mockRestore();
+        host.remove();
+    });
+
     test('drag-leave fires when the pointer moves off the target', () => {
         const controller = PointerDragController.getInstance();
 
@@ -388,6 +431,54 @@ describe('PointerDragController', () => {
             expect(iframe.style.pointerEvents).toBe('');
 
             document.body.removeChild(iframe);
+            document.body.removeChild(source);
+        });
+    });
+
+    describe('text selection shielding', () => {
+        test('beginDrag refuses selection until the drag ends', () => {
+            const controller = PointerDragController.getInstance();
+            const source = document.createElement('div');
+            document.body.appendChild(source);
+            const root = document.documentElement;
+
+            controller.beginDrag({
+                pointerEvent: makePointerEvent('pointermove'),
+                source,
+                getData: () => ({ dispose: jest.fn() }),
+            });
+
+            expect(root.style.getPropertyValue('user-select')).toBe('none');
+            const during = new Event('selectstart', { cancelable: true });
+            document.dispatchEvent(during);
+            expect(during.defaultPrevented).toBe(true);
+
+            window.dispatchEvent(makePointerEvent('pointerup'));
+
+            expect(root.style.getPropertyValue('user-select')).toBe('');
+            const after = new Event('selectstart', { cancelable: true });
+            document.dispatchEvent(after);
+            expect(after.defaultPrevented).toBe(false);
+
+            document.body.removeChild(source);
+        });
+
+        test('cancel() also releases the shield', () => {
+            const controller = PointerDragController.getInstance();
+            const source = document.createElement('div');
+            document.body.appendChild(source);
+            const root = document.documentElement;
+
+            controller.beginDrag({
+                pointerEvent: makePointerEvent('pointermove'),
+                source,
+                getData: () => ({ dispose: jest.fn() }),
+            });
+            expect(root.style.getPropertyValue('user-select')).toBe('none');
+
+            controller.cancel();
+            expect(root.style.getPropertyValue('user-select')).toBe('');
+
             document.body.removeChild(source);
         });
     });

@@ -70,7 +70,7 @@ export interface IPopoutWindowService extends IDisposable {
     readonly restorationPromise: Promise<void>;
     scheduleRestoration(
         delayMs: number,
-        work: () => void,
+        work: () => void | Promise<unknown>,
         onCancel?: () => void
     ): Promise<void>;
     finishRestoration(promises: Promise<void>[]): void;
@@ -188,9 +188,15 @@ export class PopoutWindowService implements IPopoutWindowService {
         return { dispose: () => observer.disconnect() };
     }
 
+    /**
+     * Runs `work` after `delayMs`, resolving once it has finished. Work that
+     * returns a promise is awaited, so a caller holding
+     * `restorationPromise` waits for the popout window itself rather than
+     * only for the timer that starts it.
+     */
     scheduleRestoration(
         delayMs: number,
-        work: () => void,
+        work: () => void | Promise<unknown>,
         onCancel?: () => void
     ): Promise<void> {
         return new Promise<void>((resolve) => {
@@ -211,8 +217,12 @@ export class PopoutWindowService implements IPopoutWindowService {
                     resolve();
                     return;
                 }
-                work();
-                resolve();
+                // Restoration failures are already reported by the work
+                // itself; awaiters only need to know it has settled.
+                Promise.resolve(work()).then(
+                    () => resolve(),
+                    () => resolve()
+                );
             }, delayMs);
             this._restorationCleanups.add(cleanup);
         });

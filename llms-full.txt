@@ -291,6 +291,7 @@ Advanced groups and windows:
 - `createTabGroup(options)` — create a tab group for visual organization
 - `maximizeGroup(panel)` / `exitMaximizedGroup()` / `hasMaximizedGroup()`
 - `activateNext()` / `activatePrevious()` — navigate between panels (formerly `moveToNext` / `moveToPrevious`, now deprecated aliases)
+- `dndCapabilities` — which drag-and-drop backends `dndStrategy` resolved to on this device
 
 State and history:
 - `toJSON()` — serialize the layout
@@ -303,7 +304,7 @@ Events (a selection of the full surface):
 - `onDidAddGroup` / `onDidRemoveGroup` / `onDidActiveGroupChange`
 - `onDidDrop` / `onWillDrop` / `onWillShowOverlay`
 - `onDidMaximizedGroupChange`
-- `onDidAddPopoutGroup` / `onDidRemovePopoutGroup`
+- `onDidAddPopoutGroup` / `onDidRemovePopoutGroup` / `onWillClosePopoutWindow` / `onDidOpenPopoutWindowFail`
 - `onDidCreateTabGroup` / `onDidTabGroupChange`
 
 ### Themes

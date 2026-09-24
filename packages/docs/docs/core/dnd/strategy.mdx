@@ -16,6 +16,18 @@ import { DocRef } from '@site/src/components/ui/reference/docRef';
 
 `disableDnd: true` overrides every strategy. The strategy can also be changed at runtime via `api.updateOptions({ dndStrategy: ... })`; the change propagates to every existing drag source.
 
+## Reading what `'auto'` resolved to
+
+`'auto'` decides from the device, so the configured value does not tell you which backend is live. `api.dndCapabilities` reports the resolved answer:
+
+```ts
+const { html5, pointer, pointerHandlesMouse } = api.dndCapabilities;
+```
+
+It is read fresh each time, and follows `updateOptions`.
+
+This matters most for drags that cross a window boundary. Only an HTML5 drag rides an OS drag session, so only an HTML5 drag can move a tab between a popout window and the main window. An embedded webview reporting a coarse pointer and no fine pointer resolves `'auto'` to the pointer backend, where no host configuration will make that drag work. Check `html5` rather than assuming it.
+
 ## Touch gestures
 
 Under `'auto'` and `'pointer'`, touch drags use a long-press-then-drag gesture so taps and native scroll still work.

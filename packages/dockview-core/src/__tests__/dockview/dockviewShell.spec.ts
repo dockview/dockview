@@ -359,6 +359,99 @@ describe('ShellManager', () => {
             shell.dispose();
         });
 
+        describe('layoutFromElement', () => {
+            /** jsdom computes no layout, so the shell's measured size is supplied. */
+            const setShellSize = (
+                shell: ShellManager,
+                width: number,
+                height: number
+            ) => {
+                Object.defineProperty(shell.element, 'clientWidth', {
+                    configurable: true,
+                    get: () => width,
+                });
+                Object.defineProperty(shell.element, 'clientHeight', {
+                    configurable: true,
+                    get: () => height,
+                });
+            };
+
+            const setVisible = (shell: ShellManager, visible: boolean) => {
+                Object.defineProperty(shell.element, 'offsetParent', {
+                    configurable: true,
+                    get: () => (visible ? document.body : null),
+                });
+            };
+
+            test('lays the grid out from the shell size', () => {
+                const shell = new ShellManager(
+                    container,
+                    dockviewElement,
+                    layoutGrid
+                );
+                setVisible(shell, true);
+                setShellSize(shell, 800, 600);
+                layoutGrid.mockClear();
+
+                shell.layoutFromElement();
+
+                expect(layoutGrid).toHaveBeenCalledWith(800, 600);
+                shell.dispose();
+            });
+
+            test('skips when the shell is hidden', () => {
+                const shell = new ShellManager(
+                    container,
+                    dockviewElement,
+                    layoutGrid
+                );
+                setVisible(shell, false);
+                setShellSize(shell, 800, 600);
+                layoutGrid.mockClear();
+
+                shell.layoutFromElement();
+
+                expect(layoutGrid).not.toHaveBeenCalled();
+                shell.dispose();
+            });
+
+            test('skips when the shell is not in the document', () => {
+                const detached = document.createElement('div');
+                const shell = new ShellManager(
+                    detached,
+                    dockviewElement,
+                    layoutGrid
+                );
+                setVisible(shell, true);
+                setShellSize(shell, 800, 600);
+                layoutGrid.mockClear();
+
+                shell.layoutFromElement();
+
+                expect(layoutGrid).not.toHaveBeenCalled();
+                shell.dispose();
+            });
+
+            test.each([
+                ['zero width', 0, 600],
+                ['zero height', 800, 0],
+            ])('skips a %s shell', (_label, width, height) => {
+                const shell = new ShellManager(
+                    container,
+                    dockviewElement,
+                    layoutGrid
+                );
+                setVisible(shell, true);
+                setShellSize(shell, width, height);
+                layoutGrid.mockClear();
+
+                shell.layoutFromElement();
+
+                expect(layoutGrid).not.toHaveBeenCalled();
+                shell.dispose();
+            });
+        });
+
         test('addEdgeView throws when position already registered', () => {
             const shell = new ShellManager(
                 container,

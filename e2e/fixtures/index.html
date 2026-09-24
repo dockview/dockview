@@ -48,8 +48,32 @@
                     '[KeyId:TEST]_[Company:Tests]_[Plan:team]_[AppName:Tests]_[Email:test@test]_[ValidFrom:01_Jan_2020]_[ValidUntil:01_Jan_2999]__8d12a26c8376cc3b'
                 );
 
-                const el = document.getElementById('app');
                 const params = new URLSearchParams(location.search);
+                // `?shadow=1` mounts the dock inside an open shadow root, the
+                // web-component case (a Lit host, say). The stylesheet is
+                // linked in <head>, which shadow DOM does not inherit, so copy
+                // it into the root as a real host would.
+                let el = document.getElementById('app');
+                if (params.get('shadow') === '1') {
+                    const shadowHost = document.createElement('div');
+                    shadowHost.id = 'shadow-host';
+                    // The `#app` rule in <head> styles the original mount;
+                    // the host needs the size inline to fill the page.
+                    shadowHost.style.cssText = 'height:100%;width:100%;';
+                    el.replaceWith(shadowHost);
+                    const shadowRoot = shadowHost.attachShadow({
+                        mode: 'open',
+                    });
+                    const link = document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.href =
+                        '/packages/dockview-core/dist/styles/dockview.css';
+                    const mount = document.createElement('div');
+                    mount.id = 'app';
+                    mount.style.cssText = 'height:100%;width:100%;';
+                    shadowRoot.append(link, mount);
+                    el = mount;
+                }
                 // Opt-in multi-row (wrapping) tabs via `?overflow=wrap` so the
                 // wrap behaviour is exercised without affecting other specs.
                 // `?maxRows=N` caps the header at N rows (surplus spills to the
@@ -743,6 +767,61 @@
                     // that must stay repeatable (#1410). Flat order is
                     // red,green,blue,yellow so the chips render Feature then
                     // Monitoring. Returns the ids the spec needs.
+                    // Two dockview groups side by side, each with its own
+                    // tab group: a chip in the left group, grouped tabs in the
+                    // right. Dragging the left chip onto a grouped tab in the
+                    // right group is a *cross-group* move, which is a separate
+                    // commit path from reordering within one strip.
+                    setupCrossGroupTabGroups: () => {
+                        for (const id of ['red', 'green']) {
+                            panels[id] = dockview.addPanel({
+                                id,
+                                component: 'default',
+                                title: id,
+                            });
+                        }
+                        for (const id of ['blue', 'yellow']) {
+                            panels[id] = dockview.addPanel({
+                                id,
+                                component: 'default',
+                                title: id,
+                                position: {
+                                    referencePanel: 'red',
+                                    direction: 'right',
+                                },
+                            });
+                        }
+
+                        const left = panels['red'].group.id;
+                        const right = panels['blue'].group.id;
+
+                        const feature = dockview.api.createTabGroup({
+                            groupId: left,
+                            label: 'Feature',
+                        });
+                        for (const panelId of ['red', 'green']) {
+                            dockview.api.addPanelToTabGroup({
+                                groupId: left,
+                                tabGroupId: feature.id,
+                                panelId,
+                            });
+                        }
+
+                        const monitoring = dockview.api.createTabGroup({
+                            groupId: right,
+                            label: 'Monitoring',
+                        });
+                        for (const panelId of ['blue', 'yellow']) {
+                            dockview.api.addPanelToTabGroup({
+                                groupId: right,
+                                tabGroupId: monitoring.id,
+                                panelId,
+                            });
+                        }
+
+                        return { left, right };
+                    },
+                    groupOf: (id) => panels[id] && panels[id].group.id,
                     setupTwoTabGroupChips: () => {
                         for (const id of ['red', 'green', 'blue', 'yellow']) {
                             panels[id] = dockview.addPanel({

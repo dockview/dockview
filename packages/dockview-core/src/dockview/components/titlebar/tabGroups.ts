@@ -187,15 +187,16 @@ export class TabGroupManager {
         }
     }
 
-    snapshotChipWidths(): Map<string, number> {
-        const widths = new Map<string, number>();
+    /** Each chip's extent along the strip's main axis: width for a horizontal
+     *  header, height for a vertical one. */
+    snapshotChipSizes(): Map<string, number> {
+        const isVertical = this._ctx.getDirection() === 'vertical';
+        const sizes = new Map<string, number>();
         for (const [groupId, entry] of this._chipRenderers) {
-            widths.set(
-                groupId,
-                entry.chip.element.getBoundingClientRect().width
-            );
+            const rect = entry.chip.element.getBoundingClientRect();
+            sizes.set(groupId, isVertical ? rect.height : rect.width);
         }
-        return widths;
+        return sizes;
     }
 
     positionUnderlines(): void {

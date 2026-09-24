@@ -96,6 +96,8 @@ api.onDidRemoveGroup((group: DockviewGroupPanel) => {});
 api.onDidActiveGroupChange((group: DockviewGroupPanel | undefined) => {});
 ```
 
+Moving the last panel out of a group destroys the group it leaves behind, and that destruction is reported through `onDidRemoveGroup`. This holds whether the panel was dropped into another group or floated out into a window of its own. Edge groups are the exception: they are permanent, so emptying one leaves it in place and reports nothing. Floating a whole group out of the grid relocates it intact, so that reports neither an add nor a remove.
+
 ## Layout
 
 These events fire when the overall layout structure changes.
@@ -192,9 +194,21 @@ api.onDidPopoutGroupPositionChange(
     (event: PopoutGroupChangePositionEvent) => {}
 );
 
-// Fires when the browser blocked opening a popout window (e.g. popup blocker)
-api.onDidOpenPopoutWindowFail(() => {
-    console.warn('popup was blocked by the browser');
+// Fires when a popout window could not be used, saying which way it failed:
+// 'blocked' (popup blocker), 'url-refused' (the same-origin guard),
+// 'unscriptable' (the host returned a window the opener cannot reach into) or
+// 'closed' (it went away before loading).
+api.onDidOpenPopoutWindowFail((failure: PopoutWindowFailure) => {
+    console.warn('popout failed:', failure.reason, failure.error);
+});
+
+// Fires as Dockview lets go of a popout window, while that window is still
+// open. Covers every popout the component opened - `addPopoutGroup`, the group
+// context menu, a restored layout - and every reason for closing one, component
+// disposal included.
+api.onWillClosePopoutWindow((event: PopoutWindowEvent) => {
+    // event.window is still live here; event.id is the window's target name,
+    // as passed to `window.open`
 });
 ```
 

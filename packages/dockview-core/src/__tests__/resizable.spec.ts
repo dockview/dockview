@@ -6,6 +6,24 @@ class TestResizable extends Resizable {
     layout(width: number, height: number): void {
         this.layoutCalls.push({ width, height });
     }
+
+    // `layoutFromElement` is protected: concrete components call it at the end
+    // of their own constructor.
+    public seedFromElement(): void {
+        this.layoutFromElement();
+    }
+}
+
+/** jsdom computes no layout, so the measured size has to be supplied. */
+function setSize(el: HTMLElement, width: number, height: number): void {
+    Object.defineProperty(el, 'clientWidth', {
+        configurable: true,
+        get: () => width,
+    });
+    Object.defineProperty(el, 'clientHeight', {
+        configurable: true,
+        get: () => height,
+    });
 }
 
 describe('Resizable', () => {
@@ -107,6 +125,96 @@ describe('Resizable', () => {
             { width: 101, height: 200 },
             { width: 101, height: 205 },
         ]);
+    });
+
+    describe('layoutFromElement', () => {
+        test('lays out from the size the element currently reports', () => {
+            const el = createElement();
+            setSize(el, 800, 600);
+
+            const r = new TestResizable(el);
+            r.seedFromElement();
+
+            expect(r.layoutCalls).toEqual([{ width: 800, height: 600 }]);
+        });
+
+        test('rounds fractional dimensions, as the observer does', () => {
+            const el = createElement();
+            setSize(el, 800.4, 600.6);
+
+            const r = new TestResizable(el);
+            r.seedFromElement();
+
+            expect(r.layoutCalls).toEqual([{ width: 800, height: 601 }]);
+        });
+
+        test('leaves the observer free to deliver its own first layout', () => {
+            const el = createElement();
+            setSize(el, 800, 600);
+
+            const r = new TestResizable(el);
+            r.seedFromElement();
+            fireResize(800, 600);
+
+            // the seed does not record the size, so a listener attached after
+            // construction still sees the observer's first layout
+            expect(r.layoutCalls).toEqual([
+                { width: 800, height: 600 },
+                { width: 800, height: 600 },
+            ]);
+        });
+
+        test('skips when resizing is disabled', () => {
+            const el = createElement();
+            setSize(el, 800, 600);
+
+            const r = new TestResizable(el, true);
+            r.seedFromElement();
+
+            expect(r.layoutCalls).toEqual([]);
+        });
+
+        test('skips when the element is hidden', () => {
+            const el = document.createElement('div');
+            document.body.appendChild(el);
+            Object.defineProperty(el, 'offsetParent', {
+                configurable: true,
+                get: () => null,
+            });
+            setSize(el, 800, 600);
+
+            const r = new TestResizable(el);
+            r.seedFromElement();
+
+            expect(r.layoutCalls).toEqual([]);
+        });
+
+        test('skips when the element is not in the document', () => {
+            const el = document.createElement('div');
+            Object.defineProperty(el, 'offsetParent', {
+                configurable: true,
+                get: () => document.body,
+            });
+            setSize(el, 800, 600);
+
+            const r = new TestResizable(el);
+            r.seedFromElement();
+
+            expect(r.layoutCalls).toEqual([]);
+        });
+
+        test.each([
+            ['zero width', 0, 600],
+            ['zero height', 800, 0],
+        ])('skips a %s element', (_label, width, height) => {
+            const el = createElement();
+            setSize(el, width, height);
+
+            const r = new TestResizable(el);
+            r.seedFromElement();
+
+            expect(r.layoutCalls).toEqual([]);
+        });
     });
 
     test('does not fire layout when element is hidden', () => {

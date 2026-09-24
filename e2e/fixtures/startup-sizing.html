@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>dockview startup sizing fixture</title>
+        <style>
+            html,
+            body,
+            #app {
+                margin: 0;
+                height: 100%;
+                width: 100%;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="app"></div>
+
+        <link
+            rel="stylesheet"
+            href="/packages/dockview-core/dist/styles/dockview.css"
+        />
+        <script src="/packages/dockview/dist/dockview.js"></script>
+        <script src="/packages/dockview-enterprise/dist/dockview-enterprise.js"></script>
+
+        <script>
+            (function () {
+                const lib = window['dockview'];
+
+                window['dockview-enterprise'].LicenseManager.setLicenseKey(
+                    '[KeyId:TEST]_[Company:Tests]_[Plan:team]_[AppName:Tests]_[Email:test@test]_[ValidFrom:01_Jan_2020]_[ValidUntil:01_Jan_2999]__8d12a26c8376cc3b'
+                );
+
+                const el = document.getElementById('app');
+                const which =
+                    new URLSearchParams(location.search).get('component') ??
+                    'dockview';
+
+                const view = () => ({
+                    element: document.createElement('div'),
+                    init: () => {},
+                });
+
+                // Every variant below is deliberately the shape the vanilla
+                // docs templates use: build the whole layout synchronously,
+                // straight after creating the component and before any
+                // ResizeObserver has reported.
+                // Splitview / gridview panels extend the framework base
+                // classes, as the vanilla templates do.
+                const panelClass = (Base) =>
+                    class extends Base {
+                        constructor(id, component) {
+                            super(id, component);
+                            this._part = {
+                                update: () => {},
+                                dispose: () => {},
+                            };
+                            this.api.initialize(this);
+                        }
+                        getComponent() {
+                            return this._part;
+                        }
+                    };
+
+                if (which === 'splitview') {
+                    const Panel = panelClass(lib.SplitviewPanel);
+                    const api = lib.createSplitview(el, {
+                        orientation: lib.Orientation.HORIZONTAL,
+                        createComponent: (options) =>
+                            new Panel(options.id, options.name),
+                    });
+                    api.addPanel({ id: 'v1', component: 'default' });
+                    api.addPanel({ id: 'v2', component: 'default' });
+                    api.addPanel({ id: 'v3', component: 'default' });
+                    window.__dv = api;
+                    window.__ready = true;
+                    return;
+                }
+
+                if (which === 'gridview') {
+                    const Panel = panelClass(lib.GridviewPanel);
+                    const api = lib.createGridview(el, {
+                        orientation: lib.Orientation.HORIZONTAL,
+                        createComponent: (options) =>
+                            new Panel(options.id, options.name),
+                    });
+                    api.addPanel({ id: 'g1', component: 'default' });
+                    api.addPanel({
+                        id: 'g2',
+                        component: 'default',
+                        location: [1],
+                    });
+                    window.__dv = api;
+                    window.__ready = true;
+                    return;
+                }
+
+                const api = lib.createDockview(el, {
+                    theme: lib.themeAbyss,
+                    createComponent: view,
+                });
+
+                api.addPanel({ id: 'panel_1', component: 'default' });
+                api.addPanel({
+                    id: 'panel_2',
+                    component: 'default',
+                    position: {
+                        referencePanel: 'panel_1',
+                        direction: 'right',
+                    },
+                });
+                api.addPanel({
+                    id: 'panel_3',
+                    component: 'default',
+                    position: {
+                        referencePanel: 'panel_1',
+                        direction: 'below',
+                    },
+                });
+
+                window.__dv = api;
+                window.__ready = true;
+            })();
+        </script>
+    </body>
+</html>

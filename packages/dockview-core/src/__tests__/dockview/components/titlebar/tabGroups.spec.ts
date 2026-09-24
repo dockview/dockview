@@ -619,16 +619,16 @@ describe('TabGroupManager', () => {
             expect(tabsList.firstChild).toBe(chipEl);
         });
 
-        test('snapshotChipWidths returns a width per chip', () => {
+        test('snapshotChipSizes returns a size per chip', () => {
             const tabs = [createTab('p1')];
             const tg = makeGroup('g1', ['p1']);
             const { manager } = createManager({ tabs, tabGroups: [tg] });
 
             manager.update();
-            const widths = manager.snapshotChipWidths();
+            const sizes = manager.snapshotChipSizes();
 
-            expect(widths.has('g1')).toBe(true);
-            expect(typeof widths.get('g1')).toBe('number');
+            expect(sizes.has('g1')).toBe(true);
+            expect(typeof sizes.get('g1')).toBe('number');
         });
     });
 

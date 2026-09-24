@@ -111,6 +111,16 @@ function mockTabRect(
     );
 }
 
+/** Rect for a tab in a vertical header: tabs stack down a fixed-width column. */
+function mockVerticalTabRect(
+    element: HTMLElement,
+    rect: { top: number; height: number }
+): void {
+    jest.spyOn(element, 'getBoundingClientRect').mockReturnValue(
+        makeDOMRect(0, rect.top, 100, rect.height)
+    );
+}
+
 describe('tabs - animation', () => {
     let rAFCallbacks: FrameRequestCallback[];
 
@@ -679,12 +689,12 @@ describe('tabs - animation', () => {
 
             // Override _animState chip positions
             const state = getAnimState(tabs);
-            state.chipPositions.set('feature-group', 30);
-            state.chipPositions.set('monitoring-group', 30);
-            // containerLeft = 0 for simplicity
-            state.containerLeft = 0;
-            // cursorOffsetFromDragLeft = 40 (half of 80)
-            state.cursorOffsetFromDragLeft = 40;
+            state.chipSizes.set('feature-group', 30);
+            state.chipSizes.set('monitoring-group', 30);
+            // containerStart = 0 for simplicity
+            state.containerStart = 0;
+            // cursorOffsetFromDragStart = 40 (half of 80)
+            state.cursorOffsetFromDragStart = 40;
 
             // Position cursor just before the Monitoring chip so the chip
             // overflows but all Feature tabs fit:
@@ -697,7 +707,7 @@ describe('tabs - animation', () => {
             //   effectivePanelIds = [E], firstIdx = 4, lastIdx = 4
             //   isJustBeforeGroup = (3 === 4-1) = true
             //   j=3: tabs[3] = D = source → allInBetweenAreSource = true
-            //   → threshold check: chipWidth=30, containerLeft+accUpTo=270
+            //   → threshold check: chipSize=30, containerStart+accUpTo=270
             //     threshold = 270 + 30 = 300, mouseX=330 ≥ 300 → target = monitoring
             (tabs as any).handleDragOver({ clientX: 330 } as DragEvent);
 
@@ -750,15 +760,15 @@ describe('tabs - animation', () => {
                 sourceTabId: '',
                 sourceIndex: -1,
                 tabPositions: (tabs as any).snapshotTabPositions(),
-                chipPositions: new Map([['groupA', 30]]),
+                chipSizes: new Map([['groupA', 30]]),
                 currentInsertionIndex: null,
                 targetTabGroupId: null,
                 sourceTabGroupId: 'external-chipB',
                 sourceGroupPanelIds: new Set<string>(),
-                sourceChipWidth: 30,
-                cursorOffsetFromDragLeft: 40,
-                sourceGapWidth: 80,
-                containerLeft: 0,
+                sourceChipSize: 30,
+                cursorOffsetFromDragStart: 40,
+                sourceGapSize: 80,
+                containerStart: 0,
             };
 
             // Cursor at clientX=20 → dragLeftEdge = -20, availableSpace = -20.
@@ -827,7 +837,7 @@ describe('tabs - animation', () => {
                 sourceTabId: '',
                 sourceIndex: 0,
                 tabPositions: (tabs as any).snapshotTabPositions(),
-                chipPositions: new Map([
+                chipSizes: new Map([
                     ['feature-group', 30],
                     ['monitoring-group', 30],
                 ]),
@@ -835,10 +845,10 @@ describe('tabs - animation', () => {
                 targetTabGroupId: null,
                 sourceTabGroupId: 'feature-group',
                 sourceGroupPanelIds: new Set(['panel-a', 'panel-b']),
-                sourceChipWidth: 30,
-                cursorOffsetFromDragLeft: 40,
-                sourceGapWidth: 190,
-                containerLeft: 0,
+                sourceChipSize: 30,
+                cursorOffsetFromDragStart: 40,
+                sourceGapSize: 190,
+                containerStart: 0,
             };
 
             // Position cursor between C and D (inside Monitoring group range)
@@ -896,7 +906,7 @@ describe('tabs - animation', () => {
             expect(getAnimState(tabs)).not.toBeNull();
 
             // Source tab width was captured as 80px
-            // cursorOffsetFromDragLeft = 40 (half of source tab width)
+            // cursorOffsetFromDragStart = 40 (half of source tab width)
             // Simulate cursor at position 200 (right half of panel-c)
             (tabs as any).handleDragOver({ clientX: 200 } as DragEvent);
 
@@ -941,7 +951,7 @@ describe('tabs - animation', () => {
             fireEvent.dragStart(elements[0]);
             flushRAF(); // let collapse rAF run so _pendingCollapse is cleared
 
-            // Move cursor: cursorOffsetFromDragLeft = 40
+            // Move cursor: cursorOffsetFromDragStart = 40
             // clientX=90 → dragLeftEdge=50, availableSpace=50
             (tabs as any).handleDragOver({ clientX: 90 } as DragEvent);
 
@@ -1881,6 +1891,59 @@ describe('tabs - animation', () => {
             expect(moveTabGroupMock).toHaveBeenCalledWith('tg-1', 2);
         });
 
+        test('pointer chip drag commits the group move when the strip is inside a shadow root', () => {
+            const { tabs, group, tabGroup, chip } = setupChipDrag('smooth', [
+                'panel-a',
+                'panel-b',
+                'panel-c',
+            ]);
+
+            const moveTabGroupMock = jest.fn();
+            (group.model as any).moveTabGroup = moveTabGroupMock;
+
+            const host = document.createElement('div');
+            document.body.appendChild(host);
+            const shadowRoot = host.attachShadow({ mode: 'open' });
+            shadowRoot.appendChild(tabs.element);
+
+            triggerChipDragStart(tabs, tabGroup, chip);
+            getAnimState(tabs).currentInsertionIndex = 2;
+
+            // Hit-testing on the document stops at the shadow host; only the
+            // shadow root sees the strip. (jsdom lacks the method on shadow
+            // roots, so define it.)
+            const tabsList = (tabs as any)._tabsList as HTMLElement;
+            jest.spyOn(document, 'elementFromPoint').mockReturnValue(host);
+            Object.assign(shadowRoot, {
+                elementFromPoint: jest.fn().mockReturnValue(tabsList),
+            });
+            Object.assign(shadowRoot, {
+                elementsFromPoint: jest.fn().mockReturnValue([tabsList]),
+            });
+
+            const controller = PointerDragController.getInstance();
+            controller.beginDrag({
+                pointerEvent: new PointerEvent('pointerdown', {
+                    pointerId: 1,
+                    pointerType: 'touch',
+                }),
+                source: chip.element,
+                getData: () => ({ dispose: jest.fn() }),
+            });
+            window.dispatchEvent(
+                new PointerEvent('pointerup', {
+                    pointerId: 1,
+                    pointerType: 'touch',
+                    clientX: 100,
+                    clientY: 10,
+                })
+            );
+
+            expect(moveTabGroupMock).toHaveBeenCalledWith('tg-1', 2);
+
+            host.remove();
+        });
+
         // A group can never land inside another group: the reorder controller
         // snaps a chip drag out of any group range it falls in. The per-tab
         // overlay doesn't consult that, so it offers the plain left/right slot
@@ -2456,6 +2519,117 @@ describe('tabs - animation', () => {
             // no pointer commit path, so the tab snapped back and no drop fired)
             expect(drops).toHaveLength(1);
             expect(drops[0].index).toBe(1);
+        });
+    });
+
+    /**
+     * Edge groups docked to the left/right run a vertical header, where tabs
+     * flow down the strip instead of across it. The reorder gap must follow
+     * the cursor's y coordinate and open along the block axis.
+     * https://github.com/dockview/dockview/issues/1640
+     */
+    describe('vertical header', () => {
+        /** Three 100x30 tabs stacked down a vertical strip from y=0. */
+        function createVerticalTabs(): { tabs: Tabs; elements: HTMLElement[] } {
+            const { tabs } = createTabs({ tabAnimation: 'smooth' });
+            tabs.direction = 'vertical';
+
+            tabs.openPanel(createMockPanel('panel-a'), 0);
+            tabs.openPanel(createMockPanel('panel-b'), 1);
+            tabs.openPanel(createMockPanel('panel-c'), 2);
+
+            const elements = getTabElements(tabs);
+            elements.forEach((el, i) =>
+                mockVerticalTabRect(el, { top: i * 30, height: 30 })
+            );
+
+            return { tabs, elements };
+        }
+
+        test('dragstart sizes the gap from the tab height', () => {
+            const { tabs, elements } = createVerticalTabs();
+
+            fireEvent.dragStart(elements[0]);
+            flushRAF();
+
+            const state = getAnimState(tabs);
+            // Height (30), not width (100): the gap runs along the main axis.
+            expect(state.sourceGapSize).toBe(30);
+            expect(state.cursorOffsetFromDragStart).toBe(15);
+        });
+
+        test('dragover follows clientY and opens the gap with margin-top', () => {
+            const { tabs, elements } = createVerticalTabs();
+
+            fireEvent.dragStart(elements[0]);
+            flushRAF();
+
+            // cursorOffsetFromDragStart=15, containerStart=0
+            // clientY=50 → leading edge 35, availableSpace=35
+            //   B(i=1): acc+15=15<=35 → acc=30, ins=2
+            //   C(i=2): acc+15=45>35 → break
+            (tabs as any).handleDragOver({ clientX: 50, clientY: 50 });
+
+            expect(getAnimState(tabs).currentInsertionIndex).toBe(2);
+            // First non-source tab at index >= 2 opens the gap, downwards.
+            expect(elements[2].style.marginTop).toBe('30px');
+            expect(elements[2].style.marginLeft).toBe('');
+            expect(
+                elements[2].classList.contains('dv-tab--shifting')
+            ).toBeTruthy();
+        });
+
+        test('moving further down the strip advances the insertion index', () => {
+            const { tabs, elements } = createVerticalTabs();
+
+            fireEvent.dragStart(elements[0]);
+            flushRAF();
+
+            (tabs as any).handleDragOver({ clientX: 50, clientY: 50 });
+            expect(getAnimState(tabs).currentInsertionIndex).toBe(2);
+
+            // clientY=110 → leading edge 95: both B and C fit before the gap
+            (tabs as any).handleDragOver({ clientX: 50, clientY: 110 });
+            expect(getAnimState(tabs).currentInsertionIndex).toBe(3);
+
+            // Nothing sits at index >= 3, so the gap margins animate back out.
+            expect(['', '0px']).toContain(elements[1].style.marginTop);
+            expect(['', '0px']).toContain(elements[2].style.marginTop);
+        });
+
+        test('moving along the cross axis alone leaves the gap put', () => {
+            const { tabs, elements } = createVerticalTabs();
+
+            fireEvent.dragStart(elements[0]);
+            flushRAF();
+
+            (tabs as any).handleDragOver({ clientX: 0, clientY: 50 });
+            expect(getAnimState(tabs).currentInsertionIndex).toBe(2);
+
+            // x is the cross axis here: crossing the whole strip must not move
+            // the insertion slot (it used to be the only coordinate read).
+            (tabs as any).handleDragOver({ clientX: 300, clientY: 50 });
+            expect(getAnimState(tabs).currentInsertionIndex).toBe(2);
+        });
+
+        test('runFlipAnimation slides tabs along the y axis', () => {
+            const { tabs, elements } = createVerticalTabs();
+
+            const firstPositions = new Map<string, DOMRect>();
+            firstPositions.set('panel-a', makeDOMRect(0, 0, 100, 30));
+            firstPositions.set('panel-b', makeDOMRect(0, 30, 100, 30));
+            firstPositions.set('panel-c', makeDOMRect(0, 60, 100, 30));
+
+            // panel-a moved from the top of the strip to the bottom
+            mockVerticalTabRect(elements[0], { top: 60, height: 30 });
+            mockVerticalTabRect(elements[1], { top: 0, height: 30 });
+            mockVerticalTabRect(elements[2], { top: 30, height: 30 });
+
+            (tabs as any).runFlipAnimation(firstPositions, 'panel-a');
+
+            expect(elements[1].style.transform).toBe('translateY(30px)');
+            expect(elements[2].style.transform).toBe('translateY(30px)');
+            expect(elements[0].style.transform).toBe('');
         });
     });
 });

@@ -21,6 +21,17 @@ export {
 
 export * from './panel/types';
 
+/** The popout URL guard, so an application can check a `popoutUrl` itself. */
+export {
+    getPopoutUrlError,
+    type PopoutWindowEvent,
+    type PopoutWindowFailure,
+    type PopoutWindowFailureReason,
+} from './popoutWindow';
+
+/** Readable through `api.dndCapabilities`. */
+export { type DndCapabilities } from './dockview/dndCapabilities';
+
 export * from './splitview/splitview';
 export {
     type SplitviewComponentOptions,
@@ -244,6 +255,7 @@ export {
 export { resolveMessages } from './dockview/accessibilityMessages';
 export {
     findRelativeZIndexParent,
+    getActiveElement,
     prefersReducedMotion,
     resolveOpaqueBackground,
 } from './dom';

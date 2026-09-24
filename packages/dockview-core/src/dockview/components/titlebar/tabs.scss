@@ -515,8 +515,12 @@
     }
 
     &.dv-tab-group-chip--shifting {
-        will-change: margin-left;
-        transition: margin-left var(--dv-transition-duration, 200ms) ease-out;
+        // The gap margin runs along the strip's main axis, so a vertical
+        // header shifts the chip down rather than sideways.
+        will-change: margin-left, margin-top;
+        transition:
+            margin-left var(--dv-transition-duration, 200ms) ease-out,
+            margin-top var(--dv-transition-duration, 200ms) ease-out;
     }
 
     &.dv-tab-group-chip--dragging {
@@ -591,6 +595,23 @@
 .dv-tabs-container-vertical {
     .dv-tab-group-chip {
         margin: 8px 0 8px 0;
+
+        &.dv-tab-group-chip--dragging {
+            // Same axis flip as .dv-tab--dragging below: the main axis is
+            // physical height here, so zeroing width leaves the collapsed chip
+            // holding its full height in the strip while the drag has already
+            // counted that height into the gap - a chip-height hole opens on
+            // top of the gap and the insertion slot no longer lines up.
+            height: 0 !important;
+            min-height: 0 !important;
+            width: auto !important;
+            min-width: initial !important;
+            transition:
+                height var(--dv-transition-duration, 200ms) ease-out,
+                padding var(--dv-transition-duration, 200ms) ease-out,
+                margin var(--dv-transition-duration, 200ms) ease-out,
+                opacity var(--dv-transition-duration, 200ms) ease-out;
+        }
     }
 
     .dv-tab {

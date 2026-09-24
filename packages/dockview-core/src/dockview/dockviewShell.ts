@@ -674,6 +674,35 @@ export class ShellManager implements IDisposable {
         return view;
     }
 
+    /**
+     * Lay out from the shell's current size.
+     *
+     * The ResizeObserver above only reports asynchronously, so between
+     * construction and its first callback the shell believes it has no size -
+     * and any layout built in that window (panels added straight after
+     * `createDockview`, say) resolves its sizes against zero and collapses to
+     * minimums, permanently. Seeding the size synchronously gives that work
+     * the real dimensions. Same guards as the observer: a detached or hidden
+     * shell has no size worth propagating.
+     */
+    layoutFromElement(): void {
+        if (
+            !this._shellElement.offsetParent ||
+            !isInDocument(this._shellElement)
+        ) {
+            return;
+        }
+
+        const width = Math.round(this._shellElement.clientWidth);
+        const height = Math.round(this._shellElement.clientHeight);
+
+        if (width === 0 || height === 0) {
+            return;
+        }
+
+        this.layout(width, height);
+    }
+
     layout(width: number, height: number): void {
         // Outer splitview is HORIZONTAL: layout(size=width, orthogonalSize=height)
         this._outerSplitview.layout(width, height);

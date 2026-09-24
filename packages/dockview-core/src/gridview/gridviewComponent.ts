@@ -140,6 +140,11 @@ export class GridviewComponent
                 this._onDidActiveGroupChange.fire(event);
             })
         );
+
+        // Seed the layout from the element now that construction is complete,
+        // so anything built before the ResizeObserver first reports sizes
+        // against the real dimensions rather than zero.
+        this.layoutFromElement();
     }
 
     override updateOptions(options: Partial<GridviewComponentOptions>): void {

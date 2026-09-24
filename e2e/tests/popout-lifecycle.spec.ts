@@ -55,6 +55,31 @@ test.describe('cross-window popout lifecycle', () => {
         ).toBe(1);
     });
 
+    /**
+     * A window can go away without its unload handlers running: a native shell
+     * destroying its webview, or a browser discarding the page. Playwright's
+     * default close does the same, which is why the test above has to opt in.
+     */
+    test('a popout closed without running unload handlers still re-docks', async ({
+        page,
+        context,
+    }) => {
+        const win = await twoPanelPopout(page, context);
+        await expect(win.locator('.dv-test-panel')).toContainText('beta');
+
+        await win.close();
+
+        await expect
+            .poll(() => page.evaluate(() => (window as any).__dv.popoutCount()))
+            .toBe(0);
+
+        await expect(page.locator('.dv-tab')).toHaveCount(2);
+        await expect(page.locator('.dv-test-panel')).toContainText('beta');
+        expect(
+            await page.evaluate(() => (window as any).__dv.groupCount())
+        ).toBe(1);
+    });
+
     test('a panel moved into a popout renders inside the popout window', async ({
         page,
         context,

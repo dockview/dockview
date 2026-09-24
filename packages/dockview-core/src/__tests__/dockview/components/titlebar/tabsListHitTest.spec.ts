@@ -170,15 +170,15 @@ function reorderAnimState(): TabAnimationState {
             ['panel-a', makeDOMRect(0, 0, 80, 30)],
             ['panel-b', makeDOMRect(80, 0, 80, 30)],
         ]),
-        chipPositions: new Map(),
+        chipSizes: new Map(),
         currentInsertionIndex: 2,
         targetTabGroupId: null,
         sourceTabGroupId: null,
         sourceGroupPanelIds: null,
-        sourceChipWidth: 0,
-        cursorOffsetFromDragLeft: 40,
-        sourceGapWidth: 80,
-        containerLeft: 0,
+        sourceChipSize: 0,
+        cursorOffsetFromDragStart: 40,
+        sourceGapSize: 80,
+        containerStart: 0,
     };
 }
 

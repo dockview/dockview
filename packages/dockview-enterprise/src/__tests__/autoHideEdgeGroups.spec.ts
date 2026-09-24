@@ -414,6 +414,36 @@ describe('auto-hide edge groups', () => {
             d.dispose();
         });
 
+        test('Escape returns focus to the tab inside a shadow root', () => {
+            // `document.activeElement` is the shadow host here, so the close
+            // must read the shadow root's focus to see it was inside the peek.
+            const shadowHost = document.createElement('div');
+            document.body.appendChild(shadowHost);
+            const shadow = shadowHost.attachShadow({ mode: 'open' });
+            container = document.createElement('div');
+            shadow.appendChild(container);
+            const d = new DockviewComponent(container, {
+                createComponent: () => new TestPanel(),
+                autoHideEdgeGroups: true,
+            });
+            d.layout(1000, 1000);
+            collapsedEdgeWithPanel(d);
+            const tab = tabs(d)[0];
+            tab.focus();
+            fireEvent.keyDown(tab, { key: 'Enter' });
+            expect(peek()?.contains(shadow.activeElement)).toBe(true);
+
+            document.dispatchEvent(
+                new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
+            );
+
+            expect(peek()).toBeNull();
+            expect(shadow.activeElement).toBe(tab);
+
+            d.dispose();
+            shadowHost.remove();
+        });
+
         test('focus landing outside the peek closes it (keyboard tab-away)', () => {
             const d = make(true);
             collapsedEdgeWithPanel(d);

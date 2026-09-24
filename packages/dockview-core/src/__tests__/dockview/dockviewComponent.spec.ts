@@ -25,7 +25,10 @@ import {
     IHeaderActionsRenderer,
 } from '../../dockview/options';
 import { SizeEvent } from '../../api/gridviewPanelApi';
-import { setupMockWindow } from '../__mocks__/mockWindow';
+import {
+    setupDeferredMockWindow,
+    setupMockWindow,
+} from '../__mocks__/mockWindow';
 import { EdgeGroupOptions } from '../../dockview/dockviewShell';
 import {
     exhaustMicrotaskQueue,
@@ -4196,6 +4199,68 @@ describe('dockviewComponent', () => {
         expect(dockview.totalPanels).toBe(0);
     });
 
+    test('can re-add a closed panel with a tabComponent and renderer=always (#1300)', () => {
+        const container = document.createElement('div');
+
+        const dockview = new DockviewComponent(container, {
+            createComponent(options) {
+                switch (options.name) {
+                    case 'default':
+                        return new PanelContentPartTest(
+                            options.id,
+                            options.name
+                        );
+                    default:
+                        throw new Error(`unsupported`);
+                }
+            },
+            createTabComponent(options) {
+                switch (options.name) {
+                    case 'default':
+                        return new PanelTabPartTest(options.id, options.name);
+                    default:
+                        throw new Error(`unsupported`);
+                }
+            },
+        });
+
+        dockview.layout(500, 1000);
+
+        for (const renderer of ['always', 'onlyWhenVisible'] as const) {
+            const panel = dockview.addPanel({
+                id: 'panel1',
+                component: 'default',
+                tabComponent: 'default',
+                renderer,
+            });
+
+            expect(panel.api.renderer).toBe(renderer);
+
+            panel.api.close();
+
+            expect(dockview.totalPanels).toBe(0);
+
+            const panelAgain = dockview.addPanel({
+                id: 'panel1',
+                component: 'default',
+                tabComponent: 'default',
+                renderer,
+            });
+
+            expect(dockview.totalPanels).toBe(1);
+            expect(panelAgain.api.renderer).toBe(renderer);
+
+            // the tabComponent of the re-added panel must be rendered
+            const tab = panelAgain.view.tab as PanelTabPartTest;
+            expect(tab.isDisposed).toBeFalsy();
+            expect(
+                panelAgain.group.model.header.element.contains(tab.element)
+            ).toBeTruthy();
+
+            panelAgain.api.close();
+        }
+    });
+
     test('panel is disposed of when removed', () => {
         const container = document.createElement('div');
 
@@ -6600,6 +6665,68 @@ describe('dockviewComponent', () => {
             expect(dockview.groups).toHaveLength(0);
         });
 
+        test('floating the last panel of a group fires onDidRemoveGroup for the group it destroys', () => {
+            const dockview = createDockview();
+            dockview.layout(1000, 500);
+
+            const panel = dockview.addPanel({
+                id: 'panel_1',
+                component: 'default',
+            });
+            const sourceGroup = panel.api.group;
+
+            const events: string[] = [];
+            dockview.onDidAddGroup((group) => events.push(`add:${group.id}`));
+            dockview.onDidRemoveGroup((group) =>
+                events.push(`remove:${group.id}`)
+            );
+
+            dockview.addFloatingGroup(panel as DockviewPanel);
+
+            const floatingGroup = panel.api.group;
+
+            // the source group is genuinely gone, not merely emptied
+            expect(dockview.groups).toEqual([floatingGroup]);
+            expect(dockview.getPanel(sourceGroup.id)).toBeUndefined();
+
+            // ...so its removal is reported, matching the `onDidAddGroup` that
+            // announced the floating group it was traded for
+            expect(events).toEqual([
+                `add:${floatingGroup.id}`,
+                `remove:${sourceGroup.id}`,
+            ]);
+
+            dockview.dispose();
+        });
+
+        test('floating a panel out of a multi-panel group leaves the source group untouched', () => {
+            const dockview = createDockview();
+            dockview.layout(1000, 500);
+
+            const panel1 = dockview.addPanel({
+                id: 'panel_1',
+                component: 'default',
+            });
+            const panel2 = dockview.addPanel({
+                id: 'panel_2',
+                component: 'default',
+                position: { referencePanel: 'panel_1', direction: 'within' },
+            });
+            const sourceGroup = panel1.api.group;
+
+            const removed: string[] = [];
+            dockview.onDidRemoveGroup((group) => removed.push(group.id));
+
+            dockview.addFloatingGroup(panel2 as DockviewPanel);
+
+            // the source group still holds panel_1, so nothing was destroyed
+            expect(removed).toEqual([]);
+            expect(dockview.getPanel(sourceGroup.id)).toBe(sourceGroup);
+            expect(sourceGroup.panels.map((p) => p.id)).toEqual(['panel_1']);
+
+            dockview.dispose();
+        });
+
         const createDockview = () =>
             new DockviewComponent(document.createElement('div'), {
                 createComponent(options) {
@@ -7595,6 +7722,151 @@ describe('dockviewComponent', () => {
 
                 expect(() => dockview.clear()).not.toThrow();
                 expect(dockview.groups).toHaveLength(0);
+
+                jest.useRealTimers();
+            });
+
+            test('popoutRestorationPromise waits for the window to finish opening', async () => {
+                jest.useFakeTimers();
+                window.open = () => setupMockWindow();
+                const dockview = make();
+                dockview.layout(1000, 500);
+
+                const panel1 = dockview.addPanel({
+                    id: 'panel_1',
+                    component: 'default',
+                });
+                dockview.addPanel({
+                    id: 'panel_2',
+                    component: 'default',
+                    position: { referencePanel: 'panel_1', direction: 'right' },
+                });
+
+                await dockview.addPopoutGroup(panel1.api.group);
+                const state = dockview.toJSON();
+
+                // Hold the restored window's `load` back, so the popout is
+                // still in flight when the restoration timer has run.
+                const deferred = setupDeferredMockWindow();
+                (window as any).open = () => deferred.window;
+
+                dockview.clear();
+                dockview.fromJSON(state);
+                jest.advanceTimersByTime(500);
+
+                let settled = false;
+                const restored = dockview.popoutRestorationPromise.then(() => {
+                    settled = true;
+                });
+
+                // the timer has fired, but the window has not loaded yet
+                for (let i = 0; i < 10; i++) {
+                    await Promise.resolve();
+                }
+                expect(settled).toBe(false);
+                expect(
+                    dockview.groups.filter(
+                        (group) => group.api.location.type === 'popout'
+                    )
+                ).toHaveLength(0);
+
+                deferred.load();
+                await restored;
+
+                expect(settled).toBe(true);
+                expect(
+                    dockview.groups.filter(
+                        (group) => group.api.location.type === 'popout'
+                    )
+                ).toHaveLength(1);
+
+                jest.useRealTimers();
+            });
+
+            test('a popout URL the guard refuses leaves the layout untouched', async () => {
+                window.open = () => setupMockWindow();
+                const dockview = make();
+                dockview.layout(1000, 500);
+
+                const panel1 = dockview.addPanel({
+                    id: 'panel_1',
+                    component: 'default',
+                });
+                dockview.addPanel({
+                    id: 'panel_2',
+                    component: 'default',
+                    position: { referencePanel: 'panel_1', direction: 'right' },
+                });
+
+                const before = dockview.groups.length;
+
+                // A packaged desktop shell can serve the app from a custom
+                // protocol (`tauri://localhost` on macOS / Linux), which the
+                // same-origin guard refuses.
+                const result = await dockview.addPopoutGroup(panel1.api.group, {
+                    popoutUrl: 'tauri://localhost/popout.html',
+                });
+
+                expect(result).toBe(false);
+                expect(dockview.groups).toHaveLength(before);
+                expect(panel1.api.location.type).toBe('grid');
+                expect(panel1.api.isVisible).toBe(true);
+
+                dockview.dispose();
+            });
+
+            test('restoring a popout whose URL the guard refuses docks it into the grid', async () => {
+                jest.useFakeTimers();
+                window.open = () => setupMockWindow();
+                const dockview = make();
+                dockview.layout(1000, 500);
+
+                const panel1 = dockview.addPanel({
+                    id: 'panel_1',
+                    component: 'default',
+                });
+                dockview.addPanel({
+                    id: 'panel_2',
+                    component: 'default',
+                    position: { referencePanel: 'panel_1', direction: 'right' },
+                });
+
+                await dockview.addPopoutGroup(panel1.api.group, {
+                    popoutUrl: '/popout.html',
+                });
+
+                const state = dockview.toJSON();
+                expect(state.popoutGroups![0].url).toBe('/popout.html');
+
+                // The same layout reopened where the app is served from a
+                // custom protocol: the guard refuses the URL before the window
+                // is ever requested, so the blocked-popup fallback never runs.
+                state.popoutGroups![0].url = 'tauri://localhost/popout.html';
+
+                dockview.clear();
+                dockview.fromJSON(state);
+                jest.advanceTimersByTime(500);
+                await dockview.popoutRestorationPromise;
+
+                expect(dockview.panels.map((p) => p.id).sort()).toEqual([
+                    'panel_1',
+                    'panel_2',
+                ]);
+                expect(
+                    dockview.groups.filter(
+                        (group) => group.api.location.type === 'popout'
+                    )
+                ).toHaveLength(0);
+
+                // the refused group must not linger registered-but-unparented,
+                // which would render nothing while still serializing
+                expect(
+                    dockview.groups.filter(
+                        (group) => !dockview.element.contains(group.element)
+                    )
+                ).toHaveLength(0);
+
+                expect(() => dockview.clear()).not.toThrow();
 
                 jest.useRealTimers();
             });
@@ -14047,5 +14319,59 @@ describe('group header direction change signal (DV-14 unblocker)', () => {
 
             dockview.dispose();
         });
+    });
+});
+
+describe('popout styles from a shadow-root mount', () => {
+    test('copies the stylesheets of the shadow root dockview is mounted in', async () => {
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        const shadowRoot = host.attachShadow({ mode: 'open' });
+        const container = document.createElement('div');
+        shadowRoot.appendChild(container);
+        // jsdom has no styleSheets / adoptedStyleSheets on shadow roots.
+        Object.assign(shadowRoot, {
+            styleSheets: [
+                {
+                    href: null,
+                    cssRules: [{ cssText: '.from-shadow { color: red; }' }],
+                },
+            ],
+            adoptedStyleSheets: [],
+        });
+
+        const popoutDocument =
+            document.implementation.createHTMLDocument('popout');
+        const mockWindow = setupMockWindow();
+        Object.defineProperty(mockWindow, 'document', {
+            value: popoutDocument,
+        });
+        const originalOpen = window.open;
+        window.open = () => mockWindow;
+
+        try {
+            const dockview = new DockviewComponent(container, {
+                createComponent(options) {
+                    return new PanelContentPartTest(options.id, options.name);
+                },
+            });
+            dockview.layout(1000, 500);
+            const panel = dockview.addPanel({
+                id: 'panel_1',
+                component: 'default',
+            });
+
+            expect(await dockview.addPopoutGroup(panel.api.group)).toBeTruthy();
+
+            const texts = Array.from(
+                popoutDocument.head.querySelectorAll('style')
+            ).map((style) => style.textContent);
+            expect(texts).toContain('.from-shadow { color: red; }');
+
+            dockview.dispose();
+        } finally {
+            window.open = originalOpen;
+            host.remove();
+        }
     });
 });

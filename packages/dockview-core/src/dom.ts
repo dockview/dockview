@@ -145,7 +145,10 @@ class FocusTracker extends CompositeDisposable implements IFocusTracker {
 
         this.addDisposables(this._onDidFocus, this._onDidBlur);
 
-        let hasFocus = isAncestor(document.activeElement, <HTMLElement>element);
+        let hasFocus = isAncestor(
+            getActiveElement(element),
+            <HTMLElement>element
+        );
         let loosingFocus = false;
 
         const onFocus = () => {
@@ -171,7 +174,7 @@ class FocusTracker extends CompositeDisposable implements IFocusTracker {
 
         this._refreshStateHandler = () => {
             const currentNodeHasFocus = isAncestor(
-                document.activeElement,
+                getActiveElement(element),
                 <HTMLElement>element
             );
             if (currentNodeHasFocus !== hasFocus) {
@@ -209,6 +212,56 @@ export function quasiDefaultPrevented(event: Event): boolean {
     return (event as any)[QUASI_PREVENT_DEFAULT_KEY];
 }
 
+/** Whether the event originated within any of `elements`. Checks the
+ *  composed path, so it also holds for elements inside a shadow root, which a
+ *  window or document listener sees retargeted to the shadow host. */
+export function isEventWithin(
+    event: Event,
+    elements: readonly Element[]
+): boolean {
+    const path = event.composedPath?.() ?? [];
+    if (path.length > 0) {
+        return elements.some((el) => path.includes(el));
+    }
+    const target = event.target;
+    return target instanceof Node && elements.some((el) => el.contains(target));
+}
+
+/** Every shadow root between `element` and its document, innermost first. An
+ *  element in a component nested inside another component sits in more than
+ *  one, and an event is cut at each boundary. */
+export function shadowRootsOf(node: Node): ShadowRoot[] {
+    const roots: ShadowRoot[] = [];
+    let root: Node = node.getRootNode();
+    while (isShadowRoot(root)) {
+        roots.push(root);
+        root = root.host.getRootNode();
+    }
+    return roots;
+}
+
+/**
+ * `element` as a listener rooted in `scope`'s tree sees it. A node in a shadow
+ * root *below* that tree is retargeted to its host there, repeatedly for
+ * nested roots; a node already in the same tree is returned unchanged. Omit
+ * `scope` (or pass a node in the document) for the document-level view, which
+ * is what a window listener gets.
+ *
+ * The scope matters: a layer living inside a shadow root must be able to tell
+ * its own elements apart, and retargeting everything out to the document would
+ * collapse them all onto the one host.
+ */
+export function retargetInto(element: Element, scope?: Node | null): Element {
+    const scopeRoot = scope?.getRootNode();
+    let current = element;
+    let root: Node = current.getRootNode();
+    while (root !== scopeRoot && isShadowRoot(root)) {
+        current = root.host;
+        root = current.getRootNode();
+    }
+    return current;
+}
+
 export type CspNonceProvider =
     | string
     | ((targetDocument: Document) => string | undefined);
@@ -219,7 +272,7 @@ export interface AddStylesOptions {
 
 export function addStyles(
     document: Document,
-    styleSheetList: StyleSheetList,
+    styleSheetList: StyleSheetList | readonly CSSStyleSheet[],
     options: AddStylesOptions = {}
 ) {
     const styleSheets = Array.from(styleSheetList);
@@ -232,6 +285,11 @@ export function addStyles(
             link.href = styleSheet.href;
             link.type = styleSheet.type;
             link.rel = 'stylesheet';
+            // `style-src 'nonce-…'` covers external stylesheets too, so a
+            // copied <link> needs the nonce just as a generated <style> does.
+            if (resolvedNonce) {
+                link.setAttribute('nonce', resolvedNonce);
+            }
             document.head.appendChild(link);
             // The <link> will load and apply its rules in the target
             // document. Reading cssRules here would duplicate them
@@ -303,6 +361,37 @@ export function isInDocument(element: Element): boolean {
     return false;
 }
 
+/** Duck-typed so it holds for a shadow root from another window's realm. */
+export function isShadowRoot(
+    node: Node | null | undefined
+): node is ShadowRoot {
+    return (
+        !!node &&
+        node.nodeType === Node.DOCUMENT_FRAGMENT_NODE &&
+        'host' in node &&
+        !!(node as ShadowRoot).host
+    );
+}
+
+/**
+ * The document or shadow root to hit-test (`elementFromPoint` /
+ * `elementsFromPoint`) against for `node`. Hit-testing on the document stops
+ * at a shadow host, so when dockview is mounted in a shadow root it has to go
+ * through that root to reach its own elements. Falls back to the owning
+ * document (which may be a popout's) for a detached node.
+ */
+export function getHitTestRoot(node: Node): DocumentOrShadowRoot {
+    const root = node.getRootNode();
+    if (
+        root !== node &&
+        typeof (root as Partial<DocumentOrShadowRoot>).elementsFromPoint ===
+            'function'
+    ) {
+        return root as unknown as DocumentOrShadowRoot;
+    }
+    return node.ownerDocument ?? document;
+}
+
 export function addTestId(element: HTMLElement, id: string): void {
     element.dataset.testid = id;
 }
@@ -366,6 +455,61 @@ export function disableIframePointEvents(rootNode: ParentNode = document) {
     };
 }
 
+/**
+ * Suppress text selection for the duration of a pointer drag.
+ *
+ * A pointer drag is just a held button as far as the browser is concerned, so
+ * it selects text under the cursor as it travels. HTML5 drag-and-drop is
+ * exempt - the browser owns the gesture - which is why this is only needed on
+ * the pointer backend.
+ *
+ * `user-select: none` alone is not enough on WebKit: it starts the selection
+ * gesture from a mousedown on a `user-select: none` element unless that
+ * element is also natively draggable, then extends it into whatever the
+ * pointer crosses. Cancelling `selectstart` refuses that first extension,
+ * which ends the gesture for the rest of the drag.
+ *
+ * An existing selection is left alone: a mousedown on a `user-select: none`
+ * element does not clear one natively, and a pointer drag should not either.
+ */
+export function disableTextSelection(rootNode: ParentNode = document) {
+    const doc =
+        rootNode instanceof Document ? rootNode : rootNode.ownerDocument;
+    const root = doc?.documentElement;
+
+    if (!doc || !root) {
+        return { release: () => undefined };
+    }
+
+    // Set through `setProperty` so the prefixed form is a plain CSS property
+    // rather than the deprecated `style.webkitUserSelect` IDL attribute.
+    const properties = ['user-select', '-webkit-user-select'];
+    const previous = properties.map((name) => [
+        name,
+        root.style.getPropertyValue(name),
+    ]);
+
+    for (const name of properties) {
+        root.style.setProperty(name, 'none');
+    }
+
+    const onSelectStart = (event: Event) => event.preventDefault();
+    doc.addEventListener('selectstart', onSelectStart);
+
+    return {
+        release: () => {
+            doc.removeEventListener('selectstart', onSelectStart);
+            for (const [name, value] of previous) {
+                if (value) {
+                    root.style.setProperty(name, value);
+                } else {
+                    root.style.removeProperty(name);
+                }
+            }
+        },
+    };
+}
+
 export function getDockviewTheme(element: HTMLElement): string | undefined {
     function toClassList(element: HTMLElement) {
         const list: string[] = [];
@@ -386,6 +530,14 @@ export function getDockviewTheme(element: HTMLElement): string | undefined {
         );
         if (typeof theme === 'string') {
             break;
+        }
+        // `parentElement` is null at a shadow boundary, so step out through
+        // the host: a theme class set on the web component hosting the dock
+        // still has to be found.
+        if (parent.parentElement === null) {
+            const root = parent.getRootNode();
+            parent = isShadowRoot(root) ? (root.host as HTMLElement) : null;
+            continue;
         }
         parent = parent.parentElement;
     }
@@ -594,4 +746,36 @@ export function resolveOpaqueBackground(element: HTMLElement): string {
         el = el.parentElement;
     }
     return '';
+}
+
+/** The focused element as seen from `node`'s own tree. Unlike
+ *  `document.activeElement`, which is the shadow host when focus is inside a
+ *  shadow root, this reaches into the root `node` lives in (and a popout's
+ *  own document), while a web component nested inside that tree still
+ *  resolves to its host there. */
+export function getActiveElement(node: Node): Element | null {
+    const root = node.getRootNode() as Node & Partial<DocumentOrShadowRoot>;
+    // Every document keeps its `activeElement` while blurred, so a popout in
+    // the background would still name a focused element and race the window
+    // that really has focus — enough for `FocusTracker.refreshState` to fire
+    // a spurious focus and hand it the active group.
+    const doc =
+        root.nodeType === Node.DOCUMENT_NODE
+            ? (root as Document)
+            : node.ownerDocument;
+    if (doc && typeof doc.hasFocus === 'function' && !doc.hasFocus()) {
+        return null;
+    }
+    return root.activeElement ?? null;
+}
+
+/** Where to append a floating element (e.g. a drag ghost) for `node`: its
+ *  shadow root when it lives in one, so styles scoped there still apply,
+ *  otherwise the body of its own document (which may be a popout's). */
+export function getOverlayParent(node: Node): ParentNode {
+    const root = node.getRootNode();
+    if (isShadowRoot(root)) {
+        return root;
+    }
+    return (node.ownerDocument ?? document).body;
 }

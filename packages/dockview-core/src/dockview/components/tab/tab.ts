@@ -132,13 +132,20 @@ export class Tab extends CompositeDisposable {
                     return false;
                 }
 
-                // A group drag never lands inside a tab group: the reorder
-                // controller snaps the insertion index out of any group range
-                // it falls in. Offering a grouped tab's slot would advertise a
-                // landing the drop won't take, so the boundary is left to the
-                // chip. Ungrouped tabs keep their slots.
+                // Reordering a group within its own strip never lands inside
+                // another tab group: the reorder controller snaps the
+                // insertion index out of any group range it falls in.
+                // Offering a grouped tab's slot would advertise a landing the
+                // drop won't take, so the boundary is left to the chip.
+                // Ungrouped tabs keep their slots.
+                //
+                // Scoped to the source group: dropping a group onto another
+                // group's tab is a move, not a reorder, and the reorder
+                // controller has no part in it. Refusing it there leaves the
+                // pointer backend with nothing to commit against.
                 if (
                     data.tabGroupId &&
+                    data.groupId === this.group.id &&
                     this.group.model.getTabGroupForPanel(this.panel.id)
                 ) {
                     return false;
