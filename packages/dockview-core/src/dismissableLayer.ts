@@ -13,6 +13,12 @@ function isCoarsePrimaryInput(win: Window): boolean {
     return coarse && !fine;
 }
 
+/** The event's originating target. A window listener sees events from inside
+ *  a shadow root retargeted to the shadow host, so read the composed path. */
+function originalTarget(event: Event): EventTarget | null {
+    return event.composedPath?.()[0] ?? event.target;
+}
+
 export interface DismissableLayerOptions {
     /** Window to listen on. Pass the popout window for popout-hosted layers.
      *  Defaults to the global `window`. */
@@ -87,7 +93,7 @@ export function createDismissableLayer(
         if (options.isInside) {
             return options.isInside(event);
         }
-        const target = event.target;
+        const target = originalTarget(event);
         if (!(target instanceof Node)) {
             return false;
         }
@@ -155,7 +161,7 @@ export function createDismissableLayer(
         // `focusin` bubbles to the window; capture so it's seen regardless of
         // content handlers.
         const onFocusIn = (event: FocusEvent): void => {
-            const target = event.target;
+            const target = originalTarget(event);
             if (target instanceof Element && !isFocusInside(target)) {
                 options.onDismiss();
             }

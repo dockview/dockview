@@ -156,4 +156,38 @@ describe('createDismissableLayer', () => {
 
         layer.dispose();
     });
+
+    test('pointerdown and focusin inside a shadow root count as inside', () => {
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        const root = host.attachShadow({ mode: 'open' });
+        const menu = document.createElement('div');
+        const item = document.createElement('button');
+        menu.appendChild(item);
+        root.appendChild(menu);
+
+        const onDismiss = jest.fn();
+        const onInsidePointerDown = jest.fn();
+        const layer = createDismissableLayer({
+            onDismiss,
+            onInsidePointerDown,
+            focusOut: true,
+            elements: () => [menu],
+        });
+
+        item.dispatchEvent(
+            new MouseEvent('pointerdown', { bubbles: true, composed: true })
+        );
+        item.dispatchEvent(
+            new FocusEvent('focusin', { bubbles: true, composed: true })
+        );
+        expect(onInsidePointerDown).toHaveBeenCalledTimes(1);
+        expect(onDismiss).not.toHaveBeenCalled();
+
+        pointerdownOn(outside);
+        expect(onDismiss).toHaveBeenCalledTimes(1);
+
+        layer.dispose();
+        host.remove();
+    });
 });
