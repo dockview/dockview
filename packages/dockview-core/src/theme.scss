@@ -127,7 +127,7 @@
     --dv-activegroup-visiblepanel-tab-color: white;
     --dv-activegroup-hiddenpanel-tab-color: #969696;
     --dv-inactivegroup-visiblepanel-tab-color: #8f8f8f;
-    --dv-inactivegroup-hiddenpanel-tab-color: #626262;
+    --dv-inactivegroup-hiddenpanel-tab-color: #787878;
     //
     --dv-separator-border: rgb(68, 68, 68);
     --dv-paneview-header-border-color: rgba(204, 204, 204, 0.2);
@@ -153,7 +153,7 @@
     --dv-activegroup-visiblepanel-tab-color: rgb(51, 51, 51);
     --dv-activegroup-hiddenpanel-tab-color: rgba(51, 51, 51, 0.7);
     --dv-inactivegroup-visiblepanel-tab-color: rgba(51, 51, 51, 0.7);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(51, 51, 51, 0.35);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(51, 51, 51, 0.55);
     //
     --dv-separator-border: rgba(128, 128, 128, 0.35);
     --dv-paneview-header-border-color: rgb(51, 51, 51);
@@ -273,7 +273,7 @@
     --dv-activegroup-visiblepanel-tab-color: white;
     --dv-activegroup-hiddenpanel-tab-color: rgba(255, 255, 255, 0.5);
     --dv-inactivegroup-visiblepanel-tab-color: rgba(255, 255, 255, 0.5);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(255, 255, 255, 0.25);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(255, 255, 255, 0.35);
     //
     --dv-separator-border: var(--dv-color-abyss-lighter);
     --dv-paneview-header-border-color: var(--dv-color-abyss-lighter);
@@ -299,9 +299,11 @@
     --dv-tab-divider-color: #191a21;
     //
     --dv-activegroup-visiblepanel-tab-color: rgb(248, 248, 242);
-    --dv-activegroup-hiddenpanel-tab-color: rgb(98, 114, 164);
+    // The Dracula "comment" tone lifted until it clears 4.5:1 on the hidden-tab
+    // background; the unfocused variant is the same tone at 75%.
+    --dv-activegroup-hiddenpanel-tab-color: #7b89b3;
     --dv-inactivegroup-visiblepanel-tab-color: rgba(248, 248, 242, 0.5);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(98, 114, 164, 0.5);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(123, 137, 179, 0.75);
     //
     --dv-separator-border: #bd93f9;
     --dv-paneview-header-border-color: #bd93f9;
@@ -395,8 +397,10 @@
     );
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-nord-snow-0);
     --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-nord-snow-1);
-    --dv-inactivegroup-visiblepanel-tab-color: #8a9bbf;
-    --dv-inactivegroup-hiddenpanel-tab-color: #5e6f8e;
+    // Unfocused-group tones are held to ≥3:1 (hidden) / ≥4.5:1 (visible panel)
+    // against their tab backgrounds; see the theme contrast audit.
+    --dv-inactivegroup-visiblepanel-tab-color: #a1afcc;
+    --dv-inactivegroup-hiddenpanel-tab-color: #8e9ab0;
     --dv-separator-border: var(--dv-color-nord-polar-3);
     --dv-paneview-active-outline-color: var(--dv-color-nord-frost);
     --dv-active-sash-color: var(--dv-color-nord-frost);
@@ -481,8 +485,10 @@
     );
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-nord-snow-0);
     --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-nord-snow-1);
-    --dv-inactivegroup-visiblepanel-tab-color: #8a9bbf;
-    --dv-inactivegroup-hiddenpanel-tab-color: #5e6f8e;
+    // Unfocused-group tones are held to ≥3:1 (hidden) / ≥4.5:1 (visible panel)
+    // against their tab backgrounds; see the theme contrast audit.
+    --dv-inactivegroup-visiblepanel-tab-color: #b2bdd5;
+    --dv-inactivegroup-hiddenpanel-tab-color: #818fa7;
     --dv-separator-border: transparent;
     --dv-paneview-active-outline-color: var(--dv-color-nord-frost);
     --dv-active-sash-color: var(--dv-color-nord-frost);
@@ -529,7 +535,7 @@
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-mocha-text);
     --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-mocha-subtext1);
     --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-mocha-subtext0);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(166, 173, 200, 0.5);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(166, 173, 200, 0.55);
     --dv-separator-border: var(--dv-color-mocha-surface1);
     --dv-paneview-active-outline-color: var(--dv-color-mocha-mauve);
     --dv-active-sash-color: var(--dv-color-mocha-mauve);
@@ -617,7 +623,7 @@
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-mocha-text);
     --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-mocha-subtext1);
     --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-mocha-subtext0);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(166, 173, 200, 0.5);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(166, 173, 200, 0.55);
     --dv-separator-border: transparent;
     --dv-paneview-active-outline-color: var(--dv-color-mocha-mauve);
     --dv-active-sash-color: var(--dv-color-mocha-mauve);
@@ -660,7 +666,8 @@
         --dv-color-monokai-comment-bright
     );
     --dv-inactivegroup-visiblepanel-tab-color: rgba(248, 248, 242, 0.5);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(117, 113, 94, 0.5);
+    // comment-bright at 70%: the raw comment tone cannot reach 3:1 even opaque.
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(163, 157, 138, 0.7);
     --dv-separator-border: var(--dv-color-monokai-bg-light);
     --dv-paneview-active-outline-color: var(--dv-color-monokai-green);
     --dv-active-sash-color: var(--dv-color-monokai-green);
@@ -738,9 +745,12 @@
     );
     --dv-inactivegroup-hiddenpanel-tab-background-color: #e8e2d0;
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-sol-base01);
-    --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-sol-base00);
-    --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-sol-base1);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(147, 161, 161, 0.6);
+    // Solarized's base00/base1 sit below AA on the warm tab backgrounds, so
+    // the muted tab tones are darkened steps of the same hues: ≥4.5:1 for any
+    // visible panel's title, ≥3:1 for hidden tabs in an unfocused group.
+    --dv-activegroup-hiddenpanel-tab-color: #55676e;
+    --dv-inactivegroup-visiblepanel-tab-color: #677171;
+    --dv-inactivegroup-hiddenpanel-tab-color: #768181;
     --dv-separator-border: var(--dv-color-sol-base2);
     --dv-paneview-active-outline-color: var(--dv-color-sol-blue);
     --dv-active-sash-color: var(--dv-color-sol-blue);
@@ -785,9 +795,10 @@
     --dv-activegroup-visiblepanel-tab-color: var(
         --dv-color-sol-base01-strong
     );
-    --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-sol-base00);
-    --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-sol-base1);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(147, 161, 161, 0.6);
+    // See the solarized-light mixin: darkened muted tones for AA.
+    --dv-activegroup-hiddenpanel-tab-color: #5f747b;
+    --dv-inactivegroup-visiblepanel-tab-color: #5b6464;
+    --dv-inactivegroup-hiddenpanel-tab-color: #849191;
     --dv-separator-border: transparent;
     --dv-paneview-active-outline-color: var(--dv-color-sol-blue);
     --dv-active-sash-color: var(--dv-color-sol-blue);
@@ -835,8 +846,10 @@
     );
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-gh-fg-default);
     --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-gh-fg-muted);
-    --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-gh-fg-subtle);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(110, 118, 129, 0.5);
+    // Unfocused-group tones are held to ≥3:1 (hidden) / ≥4.5:1 (visible panel)
+    // against their tab backgrounds; see the theme contrast audit.
+    --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-gh-fg-muted);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(139, 148, 158, 0.7);
     --dv-separator-border: var(--dv-color-gh-border);
     --dv-paneview-active-outline-color: var(--dv-color-gh-accent);
     --dv-active-sash-color: var(--dv-color-gh-accent);
@@ -883,8 +896,11 @@
     );
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-gh-fg-default);
     --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-gh-fg-muted);
-    --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-gh-fg-subtle);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(110, 118, 129, 0.5);
+    // Unfocused-group tones are held to ≥3:1 (hidden) / ≥4.5:1 (visible panel)
+    // against their tab backgrounds; see the theme contrast audit.
+    // The visible-panel tab sits on the lighter `gh-border` pill here.
+    --dv-inactivegroup-visiblepanel-tab-color: #9a9fa7;
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(139, 148, 158, 0.7);
     --dv-separator-border: transparent;
     --dv-paneview-active-outline-color: var(--dv-color-gh-accent);
     --dv-active-sash-color: var(--dv-color-gh-accent);
@@ -933,7 +949,7 @@
     --dv-inactivegroup-visiblepanel-tab-color: var(
         --dv-color-gh-light-fg-subtle
     );
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(110, 118, 129, 0.4);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(110, 118, 129, 0.8);
     --dv-separator-border: var(--dv-color-gh-light-border);
     --dv-paneview-active-outline-color: var(--dv-color-gh-light-accent);
     --dv-active-sash-color: var(--dv-color-gh-light-accent);
@@ -983,10 +999,11 @@
         --dv-color-gh-light-fg-default
     );
     --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-gh-light-fg-muted);
-    --dv-inactivegroup-visiblepanel-tab-color: var(
-        --dv-color-gh-light-fg-subtle
-    );
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(110, 118, 129, 0.4);
+    // Unfocused-group tones are held to ≥3:1 (hidden) / ≥4.5:1 (visible panel)
+    // against their tab backgrounds; see the theme contrast audit.
+    // The visible-panel tab sits on the `gh-light-border` pill here.
+    --dv-inactivegroup-visiblepanel-tab-color: #565d65;
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(110, 118, 129, 0.8);
     --dv-separator-border: transparent;
     --dv-paneview-active-outline-color: var(--dv-color-gh-light-accent);
     --dv-active-sash-color: var(--dv-color-gh-light-accent);
@@ -1087,9 +1104,9 @@
     --dv-tab-divider-color: transparent;
     //
     --dv-activegroup-visiblepanel-tab-color: rgb(60, 64, 96);
-    --dv-activegroup-hiddenpanel-tab-color: rgb(120, 124, 145);
+    --dv-activegroup-hiddenpanel-tab-color: #717588;
     --dv-inactivegroup-visiblepanel-tab-color: rgb(90, 94, 120);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgb(150, 153, 170);
+    --dv-inactivegroup-hiddenpanel-tab-color: #9093a3;
     //
     --dv-separator-border: transparent;
     --dv-paneview-header-border-color: rgb(51, 51, 51);
@@ -1332,7 +1349,7 @@
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-slate-accent);
     --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-slate-5);
     --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-slate-5);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(95, 106, 128, 0.6);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(95, 106, 128, 0.8);
 
     --dv-tab-divider-color: var(--dv-color-slate-3);
     --dv-separator-border: var(--dv-color-slate-2);
@@ -1412,7 +1429,7 @@
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-slate-accent);
     --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-slate-5);
     --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-slate-5);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(138, 147, 164, 0.6);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(138, 147, 164, 0.65);
 
     --dv-tab-divider-color: var(--dv-color-slate-3);
     --dv-separator-border: var(--dv-color-slate-2);
@@ -1507,7 +1524,7 @@
         --dv-color-dark-rounded-fg-muted
     );
     --dv-inactivegroup-visiblepanel-tab-color: rgba(204, 204, 204, 0.6);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(166, 166, 166, 0.6);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(166, 166, 166, 0.65);
 
     --dv-tab-divider-color: var(--dv-color-dark-rounded-border);
     --dv-separator-border: var(--dv-color-dark-rounded-border);
