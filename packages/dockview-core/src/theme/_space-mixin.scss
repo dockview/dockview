@@ -17,7 +17,8 @@
     --dv-tab-border-radius: 8px;
     --dv-sash-border-radius: 4px;
     --dv-dropdown-border-radius: 8px;
-    --dv-tab-close-icon-size: 8px;
+    // 10px glyph + the action's 4px padding ≈ an 18px target; 8px left it ~16px.
+    --dv-tab-close-icon-size: 10px;
     --dv-floating-group-border: 2px solid var(--dv-group-view-background-color);
     // Blend the drag-handle bar into the spaced backdrop: match the gap/frame
     // color between groups (--dv-group-view-background-color) rather than the

@@ -140,6 +140,9 @@
     //
     --dv-separator-border: rgb(68, 68, 68);
     --dv-paneview-header-border-color: rgba(204, 204, 204, 0.2);
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: #383838;
+    --dv-active-sash-color: #007fd4;
 }
 
 @mixin dockview-theme-light-mixin {
@@ -166,6 +169,9 @@
     //
     --dv-separator-border: rgba(128, 128, 128, 0.35);
     --dv-paneview-header-border-color: rgb(51, 51, 51);
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: #e0e0e0;
+    --dv-active-sash-color: #0066b8;
 
     --dv-scrollbar-background-color: rgba(0, 0, 0, 0.25);
     --dv-floating-box-shadow:
@@ -198,6 +204,10 @@
     --dv-activegroup-hiddenpanel-tab-color: white;
     --dv-inactivegroup-visiblepanel-tab-color: white;
     --dv-inactivegroup-hiddenpanel-tab-color: white;
+
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: #3a3a3d;
+    --dv-active-sash-color: #007acc;
 
     .dv-groupview {
         &.dv-active-group {
@@ -288,6 +298,9 @@
     --dv-paneview-header-border-color: var(--dv-color-abyss-lighter);
 
     --dv-paneview-active-outline-color: #596f99;
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: #1a2440;
+    --dv-active-sash-color: var(--dv-color-abyss-accent);
 }
 
 @mixin dockview-theme-dracula-mixin {
@@ -318,6 +331,9 @@
     --dv-paneview-header-border-color: #bd93f9;
 
     --dv-paneview-active-outline-color: #6272a4;
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: #2b2d3a;
+    --dv-active-sash-color: #bd93f9;
 
     // Hairline active-tab marker, dimmed with the group.
     --dv-tab-marker-size: 1px;
@@ -377,6 +393,8 @@
     --dv-paneview-active-outline-color: var(--dv-color-nord-frost);
     --dv-active-sash-color: var(--dv-color-nord-frost);
     --dv-scrollbar-background-color: rgba(76, 86, 106, 0.5);
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: var(--dv-color-nord-polar-3);
 
     // Frost active-tab marker, dimmed with the group.
     --dv-activegroup-tab-marker-color: var(--dv-color-nord-frost);
@@ -429,6 +447,8 @@
     --dv-paneview-active-outline-color: var(--dv-color-nord-frost);
     --dv-active-sash-color: var(--dv-color-nord-frost);
     --dv-scrollbar-background-color: rgba(76, 86, 106, 0.5);
+    // Hover fill for hidden tabs (translucent: these tabs are bare text).
+    --dv-tab-inactive-hover-background-color: var(--dv-color-nord-polar-2);
 
     --dv-floating-group-border: 2px solid var(--dv-color-nord-polar-0);
 }
@@ -476,6 +496,8 @@
     --dv-paneview-active-outline-color: var(--dv-color-mocha-mauve);
     --dv-active-sash-color: var(--dv-color-mocha-mauve);
     --dv-scrollbar-background-color: rgba(49, 50, 68, 0.8);
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: var(--dv-color-mocha-surface1);
 
     // Mauve active-tab marker, dimmed with the group.
     --dv-activegroup-tab-marker-color: var(--dv-color-mocha-mauve);
@@ -528,6 +550,8 @@
     --dv-paneview-active-outline-color: var(--dv-color-mocha-mauve);
     --dv-active-sash-color: var(--dv-color-mocha-mauve);
     --dv-scrollbar-background-color: rgba(49, 50, 68, 0.8);
+    // Hover fill for hidden tabs (translucent: these tabs are bare text).
+    --dv-tab-inactive-hover-background-color: var(--dv-color-mocha-surface0);
 
     --dv-floating-group-border: 2px solid var(--dv-color-mocha-crust);
 }
@@ -572,6 +596,8 @@
     --dv-paneview-active-outline-color: var(--dv-color-monokai-green);
     --dv-active-sash-color: var(--dv-color-monokai-green);
     --dv-scrollbar-background-color: rgba(117, 113, 94, 0.5);
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: #35342a;
 
     // Green active-tab marker, dimmed with the group.
     --dv-activegroup-tab-marker-color: var(--dv-color-monokai-green);
@@ -619,6 +645,8 @@
     --dv-paneview-active-outline-color: var(--dv-color-sol-blue);
     --dv-active-sash-color: var(--dv-color-sol-blue);
     --dv-scrollbar-background-color: rgba(101, 123, 131, 0.25);
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: #e2dcc8;
     --dv-drag-over-background-color: rgba(38, 139, 210, 0.15);
     --dv-floating-box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -670,6 +698,8 @@
         0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
     --dv-floating-border: 1px solid rgba(0, 0, 0, 0.1);
     --dv-scrollbar-background-color: rgba(101, 123, 131, 0.25);
+    // Hover fill for hidden tabs (translucent: these tabs are bare text).
+    --dv-tab-inactive-hover-background-color: rgba(0, 0, 0, 0.04);
 
     --dv-floating-group-border: 2px solid rgba(238, 232, 213, 0.5);
 }
@@ -718,6 +748,8 @@
     --dv-paneview-active-outline-color: var(--dv-color-gh-accent);
     --dv-active-sash-color: var(--dv-color-gh-accent);
     --dv-scrollbar-background-color: rgba(48, 54, 61, 0.7);
+    // Hover fill for hidden tabs (translucent: these tabs are bare text).
+    --dv-tab-inactive-hover-background-color: rgba(255, 255, 255, 0.05);
     --dv-drag-over-background-color: rgba(88, 166, 255, 0.15);
 }
 
@@ -769,6 +801,8 @@
     --dv-paneview-active-outline-color: var(--dv-color-gh-accent);
     --dv-active-sash-color: var(--dv-color-gh-accent);
     --dv-scrollbar-background-color: rgba(48, 54, 61, 0.7);
+    // Hover fill for hidden tabs (translucent: these tabs are bare text).
+    --dv-tab-inactive-hover-background-color: rgba(255, 255, 255, 0.05);
 
     --dv-floating-group-border: 2px solid var(--dv-color-gh-canvas-inset);
 }
@@ -818,6 +852,8 @@
     --dv-paneview-active-outline-color: var(--dv-color-gh-light-accent);
     --dv-active-sash-color: var(--dv-color-gh-light-accent);
     --dv-scrollbar-background-color: rgba(208, 215, 222, 0.5);
+    // Hover fill for hidden tabs (translucent: these tabs are bare text).
+    --dv-tab-inactive-hover-background-color: rgba(0, 0, 0, 0.04);
     --dv-drag-over-background-color: rgba(9, 105, 218, 0.1);
     --dv-floating-box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -875,6 +911,8 @@
         0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
     --dv-floating-border: 1px solid rgba(0, 0, 0, 0.1);
     --dv-scrollbar-background-color: rgba(208, 215, 222, 0.5);
+    // Hover fill for hidden tabs (translucent: these tabs are bare text).
+    --dv-tab-inactive-hover-background-color: rgba(0, 0, 0, 0.04);
 
     --dv-floating-group-border: 2px solid rgba(208, 215, 222, 0.5);
 }
@@ -935,6 +973,8 @@
 
     /////
     --dv-active-sash-color: var(--dv-color-abyss-accent);
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: #262332;
     //
 
     --dv-floating-group-border: 2px solid var(--dv-color-abyss-dark);
@@ -977,6 +1017,8 @@
 
     /////
     --dv-active-sash-color: rgb(91, 30, 207);
+    // Hover fill for hidden tabs (translucent: these tabs are bare text).
+    --dv-tab-inactive-hover-background-color: rgba(0, 0, 0, 0.04);
     //
     --dv-floating-box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -1124,6 +1166,53 @@
         > .dv-tab.dv-active-tab
         + .dv-tab::before {
         background-color: transparent;
+    }
+
+    // Header at the bottom of the group: the tab hangs from the content above,
+    // so the folder shape flips — bottom corners rounded, shoulders flaring at
+    // the top edge. (A theme's `--dv-tab-margin` reveal inset is not flipped
+    // here; themes that use one, like slate, keep it on the top edge.)
+    .dv-groupview-header-bottom
+        .dv-tabs-container:not(.dv-tabs-container-vertical)
+        > .dv-tab {
+        border-radius: 0 0 var(--dv-tab-border-radius)
+            var(--dv-tab-border-radius);
+    }
+
+    .dv-groupview-header-bottom
+        .dv-tabs-container:not(.dv-tabs-container-vertical)
+        > .dv-tab.dv-active-tab {
+        &::before,
+        &::after {
+            bottom: auto;
+            top: 0;
+        }
+
+        &::before {
+            -webkit-mask-image: radial-gradient(
+                circle at bottom left,
+                transparent var(--dv-tab-shoulder-size),
+                #000 var(--dv-tab-shoulder-size)
+            );
+            mask-image: radial-gradient(
+                circle at bottom left,
+                transparent var(--dv-tab-shoulder-size),
+                #000 var(--dv-tab-shoulder-size)
+            );
+        }
+
+        &::after {
+            -webkit-mask-image: radial-gradient(
+                circle at bottom right,
+                transparent var(--dv-tab-shoulder-size),
+                #000 var(--dv-tab-shoulder-size)
+            );
+            mask-image: radial-gradient(
+                circle at bottom right,
+                transparent var(--dv-tab-shoulder-size),
+                #000 var(--dv-tab-shoulder-size)
+            );
+        }
     }
 
     // Vertical (edge-group) headers can't wear the horizontal folder shape: the
@@ -1418,15 +1507,6 @@
     // pill sits inside the rail the way the tabs sit inside the strip.
     .dv-tabs-container-vertical > .dv-tab {
         margin: 2px 4px;
-    }
-
-    // Header at the bottom of the group: the tab hangs from the content
-    // above, so round the bottom corners instead.
-    .dv-groupview-header-bottom
-        .dv-tabs-container:not(.dv-tabs-container-vertical)
-        > .dv-tab {
-        border-radius: 0 0 var(--dv-tab-border-radius)
-            var(--dv-tab-border-radius);
     }
 }
 
