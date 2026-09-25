@@ -1522,16 +1522,20 @@
 .dv-context-menu {
     min-width: 160px;
     overflow: hidden;
+    // Surface = the tab strip colour (always opaque; the hidden-tab background
+    // it used to borrow is transparent on the text-only-tab themes), text =
+    // the primary tab colour, border/separators = the group separator colour.
     background: var(
         --dv-context-menu-background-color,
-        var(--dv-activegroup-hiddenpanel-tab-background-color)
+        var(--dv-tabs-and-actions-container-background-color)
     );
     color: var(
         --dv-context-menu-color,
-        var(--dv-activegroup-hiddenpanel-tab-color)
+        var(--dv-activegroup-visiblepanel-tab-color)
     );
-    border: 1px solid var(--dv-tab-divider-color);
-    border-radius: var(--dv-border-radius);
+    border: 1px solid
+        var(--dv-context-menu-border-color, var(--dv-separator-border));
+    border-radius: var(--dv-dropdown-border-radius);
     box-shadow: var(--dv-floating-box-shadow);
     padding: 4px 0;
 }
@@ -1559,7 +1563,7 @@
 
 .dv-context-menu-separator {
     height: 1px;
-    background: var(--dv-tab-divider-color);
+    background: var(--dv-context-menu-border-color, var(--dv-separator-border));
     margin: 4px 0;
 }
 
@@ -1571,8 +1575,9 @@
     width: 100%;
     box-sizing: border-box;
     padding: 8px 10px;
-    border: 1px solid var(--dv-tab-divider-color);
-    border-radius: var(--dv-border-radius);
+    border: 1px solid
+        var(--dv-context-menu-border-color, var(--dv-separator-border));
+    border-radius: var(--dv-dropdown-border-radius);
     background: inherit;
     color: var(--dv-activegroup-visiblepanel-tab-color);
     font-size: var(--dv-tabs-and-actions-container-font-size);
@@ -1612,7 +1617,7 @@
     }
 
     &.dv-context-menu-color-swatch--selected {
-        outline: 2px solid var(--dv-tab-divider-color);
+        outline: 2px solid var(--dv-activegroup-visiblepanel-tab-color);
         outline-offset: 2px;
     }
 }
