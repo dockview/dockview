@@ -1,0 +1,73 @@
+// Windows High Contrast / `forced-colors: active`: the browser replaces every
+// author colour with the system palette (Canvas, CanvasText, Highlight …), so
+// any state told apart by background colour alone disappears — the active
+// tab, hover, the drop preview, the sash highlight, group separators, the
+// active-tab marker gradient. Re-express those with system colours and
+// outlines. `forced-color-adjust: none` is only used where the same rule
+// sets system colours explicitly, so no author colour leaks through.
+//
+// First pass, reviewed by reading rather than in a real high-contrast
+// session; verify on Windows before relying on it.
+@media (forced-colors: active) {
+    // Every tab gets an outline so the strip keeps its structure without
+    // fills; the selected tab takes the system selection colours (inherited
+    // by its label and close button — `forced-color-adjust` inherits).
+    .dv-tab {
+        outline: 1px solid CanvasText;
+        outline-offset: -1px;
+    }
+
+    .dv-groupview
+        > .dv-tabs-and-actions-container
+        .dv-tabs-container
+        > .dv-tab.dv-active-tab {
+        forced-color-adjust: none;
+        background-color: Highlight;
+        background-image: none;
+        color: HighlightText;
+    }
+
+    // Keyboard focus: the accent ring is forced to CanvasText, which would
+    // merge with the tab outline above; use the selection colour instead.
+    .dv-tab:focus-visible::after,
+    .dv-tab:has(:focus-visible)::after,
+    .dv-tab.dv-tabs-overflow-option--focused {
+        outline-color: Highlight !important;
+    }
+
+    // Drop preview and the layout-edge preview: translucent selection colour
+    // with a solid edge.
+    .dv-drop-target-selection,
+    .dv-drop-target-anchor,
+    .dv-dnd-compass-edge-preview {
+        forced-color-adjust: none;
+        background-color: Highlight;
+        border: 2px solid Highlight;
+        opacity: 0.4;
+    }
+
+    // Compass cells: outlined, the aimed-at cell filled.
+    .dv-dnd-compass-cell {
+        forced-color-adjust: none;
+        background-color: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+    }
+
+    .dv-dnd-compass-cell-active {
+        background-color: Highlight;
+    }
+
+    // Sash highlight while hovered / dragged.
+    .dv-sash:hover,
+    .dv-sash:active {
+        forced-color-adjust: none;
+        background-color: Highlight;
+    }
+
+    // Group separators are painted with a background colour.
+    .dv-separator-border .dv-view:not(:first-child)::before {
+        forced-color-adjust: none;
+        background-color: CanvasText;
+    }
+}
