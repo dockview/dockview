@@ -17,7 +17,15 @@
         outline-offset: -1px;
     }
 
-    .dv-groupview
+    // Both group-focus variants are listed so this ties core's colour rules
+    // on specificity (0,6,0) and wins by source order; a lower-specificity
+    // selector here would leave `forced-color-adjust: none` in place while
+    // core's author colours still won — the worst of both.
+    .dv-groupview.dv-active-group
+        > .dv-tabs-and-actions-container
+        .dv-tabs-container
+        > .dv-tab.dv-active-tab,
+    .dv-groupview.dv-inactive-group
         > .dv-tabs-and-actions-container
         .dv-tabs-container
         > .dv-tab.dv-active-tab {
