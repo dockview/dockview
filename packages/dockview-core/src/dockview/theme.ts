@@ -240,3 +240,12 @@ export const themeSlateDark: DockviewTheme = {
     dndTabIndicator: 'line',
     edgeGroupCollapsedSize: 32,
 };
+
+export const themeDarkRounded: DockviewTheme = {
+    name: 'darkRounded',
+    className: 'dockview-theme-dark-rounded',
+    colorScheme: 'dark',
+    // The active tab merges into the panel, so an insertion line reads more
+    // cleanly than a fill when dropping a tab.
+    dndTabIndicator: 'line',
+};

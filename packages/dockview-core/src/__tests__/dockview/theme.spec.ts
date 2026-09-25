@@ -5,6 +5,7 @@ import {
     themeCatppuccinMocha,
     themeCatppuccinMochaSpaced,
     themeDark,
+    themeDarkRounded,
     themeDracula,
     themeGithubDark,
     themeGithubDarkSpaced,
@@ -124,6 +125,11 @@ describe('theme', () => {
             name: 'slateDark',
             className: 'dockview-theme-slate-dark',
         },
+        {
+            theme: themeDarkRounded,
+            name: 'darkRounded',
+            className: 'dockview-theme-dark-rounded',
+        },
     ];
 
     test.each(allThemes)('theme $name has the expected name and className', ({
@@ -167,6 +173,7 @@ describe('theme', () => {
                 themeGithubDark,
                 themeGithubDarkSpaced,
                 themeSlateDark,
+                themeDarkRounded,
             ];
             for (const theme of darkThemes) {
                 expect(theme.colorScheme).toBe('dark');

@@ -352,6 +352,7 @@ themeAbyssSpaced
 themeCatppuccinMocha
 themeCatppuccinMochaSpaced
 themeDark
+themeDarkRounded
 themeDracula
 themeGithubDark
 themeGithubDarkSpaced

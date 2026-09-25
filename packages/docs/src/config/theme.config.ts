@@ -1,6 +1,7 @@
 import {
     themeAbyss,
     themeDark,
+    themeDarkRounded,
     themeDracula,
     themeAbyssSpaced,
     themeLightSpaced,
@@ -141,5 +142,11 @@ export const themeConfig = [
         label: 'Slate Dark',
         key: '**[Slate Dark](/demo?theme=slateDark)**',
         text: '',
+    },
+    {
+        id: themeDarkRounded,
+        label: 'Dark Rounded',
+        key: '**[Dark Rounded](/demo?theme=darkRounded)**',
+        text: 'The dark palette with a rounded, connected active tab cut out of a lighter strip',
     },
 ].filter((entry) => entry.id != null);

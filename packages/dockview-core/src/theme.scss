@@ -1431,6 +1431,114 @@
     @include dockview-theme-slate-dark-mixin();
 }
 
+// ─── Dark Rounded ────────────────────────────────────────────────────────────
+// The classic dark editor palette with a modern rounded tab strip. Its pieces:
+//   • A lighter strip with the active tab cut out of it in the content colour:
+//     the tab fills the strip top to bottom, rounds its top corners, and
+//     merges straight into the panel below (no bottom edge, no accent bar).
+//   • Small concave shoulders at the base of the active tab that overlap the
+//     neighbouring tabs' bases — the "subtle radius" where tabs meet. Tabs sit
+//     flush (no inter-tab gap), so the shoulders land on the neighbours.
+//   • Flat, text-only inactive tabs with a lighter fill on hover and a short
+//     hairline between neighbours that disappears either side of the active
+//     tab.
+//   • 1px hairline borders between groups and a rounded floating frame.
+//
+// The strip structure comes from the connected-tabs mixin; palette steps are
+// `--dv-color-dark-rounded-*` and any step is overridable per instance.
+@mixin dockview-theme-dark-rounded-mixin {
+    @include dockview-theme-core-mixin();
+    @include dockview-drop-target-no-travel();
+
+    color-scheme: dark;
+
+    // ── Palette ──────────────────────────────────────────────────────────────
+    --dv-color-dark-rounded-editor: #1e1e1e; // content + active tab
+    --dv-color-dark-rounded-strip: #303031; // tab strip + inactive tabs
+    --dv-color-dark-rounded-hover: #3a3a3a; // inactive tab hover fill
+    --dv-color-dark-rounded-border: #444444; // group borders / frames
+    --dv-color-dark-rounded-fg: #cccccc;
+    --dv-color-dark-rounded-fg-muted: #a6a6a6;
+    --dv-color-dark-rounded-accent: #007fd4;
+
+    // ── Derived dockview tokens ──────────────────────────────────────────────
+    --dv-tabs-and-actions-container-height: 35px;
+    --dv-tab-font-size: 13px;
+    // The tab fills the strip (no top inset): the small radius shows the strip
+    // colour only in the two corner notches.
+    --dv-tab-margin: 0;
+    --dv-tab-border-radius: 4px;
+    // Shoulders the same size as the corner radius, so the base flare and the
+    // top corner read as one curve.
+    --dv-tab-shoulder-size: 4px;
+
+    --dv-group-view-background-color: var(--dv-color-dark-rounded-editor);
+    --dv-tabs-and-actions-container-background-color: var(
+        --dv-color-dark-rounded-strip
+    );
+
+    // The visible panel's tab shares the content colour (the cut-out); hidden
+    // panels' tabs are bare text on the strip.
+    --dv-activegroup-visiblepanel-tab-background-color: var(
+        --dv-color-dark-rounded-editor
+    );
+    --dv-activegroup-hiddenpanel-tab-background-color: transparent;
+    --dv-inactivegroup-visiblepanel-tab-background-color: var(
+        --dv-color-dark-rounded-editor
+    );
+    --dv-inactivegroup-hiddenpanel-tab-background-color: transparent;
+
+    --dv-activegroup-visiblepanel-tab-color: var(--dv-color-dark-rounded-fg);
+    --dv-activegroup-hiddenpanel-tab-color: var(
+        --dv-color-dark-rounded-fg-muted
+    );
+    --dv-inactivegroup-visiblepanel-tab-color: rgba(204, 204, 204, 0.6);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(166, 166, 166, 0.6);
+
+    --dv-tab-divider-color: var(--dv-color-dark-rounded-border);
+    --dv-separator-border: var(--dv-color-dark-rounded-border);
+    --dv-paneview-header-border-color: var(--dv-color-dark-rounded-border);
+    --dv-paneview-active-outline-color: var(--dv-color-dark-rounded-accent);
+    --dv-active-sash-color: var(--dv-color-dark-rounded-accent);
+    --dv-scrollbar-background-color: rgba(121, 121, 121, 0.4);
+    --dv-tab-inactive-hover-background-color: var(
+        --dv-color-dark-rounded-hover
+    );
+
+    // Rounded floating frame and drop preview to match the tab radius.
+    --dv-floating-border: 1px solid var(--dv-color-dark-rounded-border);
+    --dv-floating-border-radius: 6px;
+    --dv-drop-target-border-radius: 4px;
+
+    @include dockview-connected-tabs-mixin();
+
+    // Flush tabs. The mixin gaps tabs by the shoulder size so the flares stay
+    // in the gutter; here the flare is meant to overlap the neighbouring tab's
+    // base (the reference look), so remove the gap. Declared after the mixin
+    // so it overrides the mixin's own value.
+    --dv-tab-connected-gap: 0px;
+
+    // Rail (left/right edge-group) pills: the mixin insets them across the
+    // strip by half the shoulder size (2px here); widen that to 4px so the
+    // pill sits inside the rail the way the tabs sit inside the strip.
+    .dv-tabs-container-vertical > .dv-tab {
+        margin: 2px 4px;
+    }
+
+    // Header at the bottom of the group: the tab hangs from the content
+    // above, so round the bottom corners instead.
+    .dv-groupview-header-bottom
+        .dv-tabs-container:not(.dv-tabs-container-vertical)
+        > .dv-tab {
+        border-radius: 0 0 var(--dv-tab-border-radius)
+            var(--dv-tab-border-radius);
+    }
+}
+
+.dockview-theme-dark-rounded {
+    @include dockview-theme-dark-rounded-mixin();
+}
+
 // ─── Utility class ───────────────────────────────────────────────────────────
 // Apply to any dockview root to enable the spaced layout (rounded corners,
 // inter-group gaps, padded edges). Can be combined with any theme class.
