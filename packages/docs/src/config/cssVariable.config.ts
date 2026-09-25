@@ -128,6 +128,13 @@ export const cssVariableConfig = [
         text: 'Active-tab marker colour in an unfocused group.',
     },
 
+    // ── Keyboard focus ─────────────────────────────────────────────────────
+    {
+        key: '--dv-focus-ring-color',
+        text: 'Colour of the keyboard focus ring on tabs, the overflow list, floating title-bar buttons and paneview headers; defaults to `--dv-paneview-active-outline-color`.',
+    },
+    { key: '--dv-focus-ring-width', text: 'Thickness of the keyboard focus ring.' },
+
     // ── Connected (folder) tabs ────────────────────────────────────────────
     {
         key: '--dv-tab-shoulder-size',
@@ -160,7 +167,7 @@ export const cssVariableConfig = [
     },
     {
         key: '--dv-drag-over-border-color',
-        text: 'Colour of the drop-position indicator lines.',
+        text: 'Colour of the drop-position lines (tab insertion strip edge, multi-row reorder bars, pinned-tab drop bar); defaults to `--dv-paneview-active-outline-color`.',
     },
     {
         key: '--dv-drag-over-border',
@@ -228,6 +235,20 @@ export const cssVariableConfig = [
     {
         key: '--dv-overlay-z-index',
         text: 'Base z-index of floating groups and overlays.',
+    },
+
+    // ── Context menu ───────────────────────────────────────────────────────
+    {
+        key: '--dv-context-menu-background-color',
+        text: 'Background of the tab context menu; defaults to the tab strip colour.',
+    },
+    {
+        key: '--dv-context-menu-color',
+        text: 'Text colour of the context menu; defaults to the visible panel’s tab colour.',
+    },
+    {
+        key: '--dv-context-menu-border-color',
+        text: 'Border and separator colour of the context menu; defaults to `--dv-separator-border`.',
     },
 
     // ── Tab groups ─────────────────────────────────────────────────────────
