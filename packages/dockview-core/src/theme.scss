@@ -6,7 +6,11 @@
     --dv-tabs-and-actions-container-font-size: 13px;
     --dv-tabs-and-actions-container-height: 35px;
     --dv-drag-over-background-color: rgba(83, 89, 93, 0.5);
-    --dv-drag-over-border-color: transparent;
+    // Colour of the drop-position lines: the 'line' tab insertion strip's
+    // edge, the multi-row reorder bars and the pinned-tab drop bar. Follows
+    // the theme accent; `transparent` here left those invisible on every
+    // theme that didn't override it.
+    --dv-drag-over-border-color: var(--dv-paneview-active-outline-color);
     // Colour of the drag-reveal edge indicator line (auto edge groups). A
     // dedicated token with a concrete default so it stays visible on themes
     // that blank `--dv-drag-over-background-color` (e.g. the spaced themes);

@@ -246,6 +246,8 @@ export const themeDarkRounded: DockviewTheme = {
     className: 'dockview-theme-dark-rounded',
     colorScheme: 'dark',
     // The active tab merges into the panel, so an insertion line reads more
-    // cleanly than a fill when dropping a tab.
+    // cleanly than a fill when dropping a tab; the accent border makes that
+    // 4px strip legible (the fill alone is a faint grey).
     dndTabIndicator: 'line',
+    dndOverlayBorder: '2px solid var(--dv-active-sash-color)',
 };
