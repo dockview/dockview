@@ -28,6 +28,15 @@
                         --dv-activegroup-visiblepanel-tab-background-color
                     );
                     color: var(--dv-activegroup-visiblepanel-tab-color);
+                    // Active-tab marker colour (geometry in the shared rule
+                    // below). A gradient rather than a pseudo-element so it
+                    // never collides with the ::before dividers, ::after
+                    // reorder bars / connected-tab shoulders, and adds no
+                    // layout height.
+                    background-image: linear-gradient(
+                        var(--dv-activegroup-tab-marker-color),
+                        var(--dv-activegroup-tab-marker-color)
+                    );
                 }
                 &.dv-inactive-tab {
                     background-color: var(
@@ -59,6 +68,10 @@
                         --dv-inactivegroup-visiblepanel-tab-background-color
                     );
                     color: var(--dv-inactivegroup-visiblepanel-tab-color);
+                    background-image: linear-gradient(
+                        var(--dv-inactivegroup-tab-marker-color),
+                        var(--dv-inactivegroup-tab-marker-color)
+                    );
                 }
                 &.dv-inactive-tab {
                     background-color: var(
@@ -80,6 +93,43 @@
             }
         }
     }
+}
+
+// Active-tab marker geometry: `--dv-tab-marker-size` thick, pinned to the
+// tab edge that meets the content. Header on top (default) → bottom edge;
+// header at the bottom → top edge; left/right rails → the inner edge (the
+// keywords are physical, so they hold under the rail's vertical writing
+// mode). Colour comes from the group-scoped rules above.
+.dv-groupview
+    > .dv-tabs-and-actions-container
+    .dv-tabs-container
+    > .dv-tab.dv-active-tab {
+    background-repeat: no-repeat;
+    background-size: 100% var(--dv-tab-marker-size);
+    background-position: bottom;
+}
+
+.dv-groupview.dv-groupview-header-bottom
+    > .dv-tabs-and-actions-container
+    .dv-tabs-container
+    > .dv-tab.dv-active-tab {
+    background-position: top;
+}
+
+.dv-groupview.dv-groupview-header-left
+    > .dv-tabs-and-actions-container
+    .dv-tabs-container
+    > .dv-tab.dv-active-tab {
+    background-size: var(--dv-tab-marker-size) 100%;
+    background-position: right;
+}
+
+.dv-groupview.dv-groupview-header-right
+    > .dv-tabs-and-actions-container
+    .dv-tabs-container
+    > .dv-tab.dv-active-tab {
+    background-size: var(--dv-tab-marker-size) 100%;
+    background-position: left;
 }
 
 /**

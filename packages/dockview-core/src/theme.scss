@@ -31,6 +31,15 @@
     // Paneview section-header border. Follows the group separator colour so
     // every theme gets one without declaring it; themes may still override.
     --dv-paneview-header-border-color: var(--dv-separator-border);
+    // Active-tab marker: a hairline along the visible panel's tab on the edge
+    // that meets the content (bottom of a top header, top of a bottom header,
+    // inner edge of a left/right rail). Drawn by core (dockviewComponent.scss)
+    // as a background gradient; transparent by default so a theme opts in by
+    // giving the colours a value. Separate colours for the focused and
+    // unfocused group so the marker can dim with the group.
+    --dv-tab-marker-size: 2px;
+    --dv-activegroup-tab-marker-color: transparent;
+    --dv-inactivegroup-tab-marker-color: transparent;
     --dv-sash-color: transparent;
     --dv-active-sash-color: transparent;
     --dv-active-sash-transition-duration: 0.1s;
@@ -310,48 +319,11 @@
 
     --dv-paneview-active-outline-color: #6272a4;
 
-    .dv-groupview {
-        &.dv-active-group {
-            > .dv-tabs-and-actions-container {
-                .dv-tabs-container {
-                    > .dv-tab.dv-active-tab {
-                        position: relative;
+    // Hairline active-tab marker, dimmed with the group.
+    --dv-tab-marker-size: 1px;
+    --dv-activegroup-tab-marker-color: #94527e;
+    --dv-inactivegroup-tab-marker-color: #5e3d5a;
 
-                        &::after {
-                            position: absolute;
-                            left: 0px;
-                            bottom: 0px;
-                            content: '';
-                            width: 100%;
-                            height: 1px;
-                            background-color: #94527e;
-                            z-index: 999;
-                        }
-                    }
-                }
-            }
-        }
-        &.dv-inactive-group {
-            > .dv-tabs-and-actions-container {
-                .dv-tabs-container {
-                    > .dv-tab.dv-active-tab {
-                        position: relative;
-
-                        &::after {
-                            position: absolute;
-                            left: 0px;
-                            bottom: 0px;
-                            content: '';
-                            width: 100%;
-                            height: 1px;
-                            background-color: #5e3d5a;
-                            z-index: 999;
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 .dockview-theme-abyss {
@@ -406,46 +378,10 @@
     --dv-active-sash-color: var(--dv-color-nord-frost);
     --dv-scrollbar-background-color: rgba(76, 86, 106, 0.5);
 
-    .dv-groupview {
-        &.dv-active-group {
-            > .dv-tabs-and-actions-container {
-                .dv-tabs-container {
-                    > .dv-tab.dv-active-tab {
-                        position: relative;
-                        &::after {
-                            position: absolute;
-                            left: 0px;
-                            bottom: 0px;
-                            content: '';
-                            width: 100%;
-                            height: 2px;
-                            background-color: var(--dv-color-nord-frost);
-                            z-index: 999;
-                        }
-                    }
-                }
-            }
-        }
-        &.dv-inactive-group {
-            > .dv-tabs-and-actions-container {
-                .dv-tabs-container {
-                    > .dv-tab.dv-active-tab {
-                        position: relative;
-                        &::after {
-                            position: absolute;
-                            left: 0px;
-                            bottom: 0px;
-                            content: '';
-                            width: 100%;
-                            height: 2px;
-                            background-color: var(--dv-color-nord-frost-2);
-                            z-index: 999;
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // Frost active-tab marker, dimmed with the group.
+    --dv-activegroup-tab-marker-color: var(--dv-color-nord-frost);
+    --dv-inactivegroup-tab-marker-color: var(--dv-color-nord-frost-2);
+
 }
 
 .dockview-theme-nord {
@@ -541,46 +477,10 @@
     --dv-active-sash-color: var(--dv-color-mocha-mauve);
     --dv-scrollbar-background-color: rgba(49, 50, 68, 0.8);
 
-    .dv-groupview {
-        &.dv-active-group {
-            > .dv-tabs-and-actions-container {
-                .dv-tabs-container {
-                    > .dv-tab.dv-active-tab {
-                        position: relative;
-                        &::after {
-                            position: absolute;
-                            left: 0px;
-                            bottom: 0px;
-                            content: '';
-                            width: 100%;
-                            height: 2px;
-                            background-color: var(--dv-color-mocha-mauve);
-                            z-index: 999;
-                        }
-                    }
-                }
-            }
-        }
-        &.dv-inactive-group {
-            > .dv-tabs-and-actions-container {
-                .dv-tabs-container {
-                    > .dv-tab.dv-active-tab {
-                        position: relative;
-                        &::after {
-                            position: absolute;
-                            left: 0px;
-                            bottom: 0px;
-                            content: '';
-                            width: 100%;
-                            height: 2px;
-                            background-color: rgba(180, 190, 254, 0.4);
-                            z-index: 999;
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // Mauve active-tab marker, dimmed with the group.
+    --dv-activegroup-tab-marker-color: var(--dv-color-mocha-mauve);
+    --dv-inactivegroup-tab-marker-color: rgba(180, 190, 254, 0.4);
+
 }
 
 .dockview-theme-catppuccin-mocha {
@@ -673,46 +573,10 @@
     --dv-active-sash-color: var(--dv-color-monokai-green);
     --dv-scrollbar-background-color: rgba(117, 113, 94, 0.5);
 
-    .dv-groupview {
-        &.dv-active-group {
-            > .dv-tabs-and-actions-container {
-                .dv-tabs-container {
-                    > .dv-tab.dv-active-tab {
-                        position: relative;
-                        &::after {
-                            position: absolute;
-                            left: 0px;
-                            bottom: 0px;
-                            content: '';
-                            width: 100%;
-                            height: 2px;
-                            background-color: var(--dv-color-monokai-green);
-                            z-index: 999;
-                        }
-                    }
-                }
-            }
-        }
-        &.dv-inactive-group {
-            > .dv-tabs-and-actions-container {
-                .dv-tabs-container {
-                    > .dv-tab.dv-active-tab {
-                        position: relative;
-                        &::after {
-                            position: absolute;
-                            left: 0px;
-                            bottom: 0px;
-                            content: '';
-                            width: 100%;
-                            height: 2px;
-                            background-color: rgba(166, 226, 46, 0.35);
-                            z-index: 999;
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // Green active-tab marker, dimmed with the group.
+    --dv-activegroup-tab-marker-color: var(--dv-color-monokai-green);
+    --dv-inactivegroup-tab-marker-color: rgba(166, 226, 46, 0.35);
+
 }
 
 .dockview-theme-monokai {
@@ -1693,18 +1557,3 @@
     }
 }
 
-// When the header is at the bottom, the active-tab marker sits on the tab's
-// top edge, the side nearest the content. (For a top header it sits on the
-// bottom edge; this overrides that.) The selector matches the full per-theme
-// active-marker chain so it still applies inside a theme.
-.dv-groupview.dv-groupview-header-bottom {
-    &.dv-active-group,
-    &.dv-inactive-group {
-        > .dv-tabs-and-actions-container
-            .dv-tabs-container
-            > .dv-tab.dv-active-tab::after {
-            top: 0px;
-            bottom: auto;
-        }
-    }
-}
