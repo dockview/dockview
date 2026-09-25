@@ -474,14 +474,8 @@
     }
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .dv-tab {
-        transition: none !important;
-    }
-    .dv-tab-group-chip {
-        transition: none !important;
-    }
-}
+// Reduced-motion handling lives in src/reduced-motion.scss (covers every
+// dv- element, not just tabs).
 
 // Tab group chip
 .dv-tab-group-chip {

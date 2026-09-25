@@ -85,8 +85,8 @@ export const themeVisualStudio: DockviewTheme = {
     name: 'visualStudio',
     className: 'dockview-theme-vs',
     colorScheme: 'dark',
-    // --dv-tabs-and-actions-container-height is 20px, but the VS theme applies
-    // box-sizing: content-box + border-bottom: 2px, so the rendered strip is 22px.
+    // Matches the theme's 22px strip (a 20px tab row plus its 2px accent
+    // border).
     edgeGroupCollapsedSize: 22,
 };
 

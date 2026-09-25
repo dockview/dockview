@@ -23,6 +23,14 @@
     --dv-tab-font-size: inherit;
     --dv-border-radius: 0px;
     --dv-tab-margin: 0;
+    // Hairline between adjacent tabs (also the context-menu / overflow-list
+    // border). Transparent by default so a theme opts in explicitly; an
+    // undeclared token would make every `var()` consumer invalid and drop the
+    // rule, which is the same look but silently.
+    --dv-tab-divider-color: transparent;
+    // Paneview section-header border. Follows the group separator colour so
+    // every theme gets one without declaring it; themes may still override.
+    --dv-paneview-header-border-color: var(--dv-separator-border);
     --dv-sash-color: transparent;
     --dv-active-sash-color: transparent;
     --dv-active-sash-transition-duration: 0.1s;
@@ -169,7 +177,9 @@
 
     --dv-tabs-and-actions-container-background-color: #2d2d30;
 
-    --dv-tabs-and-actions-container-height: 20px;
+    // 22px rendered: a 20px tab row plus the 2px accent border below it (the
+    // strip is border-box, so the border sits inside this height).
+    --dv-tabs-and-actions-container-height: 22px;
     --dv-tabs-and-actions-container-font-size: 11px;
 
     --dv-activegroup-visiblepanel-tab-background-color: #007acc;
@@ -183,7 +193,6 @@
     .dv-groupview {
         &.dv-active-group {
             > .dv-tabs-and-actions-container {
-                box-sizing: content-box;
                 border-bottom: 2px solid
                     var(--dv-activegroup-visiblepanel-tab-background-color);
 
@@ -206,7 +215,6 @@
         }
         &.dv-inactive-group {
             > .dv-tabs-and-actions-container {
-                box-sizing: content-box;
                 border-bottom: 2px solid
                     var(--dv-inactivegroup-visiblepanel-tab-background-color);
 
@@ -1007,7 +1015,8 @@
 
     //
 
-    --dv-drag-over-background-color: '';
+    // No fill on the drop preview: the spaced themes rely on the border only.
+    --dv-drag-over-background-color: transparent;
     //
 
     //
@@ -1058,7 +1067,8 @@
 
     //
 
-    --dv-drag-over-background-color: '';
+    // No fill on the drop preview: the spaced themes rely on the border only.
+    --dv-drag-over-background-color: transparent;
     //
 
     //
@@ -1268,6 +1278,8 @@
     @include dockview-theme-core-mixin();
     @include dockview-drop-target-no-travel();
 
+    color-scheme: light;
+
     // ── Neutral ramp ─────────────────────────────────────────────────────────
     // The neutral steps and accent below feed the semantic tokens that follow.
     // The dark mixin re-maps these steps (and the hand-tuned rgba shadow / drop
@@ -1350,6 +1362,8 @@
 @mixin dockview-theme-slate-dark-mixin {
     @include dockview-theme-core-mixin();
     @include dockview-drop-target-no-travel();
+
+    color-scheme: dark;
 
     // ── Neutral ramp (dark re-map of the light mixin's steps) ────────────────
     // Override any step for one instance with a higher-specificity rule or an
