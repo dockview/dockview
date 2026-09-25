@@ -1284,9 +1284,11 @@
     }
 
     // Short rounded hairline between neighbouring tabs (the mixin's is a 1px
-    // 14px line; this is 2px, ~0.8em, pill-ended).
+    // 14px line; this is 2px, ~0.8em, pill-ended). Excludes the selected tab:
+    // its ::before is the left shoulder, and this rule would otherwise tie the
+    // shoulder rule on specificity and win by source order.
     .dv-tabs-container:not(.dv-tabs-container-vertical)
-        > .dv-tab:not(:first-child)::before {
+        > .dv-tab:not(:first-child):not(.dv-active-tab)::before {
         width: 2px;
         height: 0.8em;
         border-radius: 1px;
