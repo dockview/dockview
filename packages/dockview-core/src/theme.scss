@@ -181,6 +181,7 @@
     // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
     --dv-tab-inactive-hover-background-color: #e0e0e0;
     --dv-active-sash-color: #0066b8;
+    --dv-paneview-active-outline-color: #0066b8;
 
     --dv-scrollbar-background-color: rgba(0, 0, 0, 0.25);
     --dv-floating-box-shadow:
@@ -217,6 +218,8 @@
     // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
     --dv-tab-inactive-hover-background-color: #3a3a3d;
     --dv-active-sash-color: #007acc;
+    // The active tab is itself the accent blue, so the focus ring is white.
+    --dv-focus-ring-color: #ffffff;
 
     .dv-groupview {
         &.dv-active-group {
@@ -596,6 +599,8 @@
     --dv-scrollbar-background-color: rgba(117, 113, 94, 0.5);
     // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
     --dv-tab-inactive-hover-background-color: #35342a;
+    // The separator colour equals the strip here, so give the menu its own.
+    --dv-context-menu-border-color: var(--dv-color-monokai-comment);
 
     // Green active-tab marker, dimmed with the group.
     --dv-activegroup-tab-marker-color: var(--dv-color-monokai-green);
@@ -648,6 +653,10 @@
     --dv-scrollbar-background-color: rgba(101, 123, 131, 0.25);
     // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
     --dv-tab-inactive-hover-background-color: #e2dcc8;
+    // Deeper blue for the focus ring: base blue is <3:1 on the warm tab fills.
+    --dv-focus-ring-color: #1f7bbf;
+    // The separator colour equals the strip here, so give the menu its own.
+    --dv-context-menu-border-color: var(--dv-color-sol-base1);
 
     // Blue active-tab marker, dimmed with the group.
     --dv-activegroup-tab-marker-color: var(--dv-color-sol-blue);
@@ -700,6 +709,8 @@
     --dv-scrollbar-background-color: rgba(101, 123, 131, 0.25);
     // Hover fill for hidden tabs (translucent: these tabs are bare text).
     --dv-tab-inactive-hover-background-color: rgba(0, 0, 0, 0.04);
+    --dv-focus-ring-color: #1f7bbf;
+    --dv-context-menu-border-color: var(--dv-color-sol-base1);
 
     --dv-floating-group-border: 2px solid rgba(238, 232, 213, 0.5);
 }
@@ -1315,6 +1326,8 @@
     --dv-active-sash-color: var(--dv-color-slate-accent);
     --dv-scrollbar-background-color: rgba(0, 0, 0, 0.18);
     --dv-tab-inactive-hover-background-color: rgba(0, 0, 0, 0.04);
+    // slate-2 (the separator) is only 1.1:1 on the strip; the menu uses slate-3.
+    --dv-context-menu-border-color: var(--dv-color-slate-3);
 
     // Grippable float handle.
     --dv-floating-titlebar-handle-color: var(--dv-color-slate-3);
