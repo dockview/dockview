@@ -44,6 +44,11 @@
     --dv-tab-marker-size: 2px;
     --dv-activegroup-tab-marker-color: transparent;
     --dv-inactivegroup-tab-marker-color: transparent;
+    // Keyboard focus ring (tabs, the overflow list, floating title-bar buttons,
+    // paneview headers). Follows the theme accent; override per theme if that
+    // accent lacks 3:1 against the tab and strip backgrounds.
+    --dv-focus-ring-color: var(--dv-paneview-active-outline-color);
+    --dv-focus-ring-width: 2px;
     --dv-sash-color: transparent;
     --dv-active-sash-color: transparent;
     --dv-active-sash-transition-duration: 0.1s;
@@ -1014,6 +1019,9 @@
 
     /////
     --dv-active-sash-color: rgb(91, 30, 207);
+    // Same purple for the paneview outline and focus ring: dodgerblue (the core
+    // default) is only 2.65:1 on the white cards.
+    --dv-paneview-active-outline-color: rgb(91, 30, 207);
     // Hover fill for hidden tabs (translucent: these tabs are bare text).
     --dv-tab-inactive-hover-background-color: rgba(0, 0, 0, 0.04);
     //

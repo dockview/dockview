@@ -104,8 +104,8 @@
         // Keyboard-only focus ring (suppressed on mouse click).
         &:focus-visible {
             border-radius: 2px;
-            outline: 1px solid var(--dv-tab-divider-color);
-            outline-offset: -1px;
+            outline: var(--dv-focus-ring-width) solid var(--dv-focus-ring-color);
+            outline-offset: calc(-1 * var(--dv-focus-ring-width));
         }
     }
 }
