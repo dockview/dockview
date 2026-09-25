@@ -1254,14 +1254,16 @@
 // ─── "Sheet" layout ──────────────────────────────────────────────────────────
 // One flat canvas colour fills the gaps between groups, the tab strips and the
 // edge rails; each group's content is a rounded sheet in the selected tab's
-// colour, and the selected tab merges straight into it (connected tabs, no
-// shoulder flare). Pair with `gap` on the theme preset so the canvas shows
-// between groups, and keep `--dv-separator-border` transparent (the gap is
-// the separator). Used by slate / slate-dark.
+// colour, and the selected tab merges into it as a folder tab: rounded top
+// corners and concave shoulders at its base, the same radius as the corners,
+// flaring over the 12px gutter that separates every tab. Pair with `gap` on
+// the theme preset so the canvas shows between groups, and keep
+// `--dv-separator-border` transparent (the gap is the separator). Used by
+// slate / slate-dark.
 @mixin dockview-design-sheet-mixin {
     --dv-sheet-border-radius: 6px;
     --dv-tab-border-radius: 10px;
-    --dv-tab-shoulder-size: 0px;
+    --dv-tab-shoulder-size: 10px;
     // 32px strip, tab inset 3px from the top: the tab's rounded corners read
     // against the canvas and its base meets the sheet.
     --dv-tabs-and-actions-container-height: 32px;
@@ -1270,9 +1272,10 @@
 
     @include dockview-connected-tabs-mixin();
 
-    // Flush tabs separated by the mixin's hairlines (no shoulders to make
-    // room for). Declared after the mixin so it overrides its value.
-    --dv-tab-connected-gap: 0px;
+    // A 12px gutter between tabs: wide enough for the 10px shoulder to flare
+    // into, with the hairline centred in it. Declared after the mixin so it
+    // overrides the mixin's own (shoulder + 4px) value.
+    --dv-tab-connected-gap: 12px;
 
     .dv-tab {
         padding-block: 0;
@@ -1280,8 +1283,13 @@
         font-weight: 500;
     }
 
-    .dv-tabs-container:not(.dv-tabs-container-vertical) {
-        padding: 0 2px;
+    // Short rounded hairline between neighbouring tabs (the mixin's is a 1px
+    // 14px line; this is 2px, ~0.8em, pill-ended).
+    .dv-tabs-container:not(.dv-tabs-container-vertical)
+        > .dv-tab:not(:first-child)::before {
+        width: 2px;
+        height: 0.8em;
+        border-radius: 1px;
     }
 
     // The content sheet. The group already clips to its bounds; rounding the
