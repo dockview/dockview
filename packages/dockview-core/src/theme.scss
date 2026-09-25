@@ -269,20 +269,23 @@
     }
 }
 
+@mixin dockview-palette-abyss {
+    --dv-color-abyss-dark: #000c18;
+    --dv-color-abyss: #10192c;
+    --dv-color-abyss-light: #1c1c2a;
+    --dv-color-abyss-lighter: #2b2b4a;
+    --dv-color-abyss-accent: rgb(91, 30, 207);
+    --dv-color-abyss-primary-text: white;
+    --dv-color-abyss-secondary-text: rgb(148, 151, 169);
+}
+
 @mixin dockview-theme-abyss-mixin {
     @include dockview-theme-core-mixin();
     @include dockview-drop-target-no-travel();
 
     color-scheme: dark;
 
-    --dv-color-abyss-dark: #000c18;
-    --dv-color-abyss: #10192c;
-    --dv-color-abyss-light: #1c1c2a;
-    --dv-color-abyss-lighter: #2b2b4a;
-    --dv-color-abyss-accent: rgb(91, 30, 207);
-
-    --dv-color-abyss-primary-text: white;
-    --dv-color-abyss-secondary-text: rgb(148, 151, 169);
+    @include dockview-palette-abyss();
 
     //
     --dv-group-view-background-color: var(--dv-color-abyss-dark);
@@ -936,26 +939,16 @@
 
     color-scheme: dark;
 
-    //  stylesheet
-    --dv-color-abyss-dark: rgb(11, 6, 17);
-    --dv-color-abyss: #16121f;
-    --dv-color-abyss-light: #201d2b;
-    --dv-color-abyss-lighter: #2a2837;
-    --dv-color-abyss-accent: rgb(91, 30, 207);
-    --dv-color-abyss-primary-text: white;
-    --dv-color-abyss-secondary-text: rgb(148, 151, 169);
-
-    //
+    // Same ramp as Abyss (it used to carry a diverged purple copy). Cards are
+    // the abyss step on the abyss-dark backdrop; the pills step up the ramp.
+    @include dockview-palette-abyss();
 
     // No fill on the drop preview: the spaced themes rely on the border only.
     --dv-drag-over-background-color: transparent;
-    //
 
-    //
     --dv-group-view-background-color: var(--dv-color-abyss-dark);
-    //
     --dv-tabs-and-actions-container-background-color: var(--dv-color-abyss);
-    //
+
     --dv-activegroup-visiblepanel-tab-background-color: var(
         --dv-color-abyss-lighter
     );
@@ -969,26 +962,24 @@
         --dv-color-abyss-light
     );
     --dv-tab-divider-color: transparent;
-    //
+
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-abyss-primary-text);
     --dv-activegroup-hiddenpanel-tab-color: var(
         --dv-color-abyss-secondary-text
     );
-    --dv-inactivegroup-visiblepanel-tab-color: var(
-        --dv-color-abyss-primary-text
-    );
-    --dv-inactivegroup-hiddenpanel-tab-color: var(
-        --dv-color-abyss-secondary-text
-    );
-    //
-    --dv-separator-border: transparent;
-    --dv-paneview-header-border-color: rgb(51, 51, 51);
+    // Unfocused groups dim like every other theme (they used to render at
+    // full strength): ≥4.5:1 for the visible panel, ≥3:1 for hidden tabs.
+    --dv-inactivegroup-visiblepanel-tab-color: rgba(255, 255, 255, 0.6);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(148, 151, 169, 0.7);
 
-    /////
+    --dv-separator-border: transparent;
+    --dv-paneview-header-border-color: var(--dv-color-abyss-lighter);
+    // A lighter step of the Abyss outline blue: #596f99 is only 2.7:1 on the
+    // lighter active pill, so the focus ring would vanish there.
+    --dv-paneview-active-outline-color: #7f95c4;
     --dv-active-sash-color: var(--dv-color-abyss-accent);
     // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
-    --dv-tab-inactive-hover-background-color: #262332;
-    //
+    --dv-tab-inactive-hover-background-color: #242438;
 
     --dv-floating-group-border: 2px solid var(--dv-color-abyss-dark);
 }
