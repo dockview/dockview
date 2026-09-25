@@ -17,6 +17,7 @@
             height: 100%;
             width: 100%;
             border: var(--dv-drag-over-border);
+            border-radius: var(--dv-drop-target-border-radius);
             background-color: var(--dv-drag-over-background-color);
 
             transition:

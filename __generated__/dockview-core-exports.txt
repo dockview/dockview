@@ -352,6 +352,7 @@ themeAbyssSpaced
 themeCatppuccinMocha
 themeCatppuccinMochaSpaced
 themeDark
+themeDarkRounded
 themeDracula
 themeGithubDark
 themeGithubDarkSpaced
@@ -362,6 +363,8 @@ themeLightSpaced
 themeMonokai
 themeNord
 themeNordSpaced
+themeSlate
+themeSlateDark
 themeSolarizedLight
 themeSolarizedLightSpaced
 themeVisualStudio

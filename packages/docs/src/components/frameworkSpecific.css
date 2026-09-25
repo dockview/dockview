@@ -12,6 +12,14 @@
   /* Above the dockview's resize sashes / drag overlays (which go up to ~9999)
      so the demo's theme dropdown isn't clipped behind them. */
   z-index: 100000;
+  /* Never taller than the room Radix measured on the chosen side of the
+     trigger (minus the content's collisionPadding); the theme list has 20+
+     entries and would otherwise run off the bottom of the viewport with no
+     way to reach the last ones. */
+  box-sizing: border-box;
+  max-height: var(--radix-dropdown-menu-content-available-height);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .DropdownMenuContent[data-side='top'],
 .DropdownMenuSubContent[data-side='top'] {

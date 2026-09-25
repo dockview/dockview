@@ -1,0 +1,24 @@
+// Honour the OS "reduce motion" preference across every dockview element:
+// tab reorder/shift animations, drop-target travel, sash and scrollbar fades,
+// the connected-tab colour transitions. Durations are collapsed to a hair
+// above zero rather than `none` so `transitionend` / `animationend` still
+// fire for the code paths that await them (tab reorder, tab groups) and only
+// fall back to their timeout when a transition never ran.
+//
+// The attribute selectors match any element carrying a `dv-` class, which
+// covers the popout / floating overlay trees as well as the docked layout.
+@media (prefers-reduced-motion: reduce) {
+    [class^='dv-'],
+    [class*=' dv-'],
+    [class^='dv-']::before,
+    [class*=' dv-']::before,
+    [class^='dv-']::after,
+    [class*=' dv-']::after {
+        transition-duration: 0.01ms !important;
+        transition-delay: 0ms !important;
+        animation-duration: 0.01ms !important;
+        animation-delay: 0ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+    }
+}

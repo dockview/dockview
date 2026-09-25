@@ -6,7 +6,11 @@
     --dv-tabs-and-actions-container-font-size: 13px;
     --dv-tabs-and-actions-container-height: 35px;
     --dv-drag-over-background-color: rgba(83, 89, 93, 0.5);
-    --dv-drag-over-border-color: transparent;
+    // Colour of the drop-position lines: the 'line' tab insertion strip's
+    // edge, the multi-row reorder bars and the pinned-tab drop bar. Follows
+    // the theme accent; `transparent` here left those invisible on every
+    // theme that didn't override it.
+    --dv-drag-over-border-color: var(--dv-paneview-active-outline-color);
     // Colour of the drag-reveal edge indicator line (auto edge groups). A
     // dedicated token with a concrete default so it stays visible on themes
     // that blank `--dv-drag-over-background-color` (e.g. the spaced themes);
@@ -23,6 +27,28 @@
     --dv-tab-font-size: inherit;
     --dv-border-radius: 0px;
     --dv-tab-margin: 0;
+    // Hairline between adjacent tabs (also the context-menu / overflow-list
+    // border). Transparent by default so a theme opts in explicitly; an
+    // undeclared token would make every `var()` consumer invalid and drop the
+    // rule, which is the same look but silently.
+    --dv-tab-divider-color: transparent;
+    // Paneview section-header border. Follows the group separator colour so
+    // every theme gets one without declaring it; themes may still override.
+    --dv-paneview-header-border-color: var(--dv-separator-border);
+    // Active-tab marker: a hairline along the visible panel's tab on the edge
+    // that meets the content (bottom of a top header, top of a bottom header,
+    // inner edge of a left/right rail). Drawn by core (dockviewComponent.scss)
+    // as a background gradient; transparent by default so a theme opts in by
+    // giving the colours a value. Separate colours for the focused and
+    // unfocused group so the marker can dim with the group.
+    --dv-tab-marker-size: 2px;
+    --dv-activegroup-tab-marker-color: transparent;
+    --dv-inactivegroup-tab-marker-color: transparent;
+    // Keyboard focus ring (tabs, the overflow list, floating title-bar buttons,
+    // paneview headers). Follows the theme accent; override per theme if that
+    // accent lacks 3:1 against the tab and strip backgrounds.
+    --dv-focus-ring-color: var(--dv-paneview-active-outline-color);
+    --dv-focus-ring-width: 2px;
     --dv-sash-color: transparent;
     --dv-active-sash-color: transparent;
     --dv-active-sash-transition-duration: 0.1s;
@@ -45,6 +71,35 @@
         --dv-tabs-and-actions-container-background-color
     );
     --dv-floating-titlebar-border-bottom: var(--dv-floating-border);
+    // Optional visible grip affordance drawn inside the drag handle (a dotted
+    // matrix). Transparent by default so the bar stays blank on every existing
+    // theme; a theme opts in by giving this a concrete colour (see the slate
+    // theme). `cursor` applies to the bar regardless.
+    --dv-floating-titlebar-handle-color: transparent;
+    --dv-floating-titlebar-cursor: grab;
+    --dv-floating-titlebar-handle-size: 15px;
+
+    // ── Opt-in structural tokens ────────────────────────────────────────────
+    // All inert by default (radius/inset 0, colours transparent or matching
+    // their surroundings) so existing themes are unaffected; a theme enables
+    // the behaviour by giving the token a concrete value. The rendering CSS
+    // lives in core (overlay.scss / tabs.scss / droptarget.scss and the
+    // connected-tabs mixin), driven entirely by these variables.
+
+    // Floating-group frame (see overlay.scss).
+    --dv-floating-border-radius: 0px;
+    --dv-floating-inset: 0px;
+    --dv-floating-frame-color: var(--dv-group-view-background-color);
+
+    // Connected "folder" tabs (see the connected-tabs mixin /
+    // `.dockview-tabs-connected`). Shoulder size 0 = feature off.
+    --dv-tab-shoulder-size: 0px;
+    --dv-tab-shoulder-color: var(
+        --dv-activegroup-visiblepanel-tab-background-color
+    );
+
+    // Drop-preview corner radius (see droptarget.scss).
+    --dv-drop-target-border-radius: 0px;
 
     // Tab group color palette
     --dv-tab-group-color-grey: #5f6368;
@@ -90,10 +145,13 @@
     --dv-activegroup-visiblepanel-tab-color: white;
     --dv-activegroup-hiddenpanel-tab-color: #969696;
     --dv-inactivegroup-visiblepanel-tab-color: #8f8f8f;
-    --dv-inactivegroup-hiddenpanel-tab-color: #626262;
+    --dv-inactivegroup-hiddenpanel-tab-color: #787878;
     //
     --dv-separator-border: rgb(68, 68, 68);
     --dv-paneview-header-border-color: rgba(204, 204, 204, 0.2);
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: #383838;
+    --dv-active-sash-color: #007fd4;
 }
 
 @mixin dockview-theme-light-mixin {
@@ -116,10 +174,14 @@
     --dv-activegroup-visiblepanel-tab-color: rgb(51, 51, 51);
     --dv-activegroup-hiddenpanel-tab-color: rgba(51, 51, 51, 0.7);
     --dv-inactivegroup-visiblepanel-tab-color: rgba(51, 51, 51, 0.7);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(51, 51, 51, 0.35);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(51, 51, 51, 0.55);
     //
     --dv-separator-border: rgba(128, 128, 128, 0.35);
     --dv-paneview-header-border-color: rgb(51, 51, 51);
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: #e0e0e0;
+    --dv-active-sash-color: #0066b8;
+    --dv-paneview-active-outline-color: #0066b8;
 
     --dv-scrollbar-background-color: rgba(0, 0, 0, 0.25);
     --dv-floating-box-shadow:
@@ -140,7 +202,9 @@
 
     --dv-tabs-and-actions-container-background-color: #2d2d30;
 
-    --dv-tabs-and-actions-container-height: 20px;
+    // 22px rendered: a 20px tab row plus the 2px accent border below it (the
+    // strip is border-box, so the border sits inside this height).
+    --dv-tabs-and-actions-container-height: 22px;
     --dv-tabs-and-actions-container-font-size: 11px;
 
     --dv-activegroup-visiblepanel-tab-background-color: #007acc;
@@ -151,10 +215,15 @@
     --dv-inactivegroup-visiblepanel-tab-color: white;
     --dv-inactivegroup-hiddenpanel-tab-color: white;
 
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: #3a3a3d;
+    --dv-active-sash-color: #007acc;
+    // The active tab is itself the accent blue, so the focus ring is white.
+    --dv-focus-ring-color: #ffffff;
+
     .dv-groupview {
         &.dv-active-group {
             > .dv-tabs-and-actions-container {
-                box-sizing: content-box;
                 border-bottom: 2px solid
                     var(--dv-activegroup-visiblepanel-tab-background-color);
 
@@ -177,7 +246,6 @@
         }
         &.dv-inactive-group {
             > .dv-tabs-and-actions-container {
-                box-sizing: content-box;
                 border-bottom: 2px solid
                     var(--dv-inactivegroup-visiblepanel-tab-background-color);
 
@@ -201,20 +269,23 @@
     }
 }
 
+@mixin dockview-palette-abyss {
+    --dv-color-abyss-dark: #000c18;
+    --dv-color-abyss: #10192c;
+    --dv-color-abyss-light: #1c1c2a;
+    --dv-color-abyss-lighter: #2b2b4a;
+    --dv-color-abyss-accent: rgb(91, 30, 207);
+    --dv-color-abyss-primary-text: white;
+    --dv-color-abyss-secondary-text: rgb(148, 151, 169);
+}
+
 @mixin dockview-theme-abyss-mixin {
     @include dockview-theme-core-mixin();
     @include dockview-drop-target-no-travel();
 
     color-scheme: dark;
 
-    --dv-color-abyss-dark: #000c18;
-    --dv-color-abyss: #10192c;
-    --dv-color-abyss-light: #1c1c2a;
-    --dv-color-abyss-lighter: #2b2b4a;
-    --dv-color-abyss-accent: rgb(91, 30, 207);
-
-    --dv-color-abyss-primary-text: white;
-    --dv-color-abyss-secondary-text: rgb(148, 151, 169);
+    @include dockview-palette-abyss();
 
     //
     --dv-group-view-background-color: var(--dv-color-abyss-dark);
@@ -236,12 +307,15 @@
     --dv-activegroup-visiblepanel-tab-color: white;
     --dv-activegroup-hiddenpanel-tab-color: rgba(255, 255, 255, 0.5);
     --dv-inactivegroup-visiblepanel-tab-color: rgba(255, 255, 255, 0.5);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(255, 255, 255, 0.25);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(255, 255, 255, 0.35);
     //
     --dv-separator-border: var(--dv-color-abyss-lighter);
     --dv-paneview-header-border-color: var(--dv-color-abyss-lighter);
 
     --dv-paneview-active-outline-color: #596f99;
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: #1a2440;
+    --dv-active-sash-color: var(--dv-color-abyss-accent);
 }
 
 @mixin dockview-theme-dracula-mixin {
@@ -262,57 +336,24 @@
     --dv-tab-divider-color: #191a21;
     //
     --dv-activegroup-visiblepanel-tab-color: rgb(248, 248, 242);
-    --dv-activegroup-hiddenpanel-tab-color: rgb(98, 114, 164);
+    // The Dracula "comment" tone lifted until it clears 4.5:1 on the hidden-tab
+    // background; the unfocused variant is the same tone at 75%.
+    --dv-activegroup-hiddenpanel-tab-color: #7b89b3;
     --dv-inactivegroup-visiblepanel-tab-color: rgba(248, 248, 242, 0.5);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(98, 114, 164, 0.5);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(123, 137, 179, 0.75);
     //
     --dv-separator-border: #bd93f9;
     --dv-paneview-header-border-color: #bd93f9;
 
     --dv-paneview-active-outline-color: #6272a4;
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: #2b2d3a;
+    --dv-active-sash-color: #bd93f9;
 
-    .dv-groupview {
-        &.dv-active-group {
-            > .dv-tabs-and-actions-container {
-                .dv-tabs-container {
-                    > .dv-tab.dv-active-tab {
-                        position: relative;
-
-                        &::after {
-                            position: absolute;
-                            left: 0px;
-                            bottom: 0px;
-                            content: '';
-                            width: 100%;
-                            height: 1px;
-                            background-color: #94527e;
-                            z-index: 999;
-                        }
-                    }
-                }
-            }
-        }
-        &.dv-inactive-group {
-            > .dv-tabs-and-actions-container {
-                .dv-tabs-container {
-                    > .dv-tab.dv-active-tab {
-                        position: relative;
-
-                        &::after {
-                            position: absolute;
-                            left: 0px;
-                            bottom: 0px;
-                            content: '';
-                            width: 100%;
-                            height: 1px;
-                            background-color: #5e3d5a;
-                            z-index: 999;
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // Hairline active-tab marker, dimmed with the group.
+    --dv-tab-marker-size: 1px;
+    --dv-activegroup-tab-marker-color: #94527e;
+    --dv-inactivegroup-tab-marker-color: #5e3d5a;
 }
 
 .dockview-theme-abyss {
@@ -325,12 +366,7 @@
 
 // ─── Nord ────────────────────────────────────────────────────────────────────
 
-@mixin dockview-theme-nord-mixin {
-    @include dockview-theme-core-mixin();
-    @include dockview-drop-target-no-travel();
-
-    color-scheme: dark;
-
+@mixin dockview-palette-nord {
     --dv-color-nord-polar-0: #2e3440;
     --dv-color-nord-polar-1: #3b4252;
     --dv-color-nord-polar-2: #434c5e;
@@ -339,6 +375,15 @@
     --dv-color-nord-frost-2: #81a1c1;
     --dv-color-nord-snow-0: #eceff4;
     --dv-color-nord-snow-1: #d8dee9;
+}
+
+@mixin dockview-theme-nord-mixin {
+    @include dockview-theme-core-mixin();
+    @include dockview-drop-target-no-travel();
+
+    color-scheme: dark;
+
+    @include dockview-palette-nord();
 
     --dv-group-view-background-color: var(--dv-color-nord-polar-0);
     --dv-tabs-and-actions-container-background-color: var(
@@ -358,53 +403,20 @@
     );
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-nord-snow-0);
     --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-nord-snow-1);
-    --dv-inactivegroup-visiblepanel-tab-color: #8a9bbf;
-    --dv-inactivegroup-hiddenpanel-tab-color: #5e6f8e;
+    // Unfocused-group tones are held to ≥3:1 (hidden) / ≥4.5:1 (visible panel)
+    // against their tab backgrounds; see the theme contrast audit.
+    --dv-inactivegroup-visiblepanel-tab-color: #a1afcc;
+    --dv-inactivegroup-hiddenpanel-tab-color: #8e9ab0;
     --dv-separator-border: var(--dv-color-nord-polar-3);
     --dv-paneview-active-outline-color: var(--dv-color-nord-frost);
     --dv-active-sash-color: var(--dv-color-nord-frost);
     --dv-scrollbar-background-color: rgba(76, 86, 106, 0.5);
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: var(--dv-color-nord-polar-3);
 
-    .dv-groupview {
-        &.dv-active-group {
-            > .dv-tabs-and-actions-container {
-                .dv-tabs-container {
-                    > .dv-tab.dv-active-tab {
-                        position: relative;
-                        &::after {
-                            position: absolute;
-                            left: 0px;
-                            bottom: 0px;
-                            content: '';
-                            width: 100%;
-                            height: 2px;
-                            background-color: var(--dv-color-nord-frost);
-                            z-index: 999;
-                        }
-                    }
-                }
-            }
-        }
-        &.dv-inactive-group {
-            > .dv-tabs-and-actions-container {
-                .dv-tabs-container {
-                    > .dv-tab.dv-active-tab {
-                        position: relative;
-                        &::after {
-                            position: absolute;
-                            left: 0px;
-                            bottom: 0px;
-                            content: '';
-                            width: 100%;
-                            height: 2px;
-                            background-color: var(--dv-color-nord-frost-2);
-                            z-index: 999;
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // Frost active-tab marker, dimmed with the group.
+    --dv-activegroup-tab-marker-color: var(--dv-color-nord-frost);
+    --dv-inactivegroup-tab-marker-color: var(--dv-color-nord-frost-2);
 }
 
 .dockview-theme-nord {
@@ -417,14 +429,7 @@
 
     color-scheme: dark;
 
-    --dv-color-nord-polar-0: #2e3440;
-    --dv-color-nord-polar-1: #3b4252;
-    --dv-color-nord-polar-2: #434c5e;
-    --dv-color-nord-polar-3: #4c566a;
-    --dv-color-nord-frost: #88c0d0;
-    --dv-color-nord-frost-2: #81a1c1;
-    --dv-color-nord-snow-0: #eceff4;
-    --dv-color-nord-snow-1: #d8dee9;
+    @include dockview-palette-nord();
 
     --dv-group-view-background-color: var(--dv-color-nord-polar-0);
     --dv-tabs-and-actions-container-background-color: var(
@@ -444,24 +449,23 @@
     );
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-nord-snow-0);
     --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-nord-snow-1);
-    --dv-inactivegroup-visiblepanel-tab-color: #8a9bbf;
-    --dv-inactivegroup-hiddenpanel-tab-color: #5e6f8e;
+    // Unfocused-group tones are held to ≥3:1 (hidden) / ≥4.5:1 (visible panel)
+    // against their tab backgrounds; see the theme contrast audit.
+    --dv-inactivegroup-visiblepanel-tab-color: #b2bdd5;
+    --dv-inactivegroup-hiddenpanel-tab-color: #818fa7;
     --dv-separator-border: transparent;
     --dv-paneview-active-outline-color: var(--dv-color-nord-frost);
     --dv-active-sash-color: var(--dv-color-nord-frost);
     --dv-scrollbar-background-color: rgba(76, 86, 106, 0.5);
+    // Hover fill for hidden tabs (translucent: these tabs are bare text).
+    --dv-tab-inactive-hover-background-color: var(--dv-color-nord-polar-2);
 
     --dv-floating-group-border: 2px solid var(--dv-color-nord-polar-0);
 }
 
 // ─── Catppuccin Mocha ────────────────────────────────────────────────────────
 
-@mixin dockview-theme-catppuccin-mocha-mixin {
-    @include dockview-theme-core-mixin();
-    @include dockview-drop-target-no-travel();
-
-    color-scheme: dark;
-
+@mixin dockview-palette-catppuccin-mocha {
     --dv-color-mocha-crust: #11111b;
     --dv-color-mocha-mantle: #181825;
     --dv-color-mocha-base: #1e1e2e;
@@ -472,6 +476,15 @@
     --dv-color-mocha-subtext0: #a6adc8;
     --dv-color-mocha-mauve: #cba6f7;
     --dv-color-mocha-lavender: #b4befe;
+}
+
+@mixin dockview-theme-catppuccin-mocha-mixin {
+    @include dockview-theme-core-mixin();
+    @include dockview-drop-target-no-travel();
+
+    color-scheme: dark;
+
+    @include dockview-palette-catppuccin-mocha();
 
     --dv-group-view-background-color: var(--dv-color-mocha-base);
     --dv-tabs-and-actions-container-background-color: var(
@@ -492,52 +505,17 @@
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-mocha-text);
     --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-mocha-subtext1);
     --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-mocha-subtext0);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(166, 173, 200, 0.5);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(166, 173, 200, 0.55);
     --dv-separator-border: var(--dv-color-mocha-surface1);
     --dv-paneview-active-outline-color: var(--dv-color-mocha-mauve);
     --dv-active-sash-color: var(--dv-color-mocha-mauve);
     --dv-scrollbar-background-color: rgba(49, 50, 68, 0.8);
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: var(--dv-color-mocha-surface1);
 
-    .dv-groupview {
-        &.dv-active-group {
-            > .dv-tabs-and-actions-container {
-                .dv-tabs-container {
-                    > .dv-tab.dv-active-tab {
-                        position: relative;
-                        &::after {
-                            position: absolute;
-                            left: 0px;
-                            bottom: 0px;
-                            content: '';
-                            width: 100%;
-                            height: 2px;
-                            background-color: var(--dv-color-mocha-mauve);
-                            z-index: 999;
-                        }
-                    }
-                }
-            }
-        }
-        &.dv-inactive-group {
-            > .dv-tabs-and-actions-container {
-                .dv-tabs-container {
-                    > .dv-tab.dv-active-tab {
-                        position: relative;
-                        &::after {
-                            position: absolute;
-                            left: 0px;
-                            bottom: 0px;
-                            content: '';
-                            width: 100%;
-                            height: 2px;
-                            background-color: rgba(180, 190, 254, 0.4);
-                            z-index: 999;
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // Mauve active-tab marker, dimmed with the group.
+    --dv-activegroup-tab-marker-color: var(--dv-color-mocha-mauve);
+    --dv-inactivegroup-tab-marker-color: rgba(180, 190, 254, 0.4);
 }
 
 .dockview-theme-catppuccin-mocha {
@@ -550,16 +528,7 @@
 
     color-scheme: dark;
 
-    --dv-color-mocha-crust: #11111b;
-    --dv-color-mocha-mantle: #181825;
-    --dv-color-mocha-base: #1e1e2e;
-    --dv-color-mocha-surface0: #313244;
-    --dv-color-mocha-surface1: #45475a;
-    --dv-color-mocha-text: #cdd6f4;
-    --dv-color-mocha-subtext1: #bac2de;
-    --dv-color-mocha-subtext0: #a6adc8;
-    --dv-color-mocha-mauve: #cba6f7;
-    --dv-color-mocha-lavender: #b4befe;
+    @include dockview-palette-catppuccin-mocha();
 
     --dv-group-view-background-color: var(--dv-color-mocha-crust);
     --dv-tabs-and-actions-container-background-color: var(
@@ -580,11 +549,13 @@
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-mocha-text);
     --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-mocha-subtext1);
     --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-mocha-subtext0);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(166, 173, 200, 0.5);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(166, 173, 200, 0.55);
     --dv-separator-border: transparent;
     --dv-paneview-active-outline-color: var(--dv-color-mocha-mauve);
     --dv-active-sash-color: var(--dv-color-mocha-mauve);
     --dv-scrollbar-background-color: rgba(49, 50, 68, 0.8);
+    // Hover fill for hidden tabs (translucent: these tabs are bare text).
+    --dv-tab-inactive-hover-background-color: var(--dv-color-mocha-surface0);
 
     --dv-floating-group-border: 2px solid var(--dv-color-mocha-crust);
 }
@@ -600,6 +571,9 @@
     --dv-color-monokai-bg: #272822;
     --dv-color-monokai-bg-light: #3e3d32;
     --dv-color-monokai-comment: #75715e;
+    // A lightened comment tone for muted-but-legible text: --dv-color-monokai-comment
+    // on the editor bg is only ~3.0:1, below WCAG AA; this reaches 4.5:1.
+    --dv-color-monokai-comment-bright: #a39d8a;
     --dv-color-monokai-fg: #f8f8f2;
     --dv-color-monokai-green: #a6e22e;
 
@@ -616,54 +590,24 @@
     );
     --dv-inactivegroup-hiddenpanel-tab-background-color: #2d2c25;
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-monokai-fg);
-    --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-monokai-comment);
+    --dv-activegroup-hiddenpanel-tab-color: var(
+        --dv-color-monokai-comment-bright
+    );
     --dv-inactivegroup-visiblepanel-tab-color: rgba(248, 248, 242, 0.5);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(117, 113, 94, 0.5);
+    // comment-bright at 70%: the raw comment tone cannot reach 3:1 even opaque.
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(163, 157, 138, 0.7);
     --dv-separator-border: var(--dv-color-monokai-bg-light);
     --dv-paneview-active-outline-color: var(--dv-color-monokai-green);
     --dv-active-sash-color: var(--dv-color-monokai-green);
     --dv-scrollbar-background-color: rgba(117, 113, 94, 0.5);
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: #35342a;
+    // The separator colour equals the strip here, so give the menu its own.
+    --dv-context-menu-border-color: var(--dv-color-monokai-comment);
 
-    .dv-groupview {
-        &.dv-active-group {
-            > .dv-tabs-and-actions-container {
-                .dv-tabs-container {
-                    > .dv-tab.dv-active-tab {
-                        position: relative;
-                        &::after {
-                            position: absolute;
-                            left: 0px;
-                            bottom: 0px;
-                            content: '';
-                            width: 100%;
-                            height: 2px;
-                            background-color: var(--dv-color-monokai-green);
-                            z-index: 999;
-                        }
-                    }
-                }
-            }
-        }
-        &.dv-inactive-group {
-            > .dv-tabs-and-actions-container {
-                .dv-tabs-container {
-                    > .dv-tab.dv-active-tab {
-                        position: relative;
-                        &::after {
-                            position: absolute;
-                            left: 0px;
-                            bottom: 0px;
-                            content: '';
-                            width: 100%;
-                            height: 2px;
-                            background-color: rgba(166, 226, 46, 0.35);
-                            z-index: 999;
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // Green active-tab marker, dimmed with the group.
+    --dv-activegroup-tab-marker-color: var(--dv-color-monokai-green);
+    --dv-inactivegroup-tab-marker-color: rgba(166, 226, 46, 0.35);
 }
 
 .dockview-theme-monokai {
@@ -672,18 +616,22 @@
 
 // ─── Solarized Light ─────────────────────────────────────────────────────────
 
-@mixin dockview-theme-solarized-light-mixin {
-    @include dockview-theme-core-mixin();
-    @include dockview-drop-target-no-travel();
-
-    color-scheme: light;
-
+@mixin dockview-palette-solarized-light {
     --dv-color-sol-base3: #fdf6e3;
     --dv-color-sol-base2: #eee8d5;
     --dv-color-sol-base1: #93a1a1;
     --dv-color-sol-base00: #657b83;
     --dv-color-sol-base01: #586e75;
     --dv-color-sol-blue: #268bd2;
+}
+
+@mixin dockview-theme-solarized-light-mixin {
+    @include dockview-theme-core-mixin();
+    @include dockview-drop-target-no-travel();
+
+    color-scheme: light;
+
+    @include dockview-palette-solarized-light();
 
     --dv-group-view-background-color: var(--dv-color-sol-base3);
     --dv-tabs-and-actions-container-background-color: var(--dv-color-sol-base2);
@@ -696,13 +644,26 @@
     );
     --dv-inactivegroup-hiddenpanel-tab-background-color: #e8e2d0;
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-sol-base01);
-    --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-sol-base00);
-    --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-sol-base1);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(147, 161, 161, 0.6);
+    // Solarized's base00/base1 sit below AA on the warm tab backgrounds, so
+    // the muted tab tones are darkened steps of the same hues: ≥4.5:1 for any
+    // visible panel's title, ≥3:1 for hidden tabs in an unfocused group.
+    --dv-activegroup-hiddenpanel-tab-color: #55676e;
+    --dv-inactivegroup-visiblepanel-tab-color: #677171;
+    --dv-inactivegroup-hiddenpanel-tab-color: #768181;
     --dv-separator-border: var(--dv-color-sol-base2);
     --dv-paneview-active-outline-color: var(--dv-color-sol-blue);
     --dv-active-sash-color: var(--dv-color-sol-blue);
     --dv-scrollbar-background-color: rgba(101, 123, 131, 0.25);
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: #e2dcc8;
+    // Deeper blue for the focus ring: base blue is <3:1 on the warm tab fills.
+    --dv-focus-ring-color: #1f7bbf;
+    // The separator colour equals the strip here, so give the menu its own.
+    --dv-context-menu-border-color: var(--dv-color-sol-base1);
+
+    // Blue active-tab marker, dimmed with the group.
+    --dv-activegroup-tab-marker-color: var(--dv-color-sol-blue);
+    --dv-inactivegroup-tab-marker-color: rgba(38, 139, 210, 0.4);
     --dv-drag-over-background-color: rgba(38, 139, 210, 0.15);
     --dv-floating-box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -719,12 +680,10 @@
 
     color-scheme: light;
 
-    --dv-color-sol-base3: #fdf6e3;
-    --dv-color-sol-base2: #eee8d5;
-    --dv-color-sol-base1: #93a1a1;
-    --dv-color-sol-base00: #657b83;
-    --dv-color-sol-base01: #586e75;
-    --dv-color-sol-blue: #268bd2;
+    @include dockview-palette-solarized-light();
+    // A darker base01 for the selected-tab label: on the spaced backdrop the
+    // stock --dv-color-sol-base01 falls below WCAG AA; this reaches 4.5:1.
+    --dv-color-sol-base01-strong: #41545a;
 
     --dv-drag-over-background-color: rgba(38, 139, 210, 0.1);
     --dv-group-view-background-color: var(--dv-color-sol-base2);
@@ -737,10 +696,13 @@
     --dv-inactivegroup-hiddenpanel-tab-background-color: var(
         --dv-color-sol-base3
     );
-    --dv-activegroup-visiblepanel-tab-color: var(--dv-color-sol-base01);
-    --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-sol-base00);
-    --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-sol-base1);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(147, 161, 161, 0.6);
+    --dv-activegroup-visiblepanel-tab-color: var(
+        --dv-color-sol-base01-strong
+    );
+    // See the solarized-light mixin: darkened muted tones for AA.
+    --dv-activegroup-hiddenpanel-tab-color: #5f747b;
+    --dv-inactivegroup-visiblepanel-tab-color: #5b6464;
+    --dv-inactivegroup-hiddenpanel-tab-color: #849191;
     --dv-separator-border: transparent;
     --dv-paneview-active-outline-color: var(--dv-color-sol-blue);
     --dv-active-sash-color: var(--dv-color-sol-blue);
@@ -748,18 +710,17 @@
         0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
     --dv-floating-border: 1px solid rgba(0, 0, 0, 0.1);
     --dv-scrollbar-background-color: rgba(101, 123, 131, 0.25);
+    // Hover fill for hidden tabs (translucent: these tabs are bare text).
+    --dv-tab-inactive-hover-background-color: rgba(0, 0, 0, 0.04);
+    --dv-focus-ring-color: #1f7bbf;
+    --dv-context-menu-border-color: var(--dv-color-sol-base1);
 
     --dv-floating-group-border: 2px solid rgba(238, 232, 213, 0.5);
 }
 
 // ─── GitHub Dark ─────────────────────────────────────────────────────────────
 
-@mixin dockview-theme-github-dark-mixin {
-    @include dockview-theme-core-mixin();
-    @include dockview-drop-target-no-travel();
-
-    color-scheme: dark;
-
+@mixin dockview-palette-github-dark {
     --dv-color-gh-canvas-default: #0d1117;
     --dv-color-gh-canvas-subtle: #161b22;
     --dv-color-gh-canvas-inset: #010409;
@@ -769,6 +730,15 @@
     --dv-color-gh-fg-muted: #8b949e;
     --dv-color-gh-fg-subtle: #6e7681;
     --dv-color-gh-accent: #58a6ff;
+}
+
+@mixin dockview-theme-github-dark-mixin {
+    @include dockview-theme-core-mixin();
+    @include dockview-drop-target-no-travel();
+
+    color-scheme: dark;
+
+    @include dockview-palette-github-dark();
 
     --dv-group-view-background-color: var(--dv-color-gh-canvas-default);
     --dv-tabs-and-actions-container-background-color: var(
@@ -788,12 +758,20 @@
     );
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-gh-fg-default);
     --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-gh-fg-muted);
-    --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-gh-fg-subtle);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(110, 118, 129, 0.5);
+    // Unfocused-group tones are held to ≥3:1 (hidden) / ≥4.5:1 (visible panel)
+    // against their tab backgrounds; see the theme contrast audit.
+    --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-gh-fg-muted);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(139, 148, 158, 0.7);
     --dv-separator-border: var(--dv-color-gh-border);
     --dv-paneview-active-outline-color: var(--dv-color-gh-accent);
     --dv-active-sash-color: var(--dv-color-gh-accent);
     --dv-scrollbar-background-color: rgba(48, 54, 61, 0.7);
+    // Hover fill for hidden tabs (translucent: these tabs are bare text).
+    --dv-tab-inactive-hover-background-color: rgba(255, 255, 255, 0.05);
+
+    // Active-tab marker in the underline-nav accent, dimmed with the group.
+    --dv-activegroup-tab-marker-color: #f78166;
+    --dv-inactivegroup-tab-marker-color: rgba(247, 129, 102, 0.4);
     --dv-drag-over-background-color: rgba(88, 166, 255, 0.15);
 }
 
@@ -807,15 +785,7 @@
 
     color-scheme: dark;
 
-    --dv-color-gh-canvas-default: #0d1117;
-    --dv-color-gh-canvas-subtle: #161b22;
-    --dv-color-gh-canvas-inset: #010409;
-    --dv-color-gh-border: #30363d;
-    --dv-color-gh-border-muted: #21262d;
-    --dv-color-gh-fg-default: #e6edf3;
-    --dv-color-gh-fg-muted: #8b949e;
-    --dv-color-gh-fg-subtle: #6e7681;
-    --dv-color-gh-accent: #58a6ff;
+    @include dockview-palette-github-dark();
 
     --dv-drag-over-background-color: rgba(88, 166, 255, 0.1);
     --dv-group-view-background-color: var(--dv-color-gh-canvas-inset);
@@ -836,24 +806,24 @@
     );
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-gh-fg-default);
     --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-gh-fg-muted);
-    --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-gh-fg-subtle);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(110, 118, 129, 0.5);
+    // Unfocused-group tones are held to ≥3:1 (hidden) / ≥4.5:1 (visible panel)
+    // against their tab backgrounds; see the theme contrast audit.
+    // The visible-panel tab sits on the lighter `gh-border` pill here.
+    --dv-inactivegroup-visiblepanel-tab-color: #9a9fa7;
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(139, 148, 158, 0.7);
     --dv-separator-border: transparent;
     --dv-paneview-active-outline-color: var(--dv-color-gh-accent);
     --dv-active-sash-color: var(--dv-color-gh-accent);
     --dv-scrollbar-background-color: rgba(48, 54, 61, 0.7);
+    // Hover fill for hidden tabs (translucent: these tabs are bare text).
+    --dv-tab-inactive-hover-background-color: rgba(255, 255, 255, 0.05);
 
     --dv-floating-group-border: 2px solid var(--dv-color-gh-canvas-inset);
 }
 
 // ─── GitHub Light ─────────────────────────────────────────────────────────────
 
-@mixin dockview-theme-github-light-mixin {
-    @include dockview-theme-core-mixin();
-    @include dockview-drop-target-no-travel();
-
-    color-scheme: light;
-
+@mixin dockview-palette-github-light {
     --dv-color-gh-light-canvas-default: #ffffff;
     --dv-color-gh-light-canvas-subtle: #f6f8fa;
     --dv-color-gh-light-canvas-inset: #f0f6ff;
@@ -862,6 +832,15 @@
     --dv-color-gh-light-fg-muted: #656d76;
     --dv-color-gh-light-fg-subtle: #6e7781;
     --dv-color-gh-light-accent: #0969da;
+}
+
+@mixin dockview-theme-github-light-mixin {
+    @include dockview-theme-core-mixin();
+    @include dockview-drop-target-no-travel();
+
+    color-scheme: light;
+
+    @include dockview-palette-github-light();
 
     --dv-group-view-background-color: var(--dv-color-gh-light-canvas-default);
     --dv-tabs-and-actions-container-background-color: var(
@@ -886,11 +865,17 @@
     --dv-inactivegroup-visiblepanel-tab-color: var(
         --dv-color-gh-light-fg-subtle
     );
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(110, 118, 129, 0.4);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(110, 118, 129, 0.8);
     --dv-separator-border: var(--dv-color-gh-light-border);
     --dv-paneview-active-outline-color: var(--dv-color-gh-light-accent);
     --dv-active-sash-color: var(--dv-color-gh-light-accent);
     --dv-scrollbar-background-color: rgba(208, 215, 222, 0.5);
+    // Hover fill for hidden tabs (translucent: these tabs are bare text).
+    --dv-tab-inactive-hover-background-color: rgba(0, 0, 0, 0.04);
+
+    // Active-tab marker in the underline-nav accent, dimmed with the group.
+    --dv-activegroup-tab-marker-color: #f78166;
+    --dv-inactivegroup-tab-marker-color: rgba(247, 129, 102, 0.4);
     --dv-drag-over-background-color: rgba(9, 105, 218, 0.1);
     --dv-floating-box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -907,13 +892,7 @@
 
     color-scheme: light;
 
-    --dv-color-gh-light-canvas-default: #ffffff;
-    --dv-color-gh-light-canvas-subtle: #f6f8fa;
-    --dv-color-gh-light-border: #d0d7de;
-    --dv-color-gh-light-fg-default: #1f2328;
-    --dv-color-gh-light-fg-muted: #656d76;
-    --dv-color-gh-light-fg-subtle: #6e7781;
-    --dv-color-gh-light-accent: #0969da;
+    @include dockview-palette-github-light();
 
     --dv-drag-over-background-color: rgba(9, 105, 218, 0.08);
     --dv-group-view-background-color: var(--dv-color-gh-light-canvas-subtle);
@@ -936,10 +915,11 @@
         --dv-color-gh-light-fg-default
     );
     --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-gh-light-fg-muted);
-    --dv-inactivegroup-visiblepanel-tab-color: var(
-        --dv-color-gh-light-fg-subtle
-    );
-    --dv-inactivegroup-hiddenpanel-tab-color: rgba(110, 118, 129, 0.4);
+    // Unfocused-group tones are held to ≥3:1 (hidden) / ≥4.5:1 (visible panel)
+    // against their tab backgrounds; see the theme contrast audit.
+    // The visible-panel tab sits on the `gh-light-border` pill here.
+    --dv-inactivegroup-visiblepanel-tab-color: #565d65;
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(110, 118, 129, 0.8);
     --dv-separator-border: transparent;
     --dv-paneview-active-outline-color: var(--dv-color-gh-light-accent);
     --dv-active-sash-color: var(--dv-color-gh-light-accent);
@@ -947,6 +927,8 @@
         0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
     --dv-floating-border: 1px solid rgba(0, 0, 0, 0.1);
     --dv-scrollbar-background-color: rgba(208, 215, 222, 0.5);
+    // Hover fill for hidden tabs (translucent: these tabs are bare text).
+    --dv-tab-inactive-hover-background-color: rgba(0, 0, 0, 0.04);
 
     --dv-floating-group-border: 2px solid rgba(208, 215, 222, 0.5);
 }
@@ -957,25 +939,16 @@
 
     color-scheme: dark;
 
-    //  stylesheet
-    --dv-color-abyss-dark: rgb(11, 6, 17);
-    --dv-color-abyss: #16121f;
-    --dv-color-abyss-light: #201d2b;
-    --dv-color-abyss-lighter: #2a2837;
-    --dv-color-abyss-accent: rgb(91, 30, 207);
-    --dv-color-abyss-primary-text: white;
-    --dv-color-abyss-secondary-text: rgb(148, 151, 169);
+    // Same ramp as Abyss (it used to carry a diverged purple copy). Cards are
+    // the abyss step on the abyss-dark backdrop; the pills step up the ramp.
+    @include dockview-palette-abyss();
 
-    //
+    // No fill on the drop preview: the spaced themes rely on the border only.
+    --dv-drag-over-background-color: transparent;
 
-    --dv-drag-over-background-color: '';
-    //
-
-    //
     --dv-group-view-background-color: var(--dv-color-abyss-dark);
-    //
     --dv-tabs-and-actions-container-background-color: var(--dv-color-abyss);
-    //
+
     --dv-activegroup-visiblepanel-tab-background-color: var(
         --dv-color-abyss-lighter
     );
@@ -989,24 +962,24 @@
         --dv-color-abyss-light
     );
     --dv-tab-divider-color: transparent;
-    //
+
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-abyss-primary-text);
     --dv-activegroup-hiddenpanel-tab-color: var(
         --dv-color-abyss-secondary-text
     );
-    --dv-inactivegroup-visiblepanel-tab-color: var(
-        --dv-color-abyss-primary-text
-    );
-    --dv-inactivegroup-hiddenpanel-tab-color: var(
-        --dv-color-abyss-secondary-text
-    );
-    //
-    --dv-separator-border: transparent;
-    --dv-paneview-header-border-color: rgb(51, 51, 51);
+    // Unfocused groups dim like every other theme (they used to render at
+    // full strength): ≥4.5:1 for the visible panel, ≥3:1 for hidden tabs.
+    --dv-inactivegroup-visiblepanel-tab-color: rgba(255, 255, 255, 0.6);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(148, 151, 169, 0.7);
 
-    /////
+    --dv-separator-border: transparent;
+    --dv-paneview-header-border-color: var(--dv-color-abyss-lighter);
+    // A lighter step of the Abyss outline blue: #596f99 is only 2.7:1 on the
+    // lighter active pill, so the focus ring would vanish there.
+    --dv-paneview-active-outline-color: #7f95c4;
     --dv-active-sash-color: var(--dv-color-abyss-accent);
-    //
+    // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
+    --dv-tab-inactive-hover-background-color: #242438;
 
     --dv-floating-group-border: 2px solid var(--dv-color-abyss-dark);
 }
@@ -1019,30 +992,40 @@
 
     //
 
-    --dv-drag-over-background-color: '';
+    // No fill on the drop preview: the spaced themes rely on the border only.
+    --dv-drag-over-background-color: transparent;
     //
 
     //
-    --dv-group-view-background-color: #f6f5f9;
+    // Deeper slate-lavender backdrop so the white cards clearly separate (the
+    // old #f6f5f9 was near-white on white and washed the cards out).
+    --dv-group-view-background-color: #e7e8ef;
     //
     --dv-tabs-and-actions-container-background-color: white;
     //
-    --dv-activegroup-visiblepanel-tab-background-color: #ededf0;
-    --dv-activegroup-hiddenpanel-tab-background-color: #f9f9fa;
-    --dv-inactivegroup-visiblepanel-tab-background-color: #ededf0;
-    --dv-inactivegroup-hiddenpanel-tab-background-color: #f9f9fa;
+    // Selected tab is a visible filled pill; unselected tabs are text-only
+    // (transparent) so the selection reads clearly against the cards.
+    --dv-activegroup-visiblepanel-tab-background-color: #e2e4ee;
+    --dv-activegroup-hiddenpanel-tab-background-color: transparent;
+    --dv-inactivegroup-visiblepanel-tab-background-color: #e2e4ee;
+    --dv-inactivegroup-hiddenpanel-tab-background-color: transparent;
     --dv-tab-divider-color: transparent;
     //
-    --dv-activegroup-visiblepanel-tab-color: rgb(104, 107, 130);
-    --dv-activegroup-hiddenpanel-tab-color: rgb(148, 151, 169);
-    --dv-inactivegroup-visiblepanel-tab-color: rgb(104, 107, 130);
-    --dv-inactivegroup-hiddenpanel-tab-color: rgb(148, 151, 169);
+    --dv-activegroup-visiblepanel-tab-color: rgb(60, 64, 96);
+    --dv-activegroup-hiddenpanel-tab-color: #717588;
+    --dv-inactivegroup-visiblepanel-tab-color: rgb(90, 94, 120);
+    --dv-inactivegroup-hiddenpanel-tab-color: #9093a3;
     //
     --dv-separator-border: transparent;
     --dv-paneview-header-border-color: rgb(51, 51, 51);
 
     /////
     --dv-active-sash-color: rgb(91, 30, 207);
+    // Same purple for the paneview outline and focus ring: dodgerblue (the core
+    // default) is only 2.65:1 on the white cards.
+    --dv-paneview-active-outline-color: rgb(91, 30, 207);
+    // Hover fill for hidden tabs (translucent: these tabs are bare text).
+    --dv-tab-inactive-hover-background-color: rgba(0, 0, 0, 0.04);
     //
     --dv-floating-box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -1050,6 +1033,582 @@
 
     --dv-scrollbar-background-color: rgba(0, 0, 0, 0.25);
     --dv-floating-group-border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+// ─── Slate ───────────────────────────────────────────────────────────────────
+// A clean, modern theme built on a cool-slate palette. Its distinctive pieces:
+//   • "Connected" tabs — the active tab shares the panel body's colour and
+//     rounds its top corners so it reads as a folder tab merging into the
+//     content, rather than a flat block.
+//   • Accent-driven selection — the active tab's label is drawn in the accent
+//     colour instead of relying on a heavy background swap.
+//   • Short pill dividers between inactive tabs that disappear either side of
+//     the active tab (the "notch" effect).
+//   • A grippable floating-group drag handle (a dotted grip + grab cursor)
+//     rather than a blank bar.
+//   • Two-colour drop feedback: accent for "dock into this group", green for
+//     "dock to an edge" (reuses the DnD-compass tokens).
+//
+// The palette is built as a small ramp (`--dv-color-slate-*`) that the standard
+// `--dv-*` tokens are derived from, so a variant is a short ramp swap (see the
+// dark mixin) instead of a full token copy. Each ramp step is overridable
+// per-instance via its own `--dv-color-slate-*` custom property.
+
+// ─── Connected "folder" tabs ─────────────────────────────────────────────────
+// Browser-style tabs: a rounded-top active tab whose bottom corners flare into
+// the strip with concave "shoulders", plus pill separators between inactive
+// tabs. Enable by applying `.dockview-tabs-connected` to the dockview root
+// (composes with any theme, like `.dockview-spaced`) or by including this mixin
+// inside a theme. Fully token-driven:
+//   --dv-tab-border-radius   top-corner radius (see tabs.scss)
+//   --dv-tab-shoulder-size   flare size (and the strip gutter); 0 = no flare
+//   --dv-tab-shoulder-color  flare colour (defaults to the active tab bg)
+//   --dv-tab-divider-color   separator pill colour (from the base divider)
+@mixin dockview-connected-tabs-mixin {
+    // Gap between adjacent tabs. The active tab's shoulders flare
+    // `--dv-tab-shoulder-size` beyond it on each side, so without a gap those
+    // flares paint over the neighbouring tabs. Size the gap to the flare plus a
+    // few px of clearance, so whichever tab is active its flares sit in the
+    // gutter and a sliver of strip stays visible between tabs.
+    --dv-tab-connected-gap: calc(var(--dv-tab-shoulder-size) + 4px);
+
+    // Compact tabs so a folder set reads as a tight row; the container gutter
+    // and inter-tab gap below give the shoulders room to flare. Logical
+    // padding so it follows the strip's writing mode: on a vertical
+    // (left/right edge-group) strip the inline axis is physical top/bottom,
+    // so the 10px still runs before/after the title rather than eating the
+    // pill's cross-axis width (a physical `0 10px` left the rotated label
+    // 2px of room and no lead-in either end).
+    .dv-tab {
+        padding-block: 0;
+        padding-inline: 10px;
+        transition:
+            background-color 0.1s ease,
+            color 0.1s ease;
+    }
+
+    .dv-tabs-container:not(.dv-tabs-container-vertical) > .dv-tab:not(:first-child) {
+        margin-left: var(--dv-tab-connected-gap);
+    }
+
+    .dv-tabs-container:not(.dv-tabs-container-vertical) {
+        padding: 0 var(--dv-tab-shoulder-size);
+    }
+
+    // Inactive-tab separators: a thin, centred hairline in the gap between
+    // adjacent tabs. Self-contained (own `content` + background) rather than
+    // leaning on the base `::before` divider, because that base rule is scoped
+    // to `.dv-active-group` and would drop the separators whenever the group
+    // loses focus. Offset half the gap to the left so it lands mid-gutter.
+    .dv-tabs-container:not(.dv-tabs-container-vertical) > .dv-tab:not(:first-child)::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: calc(-0.5 * var(--dv-tab-connected-gap));
+        height: 14px;
+        width: 1px;
+        border-radius: 0;
+        background-color: var(--dv-tab-divider-color);
+        transform: translateY(-50%);
+        pointer-events: none;
+        z-index: 3;
+    }
+
+    // Active-tab "shoulders": a square pseudo-element per side, painted in the
+    // tab's colour and masked to a quarter-circle so the strip shows through
+    // the curve. `::before` is the left shoulder (it otherwise draws the
+    // separator hairline), `::after` the right — hence the suppression below.
+    // Note: this ::before ties the base separator rule above on specificity and
+    // wins by source order (this block follows it, and theme.scss is
+    // concatenated after tabs.scss by scripts/build-css.js). Keep this block
+    // after the separator rule if either is moved.
+    .dv-tabs-container:not(.dv-tabs-container-vertical) > .dv-tab.dv-active-tab {
+        &::before,
+        &::after {
+            content: '';
+            position: absolute;
+            top: auto;
+            bottom: 0;
+            width: var(--dv-tab-shoulder-size);
+            height: var(--dv-tab-shoulder-size);
+            border-radius: 0;
+            transform: none;
+            background-color: var(--dv-tab-shoulder-color);
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        &::before {
+            left: calc(-1 * var(--dv-tab-shoulder-size));
+            -webkit-mask-image: radial-gradient(
+                circle at top left,
+                transparent var(--dv-tab-shoulder-size),
+                #000 var(--dv-tab-shoulder-size)
+            );
+            mask-image: radial-gradient(
+                circle at top left,
+                transparent var(--dv-tab-shoulder-size),
+                #000 var(--dv-tab-shoulder-size)
+            );
+        }
+
+        &::after {
+            right: calc(-1 * var(--dv-tab-shoulder-size));
+            -webkit-mask-image: radial-gradient(
+                circle at top right,
+                transparent var(--dv-tab-shoulder-size),
+                #000 var(--dv-tab-shoulder-size)
+            );
+            mask-image: radial-gradient(
+                circle at top right,
+                transparent var(--dv-tab-shoulder-size),
+                #000 var(--dv-tab-shoulder-size)
+            );
+        }
+    }
+
+    // The separator on the tab right after the active one is replaced by its
+    // shoulder.
+    .dv-tabs-container:not(.dv-tabs-container-vertical)
+        > .dv-tab.dv-active-tab
+        + .dv-tab::before {
+        background-color: transparent;
+    }
+
+    // Header at the bottom of the group: the tab hangs from the content above,
+    // so the folder shape flips — bottom corners rounded, shoulders flaring at
+    // the top edge. (A theme's `--dv-tab-margin` reveal inset is not flipped
+    // here; themes that use one, like slate, keep it on the top edge.)
+    .dv-groupview-header-bottom
+        .dv-tabs-container:not(.dv-tabs-container-vertical)
+        > .dv-tab {
+        border-radius: 0 0 var(--dv-tab-border-radius)
+            var(--dv-tab-border-radius);
+    }
+
+    .dv-groupview-header-bottom
+        .dv-tabs-container:not(.dv-tabs-container-vertical)
+        > .dv-tab.dv-active-tab {
+        &::before,
+        &::after {
+            bottom: auto;
+            top: 0;
+        }
+
+        &::before {
+            -webkit-mask-image: radial-gradient(
+                circle at bottom left,
+                transparent var(--dv-tab-shoulder-size),
+                #000 var(--dv-tab-shoulder-size)
+            );
+            mask-image: radial-gradient(
+                circle at bottom left,
+                transparent var(--dv-tab-shoulder-size),
+                #000 var(--dv-tab-shoulder-size)
+            );
+        }
+
+        &::after {
+            -webkit-mask-image: radial-gradient(
+                circle at bottom right,
+                transparent var(--dv-tab-shoulder-size),
+                #000 var(--dv-tab-shoulder-size)
+            );
+            mask-image: radial-gradient(
+                circle at bottom right,
+                transparent var(--dv-tab-shoulder-size),
+                #000 var(--dv-tab-shoulder-size)
+            );
+        }
+    }
+
+    // Vertical (edge-group) headers can't wear the horizontal folder shape: the
+    // shoulders are horizontal-only (above) and the base tab rounding only
+    // rounds the top corners, which land on the wrong edges once the strip is
+    // rotated (leaving notched, half-rounded tabs). Give the vertical tabs a
+    // clean full-radius pill instead, with a stacking gap along the header
+    // (block axis) and a cross-axis inset (inline axis) so the pill sits inside
+    // the strip rather than clipping its edge.
+    .dv-tabs-container-vertical > .dv-tab {
+        border-radius: var(--dv-tab-border-radius);
+        margin: calc(var(--dv-tab-connected-gap) / 2)
+            calc(var(--dv-tab-shoulder-size) / 2);
+
+        // The stacking gap already separates the pills, so drop the base
+        // between-tab hairline (it renders as a stray mark against the pill).
+        &::before {
+            display: none;
+        }
+    }
+}
+
+// Utility class: opt any theme into connected tabs (compose like
+// `.dockview-spaced`). Sets sensible enabling defaults; override the tokens
+// after the class to tune.
+.dockview-tabs-connected {
+    --dv-tab-border-radius: 10px;
+    --dv-tab-shoulder-size: 8px;
+    @include dockview-connected-tabs-mixin();
+}
+
+// ─── "Sheet" layout ──────────────────────────────────────────────────────────
+// One flat canvas colour fills the gaps between groups, the tab strips and the
+// edge rails; each group's content is a rounded sheet in the selected tab's
+// colour, and the selected tab merges into it as a folder tab: rounded top
+// corners and concave shoulders at its base, the same radius as the corners,
+// flaring over the 12px gutter that separates every tab. Pair with `gap` on
+// the theme preset so the canvas shows between groups, and keep
+// `--dv-separator-border` transparent (the gap is the separator). Used by
+// slate / slate-dark.
+@mixin dockview-design-sheet-mixin {
+    --dv-sheet-border-radius: 6px;
+    --dv-tab-border-radius: 10px;
+    --dv-tab-shoulder-size: 10px;
+    // 32px strip, tab inset 3px from the top: the tab's rounded corners read
+    // against the canvas and its base meets the sheet.
+    --dv-tabs-and-actions-container-height: 32px;
+    --dv-tab-margin: 3px 0 0 0;
+    --dv-separator-border: transparent;
+
+    @include dockview-connected-tabs-mixin();
+
+    // A 12px gutter between tabs: wide enough for the 10px shoulder to flare
+    // into, with the hairline centred in it. Declared after the mixin so it
+    // overrides the mixin's own (shoulder + 4px) value.
+    --dv-tab-connected-gap: 12px;
+
+    .dv-tab {
+        padding-block: 0;
+        padding-inline: 12px;
+        font-weight: 500;
+    }
+
+    // Short rounded hairline between neighbouring tabs (the mixin's is a 1px
+    // 14px line; this is 2px, ~0.8em, pill-ended). Excludes the selected tab:
+    // its ::before is the left shoulder, and this rule would otherwise tie the
+    // shoulder rule on specificity and win by source order.
+    .dv-tabs-container:not(.dv-tabs-container-vertical)
+        > .dv-tab:not(:first-child):not(.dv-active-tab)::before {
+        width: 2px;
+        height: 0.8em;
+        border-radius: 1px;
+    }
+
+    // The content sheet. The group already clips to its bounds; rounding the
+    // group gives the sheet its bottom corners, and the container's own radius
+    // + clip gives it top corners where the canvas-coloured strip sits above.
+    // Not scoped to `.dv-groupview >`: the auto-hide peek reparents the content
+    // container into its own overlay, and it must stay a sheet there too.
+    .dv-groupview {
+        border-radius: var(--dv-sheet-border-radius);
+    }
+
+    .dv-content-container {
+        background-color: var(
+            --dv-activegroup-visiblepanel-tab-background-color
+        );
+        border-radius: var(--dv-sheet-border-radius);
+        overflow: hidden;
+    }
+
+    // Always-rendered panels paint in an overlay aligned to the content
+    // container; round it to match the sheet.
+    .dv-render-overlay {
+        border-radius: var(--dv-sheet-border-radius);
+    }
+
+    // Rail (left/right edge-group) pills: the mixin's inset is half the
+    // shoulder size; give them 3px breathing room and a softer radius than the
+    // 10px tab corners.
+    .dv-tabs-container-vertical > .dv-tab {
+        margin: 3px 4px;
+        border-radius: 6px;
+    }
+
+    // ── Edge groups ──────────────────────────────────────────────────────────
+    // A collapsed rail is part of the canvas, so its tabs are bare labels
+    // (like the strip's hidden tabs) rather than sheet-coloured pills floating
+    // in the grey. The pill stays only while the rail's group is the focused
+    // one — its panel is peeking, or was the last thing used.
+    .dv-groupview-edge.dv-edge-collapsed:not(.dv-active-group)
+        .dv-tabs-container
+        > .dv-tab.dv-active-tab {
+        background-color: transparent;
+        background-image: none;
+        color: var(--dv-activegroup-hiddenpanel-tab-color);
+    }
+
+    // Auto-hide peek: the auto-hide module paints its backdrop in the group
+    // frame colour and its title bar in the strip colour (both the canvas
+    // here, set inline), and reparents the content container — a sheet, per
+    // the rule above — into it. So it already reads as a group: canvas title
+    // bar over a white sheet. Round it like one and soften the shadow.
+    .dv-edge-peek-header {
+        border: none;
+        border-top-left-radius: var(--dv-sheet-border-radius);
+        border-top-right-radius: var(--dv-sheet-border-radius);
+    }
+
+    .dv-edge-peek,
+    .dv-edge-peek-clip {
+        border-bottom-left-radius: var(--dv-sheet-border-radius);
+        border-bottom-right-radius: var(--dv-sheet-border-radius);
+    }
+
+    .dv-edge-peek {
+        border: none;
+        box-shadow: var(--dv-floating-box-shadow);
+    }
+}
+
+@mixin dockview-theme-slate-light-mixin {
+    @include dockview-theme-core-mixin();
+    @include dockview-drop-target-no-travel();
+
+    color-scheme: light;
+
+    // ── Neutral ramp ─────────────────────────────────────────────────────────
+    // Feeds the semantic tokens below; the dark mixin re-maps the same steps.
+    // Override any step for one instance with a higher-specificity rule or an
+    // inline style on the dockview root.
+    --dv-color-slate-background: #ffffff; // sheets: content + selected tab
+    --dv-color-slate-1: #ededee; // canvas: gaps, strips, rails
+    --dv-color-slate-2: #e5e7eb; // hairlines
+    --dv-color-slate-3: #d1d5db; // dividers, popup borders
+    --dv-color-slate-4: #9ca3af; // sash highlight
+    --dv-color-slate-5: #4b5563; // muted text
+    --dv-color-slate-accent: #2563eb;
+
+    // ── Structure ────────────────────────────────────────────────────────────
+    @include dockview-design-sheet-mixin();
+    --dv-tab-font-size: 13px;
+
+    // Rounded, inset floating groups (structure in overlay.scss).
+    --dv-floating-border-radius: 6px;
+    --dv-floating-inset: 5px;
+    --dv-floating-frame-color: var(--dv-color-slate-1);
+    --dv-drop-target-border-radius: 4px;
+
+    // ── Derived dockview tokens ──────────────────────────────────────────────
+    --dv-group-view-background-color: var(--dv-color-slate-1);
+    --dv-tabs-and-actions-container-background-color: var(--dv-color-slate-1);
+
+    // Selected tab = sheet colour (the merge); other tabs are bare text.
+    --dv-activegroup-visiblepanel-tab-background-color: var(
+        --dv-color-slate-background
+    );
+    --dv-activegroup-hiddenpanel-tab-background-color: transparent;
+    --dv-inactivegroup-visiblepanel-tab-background-color: var(
+        --dv-color-slate-background
+    );
+    --dv-inactivegroup-hiddenpanel-tab-background-color: transparent;
+
+    // Accent-driven selection; unfocused groups drop to the muted tone.
+    --dv-activegroup-visiblepanel-tab-color: var(--dv-color-slate-accent);
+    --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-slate-5);
+    --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-slate-5);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(75, 85, 99, 0.7);
+
+    --dv-tab-divider-color: var(--dv-color-slate-3);
+    --dv-paneview-header-border-color: var(--dv-color-slate-2);
+    --dv-paneview-active-outline-color: var(--dv-color-slate-accent);
+    --dv-active-sash-color: var(--dv-color-slate-4);
+    --dv-scrollbar-background-color: rgba(0, 0, 0, 0.18);
+    --dv-tab-inactive-hover-background-color: rgba(0, 0, 0, 0.05);
+
+    // Popups sit on a sheet, not the canvas.
+    --dv-context-menu-background-color: var(--dv-color-slate-background);
+    --dv-context-menu-border-color: var(--dv-color-slate-3);
+
+    // Grippable float handle.
+    --dv-floating-titlebar-handle-color: var(--dv-color-slate-3);
+    --dv-floating-box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+    --dv-floating-border: 1px solid rgba(0, 0, 0, 0.1);
+
+    // Two-colour drop feedback (blue = into group, green = to an edge).
+    --dv-drag-over-background-color: rgba(59, 130, 246, 0.1);
+    --dv-drag-over-border-color: #5f86c4;
+    --dv-drag-over-border: 2px solid #5f86c4;
+    --dv-dnd-compass-color: #5f86c4;
+    --dv-dnd-compass-cell-color: rgba(59, 130, 246, 0.2);
+    --dv-dnd-compass-edge-cell-color: rgba(16, 185, 129, 0.12);
+    --dv-dnd-compass-active-cell-color: rgba(59, 130, 246, 0.45);
+}
+
+@mixin dockview-theme-slate-dark-mixin {
+    @include dockview-theme-core-mixin();
+    @include dockview-drop-target-no-travel();
+
+    color-scheme: dark;
+
+    // ── Neutral ramp (dark re-map of the light mixin's steps) ────────────────
+    --dv-color-slate-background: #000000; // sheets: content + selected tab
+    --dv-color-slate-1: #1c1c1c; // canvas: gaps, strips, rails
+    --dv-color-slate-2: #2a2a2a; // hairlines
+    --dv-color-slate-3: #3a3a3a; // dividers, popup borders
+    --dv-color-slate-4: #525252; // sash highlight
+    --dv-color-slate-5: #8b8b8b; // muted text (≥4.5:1 on the canvas)
+    --dv-color-slate-accent: #3b7de7;
+
+    // ── Structure ────────────────────────────────────────────────────────────
+    @include dockview-design-sheet-mixin();
+    --dv-tab-font-size: 13px;
+
+    --dv-floating-border-radius: 6px;
+    --dv-floating-inset: 5px;
+    --dv-floating-frame-color: var(--dv-color-slate-1);
+    --dv-drop-target-border-radius: 4px;
+
+    // ── Derived dockview tokens ──────────────────────────────────────────────
+    --dv-group-view-background-color: var(--dv-color-slate-1);
+    --dv-tabs-and-actions-container-background-color: var(--dv-color-slate-1);
+
+    --dv-activegroup-visiblepanel-tab-background-color: var(
+        --dv-color-slate-background
+    );
+    --dv-activegroup-hiddenpanel-tab-background-color: transparent;
+    --dv-inactivegroup-visiblepanel-tab-background-color: var(
+        --dv-color-slate-background
+    );
+    --dv-inactivegroup-hiddenpanel-tab-background-color: transparent;
+
+    // On the black sheet the selected label is near-white rather than the
+    // accent (which is kept for focus, outlines and drop feedback).
+    --dv-activegroup-visiblepanel-tab-color: #e5e7eb;
+    --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-slate-5);
+    --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-slate-5);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(139, 139, 139, 0.7);
+
+    --dv-tab-divider-color: var(--dv-color-slate-3);
+    --dv-paneview-header-border-color: var(--dv-color-slate-2);
+    --dv-paneview-active-outline-color: var(--dv-color-slate-accent);
+    --dv-active-sash-color: var(--dv-color-slate-4);
+    --dv-scrollbar-background-color: rgba(255, 255, 255, 0.18);
+    --dv-tab-inactive-hover-background-color: rgba(255, 255, 255, 0.06);
+
+    --dv-context-menu-background-color: var(--dv-color-slate-background);
+    --dv-context-menu-border-color: var(--dv-color-slate-3);
+
+    --dv-floating-titlebar-handle-color: var(--dv-color-slate-3);
+    --dv-floating-box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
+    --dv-floating-border: 1px solid rgba(255, 255, 255, 0.1);
+
+    --dv-drag-over-background-color: rgba(59, 130, 246, 0.15);
+    --dv-drag-over-border-color: #5f86c4;
+    --dv-drag-over-border: 2px solid #5f86c4;
+    --dv-dnd-compass-color: #5f86c4;
+    --dv-dnd-compass-cell-color: rgba(59, 130, 246, 0.25);
+    --dv-dnd-compass-edge-cell-color: rgba(16, 185, 129, 0.15);
+    --dv-dnd-compass-active-cell-color: rgba(59, 130, 246, 0.5);
+}
+
+.dockview-theme-slate {
+    @include dockview-theme-slate-light-mixin();
+}
+
+.dockview-theme-slate-dark {
+    @include dockview-theme-slate-dark-mixin();
+}
+
+// ─── Dark Rounded ────────────────────────────────────────────────────────────
+// The classic dark editor palette with a modern rounded tab strip. Its pieces:
+//   • A lighter strip with the active tab cut out of it in the content colour:
+//     the tab fills the strip top to bottom, rounds its top corners, and
+//     merges straight into the panel below (no bottom edge, no accent bar).
+//   • Small concave shoulders at the base of the active tab that overlap the
+//     neighbouring tabs' bases — the "subtle radius" where tabs meet. Tabs sit
+//     flush (no inter-tab gap), so the shoulders land on the neighbours.
+//   • Flat, text-only inactive tabs with a lighter fill on hover and a short
+//     hairline between neighbours that disappears either side of the active
+//     tab.
+//   • 1px hairline borders between groups and a rounded floating frame.
+//
+// The strip structure comes from the connected-tabs mixin; palette steps are
+// `--dv-color-dark-rounded-*` and any step is overridable per instance.
+@mixin dockview-theme-dark-rounded-mixin {
+    @include dockview-theme-core-mixin();
+    @include dockview-drop-target-no-travel();
+
+    color-scheme: dark;
+
+    // ── Palette ──────────────────────────────────────────────────────────────
+    --dv-color-dark-rounded-editor: #1e1e1e; // content + active tab
+    --dv-color-dark-rounded-strip: #303031; // tab strip + inactive tabs
+    --dv-color-dark-rounded-hover: #3a3a3a; // inactive tab hover fill
+    --dv-color-dark-rounded-border: #444444; // group borders / frames
+    --dv-color-dark-rounded-fg: #cccccc;
+    --dv-color-dark-rounded-fg-muted: #a6a6a6;
+    --dv-color-dark-rounded-accent: #007fd4;
+
+    // ── Derived dockview tokens ──────────────────────────────────────────────
+    --dv-tabs-and-actions-container-height: 35px;
+    --dv-tab-font-size: 13px;
+    // The tab fills the strip (no top inset): the small radius shows the strip
+    // colour only in the two corner notches.
+    --dv-tab-margin: 0;
+    --dv-tab-border-radius: 4px;
+    // Shoulders the same size as the corner radius, so the base flare and the
+    // top corner read as one curve.
+    --dv-tab-shoulder-size: 4px;
+
+    --dv-group-view-background-color: var(--dv-color-dark-rounded-editor);
+    --dv-tabs-and-actions-container-background-color: var(
+        --dv-color-dark-rounded-strip
+    );
+
+    // The visible panel's tab shares the content colour (the cut-out); hidden
+    // panels' tabs are bare text on the strip.
+    --dv-activegroup-visiblepanel-tab-background-color: var(
+        --dv-color-dark-rounded-editor
+    );
+    --dv-activegroup-hiddenpanel-tab-background-color: transparent;
+    --dv-inactivegroup-visiblepanel-tab-background-color: var(
+        --dv-color-dark-rounded-editor
+    );
+    --dv-inactivegroup-hiddenpanel-tab-background-color: transparent;
+
+    --dv-activegroup-visiblepanel-tab-color: var(--dv-color-dark-rounded-fg);
+    --dv-activegroup-hiddenpanel-tab-color: var(
+        --dv-color-dark-rounded-fg-muted
+    );
+    --dv-inactivegroup-visiblepanel-tab-color: rgba(204, 204, 204, 0.6);
+    --dv-inactivegroup-hiddenpanel-tab-color: rgba(166, 166, 166, 0.65);
+
+    --dv-tab-divider-color: var(--dv-color-dark-rounded-border);
+    --dv-separator-border: var(--dv-color-dark-rounded-border);
+    --dv-paneview-header-border-color: var(--dv-color-dark-rounded-border);
+    --dv-paneview-active-outline-color: var(--dv-color-dark-rounded-accent);
+    --dv-active-sash-color: var(--dv-color-dark-rounded-accent);
+    --dv-scrollbar-background-color: rgba(121, 121, 121, 0.4);
+    --dv-tab-inactive-hover-background-color: var(
+        --dv-color-dark-rounded-hover
+    );
+
+    // Rounded floating frame and drop preview to match the tab radius.
+    --dv-floating-border: 1px solid var(--dv-color-dark-rounded-border);
+    --dv-floating-border-radius: 6px;
+    --dv-drop-target-border-radius: 4px;
+
+    @include dockview-connected-tabs-mixin();
+
+    // Flush tabs. The mixin gaps tabs by the shoulder size so the flares stay
+    // in the gutter; here the flare is meant to overlap the neighbouring tab's
+    // base (the reference look), so remove the gap. Declared after the mixin
+    // so it overrides the mixin's own value.
+    --dv-tab-connected-gap: 0px;
+
+    // Rail (left/right edge-group) pills: the mixin insets them across the
+    // strip by half the shoulder size (2px here); widen that to 4px so the
+    // pill sits inside the rail the way the tabs sit inside the strip.
+    .dv-tabs-container-vertical > .dv-tab {
+        margin: 2px 4px;
+    }
+}
+
+.dockview-theme-dark-rounded {
+    @include dockview-theme-dark-rounded-mixin();
 }
 
 // ─── Utility class ───────────────────────────────────────────────────────────
@@ -1067,16 +1626,20 @@
 .dv-context-menu {
     min-width: 160px;
     overflow: hidden;
+    // Surface = the tab strip colour (always opaque; the hidden-tab background
+    // it used to borrow is transparent on the text-only-tab themes), text =
+    // the primary tab colour, border/separators = the group separator colour.
     background: var(
         --dv-context-menu-background-color,
-        var(--dv-activegroup-hiddenpanel-tab-background-color)
+        var(--dv-tabs-and-actions-container-background-color)
     );
     color: var(
         --dv-context-menu-color,
-        var(--dv-activegroup-hiddenpanel-tab-color)
+        var(--dv-activegroup-visiblepanel-tab-color)
     );
-    border: 1px solid var(--dv-tab-divider-color);
-    border-radius: var(--dv-border-radius);
+    border: 1px solid
+        var(--dv-context-menu-border-color, var(--dv-separator-border));
+    border-radius: var(--dv-dropdown-border-radius);
     box-shadow: var(--dv-floating-box-shadow);
     padding: 4px 0;
 }
@@ -1104,7 +1667,7 @@
 
 .dv-context-menu-separator {
     height: 1px;
-    background: var(--dv-tab-divider-color);
+    background: var(--dv-context-menu-border-color, var(--dv-separator-border));
     margin: 4px 0;
 }
 
@@ -1116,8 +1679,9 @@
     width: 100%;
     box-sizing: border-box;
     padding: 8px 10px;
-    border: 1px solid var(--dv-tab-divider-color);
-    border-radius: var(--dv-border-radius);
+    border: 1px solid
+        var(--dv-context-menu-border-color, var(--dv-separator-border));
+    border-radius: var(--dv-dropdown-border-radius);
     background: inherit;
     color: var(--dv-activegroup-visiblepanel-tab-color);
     font-size: var(--dv-tabs-and-actions-container-font-size);
@@ -1157,7 +1721,7 @@
     }
 
     &.dv-context-menu-color-swatch--selected {
-        outline: 2px solid var(--dv-tab-divider-color);
+        outline: 2px solid var(--dv-activegroup-visiblepanel-tab-color);
         outline-offset: 2px;
     }
 }
@@ -1175,18 +1739,3 @@
     }
 }
 
-// When the header is at the bottom, the active-tab marker sits on the tab's
-// top edge, the side nearest the content. (For a top header it sits on the
-// bottom edge; this overrides that.) The selector matches the full per-theme
-// active-marker chain so it still applies inside a theme.
-.dv-groupview.dv-groupview-header-bottom {
-    &.dv-active-group,
-    &.dv-inactive-group {
-        > .dv-tabs-and-actions-container
-            .dv-tabs-container
-            > .dv-tab.dv-active-tab::after {
-            top: 0px;
-            bottom: auto;
-        }
-    }
-}

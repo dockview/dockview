@@ -79,11 +79,9 @@
                     z-index: 5;
                     content: '';
                     pointer-events: none;
-                    outline: 1px solid;
-                    outline-width: -1px;
-                    outline-style: solid;
-                    outline-offset: -1px;
-                    outline-color: var(--dv-paneview-active-outline-color);
+                    outline: var(--dv-focus-ring-width) solid
+                        var(--dv-focus-ring-color);
+                    outline-offset: calc(-1 * var(--dv-focus-ring-width));
                 }
             }
         }
@@ -105,11 +103,9 @@
                     z-index: 5;
                     content: '';
                     pointer-events: none;
-                    outline: 1px solid;
-                    outline-width: -1px;
-                    outline-style: solid;
-                    outline-offset: -1px;
-                    outline-color: var(--dv-paneview-active-outline-color);
+                    outline: var(--dv-focus-ring-width) solid
+                        var(--dv-focus-ring-color);
+                    outline-offset: calc(-1 * var(--dv-focus-ring-width));
                 }
             }
         }

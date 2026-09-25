@@ -6,6 +6,7 @@ import {
     themeCatppuccinMocha,
     themeCatppuccinMochaSpaced,
     themeDark,
+    themeDarkRounded,
     themeDracula,
     themeGithubDark,
     themeGithubDarkSpaced,
@@ -16,6 +17,8 @@ import {
     themeMonokai,
     themeNord,
     themeNordSpaced,
+    themeSlate,
+    themeSlateDark,
     themeSolarizedLight,
     themeSolarizedLightSpaced,
     themeVisualStudio,
@@ -40,6 +43,9 @@ export const BUILTIN_THEMES: { theme: DockviewTheme; label: string }[] = [
     { theme: themeGithubDarkSpaced, label: 'GitHub Dark Spaced' },
     { theme: themeGithubLight, label: 'GitHub Light' },
     { theme: themeGithubLightSpaced, label: 'GitHub Light Spaced' },
+    { theme: themeSlate, label: 'Slate' },
+    { theme: themeSlateDark, label: 'Slate Dark' },
+    { theme: themeDarkRounded, label: 'Dark Rounded' },
 ];
 
 export interface ThemeCssOverrides {

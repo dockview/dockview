@@ -1,6 +1,7 @@
 import {
     themeAbyss,
     themeDark,
+    themeDarkRounded,
     themeDracula,
     themeAbyssSpaced,
     themeLightSpaced,
@@ -17,6 +18,8 @@ import {
     themeGithubDarkSpaced,
     themeGithubLight,
     themeGithubLightSpaced,
+    themeSlate,
+    themeSlateDark,
 } from 'dockview-react';
 
 export const themeConfig = [
@@ -127,5 +130,23 @@ export const themeConfig = [
         label: 'GitHub Light Spaced',
         key: '**[GitHub Light Spaced](/demo?theme=githubLightSpaced)**',
         text: '',
+    },
+    {
+        id: themeSlate,
+        label: 'Slate',
+        key: '**[Slate](/demo?theme=slate)**',
+        text: 'Rounded content sheets on a flat canvas, the selected tab merging into its sheet',
+    },
+    {
+        id: themeSlateDark,
+        label: 'Slate Dark',
+        key: '**[Slate Dark](/demo?theme=slateDark)**',
+        text: '',
+    },
+    {
+        id: themeDarkRounded,
+        label: 'Dark Rounded',
+        key: '**[Dark Rounded](/demo?theme=darkRounded)**',
+        text: 'The dark palette with a rounded, connected active tab cut out of a lighter strip',
     },
 ].filter((entry) => entry.id != null);

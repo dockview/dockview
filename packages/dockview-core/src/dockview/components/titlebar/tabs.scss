@@ -237,6 +237,10 @@
     box-sizing: border-box;
     font-size: var(--dv-tab-font-size);
     margin: var(--dv-tab-margin);
+    // Top-corner rounding for "folder" tabs. Inert at the default radius of 0;
+    // a theme (or `.dockview-tabs-connected`) sets `--dv-tab-border-radius`.
+    border-top-left-radius: var(--dv-tab-border-radius);
+    border-top-right-radius: var(--dv-tab-border-radius);
     // Block the browser's native pan so the pointer drag source can run
     // its long-press arming without Chrome firing pointercancel mid-gesture.
     // See the container comment above; pre-arm scroll is forwarded in JS.
@@ -400,7 +404,7 @@
     min-height: var(--dv-tabs-and-actions-container-height);
     padding: 2px 4px;
     background-color: var(--dv-tabs-and-actions-container-background-color);
-    border-bottom: 1px solid var(--dv-tab-divider-color);
+    border-bottom: 1px solid var(--dv-separator-border);
 }
 
 .dv-pinned-tab {
@@ -470,14 +474,8 @@
     }
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .dv-tab {
-        transition: none !important;
-    }
-    .dv-tab-group-chip {
-        transition: none !important;
-    }
-}
+// Reduced-motion handling lives in src/reduced-motion.scss (covers every
+// dv- element, not just tabs).
 
 // Tab group chip
 .dv-tab-group-chip {
@@ -658,7 +656,7 @@
     font-size: var(--dv-tabs-and-actions-container-font-size);
     max-height: min(50vh, 400px);
     overflow-y: auto;
-    border: 1px solid var(--dv-tab-divider-color);
+    border: 1px solid var(--dv-separator-border);
     background-color: var(--dv-group-view-background-color);
 
     /* Scrollbar styling for webkit browsers */
@@ -706,7 +704,7 @@
         font-weight: 600;
         color: var(--dv-activegroup-hiddenpanel-tab-color);
         cursor: pointer;
-        border-bottom: 1px solid var(--dv-tab-divider-color);
+        border-bottom: 1px solid var(--dv-separator-border);
 
         &:hover {
             background-color: var(--dv-icon-hover-background-color);
@@ -779,7 +777,7 @@
         width: 100%;
         padding: 6px 8px;
         border: none;
-        border-bottom: 1px solid var(--dv-tab-divider-color);
+        border-bottom: 1px solid var(--dv-separator-border);
         outline: none;
         font-size: inherit;
         font-family: inherit;
@@ -794,8 +792,8 @@
     }
 
     .dv-tab.dv-tabs-overflow-option--focused {
-        outline: 1px solid var(--dv-tab-divider-color);
-        outline-offset: -1px;
+        outline: var(--dv-focus-ring-width) solid var(--dv-focus-ring-color);
+        outline-offset: calc(-1 * var(--dv-focus-ring-width));
         background-color: var(--dv-icon-hover-background-color);
     }
 }

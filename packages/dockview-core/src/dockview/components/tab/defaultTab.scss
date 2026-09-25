@@ -6,7 +6,8 @@
     ); /* forces tab to be drawn on a separate layer (see https://github.com/microsoft/vscode/issues/18733) */
 }
 
-/* Applied to the ghost tab clone during drag so it shows the same border as a focused tab */
+/* Applied to the ghost tab clone during drag: a neutral hairline so the ghost
+   reads as a card over whatever it is dragged across. */
 .dv-tab-ghost-drag {
     position: relative;
 
@@ -18,7 +19,7 @@
         top: 0px;
         left: 0px;
         pointer-events: none;
-        outline: 1px solid var(--dv-tab-divider-color) !important;
+        outline: 1px solid var(--dv-separator-border) !important;
         outline-offset: -1px;
         z-index: 5;
     }
@@ -42,8 +43,10 @@
             top: 0px;
             left: 0px;
             pointer-events: none;
-            outline: 1px solid var(--dv-tab-divider-color) !important;
-            outline-offset: -1px;
+            // Accent ring inset by its own width so it survives neighbouring
+            // tabs and the strip edge.
+            outline: var(--dv-focus-ring-width) solid var(--dv-focus-ring-color) !important;
+            outline-offset: calc(-1 * var(--dv-focus-ring-width));
             z-index: 5;
         }
     }
