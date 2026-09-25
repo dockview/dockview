@@ -486,6 +486,7 @@ const ThemeSelector = (props: {
                         side="bottom"
                         align="end"
                         sideOffset={10}
+                        collisionPadding={8}
                         className="DropdownMenuContent"
                         style={{ zIndex: 100000 }}
                     >
