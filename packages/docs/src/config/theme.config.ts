@@ -135,7 +135,7 @@ export const themeConfig = [
         id: themeSlate,
         label: 'Slate',
         key: '**[Slate](/demo?theme=slate)**',
-        text: 'Connected folder tabs with rounded, inset floating groups',
+        text: 'Rounded content sheets on a flat canvas, the selected tab merging into its sheet',
     },
     {
         id: themeSlateDark,
