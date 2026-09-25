@@ -1133,9 +1133,15 @@
     --dv-tab-connected-gap: calc(var(--dv-tab-shoulder-size) + 4px);
 
     // Compact tabs so a folder set reads as a tight row; the container gutter
-    // and inter-tab gap below give the shoulders room to flare.
+    // and inter-tab gap below give the shoulders room to flare. Logical
+    // padding so it follows the strip's writing mode: on a vertical
+    // (left/right edge-group) strip the inline axis is physical top/bottom,
+    // so the 10px still runs before/after the title rather than eating the
+    // pill's cross-axis width (a physical `0 10px` left the rotated label
+    // 2px of room and no lead-in either end).
     .dv-tab {
-        padding: 0 10px;
+        padding-block: 0;
+        padding-inline: 10px;
         transition:
             background-color 0.1s ease,
             color 0.1s ease;
