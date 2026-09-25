@@ -1,6 +1,6 @@
 @mixin dockview-design-space-mixin {
     --dv-spacing-padding: 10px;
-    --dv-tab-font-size: 12px;
+    --dv-tab-font-size: 13px;
     --dv-border-radius: 12px;
     // Split into block (top/bottom) and inline (left/right) parts so the
     // multi-row wrap rule below can subtract the exact vertical margin from
@@ -9,10 +9,11 @@
     --dv-tab-margin-block: 4px;
     --dv-tab-margin-inline: 0.25rem;
     --dv-tab-margin: var(--dv-tab-margin-block) var(--dv-tab-margin-inline);
-    // Compact header: a short strip with tight tab margins keeps the pill tabs
-    // snug (the old 44px / 8px-margin strip read as too tall). The tab centres
-    // in the strip: height − 2·margin-block ≈ 20px.
-    --dv-tabs-and-actions-container-height: 28px;
+    // Header height: a 32px strip with 4px tab margins gives a 24px pill
+    // (height − 2·margin-block), tall enough for the 13px label to breathe.
+    // The old 44px / 8px-margin strip read as too tall; the 28px / 20px-pill
+    // pass that followed cramped the label against the pill edge.
+    --dv-tabs-and-actions-container-height: 32px;
     --dv-tab-border-radius: 8px;
     --dv-sash-border-radius: 4px;
     --dv-dropdown-border-radius: 8px;
@@ -107,6 +108,14 @@
 
     .dv-tab {
         border-radius: var(--dv-tab-border-radius);
+        // Wider padding either side of the label than the core 8px so the
+        // pill has clear air around its text. Logical so it follows the
+        // strip's writing mode: on a vertical (left/right edge-group) strip
+        // the inline axis is physical top/bottom, so the padding still runs
+        // before/after the title. The cross-axis (block) padding is 0: the
+        // pill's thickness is set by the strip height minus the tab margin.
+        padding-block: 0;
+        padding-inline: 12px;
 
         // Crisper selection: a slightly bolder label on the selected tab
         // (the pill fill alone reads faintly on the low-contrast themes).

@@ -227,9 +227,9 @@ describe('theme', () => {
         test('share the common spaced configuration', () => {
             for (const theme of spacedThemes) {
                 expect(theme.gap).toBe(10);
-                // Matches the compact spaced tab-strip height
+                // Matches the spaced tab-strip height
                 // (--dv-tabs-and-actions-container-height in the space mixin).
-                expect(theme.edgeGroupCollapsedSize).toBe(28);
+                expect(theme.edgeGroupCollapsedSize).toBe(32);
                 expect(theme.dndOverlayMounting).toBe('absolute');
                 expect(theme.dndPanelOverlay).toBe('group');
                 expect(theme.dndTabIndicator).toBe('line');
