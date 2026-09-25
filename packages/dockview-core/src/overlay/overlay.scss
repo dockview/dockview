@@ -118,10 +118,13 @@
 }
 
 // A floating window hosts its own gridview as the overlay content; it must
-// fill the resize container so its size tracks the overlay box.
+// fill the resize container so its size tracks the overlay box. The padding is
+// the optional inset frame (see the rounded-frame section below); 0 by default.
 .dv-resize-container > .dv-grid-view {
     width: 100%;
     height: 100%;
+    box-sizing: border-box;
+    padding: var(--dv-floating-inset);
 }
 
 // When a dedicated drag-handle title bar is present the overlay stacks the
@@ -196,11 +199,8 @@
 // handles straddle the frame at -2px, so clipping would halve their grab area;
 // instead the frame plus the corner leaf elements are rounded (title bar caps
 // the top, content container caps the bottom), and the frame colour shows in
-// the inset band.
-.dv-resize-container > .dv-grid-view {
-    box-sizing: border-box;
-    padding: var(--dv-floating-inset);
-}
+// the inset band. (The inset padding itself lives on the
+// `.dv-resize-container > .dv-grid-view` rule above.)
 
 .dv-resize-container-with-titlebar > .dv-floating-titlebar {
     border-top-left-radius: var(--dv-floating-border-radius);
