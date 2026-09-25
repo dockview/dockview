@@ -231,6 +231,8 @@ export const themeSlate: DockviewTheme = {
     // more cleanly than a fill when dropping a tab.
     dndTabIndicator: 'line',
     edgeGroupCollapsedSize: 32,
+    // The canvas colour shows between groups (sheet layout).
+    gap: 8,
 };
 
 export const themeSlateDark: DockviewTheme = {
@@ -239,6 +241,8 @@ export const themeSlateDark: DockviewTheme = {
     colorScheme: 'dark',
     dndTabIndicator: 'line',
     edgeGroupCollapsedSize: 32,
+    // The canvas colour shows between groups (sheet layout).
+    gap: 8,
 };
 
 export const themeDarkRounded: DockviewTheme = {
