@@ -339,7 +339,6 @@
     --dv-tab-marker-size: 1px;
     --dv-activegroup-tab-marker-color: #94527e;
     --dv-inactivegroup-tab-marker-color: #5e3d5a;
-
 }
 
 .dockview-theme-abyss {
@@ -403,7 +402,6 @@
     // Frost active-tab marker, dimmed with the group.
     --dv-activegroup-tab-marker-color: var(--dv-color-nord-frost);
     --dv-inactivegroup-tab-marker-color: var(--dv-color-nord-frost-2);
-
 }
 
 .dockview-theme-nord {
@@ -503,7 +501,6 @@
     // Mauve active-tab marker, dimmed with the group.
     --dv-activegroup-tab-marker-color: var(--dv-color-mocha-mauve);
     --dv-inactivegroup-tab-marker-color: rgba(180, 190, 254, 0.4);
-
 }
 
 .dockview-theme-catppuccin-mocha {
@@ -594,7 +591,6 @@
     // Green active-tab marker, dimmed with the group.
     --dv-activegroup-tab-marker-color: var(--dv-color-monokai-green);
     --dv-inactivegroup-tab-marker-color: rgba(166, 226, 46, 0.35);
-
 }
 
 .dockview-theme-monokai {
@@ -643,6 +639,10 @@
     --dv-scrollbar-background-color: rgba(101, 123, 131, 0.25);
     // Hover fill for hidden tabs (opaque: these tabs carry their own fill).
     --dv-tab-inactive-hover-background-color: #e2dcc8;
+
+    // Blue active-tab marker, dimmed with the group.
+    --dv-activegroup-tab-marker-color: var(--dv-color-sol-blue);
+    --dv-inactivegroup-tab-marker-color: rgba(38, 139, 210, 0.4);
     --dv-drag-over-background-color: rgba(38, 139, 210, 0.15);
     --dv-floating-box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -745,6 +745,10 @@
     --dv-scrollbar-background-color: rgba(48, 54, 61, 0.7);
     // Hover fill for hidden tabs (translucent: these tabs are bare text).
     --dv-tab-inactive-hover-background-color: rgba(255, 255, 255, 0.05);
+
+    // Active-tab marker in the underline-nav accent, dimmed with the group.
+    --dv-activegroup-tab-marker-color: #f78166;
+    --dv-inactivegroup-tab-marker-color: rgba(247, 129, 102, 0.4);
     --dv-drag-over-background-color: rgba(88, 166, 255, 0.15);
 }
 
@@ -845,6 +849,10 @@
     --dv-scrollbar-background-color: rgba(208, 215, 222, 0.5);
     // Hover fill for hidden tabs (translucent: these tabs are bare text).
     --dv-tab-inactive-hover-background-color: rgba(0, 0, 0, 0.04);
+
+    // Active-tab marker in the underline-nav accent, dimmed with the group.
+    --dv-activegroup-tab-marker-color: #f78166;
+    --dv-inactivegroup-tab-marker-color: rgba(247, 129, 102, 0.4);
     --dv-drag-over-background-color: rgba(9, 105, 218, 0.1);
     --dv-floating-box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
