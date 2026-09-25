@@ -1297,16 +1297,18 @@
     // The content sheet. The group already clips to its bounds; rounding the
     // group gives the sheet its bottom corners, and the container's own radius
     // + clip gives it top corners where the canvas-coloured strip sits above.
+    // Not scoped to `.dv-groupview >`: the auto-hide peek reparents the content
+    // container into its own overlay, and it must stay a sheet there too.
     .dv-groupview {
         border-radius: var(--dv-sheet-border-radius);
+    }
 
-        > .dv-content-container {
-            background-color: var(
-                --dv-activegroup-visiblepanel-tab-background-color
-            );
-            border-radius: var(--dv-sheet-border-radius);
-            overflow: hidden;
-        }
+    .dv-content-container {
+        background-color: var(
+            --dv-activegroup-visiblepanel-tab-background-color
+        );
+        border-radius: var(--dv-sheet-border-radius);
+        overflow: hidden;
     }
 
     // Always-rendered panels paint in an overlay aligned to the content
@@ -1316,11 +1318,46 @@
     }
 
     // Rail (left/right edge-group) pills: the mixin's inset is half the
-    // shoulder size (0 here); give them the reference's 3px breathing room and
-    // a softer radius than the 10px tab corners.
+    // shoulder size; give them 3px breathing room and a softer radius than the
+    // 10px tab corners.
     .dv-tabs-container-vertical > .dv-tab {
         margin: 3px 4px;
         border-radius: 6px;
+    }
+
+    // ── Edge groups ──────────────────────────────────────────────────────────
+    // A collapsed rail is part of the canvas, so its tabs are bare labels
+    // (like the strip's hidden tabs) rather than sheet-coloured pills floating
+    // in the grey. The pill stays only while the rail's group is the focused
+    // one — its panel is peeking, or was the last thing used.
+    .dv-groupview-edge.dv-edge-collapsed:not(.dv-active-group)
+        .dv-tabs-container
+        > .dv-tab.dv-active-tab {
+        background-color: transparent;
+        background-image: none;
+        color: var(--dv-activegroup-hiddenpanel-tab-color);
+    }
+
+    // Auto-hide peek: the auto-hide module paints its backdrop in the group
+    // frame colour and its title bar in the strip colour (both the canvas
+    // here, set inline), and reparents the content container — a sheet, per
+    // the rule above — into it. So it already reads as a group: canvas title
+    // bar over a white sheet. Round it like one and soften the shadow.
+    .dv-edge-peek-header {
+        border: none;
+        border-top-left-radius: var(--dv-sheet-border-radius);
+        border-top-right-radius: var(--dv-sheet-border-radius);
+    }
+
+    .dv-edge-peek,
+    .dv-edge-peek-clip {
+        border-bottom-left-radius: var(--dv-sheet-border-radius);
+        border-bottom-right-radius: var(--dv-sheet-border-radius);
+    }
+
+    .dv-edge-peek {
+        border: none;
+        box-shadow: var(--dv-floating-box-shadow);
     }
 }
 
