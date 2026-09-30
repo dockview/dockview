@@ -139,6 +139,10 @@ class EdgeGroupController extends CompositeDisposable {
                 }
                 this._updateDocked();
             }),
+            // A theme switch: the chrome's backgrounds are resolved colours
+            // set inline (see `_titleBarBackground`), so a docked or peeking
+            // tool window would otherwise keep the previous theme's colours.
+            this.host.onDidOptionsChange(() => this._refreshChrome()),
             {
                 dispose: () => {
                     strip.removeEventListener('click', onClick, true);
@@ -192,6 +196,22 @@ class EdgeGroupController extends CompositeDisposable {
             '.dv-tabs-and-actions-container'
         );
         return resolveOpaqueBackground(strip ?? this.group.element);
+    }
+
+    /** Re-resolve the inline chrome colours after an option (theme) change:
+     *  the docked title bar, and the peek's backdrop and title bar. */
+    private _refreshChrome(): void {
+        if (this._docked) {
+            this._docked.bar.style.backgroundColor =
+                this._titleBarBackground();
+        }
+        if (this._peek) {
+            this._peek.overlay.style.backgroundColor = resolveOpaqueBackground(
+                this.group.element
+            );
+            this._peek.header.style.backgroundColor =
+                this._titleBarBackground();
+        }
     }
 
     /** Map a pointer/keyboard target to the panel of the strip tab under it, or

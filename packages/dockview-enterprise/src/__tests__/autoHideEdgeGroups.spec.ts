@@ -1,5 +1,5 @@
 import { fireEvent } from '@testing-library/dom';
-import { DockviewComponent } from 'dockview-core';
+import { DockviewComponent, themeSlate, themeSlateDark } from 'dockview-core';
 import { IContentRenderer } from 'dockview-core';
 
 class TestPanel implements IContentRenderer {
@@ -358,6 +358,55 @@ describe('auto-hide edge groups', () => {
             expect(strip(d).classList.contains('dv-edge-tool-window')).toBe(
                 false
             );
+
+            d.dispose();
+        });
+
+        test('a theme switch re-resolves the docked title bar colour', () => {
+            const d = make(true);
+            collapsedEdgeWithPanel(d);
+            const stripBar = strip(d).querySelector(
+                '.dv-tabs-and-actions-container'
+            ) as HTMLElement;
+            stripBar.style.backgroundColor = 'rgb(22, 18, 31)';
+            d.api.peekEdgeGroup('left', true);
+            (
+                container.querySelector('.dv-edge-peek-pin') as HTMLElement
+            ).click(); // dock
+
+            const bar = strip(d).querySelector(
+                '.dv-edge-peek-header'
+            ) as HTMLElement;
+            expect(bar.style.backgroundColor).toBe('rgb(22, 18, 31)');
+
+            // The colour is resolved once and set inline, so a runtime theme
+            // change (which repaints the strip) must re-resolve it.
+            stripBar.style.backgroundColor = 'rgb(237, 237, 238)';
+            d.updateOptions({ theme: themeSlate });
+            expect(bar.style.backgroundColor).toBe('rgb(237, 237, 238)');
+
+            d.dispose();
+        });
+
+        test('a theme switch re-resolves the peek backdrop and title bar', () => {
+            const d = make(true);
+            collapsedEdgeWithPanel(d);
+            strip(d).style.backgroundColor = 'rgb(11, 6, 17)'; // frame
+            const stripBar = strip(d).querySelector(
+                '.dv-tabs-and-actions-container'
+            ) as HTMLElement;
+            stripBar.style.backgroundColor = 'rgb(22, 18, 31)'; // tab bar
+            d.api.peekEdgeGroup('left', true);
+
+            strip(d).style.backgroundColor = 'rgb(28, 28, 28)';
+            stripBar.style.backgroundColor = 'rgb(40, 40, 40)';
+            d.updateOptions({ theme: themeSlateDark });
+
+            const header = container.querySelector(
+                '.dv-edge-peek-header'
+            ) as HTMLElement;
+            expect(header.style.backgroundColor).toBe('rgb(40, 40, 40)');
+            expect(peek()!.style.backgroundColor).toBe('rgb(28, 28, 28)');
 
             d.dispose();
         });
