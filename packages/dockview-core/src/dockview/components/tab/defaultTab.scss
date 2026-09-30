@@ -45,8 +45,8 @@
             pointer-events: none;
             // Accent ring inset by its own width so it survives neighbouring
             // tabs and the strip edge.
-            outline: var(--dv-focus-ring-width) solid var(--dv-focus-ring-color) !important;
-            outline-offset: calc(-1 * var(--dv-focus-ring-width));
+            outline: var(--dv-focus-ring-width, 2px) solid var(--dv-focus-ring-color, var(--dv-paneview-active-outline-color)) !important;
+            outline-offset: calc(-1 * var(--dv-focus-ring-width, 2px));
             z-index: 5;
         }
     }

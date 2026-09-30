@@ -1082,6 +1082,16 @@
     .dv-tab {
         padding-block: 0;
         padding-inline: 10px;
+    }
+
+    // Colour fade on hover/selection. Kept off the tab's animated states:
+    // those carry core's own transform/margin/width transitions (smooth
+    // reorder, drag collapse, tab-group collapse/expand), and a same-
+    // specificity `transition` here would replace them and stall the
+    // `transitionend` the reorder code waits on.
+    .dv-tab:not(.dv-tab--shifting):not(.dv-tab--dragging):not(
+            .dv-tab--group-collapsed
+        ):not(.dv-tab--group-expanding) {
         transition:
             background-color 0.1s ease,
             color 0.1s ease;
@@ -1136,10 +1146,26 @@
             background-color: var(--dv-tab-shoulder-color);
             pointer-events: none;
             z-index: 2;
+            // Core draws the tab's keyboard focus ring on `::after`; this
+            // pseudo-element is a shoulder, so the ring moves onto the tab
+            // itself (below) and the core outline is cancelled here.
+            outline: none !important;
         }
 
+        // The ring core would have drawn on `::after`, now on the tab.
+        &:focus-visible,
+        &:has(:focus-visible) {
+            outline: var(--dv-focus-ring-width, 2px) solid
+                var(--dv-focus-ring-color, var(--dv-paneview-active-outline-color));
+            outline-offset: calc(-1 * var(--dv-focus-ring-width, 2px));
+        }
+
+        // Each shoulder pins both horizontal insets: core's focus rule sets
+        // `left: 0` on `::after`, which would otherwise over-constrain the
+        // right shoulder and drag it inside the tab.
         &::before {
             left: calc(-1 * var(--dv-tab-shoulder-size));
+            right: auto;
             -webkit-mask-image: radial-gradient(
                 circle at top left,
                 transparent var(--dv-tab-shoulder-size),
@@ -1153,6 +1179,7 @@
         }
 
         &::after {
+            left: auto;
             right: calc(-1 * var(--dv-tab-shoulder-size));
             -webkit-mask-image: radial-gradient(
                 circle at top right,
@@ -1220,6 +1247,36 @@
                 transparent var(--dv-tab-shoulder-size),
                 #000 var(--dv-tab-shoulder-size)
             );
+        }
+    }
+
+    // Multi-row reorder indicator. In wrap mode core draws the drop bar on the
+    // target tab's `::after`, which is the right shoulder on the selected tab;
+    // while the selected tab is the drop target, give `::after` back to the
+    // bar (the shoulder returns when the indicator clears). Follows the
+    // header-bottom block so it also wins over that flip.
+    .dv-tabs-container--wrap:not(.dv-tabs-container-vertical)
+        > .dv-tab.dv-active-tab {
+        &.dv-tab--reorder-before::after,
+        &.dv-tab--reorder-after::after {
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            height: auto;
+            background-color: var(--dv-drag-over-border-color);
+            -webkit-mask-image: none;
+            mask-image: none;
+            z-index: 10;
+        }
+
+        &.dv-tab--reorder-before::after {
+            left: 0;
+            right: auto;
+        }
+
+        &.dv-tab--reorder-after::after {
+            left: auto;
+            right: 0;
         }
     }
 

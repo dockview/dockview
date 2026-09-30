@@ -104,8 +104,8 @@
         // Keyboard-only focus ring (suppressed on mouse click).
         &:focus-visible {
             border-radius: 2px;
-            outline: var(--dv-focus-ring-width) solid var(--dv-focus-ring-color);
-            outline-offset: calc(-1 * var(--dv-focus-ring-width));
+            outline: var(--dv-focus-ring-width, 2px) solid var(--dv-focus-ring-color, var(--dv-paneview-active-outline-color));
+            outline-offset: calc(-1 * var(--dv-focus-ring-width, 2px));
         }
     }
 }
@@ -234,7 +234,10 @@
     // content. `--dv-floating-frame-color` defaults to the docked backdrop
     // colour, so with no inset it is invisible; a single floating group hides
     // it entirely, while a nested floating layout exposes the gaps/sashes.
-    background-color: var(--dv-floating-frame-color);
+    background-color: var(
+        --dv-floating-frame-color,
+        var(--dv-group-view-background-color)
+    );
 
     border: var(--dv-floating-border);
     border-radius: var(--dv-floating-border-radius);

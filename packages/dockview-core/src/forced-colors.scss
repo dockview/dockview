@@ -17,10 +17,11 @@
         outline-offset: -1px;
     }
 
-    // Both group-focus variants are listed so this ties core's colour rules
-    // on specificity (0,6,0) and wins by source order; a lower-specificity
-    // selector here would leave `forced-color-adjust: none` in place while
-    // core's author colours still won — the worst of both.
+    // `!important` on the colours: `forced-color-adjust: none` turns author
+    // colours back on, so any theme rule that outranks this one (theme.scss is
+    // concatenated after this file, and its tab rules are theme-scoped, e.g.
+    // 0,7,0) would otherwise paint its own fill — the worst of both. Both
+    // group-focus variants are listed so the selector itself also ties core.
     .dv-groupview.dv-active-group
         > .dv-tabs-and-actions-container
         .dv-tabs-container
@@ -30,9 +31,9 @@
         .dv-tabs-container
         > .dv-tab.dv-active-tab {
         forced-color-adjust: none;
-        background-color: Highlight;
-        background-image: none;
-        color: HighlightText;
+        background-color: Highlight !important;
+        background-image: none !important;
+        color: HighlightText !important;
     }
 
     // Keyboard focus: the accent ring is forced to CanvasText, which would
@@ -43,39 +44,50 @@
         outline-color: Highlight !important;
     }
 
+    // The selected tab is itself Highlight and opts out of forcing, so its
+    // ring (on `::after`, or on the tab for connected tabs) takes the
+    // selection text colour instead: visible on the fill, and no author
+    // accent leaks through.
+    .dv-tab.dv-active-tab:focus-visible,
+    .dv-tab.dv-active-tab:has(:focus-visible),
+    .dv-tab.dv-active-tab:focus-visible::after,
+    .dv-tab.dv-active-tab:has(:focus-visible)::after {
+        outline-color: HighlightText !important;
+    }
+
     // Drop preview and the layout-edge preview: translucent selection colour
     // with a solid edge.
     .dv-drop-target-selection,
     .dv-drop-target-anchor,
     .dv-dnd-compass-edge-preview {
         forced-color-adjust: none;
-        background-color: Highlight;
-        border: 2px solid Highlight;
+        background-color: Highlight !important;
+        border: 2px solid Highlight !important;
         opacity: 0.4;
     }
 
     // Compass cells: outlined, the aimed-at cell filled.
     .dv-dnd-compass-cell {
         forced-color-adjust: none;
-        background-color: Canvas;
-        border-color: CanvasText;
-        color: CanvasText;
+        background-color: Canvas !important;
+        border-color: CanvasText !important;
+        color: CanvasText !important;
     }
 
     .dv-dnd-compass-cell-active {
-        background-color: Highlight;
+        background-color: Highlight !important;
     }
 
     // Sash highlight while hovered / dragged.
     .dv-sash:hover,
     .dv-sash:active {
         forced-color-adjust: none;
-        background-color: Highlight;
+        background-color: Highlight !important;
     }
 
     // Group separators are painted with a background colour.
     .dv-separator-border .dv-view:not(:first-child)::before {
         forced-color-adjust: none;
-        background-color: CanvasText;
+        background-color: CanvasText !important;
     }
 }
