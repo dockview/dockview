@@ -231,8 +231,10 @@ export abstract class BaseGrid<T extends IGridPanelView>
     }
 
     updateOptions(options: Partial<BaseGridOptions>) {
-        if (typeof options.proportionalLayout === 'boolean') {
-            // this.gridview.proportionalLayout = options.proportionalLayout; // not supported
+        if ('proportionalLayout' in options) {
+            // an explicit `undefined` restores the default
+            this.gridview.proportionalLayout =
+                options.proportionalLayout ?? true;
         }
         if (options.orientation) {
             this.gridview.orientation = options.orientation;
