@@ -171,6 +171,92 @@ describe('dockview proportionalLayout option', () => {
         dockview.dispose();
     });
 
+    test('branches created after a runtime toggle pick up the new value', () => {
+        const dockview = createDockview(true);
+
+        dockview.updateOptions({ proportionalLayout: false });
+
+        // splitting panel_3 downwards builds a new column after the toggle
+        dockview.addPanel({
+            id: 'panel_4',
+            component: 'default',
+            position: { referencePanel: 'panel_3', direction: 'below' },
+        });
+
+        const column = () =>
+            ['panel_3', 'panel_4'].map(
+                (id) => dockview.getGroupPanel(id)!.group.api.height
+            );
+
+        expect(column()).toEqual([150, 150]);
+
+        dockview.layout(900, 600);
+
+        expect(column()).toEqual([150, 450]);
+
+        dockview.dispose();
+    });
+
+    test('a new root created after a runtime toggle picks up the new value', () => {
+        const dockview = createDockview(true);
+
+        dockview.updateOptions({ proportionalLayout: false });
+
+        // docking below the whole grid wraps the root row in a new column root
+        dockview.addPanel({
+            id: 'panel_4',
+            component: 'default',
+            position: { direction: 'below' },
+        });
+
+        const rows = () =>
+            ['panel_1', 'panel_4'].map(
+                (id) => dockview.getGroupPanel(id)!.group.api.height
+            );
+
+        expect(rows()).toEqual([150, 150]);
+
+        dockview.layout(900, 600);
+
+        expect(rows()).toEqual([150, 450]);
+
+        dockview.dispose();
+    });
+
+    test('a layout loaded with fromJSON after a runtime toggle keeps the new value', () => {
+        const dockview = createDockview(true);
+        const json = dockview.toJSON();
+
+        dockview.updateOptions({ proportionalLayout: false });
+
+        // fromJSON replaces the whole tree, root included
+        dockview.fromJSON(json);
+
+        expect(widths(dockview)).toEqual([300, 300, 300]);
+
+        dockview.layout(1200, 300);
+
+        expect(widths(dockview)).toEqual([300, 300, 600]);
+
+        dockview.dispose();
+    });
+
+    test('proportionalLayout: false keeps a user-moved splitter in place on resize', () => {
+        const dockview = createDockview(false);
+
+        dockview.getGroupPanel('panel_1')!.api.setSize({ width: 200 });
+
+        const moved = widths(dockview);
+        expect(moved[0]).toBe(200);
+
+        dockview.layout(1200, 300);
+
+        // only the last group absorbs the container growth
+        expect(widths(dockview)).toEqual([moved[0], moved[1], moved[2] + 300]);
+
+        dockview.dispose();
+    });
+
     test('an unrelated updateOptions leaves the behaviour untouched', () => {
         const dockview = createDockview(false);
 
