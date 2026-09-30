@@ -2861,14 +2861,15 @@ export class DockviewComponent
     }
 
     /**
-     * Build an empty gridview configured to match the main grid's styling, for
-     * hosting a nested layout inside a floating or popout window.
+     * Build an empty gridview configured to match the main grid's styling and
+     * resize behaviour, for hosting a nested layout inside a floating or popout
+     * window.
      */
     private createNestedGridview(
         orientation: Orientation = Orientation.HORIZONTAL
     ): Gridview {
         return new Gridview(
-            true,
+            this.gridview.proportionalLayout,
             this.options.hideBorders
                 ? { separatorBorder: 'transparent' }
                 : undefined,
@@ -3073,6 +3074,18 @@ export class DockviewComponent
             oldDndStrategy !== newDndStrategy
         ) {
             this.updateDragAndDropState();
+        }
+
+        if (typeof options.proportionalLayout === 'boolean') {
+            // super.updateOptions has already updated the main grid; floating
+            // and popout windows host their own nested gridviews
+            for (const floating of this.floatingGroups) {
+                floating.gridview.proportionalLayout =
+                    options.proportionalLayout;
+            }
+            for (const entry of this._popoutWindowService?.entries ?? []) {
+                entry.gridview.proportionalLayout = options.proportionalLayout;
+            }
         }
 
         if ('theme' in options) {
