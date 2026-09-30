@@ -81,24 +81,29 @@
 
     // ── Opt-in structural tokens ────────────────────────────────────────────
     // All inert by default (radius/inset 0, colours transparent or matching
-    // their surroundings) so existing themes are unaffected; a theme enables
-    // the behaviour by giving the token a concrete value. The rendering CSS
-    // lives in core (overlay.scss / tabs.scss / droptarget.scss and the
-    // connected-tabs mixin), driven entirely by these variables.
+    // their surroundings); a theme enables a feature by giving its tokens a
+    // value. The rendering lives in core (tabs.scss, dockviewGroupPanel.scss,
+    // overlay.scss, ...), driven only by these variables, so a theme is a
+    // list of custom properties. The structural tokens not declared here
+    // (tab padding / gap / dividers, group / strip / content shapes, peek,
+    // root frame; see the docs' variable reference) default through the
+    // `var()` fallbacks where core reads them.
 
     // Floating-group frame (see overlay.scss).
     --dv-floating-border-radius: 0px;
     --dv-floating-inset: 0px;
     --dv-floating-frame-color: var(--dv-group-view-background-color);
 
-    // Connected "folder" tabs (see the connected-tabs mixin /
-    // `.dockview-tabs-connected`). Shoulder size 0 = feature off.
+    // Connected "folder" tabs (tabs.scss; `dockview-connected-tabs-mixin` /
+    // `.dockview-tabs-connected` set a coherent group). Shoulder size 0 =
+    // feature off.
     --dv-tab-shoulder-size: 0px;
     --dv-tab-shoulder-color: var(
         --dv-activegroup-visiblepanel-tab-background-color
     );
 
-    // Drop-preview corner radius (see droptarget.scss).
+    // Drop-preview corner radius (droptarget.scss,
+    // dropTargetAnchorContainer.scss).
     --dv-drop-target-border-radius: 0px;
 
     // Tab group color palette
