@@ -1,6 +1,7 @@
 import {
     TabAnimation,
     DockviewTheme,
+    resolveDockviewThemeSettings,
     themeAbyss,
     themeAbyssSpaced,
     themeCatppuccinMocha,
@@ -91,17 +92,21 @@ export interface ThemeBuilderState {
     cssOverrides: ThemeCssOverrides;
 }
 
+// The built-in themes declare their settings in CSS, so seed the builder
+// from the resolved settings (theme object, then the theme's CSS, then the
+// defaults) rather than the theme object alone.
 export function getInitialStateFromTheme(
     theme: DockviewTheme
 ): ThemeBuilderState {
+    const settings = resolveDockviewThemeSettings(theme);
     return {
-        gap: theme.gap ?? 0,
-        dndOverlayMounting: theme.dndOverlayMounting ?? 'relative',
-        dndPanelOverlay: theme.dndPanelOverlay ?? 'content',
-        dndTabIndicator: theme.dndTabIndicator ?? 'fill',
+        gap: settings.gap,
+        dndOverlayMounting: settings.dndOverlayMounting,
+        dndPanelOverlay: settings.dndPanelOverlay,
+        dndTabIndicator: settings.dndTabIndicator,
         dndOverlayBorder: theme.dndOverlayBorder ?? '',
-        tabGroupIndicator: theme.tabGroupIndicator ?? 'wrap',
-        tabAnimation: theme.tabAnimation ?? 'default',
+        tabGroupIndicator: settings.tabGroupIndicator,
+        tabAnimation: settings.tabAnimation,
         cssOverrides: {},
     };
 }
@@ -112,7 +117,8 @@ export function buildEffectiveTheme(
 ): DockviewTheme {
     return {
         ...baseTheme,
-        gap: state.gap > 0 ? state.gap : undefined,
+        // Explicit, so 0 can override a theme whose CSS declares a gap.
+        gap: state.gap,
         dndOverlayMounting: state.dndOverlayMounting,
         dndPanelOverlay: state.dndPanelOverlay,
         dndTabIndicator: state.dndTabIndicator,
@@ -133,36 +139,35 @@ export function generateCodeSnippet(
         ([, v]) => v !== undefined && v !== ''
     ) as [string, string][];
 
+    const base = resolveDockviewThemeSettings(baseTheme);
     const themeFields: string[] = [];
-    if (state.gap !== (baseTheme.gap ?? 0)) {
+    if (state.gap !== base.gap) {
         themeFields.push(`  gap: ${state.gap},`);
     }
     if (
-        state.dndOverlayMounting !==
-        (baseTheme.dndOverlayMounting ?? 'relative')
+        state.dndOverlayMounting !== base.dndOverlayMounting
     ) {
         themeFields.push(
             `  dndOverlayMounting: '${state.dndOverlayMounting}',`
         );
     }
-    if (state.dndPanelOverlay !== (baseTheme.dndPanelOverlay ?? 'content')) {
+    if (state.dndPanelOverlay !== base.dndPanelOverlay) {
         themeFields.push(`  dndPanelOverlay: '${state.dndPanelOverlay}',`);
     }
-    if (state.dndTabIndicator !== (baseTheme.dndTabIndicator ?? 'fill')) {
+    if (state.dndTabIndicator !== base.dndTabIndicator) {
         themeFields.push(`  dndTabIndicator: '${state.dndTabIndicator}',`);
     }
     if (state.dndOverlayBorder !== (baseTheme.dndOverlayBorder ?? '')) {
         themeFields.push(`  dndOverlayBorder: '${state.dndOverlayBorder}',`);
     }
     if (
-        state.tabGroupIndicator !==
-        (baseTheme.tabGroupIndicator ?? 'wrap')
+        state.tabGroupIndicator !== base.tabGroupIndicator
     ) {
         themeFields.push(
             `  tabGroupIndicator: '${state.tabGroupIndicator}',`
         );
     }
-    if (state.tabAnimation !== (baseTheme.tabAnimation ?? 'default')) {
+    if (state.tabAnimation !== base.tabAnimation) {
         themeFields.push(`  tabAnimation: '${state.tabAnimation}',`);
     }
 

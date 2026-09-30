@@ -245,6 +245,10 @@
 
     @include dockview-palette-abyss();
 
+    // Tab groups show as a flat bar under their tabs rather than the wrapping
+    // underline.
+    --dv-tab-group-indicator: none;
+
     //
     --dv-group-view-background-color: var(--dv-color-abyss-dark);
     //
@@ -1070,6 +1074,11 @@
     --dv-tabs-and-actions-container-height: 32px;
     --dv-tab-margin: 3px 0 0 0;
     --dv-separator-border: transparent;
+    // The canvas shows between the groups (the gap is the separator), and a
+    // tab drop shows an insertion line, which reads more cleanly than a fill
+    // against tabs that merge into the sheet.
+    --dv-group-gap: 8px;
+    --dv-dnd-tab-indicator: line;
 
     // Paint the theme root in the canvas too. The shell lays the edge rails
     // out around the centre with the theme gap as the margin, and nothing
@@ -1331,6 +1340,12 @@
     // Shoulders the same size as the corner radius, so the base flare and the
     // top corner read as one curve.
     --dv-tab-shoulder-size: 4px;
+
+    // The active tab merges into the panel, so a tab drop shows an insertion
+    // line rather than a fill, with an accent border that keeps the 4px
+    // strip legible (the fill alone is a faint grey).
+    --dv-dnd-tab-indicator: line;
+    --dv-drag-over-border: 2px solid var(--dv-active-sash-color);
 
     --dv-group-view-background-color: var(--dv-color-dark-rounded-editor);
     --dv-tabs-and-actions-container-background-color: var(

@@ -88,6 +88,10 @@ import {
     AddEdgeGroupOptions,
 } from '../dockview/dockviewShell';
 import { DockviewGroupPanelApi } from './dockviewGroupPanelApi';
+import type {
+    DockviewThemeSettings,
+    ResolvedDockviewThemeSettings,
+} from '../dockview/theme';
 
 export interface CommonApi<T = any> {
     readonly height: number;
@@ -1306,6 +1310,24 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
 
     updateOptions(options: Partial<DockviewComponentOptions>) {
         this.component.updateOptions(options);
+    }
+
+    /**
+     * The active theme's layout and drag-and-drop settings, resolved from the
+     * theme object, the theme's CSS custom properties and the defaults (see
+     * {@link DockviewThemeSettings}).
+     */
+    get themeSettings(): ResolvedDockviewThemeSettings {
+        return this.component.themeSettings;
+    }
+
+    /**
+     * Re-read the theme's CSS settings (`--dv-group-gap` and the others listed
+     * on {@link DockviewThemeSettings}) after changing them at runtime. They
+     * are otherwise read when the theme is applied.
+     */
+    refreshTheme(): void {
+        this.component.refreshTheme();
     }
 
     // === Tab Group API ===

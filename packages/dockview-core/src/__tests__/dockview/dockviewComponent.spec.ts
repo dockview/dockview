@@ -20,6 +20,7 @@ import {
 } from '../../dockview/components/titlebar/tabsContainer';
 import { fromPartial } from '@total-typescript/shoehorn';
 import { DockviewApi } from '../../api/component.api';
+import type { DockviewTheme } from '../../dockview/theme';
 import {
     DockviewDndOverlayEvent,
     IHeaderActionsRenderer,
@@ -153,13 +154,13 @@ describe('dockviewComponent', () => {
             className: 'test-a test-b',
         });
         expect(dockview.element.className).toBe(
-            'dv-component-root test-a test-b dv-tab-group-indicator-none'
+            'dv-component-root test-a test-b'
         );
 
         dockview.updateOptions({ className: 'test-b test-c' });
 
         expect(dockview.element.className).toBe(
-            'dv-component-root dv-tab-group-indicator-none test-b test-c'
+            'dv-component-root test-b test-c'
         );
     });
 
@@ -14373,5 +14374,66 @@ describe('popout styles from a shadow-root mount', () => {
             window.open = originalOpen;
             host.remove();
         }
+    });
+});
+
+describe('theme settings from CSS', () => {
+    function createDockview(theme?: DockviewTheme): DockviewComponent {
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        return new DockviewComponent(container, {
+            theme,
+            createComponent(options) {
+                return new PanelContentPartTest(options.id, options.name);
+            },
+        });
+    }
+
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    test('reads the settings a theme declares as custom properties', () => {
+        const dv = createDockview();
+        dv.element.style.setProperty('--dv-group-gap', '12px');
+        dv.element.style.setProperty('--dv-dnd-overlay-mounting', 'absolute');
+        dv.element.style.setProperty('--dv-tab-group-indicator', 'none');
+
+        dv.refreshTheme();
+
+        expect(dv.themeSettings.gap).toBe(12);
+        expect(dv.themeSettings.dndOverlayMounting).toBe('absolute');
+        expect(dv.element.classList).toContain('dv-tab-group-indicator-none');
+
+        const api = new DockviewApi(dv);
+        expect(api.themeSettings).toBe(dv.themeSettings);
+        dv.element.style.setProperty('--dv-group-gap', '3px');
+        api.refreshTheme();
+        expect(api.themeSettings.gap).toBe(3);
+
+        dv.dispose();
+    });
+
+    test('a value on the theme object wins over the CSS property', () => {
+        const dv = createDockview({ name: 't', className: 't', gap: 4 });
+        dv.element.style.setProperty('--dv-group-gap', '12px');
+
+        dv.refreshTheme();
+
+        expect(dv.themeSettings.gap).toBe(4);
+        dv.dispose();
+    });
+
+    test('a detached dockview falls back to the theme object and defaults', () => {
+        const dv = new DockviewComponent(document.createElement('div'), {
+            theme: { name: 't', className: 't', dndTabIndicator: 'line' },
+            createComponent(options) {
+                return new PanelContentPartTest(options.id, options.name);
+            },
+        });
+
+        expect(dv.themeSettings.dndTabIndicator).toBe('line');
+        expect(dv.themeSettings.gap).toBe(0);
+        dv.dispose();
     });
 });

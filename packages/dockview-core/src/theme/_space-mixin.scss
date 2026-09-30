@@ -42,6 +42,17 @@
     // Keep the handle seamless with the gap: no divider line below it.
     --dv-floating-titlebar-border-bottom: none;
 
+    // ── Behaviour ───────────────────────────────────────────────────────────
+    // 10px gaps between the group cards. Drop previews mount at the layout
+    // root and outline the whole group card with an accent border (the fill
+    // is dropped); a tab drop shows an insertion line. The collapsed size of
+    // an edge group follows the strip height.
+    --dv-group-gap: 10px;
+    --dv-dnd-overlay-mounting: absolute;
+    --dv-dnd-panel-overlay: group;
+    --dv-dnd-tab-indicator: line;
+    --dv-drag-over-border: 2px solid var(--dv-active-sash-color);
+
     // ── Layout frame ────────────────────────────────────────────────────────
     // The element carrying the class pads the whole layout and paints the
     // band around it in the gap colour.

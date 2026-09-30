@@ -40,6 +40,7 @@ import {
     TabAnimationState,
     TabReorderController,
 } from './tabReorderController';
+import { themeSetting } from '../../themeSettings';
 
 export class Tabs extends CompositeDisposable implements ITabReorderHost {
     private readonly _element: HTMLElement;
@@ -644,7 +645,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                     // In non-smooth mode only handle group drags here;
                     // individual tab drops are handled by tab Droptargets.
                     if (
-                        this.accessor.options.theme?.tabAnimation !==
+                        themeSetting(this.accessor, 'tabAnimation') !==
                             'smooth' &&
                         !this._animState.sourceTabGroupId
                     ) {
@@ -957,7 +958,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                 // Both HTML5 and pointer drags initialize _animState. Cleanup
                 // is wired in both paths: HTML5 via dragend/drop on _tabsList,
                 // pointer via PointerDragController.onDragEnd subscriptions.
-                if (this.accessor.options.theme?.tabAnimation === 'smooth') {
+                if (themeSetting(this.accessor, 'tabAnimation') === 'smooth') {
                     const tabSize = mainAxisSize(
                         tab.element.getBoundingClientRect(),
                         this._direction
@@ -1115,7 +1116,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                     });
 
                     if (
-                        this.accessor.options.theme?.tabAnimation === 'smooth'
+                        themeSetting(this.accessor, 'tabAnimation') === 'smooth'
                     ) {
                         this.runFlipAnimation(
                             firstPositions,
@@ -1425,7 +1426,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
             ),
         };
 
-        if (this.accessor.options.theme?.tabAnimation !== 'smooth') {
+        if (themeSetting(this.accessor, 'tabAnimation') !== 'smooth') {
             return;
         }
 
