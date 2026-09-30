@@ -35,10 +35,13 @@ function read(style: StyleSource, property: string): string {
 
 function readPixels(style: StyleSource, property: string): number | undefined {
     const value = read(style, property);
-    if (!/^-?\d*\.?\d+(px)?$/.test(value)) {
+    // A bare number or a px length; anything else (other units, calc()) is
+    // not a resolvable pixel value here.
+    const number = value.endsWith('px') ? value.slice(0, -2) : value;
+    if (number === '' || !Number.isFinite(Number(number))) {
         return undefined;
     }
-    return Number.parseFloat(value);
+    return Number(number);
 }
 
 /**

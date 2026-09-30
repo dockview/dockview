@@ -1,6 +1,14 @@
+// Group shape tokens, all inert by default:
+//   --dv-group-border-radius     the group's corners
+//   --dv-header-border-radius    the tab strip's corners (a full shorthand)
+//   --dv-header-padding          inset along the strip (across it on rails)
+//   --dv-content-border-radius   the content area's corners (a shorthand;
+//                                see `.dv-content-container` below)
+//   --dv-content-background-color, --dv-content-overflow
 .dv-groupview {
     display: flex;
     height: 100%;
+    border-radius: var(--dv-group-border-radius, 0px);
     background-color: var(--dv-group-view-background-color);
     overflow: hidden;
     flex-direction: column;
@@ -30,16 +38,6 @@
     &.dv-groupview-edge.dv-edge-collapsed > .dv-content-container {
         display: none;
     }
-}
-
-// Group shape, driven by tokens that are all inert by default:
-//   --dv-group-border-radius     the group's corners
-//   --dv-header-border-radius    the tab strip's corners (a full shorthand)
-//   --dv-header-padding          inset along the strip (across it on rails)
-//   --dv-content-border-radius   the content area's corners (a shorthand)
-//   --dv-content-background-color, --dv-content-overflow
-.dv-groupview {
-    border-radius: var(--dv-group-border-radius, 0px);
 
     .dv-tabs-and-actions-container {
         padding: 0 var(--dv-header-padding, 0px);
