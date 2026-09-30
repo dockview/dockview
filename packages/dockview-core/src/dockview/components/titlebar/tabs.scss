@@ -223,6 +223,56 @@
         }
     }
 
+    // Connected ("folder") tab shoulders: concave flares at the base of the
+    // selected tab that merge it into the content. One pseudo-element spans
+    // the tab plus a `--dv-tab-shoulder-size` square either side; two mask
+    // tiles cut the quarter-circles and hide everything between them. At the
+    // default size of 0 it has no height, so it is inert.
+    &.dv-horizontal > .dv-tab.dv-active-tab::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: calc(-1 * var(--dv-tab-shoulder-size, 0px));
+        width: calc(100% + 2 * var(--dv-tab-shoulder-size, 0px));
+        height: var(--dv-tab-shoulder-size, 0px);
+        background-color: var(
+            --dv-tab-shoulder-color,
+            var(--dv-activegroup-visiblepanel-tab-background-color)
+        );
+        pointer-events: none;
+        z-index: 2;
+        -webkit-mask-image:
+            radial-gradient(
+                circle at top left,
+                transparent var(--dv-tab-shoulder-size, 0px),
+                #000 var(--dv-tab-shoulder-size, 0px)
+            ),
+            radial-gradient(
+                circle at top right,
+                transparent var(--dv-tab-shoulder-size, 0px),
+                #000 var(--dv-tab-shoulder-size, 0px)
+            );
+        mask-image:
+            radial-gradient(
+                circle at top left,
+                transparent var(--dv-tab-shoulder-size, 0px),
+                #000 var(--dv-tab-shoulder-size, 0px)
+            ),
+            radial-gradient(
+                circle at top right,
+                transparent var(--dv-tab-shoulder-size, 0px),
+                #000 var(--dv-tab-shoulder-size, 0px)
+            );
+        -webkit-mask-size: var(--dv-tab-shoulder-size, 0px)
+            var(--dv-tab-shoulder-size, 0px);
+        mask-size: var(--dv-tab-shoulder-size, 0px)
+            var(--dv-tab-shoulder-size, 0px);
+        -webkit-mask-position: left, right;
+        mask-position: left, right;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+    }
+
     &::-webkit-scrollbar {
         height: 3px;
     }
@@ -373,6 +423,36 @@
             var(--dv-tab-border-radius, 0px)
         )
         var(--dv-tab-border-radius, 0px) var(--dv-tab-border-radius, 0px);
+}
+
+// Header at the bottom: the shoulders flare from the tab's top edge.
+.dv-groupview-header-bottom
+    .dv-tabs-container.dv-horizontal
+    > .dv-tab.dv-active-tab::after {
+    top: 0;
+    bottom: auto;
+    -webkit-mask-image:
+        radial-gradient(
+            circle at bottom left,
+            transparent var(--dv-tab-shoulder-size, 0px),
+            #000 var(--dv-tab-shoulder-size, 0px)
+        ),
+        radial-gradient(
+            circle at bottom right,
+            transparent var(--dv-tab-shoulder-size, 0px),
+            #000 var(--dv-tab-shoulder-size, 0px)
+        );
+    mask-image:
+        radial-gradient(
+            circle at bottom left,
+            transparent var(--dv-tab-shoulder-size, 0px),
+            #000 var(--dv-tab-shoulder-size, 0px)
+        ),
+        radial-gradient(
+            circle at bottom right,
+            transparent var(--dv-tab-shoulder-size, 0px),
+            #000 var(--dv-tab-shoulder-size, 0px)
+        );
 }
 
 // Vertical rails (left/right headers): tabs are uniform pills with their own
