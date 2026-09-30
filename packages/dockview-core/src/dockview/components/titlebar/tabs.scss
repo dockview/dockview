@@ -26,8 +26,14 @@
         // below the tabs. Give each wrapped tab the base row height so every
         // row matches the single-row header height (no gap, and the header
         // grows in whole-row increments).
+        // `--dv-tab-margin-block` is the tab's cross-axis margin (a theme
+        // with a vertical tab inset sets it); subtracting it keeps each
+        // wrapped row exactly one header tall with the tab's normal inset.
         .dv-tab {
-            height: var(--dv-tabs-and-actions-container-height);
+            height: calc(
+                var(--dv-tabs-and-actions-container-height) -
+                    2 * var(--dv-tab-margin-block, 0px)
+            );
         }
 
         // `overflow.maxRows` cap. The MultiRowTabsModule adds
@@ -92,7 +98,10 @@
         // Falls back to auto (natural per-tab height) when the module hasn't set
         // the variable, so core-only wrap is unchanged.
         .dv-tab {
-            width: var(--dv-tabs-and-actions-container-height);
+            width: calc(
+                var(--dv-tabs-and-actions-container-height) -
+                    2 * var(--dv-tab-margin-block, 0px)
+            );
             height: var(--dv-wrap-vertical-tab-height, auto);
         }
 
@@ -151,17 +160,28 @@
         touch-action: pan-y;
     }
 
+    // Horizontal strip spacing: `--dv-tab-gap` between adjacent tabs and
+    // `--dv-tabs-container-padding` as a gutter around the row (both 0 by
+    // default). Vertical rails space their tabs with
+    // `--dv-vertical-tab-margin` instead (see `.dv-tab` below).
+    &.dv-horizontal {
+        column-gap: var(--dv-tab-gap, 0px);
+        padding: var(--dv-tabs-container-padding, 0px);
+    }
+
+    // Divider between adjacent tabs, painted in `--dv-tab-divider-color`
+    // (transparent by default). On a horizontal strip it is centred in the
+    // tab gap; its thickness, length and rounding are tokens.
     &.dv-horizontal,
     &.dv-vertical {
         .dv-tab {
             &:not(:first-child)::before {
                 content: ' ';
                 position: absolute;
-                top: 0;
-                left: 0;
                 z-index: 5;
                 pointer-events: none;
                 background-color: var(--dv-tab-divider-color);
+                border-radius: var(--dv-tab-divider-radius, 0px);
             }
         }
     }
@@ -169,16 +189,36 @@
     &.dv-horizontal {
         .dv-tab {
             &:not(:first-child)::before {
-                width: 1px;
-                height: 100%;
+                top: 50%;
+                transform: translateY(-50%);
+                left: calc(-0.5 * var(--dv-tab-gap, 0px));
+                width: var(--dv-tab-divider-width, 1px);
+                height: var(--dv-tab-divider-length, 100%);
             }
+        }
+
+        // The dividers either side of the selected tab
+        // (`--dv-active-tab-divider-color`, e.g. `transparent` for the
+        // "notch" of connected tabs, whose shoulders fill that gap).
+        > .dv-tab.dv-active-tab::before,
+        > .dv-tab.dv-active-tab + .dv-tab::before {
+            background-color: var(
+                --dv-active-tab-divider-color,
+                var(--dv-tab-divider-color)
+            );
         }
     }
     &.dv-vertical {
         .dv-tab {
             &:not(:first-child)::before {
+                top: 0;
+                left: 0;
                 width: 100%;
                 height: 1px;
+                background-color: var(
+                    --dv-vertical-tab-divider-color,
+                    var(--dv-tab-divider-color)
+                );
             }
         }
     }
@@ -211,20 +251,48 @@
     -moz-user-select: none;
     -ms-user-select: none;
     outline: none;
-    padding: 0.25rem 0.5rem;
+    // Logical, so on a vertical rail (writing-mode: vertical-rl) the inline
+    // padding still runs before/after the title and the block padding across
+    // the rail.
+    padding-block: var(--dv-tab-padding-block, 0.25rem);
+    padding-inline: var(--dv-tab-padding-inline, 0.5rem);
     cursor: pointer;
     position: relative;
     box-sizing: border-box;
     font-size: var(--dv-tab-font-size);
+    // Unset tokens leave the weight inherited.
+    font-weight: var(--dv-tab-font-weight);
     margin: var(--dv-tab-margin);
-    // Top-corner rounding for "folder" tabs. Inert at the default radius of 0;
-    // a theme (or `.dockview-tabs-connected`) sets `--dv-tab-border-radius`.
-    border-top-left-radius: var(--dv-tab-border-radius);
-    border-top-right-radius: var(--dv-tab-border-radius);
+    // The strip-specific rules below refine this per header side.
+    border-radius: var(--dv-tab-border-radius, 0px);
     // Block the browser's native pan so the pointer drag source can run
     // its long-press arming without Chrome firing pointercancel mid-gesture.
     // See the container comment above; pre-arm scroll is forwarded in JS.
     touch-action: none;
+
+    &.dv-active-tab {
+        font-weight: var(
+            --dv-active-tab-font-weight,
+            var(--dv-tab-font-weight)
+        );
+    }
+
+    // Close / action glyph size (11px by default, matching the SVG).
+    .dv-svg {
+        width: var(--dv-tab-close-icon-size, 11px);
+        height: var(--dv-tab-close-icon-size, 11px);
+    }
+
+    // Optional colour fade on hover / selection
+    // (`--dv-tab-transition-duration`, 0s by default). Kept off the animated
+    // states below, whose own transitions it would otherwise replace.
+    &:not(.dv-tab--shifting):not(.dv-tab--dragging):not(
+            .dv-tab--group-collapsed
+        ):not(.dv-tab--group-expanding) {
+        transition:
+            background-color var(--dv-tab-transition-duration, 0s) ease,
+            color var(--dv-tab-transition-duration, 0s) ease;
+    }
 
     &.dv-tab--shifting {
         will-change:
@@ -274,6 +342,54 @@
             margin var(--dv-transition-duration, 200ms) ease-out,
             opacity var(--dv-transition-duration, 200ms) ease-out;
     }
+}
+
+// Tab corners. `--dv-tab-border-radius` rounds the corners on the header's
+// outer side and `--dv-tab-content-side-border-radius` (defaulting to the
+// same, a pill) those facing the content; connected tabs set the latter to 0
+// so the tab merges into the panel. Flipped for a header at the bottom.
+.dv-tabs-container.dv-horizontal > .dv-tab {
+    border-radius: var(--dv-tab-border-radius, 0px)
+        var(--dv-tab-border-radius, 0px)
+        var(
+            --dv-tab-content-side-border-radius,
+            var(--dv-tab-border-radius, 0px)
+        )
+        var(
+            --dv-tab-content-side-border-radius,
+            var(--dv-tab-border-radius, 0px)
+        );
+}
+
+.dv-groupview-header-bottom .dv-tabs-container.dv-horizontal > .dv-tab {
+    // A theme with a tab inset toward the header's outer edge flips it here.
+    margin: var(--dv-bottom-header-tab-margin, var(--dv-tab-margin));
+    border-radius: var(
+            --dv-tab-content-side-border-radius,
+            var(--dv-tab-border-radius, 0px)
+        )
+        var(
+            --dv-tab-content-side-border-radius,
+            var(--dv-tab-border-radius, 0px)
+        )
+        var(--dv-tab-border-radius, 0px) var(--dv-tab-border-radius, 0px);
+}
+
+// Vertical rails (left/right headers): tabs are uniform pills with their own
+// radius and margin, which default to the horizontal values.
+.dv-tabs-container.dv-vertical > .dv-tab {
+    border-radius: var(
+        --dv-vertical-tab-border-radius,
+        var(--dv-tab-border-radius, 0px)
+    );
+    margin: var(--dv-vertical-tab-margin, var(--dv-tab-margin));
+}
+
+// A tab collapsed out of a horizontal strip (dragged away, or folded into a
+// collapsed tab group) also gives back its share of the tab gap.
+.dv-tabs-container.dv-horizontal > .dv-tab.dv-tab--dragging,
+.dv-tabs-container.dv-horizontal > .dv-tab.dv-tab--group-collapsed {
+    margin-inline-start: calc(-1 * var(--dv-tab-gap, 0px)) !important;
 }
 
 // Pinned tabs (PinnedTabs module). Presentation only: the classes are inert
@@ -589,7 +705,8 @@
     }
 
     .dv-tab {
-        padding: 0.5rem 0.25rem;
+        // Padding needs no swap here: the base tab padding is logical, so it
+        // already follows the rail's vertical writing mode.
 
         &.dv-tab--group-collapsed {
             height: 0 !important;

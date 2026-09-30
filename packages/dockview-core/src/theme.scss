@@ -59,7 +59,7 @@
     --dv-tab-border-radius: 0px;
     --dv-sash-border-radius: 0px;
     --dv-dropdown-border-radius: 0px;
-    --dv-tab-close-icon-size: inherit;
+    --dv-tab-close-icon-size: 11px;
     --dv-floating-group-border: none;
     --dv-drag-over-border: none;
     --dv-floating-group-dragging-opacity: 0.5;
@@ -1055,83 +1055,42 @@
 // per-instance via its own `--dv-color-slate-*` custom property.
 
 // ─── Connected "folder" tabs ─────────────────────────────────────────────────
-// Browser-style tabs: a rounded-top active tab whose bottom corners flare into
-// the strip with concave "shoulders", plus pill separators between inactive
-// tabs. Enable by applying `.dockview-tabs-connected` to the dockview root
-// (composes with any theme, like `.dockview-spaced`) or by including this mixin
-// inside a theme. Fully token-driven:
-//   --dv-tab-border-radius   top-corner radius (see tabs.scss)
-//   --dv-tab-shoulder-size   flare size (and the strip gutter); 0 = no flare
-//   --dv-tab-shoulder-color  flare colour (defaults to the active tab bg)
-//   --dv-tab-divider-color   separator pill colour (from the base divider)
+// Browser-style tabs: a rounded-top selected tab whose base flares into the
+// strip with concave "shoulders", plus short separators between the other
+// tabs that give way either side of the selected one. The rendering is core's
+// (tabs.scss); this mixin only sets tokens, so any theme can reach the same
+// look with CSS variables alone. Enable with `.dockview-tabs-connected` on the
+// dockview root (composes with any theme, like `.dockview-spaced`) or by
+// including this mixin in a theme; it expects `--dv-tab-shoulder-size` and
+// `--dv-tab-border-radius` to be set alongside it.
 @mixin dockview-connected-tabs-mixin {
-    // Gap between adjacent tabs. The active tab's shoulders flare
-    // `--dv-tab-shoulder-size` beyond it on each side, so without a gap those
-    // flares paint over the neighbouring tabs. Size the gap to the flare plus a
-    // few px of clearance, so whichever tab is active its flares sit in the
-    // gutter and a sliver of strip stays visible between tabs.
-    --dv-tab-connected-gap: calc(var(--dv-tab-shoulder-size) + 4px);
+    // Gap between adjacent tabs: the shoulder plus a few px of clearance, so
+    // the selected tab's flares sit in the gutter rather than over its
+    // neighbours. The strip gutter leaves room for the outermost flares.
+    --dv-tab-gap: calc(var(--dv-tab-shoulder-size) + 4px);
+    --dv-tabs-container-padding: 0 var(--dv-tab-shoulder-size);
+    --dv-tab-padding-block: 0px;
+    --dv-tab-padding-inline: 10px;
 
-    // Compact tabs so a folder set reads as a tight row; the container gutter
-    // and inter-tab gap below give the shoulders room to flare. Logical
-    // padding so it follows the strip's writing mode: on a vertical
-    // (left/right edge-group) strip the inline axis is physical top/bottom,
-    // so the 10px still runs before/after the title rather than eating the
-    // pill's cross-axis width (a physical `0 10px` left the rotated label
-    // 2px of room and no lead-in either end).
-    .dv-tab {
-        padding-block: 0;
-        padding-inline: 10px;
-    }
+    // Only the header-side corners round; the base merges into the content.
+    --dv-tab-content-side-border-radius: 0px;
 
-    // Colour fade on hover/selection. Kept off the tab's animated states:
-    // those carry core's own transform/margin/width transitions (smooth
-    // reorder, drag collapse, tab-group collapse/expand), and a same-
-    // specificity `transition` here would replace them and stall the
-    // `transitionend` the reorder code waits on.
-    .dv-tab:not(.dv-tab--shifting):not(.dv-tab--dragging):not(
-            .dv-tab--group-collapsed
-        ):not(.dv-tab--group-expanding) {
-        transition:
-            background-color 0.1s ease,
-            color 0.1s ease;
-    }
+    // Short separators, hidden beside the selected tab (its shoulders fill
+    // that gap) and on vertical rails (the rail margin separates the pills).
+    --dv-tab-divider-length: 14px;
+    --dv-active-tab-divider-color: transparent;
+    --dv-vertical-tab-divider-color: transparent;
 
-    .dv-tabs-container:not(.dv-tabs-container-vertical) > .dv-tab:not(:first-child) {
-        margin-left: var(--dv-tab-connected-gap);
-    }
+    // Rail pills: a stacking gap along the rail and a cross-axis inset.
+    --dv-vertical-tab-margin: calc(var(--dv-tab-gap) / 2)
+        calc(var(--dv-tab-shoulder-size) / 2);
 
-    .dv-tabs-container:not(.dv-tabs-container-vertical) {
-        padding: 0 var(--dv-tab-shoulder-size);
-    }
-
-    // Inactive-tab separators: a thin, centred hairline in the gap between
-    // adjacent tabs. Self-contained (own `content` + background) rather than
-    // leaning on the base `::before` divider, because that base rule is scoped
-    // to `.dv-active-group` and would drop the separators whenever the group
-    // loses focus. Offset half the gap to the left so it lands mid-gutter.
-    .dv-tabs-container:not(.dv-tabs-container-vertical) > .dv-tab:not(:first-child)::before {
-        content: '';
-        position: absolute;
-        top: 50%;
-        left: calc(-0.5 * var(--dv-tab-connected-gap));
-        height: 14px;
-        width: 1px;
-        border-radius: 0;
-        background-color: var(--dv-tab-divider-color);
-        transform: translateY(-50%);
-        pointer-events: none;
-        z-index: 3;
-    }
+    --dv-tab-transition-duration: 0.1s;
 
     // Active-tab "shoulders": a square pseudo-element per side, painted in the
     // tab's colour and masked to a quarter-circle so the strip shows through
-    // the curve. `::before` is the left shoulder (it otherwise draws the
-    // separator hairline), `::after` the right — hence the suppression below.
-    // Note: this ::before ties the base separator rule above on specificity and
-    // wins by source order (this block follows it, and theme.scss is
-    // concatenated after tabs.scss by scripts/build-css.js). Keep this block
-    // after the separator rule if either is moved.
+    // the curve. `::before` is the left shoulder: this rule outranks core's
+    // divider rule, so on the selected tab it draws a shoulder instead.
     .dv-tabs-container:not(.dv-tabs-container-vertical) > .dv-tab.dv-active-tab {
         &::before,
         &::after {
@@ -1179,26 +1138,7 @@
         }
     }
 
-    // The separator on the tab right after the active one is replaced by its
-    // shoulder.
-    .dv-tabs-container:not(.dv-tabs-container-vertical)
-        > .dv-tab.dv-active-tab
-        + .dv-tab::before {
-        background-color: transparent;
-    }
-
-    // Header at the bottom of the group: the tab hangs from the content above,
-    // so the folder shape flips — bottom corners rounded, shoulders flaring at
-    // the top edge. (A theme's `--dv-tab-margin` reveal inset is not flipped
-    // here; a theme that uses one re-declares it under
-    // `.dv-groupview-header-bottom`, as the sheet layout does.)
-    .dv-groupview-header-bottom
-        .dv-tabs-container:not(.dv-tabs-container-vertical)
-        > .dv-tab {
-        border-radius: 0 0 var(--dv-tab-border-radius)
-            var(--dv-tab-border-radius);
-    }
-
+    // Header at the bottom of the group: the shoulders flare from the top.
     .dv-groupview-header-bottom
         .dv-tabs-container:not(.dv-tabs-container-vertical)
         > .dv-tab.dv-active-tab {
@@ -1232,25 +1172,6 @@
                 transparent var(--dv-tab-shoulder-size),
                 #000 var(--dv-tab-shoulder-size)
             );
-        }
-    }
-
-    // Vertical (edge-group) headers can't wear the horizontal folder shape: the
-    // shoulders are horizontal-only (above) and the base tab rounding only
-    // rounds the top corners, which land on the wrong edges once the strip is
-    // rotated (leaving notched, half-rounded tabs). Give the vertical tabs a
-    // clean full-radius pill instead, with a stacking gap along the header
-    // (block axis) and a cross-axis inset (inline axis) so the pill sits inside
-    // the strip rather than clipping its edge.
-    .dv-tabs-container-vertical > .dv-tab {
-        border-radius: var(--dv-tab-border-radius);
-        margin: calc(var(--dv-tab-connected-gap) / 2)
-            calc(var(--dv-tab-shoulder-size) / 2);
-
-        // The stacking gap already separates the pills, so drop the base
-        // between-tab hairline (it renders as a stray mark against the pill).
-        &::before {
-            display: none;
         }
     }
 }
@@ -1294,35 +1215,34 @@
     @include dockview-connected-tabs-mixin();
 
     // A 12px gutter between tabs: wide enough for the 10px shoulder to flare
-    // into, with the hairline centred in it. Declared after the mixin so it
+    // into, with the separator centred in it. Declared after the mixin so it
     // overrides the mixin's own (shoulder + 4px) value.
-    --dv-tab-connected-gap: 12px;
+    --dv-tab-gap: 12px;
 
     // Strip gutter: the shoulder plus the sheet radius, so a tab at the very
     // start of the strip (no left actions, or a pinned tool window's bottom
     // strip) flares into the sheet's flat edge rather than its rounded
     // corner, which left a canvas sliver between the two curves.
-    .dv-tabs-container:not(.dv-tabs-container-vertical) {
-        padding: 0
-            calc(var(--dv-tab-shoulder-size) + var(--dv-sheet-border-radius));
-    }
+    --dv-tabs-container-padding: 0
+        calc(var(--dv-tab-shoulder-size) + var(--dv-sheet-border-radius));
 
-    .dv-tab {
-        padding-block: 0;
-        padding-inline: 12px;
-        font-weight: 500;
-    }
+    --dv-tab-padding-inline: 12px;
+    --dv-tab-font-weight: 500;
 
-    // Short rounded hairline between neighbouring tabs (the mixin's is a 1px
-    // 14px line; this is 2px, ~0.8em, pill-ended). Excludes the selected tab:
-    // its ::before is the left shoulder, and this rule would otherwise tie the
-    // shoulder rule on specificity and win by source order.
-    .dv-tabs-container:not(.dv-tabs-container-vertical)
-        > .dv-tab:not(:first-child):not(.dv-active-tab)::before {
-        width: 2px;
-        height: 0.8em;
-        border-radius: 1px;
-    }
+    // Short pill-ended separator (2px, ~0.8em).
+    --dv-tab-divider-width: 2px;
+    --dv-tab-divider-length: 0.8em;
+    --dv-tab-divider-radius: 1px;
+
+    // Header at the bottom (a pinned auto-hide tool window moves its strip
+    // there): the tab hangs from the sheet, so the 3px reveal inset moves to
+    // the strip's far edge and the tab's base meets the sheet.
+    --dv-bottom-header-tab-margin: 0 0 3px 0;
+
+    // Rail (left/right edge-group) pills: 3px breathing room and a softer
+    // radius than the 10px tab corners.
+    --dv-vertical-tab-margin: 3px 4px;
+    --dv-vertical-tab-border-radius: 6px;
 
     // The content sheet. The group already clips to its bounds; rounding the
     // group gives the sheet its bottom corners, and the container's own radius
@@ -1345,21 +1265,6 @@
     // container; round it to match the sheet.
     .dv-render-overlay {
         border-radius: var(--dv-sheet-border-radius);
-    }
-
-    // Header at the bottom (a pinned auto-hide tool window moves its strip
-    // there): the tab hangs from the sheet, so the 3px reveal inset moves to
-    // the strip's far edge and the tab's base meets the sheet.
-    .dv-groupview-header-bottom {
-        --dv-tab-margin: 0 0 3px 0;
-    }
-
-    // Rail (left/right edge-group) pills: the mixin's inset is half the
-    // shoulder size; give them 3px breathing room and a softer radius than the
-    // 10px tab corners.
-    .dv-tabs-container-vertical > .dv-tab {
-        margin: 3px 4px;
-        border-radius: 6px;
     }
 
     // ── Edge groups ──────────────────────────────────────────────────────────
@@ -1634,14 +1539,12 @@
     // in the gutter; here the flare is meant to overlap the neighbouring tab's
     // base (the reference look), so remove the gap. Declared after the mixin
     // so it overrides the mixin's own value.
-    --dv-tab-connected-gap: 0px;
+    --dv-tab-gap: 0px;
 
-    // Rail (left/right edge-group) pills: the mixin insets them across the
-    // strip by half the shoulder size (2px here); widen that to 4px so the
-    // pill sits inside the rail the way the tabs sit inside the strip.
-    .dv-tabs-container-vertical > .dv-tab {
-        margin: 2px 4px;
-    }
+    // Rail (left/right edge-group) pills: a 2px stacking gap and a 4px inset
+    // across the rail, so the pill sits inside the rail the way the tabs sit
+    // inside the strip.
+    --dv-vertical-tab-margin: 2px 4px;
 }
 
 .dockview-theme-dark-rounded {
