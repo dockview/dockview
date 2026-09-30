@@ -260,6 +260,8 @@ export const Sidebar = (props: {
     onToggleDndCompass: () => void;
     smartGuides: boolean;
     onToggleSmartGuides: () => void;
+    proportionalLayout: boolean;
+    onToggleProportionalLayout: () => void;
     debug: boolean;
     onToggleDebug: () => void;
     showLogs: boolean;
@@ -831,6 +833,10 @@ export const Sidebar = (props: {
                         onToggleDndCompass={props.onToggleDndCompass}
                         smartGuides={props.smartGuides}
                         onToggleSmartGuides={props.onToggleSmartGuides}
+                        proportionalLayout={props.proportionalLayout}
+                        onToggleProportionalLayout={
+                            props.onToggleProportionalLayout
+                        }
                         debug={props.debug}
                         onToggleDebug={props.onToggleDebug}
                         showLogs={props.showLogs}
