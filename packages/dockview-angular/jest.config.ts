@@ -15,7 +15,17 @@ const config: Config = {
     setupFilesAfterEnv: [
         '<rootDir>/packages/dockview-angular/src/__tests__/setup-jest.ts',
     ],
-    coveragePathIgnorePatterns: ['/node_modules/'],
+    // The root config's repo-wide collectCoverageFrom applies to every
+    // project, so without this the sibling sources pulled in through
+    // moduleNameMapper would be instrumented here too. jest-preset-angular
+    // instruments differently from the @swc/jest projects that own those
+    // files, and istanbul appends the mismatched branch maps instead of
+    // merging them, reporting phantom uncovered branches on e.g.
+    // dockview-core. Only instrument this package's own sources.
+    coveragePathIgnorePatterns: [
+        '/node_modules/',
+        '<rootDir>/packages/(?!dockview-angular/)',
+    ],
     moduleNameMapper: {
         '^dockview$': '<rootDir>/packages/dockview/src/index.ts',
         '^dockview-core$': '<rootDir>/packages/dockview-core/src/index.ts',
