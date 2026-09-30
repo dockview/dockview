@@ -162,6 +162,9 @@ export abstract class BaseGrid<T extends IGridPanelView>
         super(document.createElement('div'), options.disableAutoResizing);
         this.element.style.height = '100%';
         this.element.style.width = '100%';
+        // A stable hook for the element that carries the `className` option
+        // (e.g. a theme or `.dockview-spaced` applied through it).
+        this.element.classList.add('dv-component-root');
 
         this._classNames = new Classnames(this.element);
         this._classNames.setClassNames(options.className ?? '');

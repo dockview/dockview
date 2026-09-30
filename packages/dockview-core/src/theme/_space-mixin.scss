@@ -42,158 +42,49 @@
     // Keep the handle seamless with the gap: no divider line below it.
     --dv-floating-titlebar-border-bottom: none;
 
-    box-sizing: border-box;
-    padding: var(--dv-spacing-padding);
-    background-color: var(--dv-group-view-background-color);
+    // ── Layout frame ────────────────────────────────────────────────────────
+    // The element carrying the class pads the whole layout and paints the
+    // band around it in the gap colour.
+    --dv-root-padding: var(--dv-spacing-padding);
+    --dv-root-background-color: var(--dv-group-view-background-color);
 
-    // The theme root carries the outer padding above; the inner dockview
-    // element must stay flush so the layout engine's pixel-exact gridview
-    // dimensions don't overflow the content box and trigger scrollbars.
-    // .dv-dockview already has no padding, so this is a defensive zero that
-    // guarantees the inner element never picks up the spaced inset.
-    .dv-dockview {
-        padding: 0;
-    }
+    // Each group is a rounded card: the strip rounds the card's top, the
+    // content its bottom, with the strip inset half a radius from the curve
+    // (across the strip on vertical rails).
+    --dv-group-border-radius: var(--dv-border-radius);
+    --dv-header-border-radius: var(--dv-border-radius) var(--dv-border-radius)
+        0 0;
+    --dv-header-padding: calc(var(--dv-border-radius) / 2);
+    --dv-content-border-radius: 0 0 var(--dv-border-radius)
+        var(--dv-border-radius);
+    --dv-content-background-color: var(
+        --dv-tabs-and-actions-container-background-color
+    );
 
-    .dv-resize-container:has(> .dv-groupview) {
-        border-radius: 8px;
-    }
+    // A docked auto-hide tool window stacks title bar, content and a bottom
+    // tab strip: the title bar (the peek header, below) caps the top, the
+    // strip the bottom, and the content stays flush between them.
+    --dv-tool-window-content-border-radius: 0;
+    --dv-tool-window-header-border-radius: 0 0 var(--dv-border-radius)
+        var(--dv-border-radius);
 
-    .dv-sash {
-        border-radius: var(--dv-sash-border-radius);
-    }
+    // Auto-hide peek: a card matching the groups.
+    --dv-edge-peek-border-radius: var(--dv-border-radius);
 
-    .dv-drop-target-anchor {
-        border-radius: calc(var(--dv-border-radius) / 4);
-        &.dv-drop-target-content {
-            border-radius: var(--dv-border-radius);
-        }
-    }
+    // Floating windows: a rounded, borderless card whose nested layout is
+    // inset like the docked one. With a title bar the bar frames the top, so
+    // the top inset is dropped (the bar rounds with the container).
+    --dv-floating-border-radius: var(--dv-border-radius);
+    --dv-floating-border: none;
+    --dv-floating-inset: var(--dv-spacing-padding);
+    --dv-floating-inset-below-titlebar: 0px;
 
-    .dv-resize-container {
-        border-radius: var(--dv-border-radius) !important;
-        border: none;
+    // Drop previews: softer corners on the layout-wide overlay, card corners
+    // when previewing a drop into a group's content.
+    --dv-drop-target-border-radius: calc(var(--dv-border-radius) / 4);
+    --dv-drop-target-content-border-radius: var(--dv-border-radius);
 
-        .dv-groupview {
-            border: var(--dv-floating-group-border);
-        }
-    }
-
-    // Apply the spaced grid inset to floating groups, mirroring the dockview
-    // root's --dv-spacing-padding edge in the docked layout. The nested
-    // gridview is sized from its own content box (a ResizeObserver feeds
-    // gridview.layout), so box-sizing:border-box + padding insets the nested
-    // layout while the padding band reveals the resize container's background.
-    // Resize handles live on .dv-resize-container, not the gridview, so they
-    // are unaffected.
-    .dv-resize-container > .dv-grid-view {
-        box-sizing: border-box;
-        padding: var(--dv-spacing-padding);
-    }
-
-    // With a dedicated title bar the bar already frames the top of the card and
-    // shares the inset/gap color, so the grid's top inset would double up into a
-    // tall empty band above the panels. Drop it (keep left/right/bottom).
-    .dv-resize-container-with-titlebar > .dv-grid-view {
-        padding-top: 0;
-    }
-
-    // The drag-handle bar is the top strip of the floating window's frame (same
-    // color as the inset gap). Round its top corners so it follows the
-    // container's rounded top. The nested groups below are complete,
-    // independently-rounded cards, so don't flatten their tops (an unscoped
-    // descendant rule here previously stripped the top border/rounding from
-    // every nested group, not just a single merged one).
-    .dv-resize-container-with-titlebar > .dv-floating-titlebar {
-        border-top-left-radius: var(--dv-border-radius);
-        border-top-right-radius: var(--dv-border-radius);
-    }
-
-    .dv-tabs-overflow-container,
-    .dv-tabs-overflow-dropdown-default {
-        border-radius: var(--dv-dropdown-border-radius);
-        height: unset !important;
-    }
-
-    .dv-render-overlay {
-        border-bottom-left-radius: var(--dv-border-radius);
-        border-bottom-right-radius: var(--dv-border-radius);
-    }
-
-    .dv-groupview {
-        border-radius: var(--dv-border-radius);
-
-        .dv-tabs-and-actions-container {
-            padding: 0px calc(var(--dv-border-radius) / 2);
-
-            // Round the top of the tab bar to match the rounded groupview
-            // outline (the content container rounds the bottom). Without this
-            // the tab strip's square top corners poke past the card's rounded
-            // top-left / top-right corners.
-            border-top-left-radius: var(--dv-border-radius);
-            border-top-right-radius: var(--dv-border-radius);
-
-            // Vertical tab bars (left/right edge groups): swap the padding
-            // axes. Horizontal padding would squeeze the tab into a fraction
-            // of the 44px strip width, so use vertical padding instead to
-            // provide breathing room at the top and bottom of the strip.
-            &.dv-groupview-header-vertical {
-                padding: calc(var(--dv-border-radius) / 2) 0;
-            }
-        }
-
-        .dv-content-container {
-            background-color: var(
-                --dv-tabs-and-actions-container-background-color
-            );
-            border-bottom-left-radius: var(--dv-border-radius);
-            border-bottom-right-radius: var(--dv-border-radius);
-        }
-
-        // Docked (pinned) auto-hide edge group — a "tool window": title bar on
-        // top, content in the middle, tab strip at the bottom (the header is
-        // moved to the bottom, so the group is laid out `column-reverse`). The
-        // group is already a rounded, overflow-hidden card, but the shared rules
-        // above round the WRONG edges for this flipped layout: the tab strip
-        // rounds its top (now interior) corners and the content-container rounds
-        // its bottom (now interior) corners, carving frame-coloured notches
-        // mid-card. Re-cap the card for the flipped order: title bar rounds the
-        // top, tab strip rounds the bottom, content stays flush between them.
-        &.dv-edge-tool-window {
-            .dv-edge-peek-header {
-                border-top-left-radius: var(--dv-border-radius);
-                border-top-right-radius: var(--dv-border-radius);
-            }
-
-            .dv-content-container {
-                border-radius: 0;
-            }
-
-            .dv-tabs-and-actions-container {
-                border-top-left-radius: 0;
-                border-top-right-radius: 0;
-                border-bottom-left-radius: var(--dv-border-radius);
-                border-bottom-right-radius: var(--dv-border-radius);
-            }
-        }
-    }
-
-    // Auto-hide edge group "peek": a floating tool-window preview mounted in the
-    // overlay root (a sibling title bar over a clipped content backdrop). Round
-    // it into a card matching the spaced aesthetic — the title bar caps the top,
-    // the content backdrop fills the rounded bottom.
-    .dv-edge-peek {
-        border-bottom-left-radius: var(--dv-border-radius);
-        border-bottom-right-radius: var(--dv-border-radius);
-    }
-
-    .dv-edge-peek-clip {
-        border-bottom-left-radius: var(--dv-border-radius);
-        border-bottom-right-radius: var(--dv-border-radius);
-    }
-
-    .dv-edge-peek-header {
-        border-top-left-radius: var(--dv-border-radius);
-        border-top-right-radius: var(--dv-border-radius);
-    }
+    // The overflow button sizes to its content (the tab margin already
+    // insets it from the strip edges).
+    --dv-tabs-overflow-dropdown-height: auto;
 }

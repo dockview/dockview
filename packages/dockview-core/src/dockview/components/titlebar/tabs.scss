@@ -830,6 +830,7 @@
 .dv-tabs-overflow-container {
     flex-direction: column;
     height: unset;
+    border-radius: var(--dv-dropdown-border-radius, 0px);
     font-size: var(--dv-tabs-and-actions-container-font-size);
     max-height: min(50vh, 400px);
     overflow-y: auto;

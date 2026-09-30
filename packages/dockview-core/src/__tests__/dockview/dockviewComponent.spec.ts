@@ -153,13 +153,13 @@ describe('dockviewComponent', () => {
             className: 'test-a test-b',
         });
         expect(dockview.element.className).toBe(
-            'test-a test-b dv-tab-group-indicator-none'
+            'dv-component-root test-a test-b dv-tab-group-indicator-none'
         );
 
         dockview.updateOptions({ className: 'test-b test-c' });
 
         expect(dockview.element.className).toBe(
-            'dv-tab-group-indicator-none test-b test-c'
+            'dv-component-root dv-tab-group-indicator-none test-b test-c'
         );
     });
 

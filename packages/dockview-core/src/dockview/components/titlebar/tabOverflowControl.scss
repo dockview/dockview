@@ -1,5 +1,6 @@
 .dv-tabs-overflow-dropdown-default {
-    height: 100%;
+    height: var(--dv-tabs-overflow-dropdown-height, 100%);
+    border-radius: var(--dv-dropdown-border-radius, 0px);
     // Keep the padding inside the 100% header height. Without border-box the
     // vertical padding is added on top of `height: 100%`, making the control
     // taller than the header so its hover background spills below the tab strip.

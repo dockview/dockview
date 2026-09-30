@@ -47,11 +47,15 @@ describe('gridview', () => {
             className: 'test-a test-b',
         });
 
-        expect(gridview.element.className).toBe('test-a test-b');
+        expect(gridview.element.className).toBe(
+            'dv-component-root test-a test-b'
+        );
 
         gridview.updateOptions({ className: 'test-b test-c' });
 
-        expect(gridview.element.className).toBe('test-b test-c');
+        expect(gridview.element.className).toBe(
+            'dv-component-root test-b test-c'
+        );
     });
 
     test('added views are visible by default', () => {

@@ -221,52 +221,10 @@
     // The active tab is itself the accent blue, so the focus ring is white.
     --dv-focus-ring-color: #ffffff;
 
-    .dv-groupview {
-        &.dv-active-group {
-            > .dv-tabs-and-actions-container {
-                border-bottom: 2px solid
-                    var(--dv-activegroup-visiblepanel-tab-background-color);
-
-                .dv-tab {
-                    &.dv-active-tab {
-                        border-top: 2px solid
-                            var(
-                                --dv-activegroup-visiblepanel-tab-background-color
-                            );
-                    }
-
-                    &.dv-inactive-tab {
-                        border-top: 2px solid
-                            var(
-                                --dv-activegroup-hiddenpanel-tab-background-color
-                            );
-                    }
-                }
-            }
-        }
-        &.dv-inactive-group {
-            > .dv-tabs-and-actions-container {
-                border-bottom: 2px solid
-                    var(--dv-inactivegroup-visiblepanel-tab-background-color);
-
-                .dv-tab {
-                    &.dv-active-tab {
-                        border-top: 2px solid
-                            var(
-                                --dv-inactivegroup-visiblepanel-tab-background-color
-                            );
-                    }
-
-                    &.dv-inactive-tab {
-                        border-top: 2px solid
-                            var(
-                                --dv-inactivegroup-hiddenpanel-tab-background-color
-                            );
-                    }
-                }
-            }
-        }
-    }
+    // A 2px accent under the strip and along the top of each tab, both in
+    // the tab fills (core draws them from these widths).
+    --dv-tabs-and-actions-container-border-bottom-width: 2px;
+    --dv-tab-border-top-width: 2px;
 }
 
 @mixin dockview-palette-abyss {
@@ -708,7 +666,6 @@
     --dv-active-sash-color: var(--dv-color-sol-blue);
     --dv-floating-box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
-    --dv-floating-border: 1px solid rgba(0, 0, 0, 0.1);
     --dv-scrollbar-background-color: rgba(101, 123, 131, 0.25);
     // Hover fill for hidden tabs (translucent: these tabs are bare text).
     --dv-tab-inactive-hover-background-color: rgba(0, 0, 0, 0.04);
@@ -925,7 +882,6 @@
     --dv-active-sash-color: var(--dv-color-gh-light-accent);
     --dv-floating-box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
-    --dv-floating-border: 1px solid rgba(0, 0, 0, 0.1);
     --dv-scrollbar-background-color: rgba(208, 215, 222, 0.5);
     // Hover fill for hidden tabs (translucent: these tabs are bare text).
     --dv-tab-inactive-hover-background-color: rgba(0, 0, 0, 0.04);
@@ -1029,7 +985,6 @@
     //
     --dv-floating-box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
-    --dv-floating-border: 1px solid rgba(0, 0, 0, 0.1);
 
     --dv-scrollbar-background-color: rgba(0, 0, 0, 0.25);
     --dv-floating-group-border: 2px solid rgba(255, 255, 255, 0.1);
@@ -1122,7 +1077,7 @@
     // rail and the centre, and between the rails themselves (the bottom rail
     // sits between the left and right ones). Canvas on canvas, the rails and
     // the centre read as one frame with no visible seams.
-    background-color: var(--dv-group-view-background-color);
+    --dv-root-background-color: var(--dv-group-view-background-color);
 
     @include dockview-connected-tabs-mixin();
 
@@ -1156,63 +1111,33 @@
     --dv-vertical-tab-margin: 3px 4px;
     --dv-vertical-tab-border-radius: 6px;
 
-    // The content sheet. The group already clips to its bounds; rounding the
-    // group gives the sheet its bottom corners, and the container's own radius
-    // + clip gives it top corners where the canvas-coloured strip sits above.
-    // Not scoped to `.dv-groupview >`: the auto-hide peek reparents the content
-    // container into its own overlay, and it must stay a sheet there too.
-    .dv-groupview {
-        border-radius: var(--dv-sheet-border-radius);
-    }
+    // The content sheet: rounded on every corner in the selected tab's
+    // colour, clipped to its shape. Rounding the group too gives the sheet
+    // its bottom corners where the group itself clips.
+    --dv-group-border-radius: var(--dv-sheet-border-radius);
+    --dv-content-border-radius: var(--dv-sheet-border-radius);
+    --dv-content-background-color: var(
+        --dv-activegroup-visiblepanel-tab-background-color
+    );
+    --dv-content-overflow: hidden;
 
-    .dv-content-container {
-        background-color: var(
-            --dv-activegroup-visiblepanel-tab-background-color
-        );
-        border-radius: var(--dv-sheet-border-radius);
-        overflow: hidden;
-    }
-
-    // Always-rendered panels paint in an overlay aligned to the content
-    // container; round it to match the sheet.
-    .dv-render-overlay {
-        border-radius: var(--dv-sheet-border-radius);
-    }
-
-    // ── Edge groups ──────────────────────────────────────────────────────────
     // A collapsed rail is part of the canvas, so its tabs are bare labels
     // (like the strip's hidden tabs) rather than sheet-coloured pills floating
     // in the grey. The pill stays only while the rail's group is the focused
-    // one — its panel is peeking, or was the last thing used.
-    .dv-groupview-edge.dv-edge-collapsed:not(.dv-active-group)
-        .dv-tabs-container
-        > .dv-tab.dv-active-tab {
-        background-color: transparent;
-        background-image: none;
-        color: var(--dv-activegroup-hiddenpanel-tab-color);
-    }
+    // one (its panel is peeking, or was the last thing used).
+    --dv-collapsed-edge-visiblepanel-tab-background-color: transparent;
+    --dv-collapsed-edge-visiblepanel-tab-color: var(
+        --dv-activegroup-hiddenpanel-tab-color
+    );
+    --dv-collapsed-edge-tab-marker-color: transparent;
 
-    // Auto-hide peek: the auto-hide module paints its backdrop in the group
-    // frame colour and its title bar in the strip colour (both the canvas
-    // here, set inline), and reparents the content container — a sheet, per
-    // the rule above — into it. So it already reads as a group: canvas title
-    // bar over a white sheet. Round it like one and soften the shadow.
-    .dv-edge-peek-header {
-        border: none;
-        border-top-left-radius: var(--dv-sheet-border-radius);
-        border-top-right-radius: var(--dv-sheet-border-radius);
-    }
-
-    .dv-edge-peek,
-    .dv-edge-peek-clip {
-        border-bottom-left-radius: var(--dv-sheet-border-radius);
-        border-bottom-right-radius: var(--dv-sheet-border-radius);
-    }
-
-    .dv-edge-peek {
-        border: none;
-        box-shadow: var(--dv-floating-box-shadow);
-    }
+    // Auto-hide peek: its backdrop is the group frame colour and its title bar
+    // the strip colour (both the canvas here), over the reparented content
+    // sheet, so it already reads as a group. Round it like one, drop the
+    // hairline border and use the floating shadow.
+    --dv-edge-peek-border: none;
+    --dv-edge-peek-border-radius: var(--dv-sheet-border-radius);
+    --dv-edge-peek-box-shadow: var(--dv-floating-box-shadow);
 }
 
 @mixin dockview-theme-slate-light-mixin {

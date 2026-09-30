@@ -28,5 +28,25 @@
             left var(--dv-transition-duration) ease-out,
             width var(--dv-transition-duration) ease-out,
             height var(--dv-transition-duration) ease-out;
+
+        border-radius: var(--dv-drop-target-border-radius, 0px);
+
+        &.dv-drop-target-content {
+            border-radius: var(
+                --dv-drop-target-content-border-radius,
+                var(--dv-drop-target-border-radius, 0px)
+            );
+        }
+
+        // When the target moves to a different container (another group),
+        // the anchor glides there. `--dv-drop-target-travel: 0` makes it
+        // jump instead: hidden for the move, with no transition.
+        &.dv-drop-target-anchor-container-changed {
+            opacity: var(--dv-drop-target-travel, 1);
+            transition-duration: calc(
+                var(--dv-transition-duration) *
+                    var(--dv-drop-target-travel, 1)
+            );
+        }
     }
 }

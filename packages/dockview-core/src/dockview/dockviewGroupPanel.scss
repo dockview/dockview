@@ -31,3 +31,76 @@
         display: none;
     }
 }
+
+// Group shape, driven by tokens that are all inert by default:
+//   --dv-group-border-radius     the group's corners
+//   --dv-header-border-radius    the tab strip's corners (a full shorthand)
+//   --dv-header-padding          inset along the strip (across it on rails)
+//   --dv-content-border-radius   the content area's corners (a shorthand)
+//   --dv-content-background-color, --dv-content-overflow
+.dv-groupview {
+    border-radius: var(--dv-group-border-radius, 0px);
+
+    .dv-tabs-and-actions-container {
+        padding: 0 var(--dv-header-padding, 0px);
+        border-radius: var(--dv-header-border-radius, 0px);
+
+        &.dv-groupview-header-vertical {
+            padding: var(--dv-header-padding, 0px) 0;
+        }
+    }
+}
+
+// Not scoped to `.dv-groupview`: the auto-hide peek reparents the content
+// container into its own overlay, and it keeps its shape there.
+.dv-content-container {
+    background-color: var(--dv-content-background-color, transparent);
+    border-radius: var(--dv-content-border-radius, 0px);
+    overflow: var(--dv-content-overflow, visible);
+}
+
+// A docked auto-hide tool window stacks title bar, content and a bottom tab
+// strip, so its strip and content take their own corner shapes (defaulting
+// to the regular ones).
+.dv-groupview.dv-edge-tool-window {
+    .dv-content-container {
+        border-radius: var(
+            --dv-tool-window-content-border-radius,
+            var(--dv-content-border-radius, 0px)
+        );
+    }
+
+    .dv-tabs-and-actions-container {
+        border-radius: var(
+            --dv-tool-window-header-border-radius,
+            var(--dv-header-border-radius, 0px)
+        );
+    }
+}
+
+// The visible panel's tab on a collapsed edge rail whose group is not
+// focused. Defaults to the ordinary unfocused-group look; a theme can make it
+// a bare label on the rail instead.
+.dv-groupview.dv-groupview-edge.dv-edge-collapsed.dv-inactive-group
+    > .dv-tabs-and-actions-container
+    .dv-tabs-container
+    > .dv-tab.dv-active-tab {
+    background-color: var(
+        --dv-collapsed-edge-visiblepanel-tab-background-color,
+        var(--dv-inactivegroup-visiblepanel-tab-background-color)
+    );
+    color: var(
+        --dv-collapsed-edge-visiblepanel-tab-color,
+        var(--dv-inactivegroup-visiblepanel-tab-color)
+    );
+    background-image: linear-gradient(
+        var(
+            --dv-collapsed-edge-tab-marker-color,
+            var(--dv-inactivegroup-tab-marker-color)
+        ),
+        var(
+            --dv-collapsed-edge-tab-marker-color,
+            var(--dv-inactivegroup-tab-marker-color)
+        )
+    );
+}

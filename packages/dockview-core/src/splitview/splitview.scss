@@ -121,6 +121,7 @@
             -ms-user-select: none; // IE 10 and IE 11
             touch-action: none;
             background-color: var(--dv-sash-color, transparent);
+            border-radius: var(--dv-sash-border-radius, 0px);
 
             &:not(.disabled):active,
             &:not(.disabled):hover {

@@ -1,3 +1,24 @@
+// The element that carries a theme class (the shell for the `theme`
+// option, the component root for the `className` option) can pad the whole
+// layout and paint the band around it. Registered as non-inheriting, so only
+// the element that declares them is affected, wherever the class sits.
+@property --dv-root-padding {
+    syntax: '*';
+    inherits: false;
+}
+
+@property --dv-root-background-color {
+    syntax: '*';
+    inherits: false;
+}
+
+.dv-shell,
+.dv-component-root {
+    box-sizing: border-box;
+    padding: var(--dv-root-padding, 0px);
+    background-color: var(--dv-root-background-color, transparent);
+}
+
 .dv-dockview {
     position: relative;
     background-color: var(--dv-group-view-background-color);
@@ -22,12 +43,24 @@
 .dv-groupview {
     &.dv-active-group {
         > .dv-tabs-and-actions-container {
+            // Optional rule under the strip in the visible tab's fill
+            // (`--dv-tabs-and-actions-container-border-bottom-width`).
+            border-bottom: var(
+                    --dv-tabs-and-actions-container-border-bottom-width,
+                    0px
+                )
+                solid var(--dv-activegroup-visiblepanel-tab-background-color);
+
             .dv-tabs-container > .dv-tab {
                 &.dv-active-tab {
                     background-color: var(
                         --dv-activegroup-visiblepanel-tab-background-color
                     );
                     color: var(--dv-activegroup-visiblepanel-tab-color);
+                    // Optional accent edge along the tab's top, in the tab's
+                    // own fill (`--dv-tab-border-top-width`, 0 by default).
+                    border-top: var(--dv-tab-border-top-width, 0px) solid
+                        var(--dv-activegroup-visiblepanel-tab-background-color);
                     // Active-tab marker colour (geometry in the shared rule
                     // below). A gradient rather than a pseudo-element so it
                     // never collides with the ::before dividers, ::after
@@ -43,6 +76,10 @@
                         --dv-activegroup-hiddenpanel-tab-background-color
                     );
                     color: var(--dv-activegroup-hiddenpanel-tab-color);
+                    // Optional accent edge along the tab's top, in the tab's
+                    // own fill (`--dv-tab-border-top-width`, 0 by default).
+                    border-top: var(--dv-tab-border-top-width, 0px) solid
+                        var(--dv-activegroup-hiddenpanel-tab-background-color);
 
                     // Optional hover feedback: a theme opts in by setting
                     // --dv-tab-inactive-hover-background-color. Unset, it
@@ -62,12 +99,24 @@
     }
     &.dv-inactive-group {
         > .dv-tabs-and-actions-container {
+            // Optional rule under the strip in the visible tab's fill
+            // (`--dv-tabs-and-actions-container-border-bottom-width`).
+            border-bottom: var(
+                    --dv-tabs-and-actions-container-border-bottom-width,
+                    0px
+                )
+                solid var(--dv-inactivegroup-visiblepanel-tab-background-color);
+
             .dv-tabs-container > .dv-tab {
                 &.dv-active-tab {
                     background-color: var(
                         --dv-inactivegroup-visiblepanel-tab-background-color
                     );
                     color: var(--dv-inactivegroup-visiblepanel-tab-color);
+                    // Optional accent edge along the tab's top, in the tab's
+                    // own fill (`--dv-tab-border-top-width`, 0 by default).
+                    border-top: var(--dv-tab-border-top-width, 0px) solid
+                        var(--dv-inactivegroup-visiblepanel-tab-background-color);
                     background-image: linear-gradient(
                         var(--dv-inactivegroup-tab-marker-color),
                         var(--dv-inactivegroup-tab-marker-color)
@@ -78,6 +127,10 @@
                         --dv-inactivegroup-hiddenpanel-tab-background-color
                     );
                     color: var(--dv-inactivegroup-hiddenpanel-tab-color);
+                    // Optional accent edge along the tab's top, in the tab's
+                    // own fill (`--dv-tab-border-top-width`, 0 by default).
+                    border-top: var(--dv-tab-border-top-width, 0px) solid
+                        var(--dv-inactivegroup-hiddenpanel-tab-background-color);
 
                     // See the active-group note above; falls back to this
                     // tab's own background so unset themes are unaffected.

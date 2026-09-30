@@ -37,10 +37,13 @@
 // Auto-hide edge group "peek": the active panel slid out over the content. The
 // backdrop, the peeked content, and the Pin header are three separate sibling
 // overlays (the `always` render overlay can't be nested), layered by z-index.
+// Shape tokens: `--dv-edge-peek-border`, `--dv-edge-peek-box-shadow`, and
+// `--dv-edge-peek-border-radius` (the title bar takes the top corners, the
+// backdrop and its clip the bottom ones).
 .dv-edge-peek {
     background-color: var(--dv-group-view-background-color);
-    border: 1px solid var(--dv-separator-border);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    border: var(--dv-edge-peek-border, 1px solid var(--dv-separator-border));
+    box-shadow: var(--dv-edge-peek-box-shadow, 0 6px 16px rgba(0, 0, 0, 0.4));
 
     // the reparented content container fills the backdrop
     > * {
@@ -48,6 +51,12 @@
         height: 100%;
         overflow: auto;
     }
+}
+
+.dv-edge-peek,
+.dv-edge-peek-clip {
+    border-bottom-left-radius: var(--dv-edge-peek-border-radius, 0px);
+    border-bottom-right-radius: var(--dv-edge-peek-border-radius, 0px);
 }
 
 // Drag-reveal edge indicator: a thin accent line hugging the content-area edge
@@ -73,8 +82,10 @@
     padding: 0 4px 0 8px;
     box-sizing: border-box;
     background-color: var(--dv-group-view-background-color);
-    border: 1px solid var(--dv-separator-border);
+    border: var(--dv-edge-peek-border, 1px solid var(--dv-separator-border));
     border-bottom: none;
+    border-top-left-radius: var(--dv-edge-peek-border-radius, 0px);
+    border-top-right-radius: var(--dv-edge-peek-border-radius, 0px);
     color: var(--dv-activegroup-visiblepanel-tab-color);
     font-size: 12px;
 
@@ -124,7 +135,20 @@
     width: 100%;
     height: 100%;
     box-sizing: border-box;
-    padding: var(--dv-floating-inset);
+    padding: var(--dv-floating-inset, 0px);
+}
+
+// Below a title bar the top inset can differ (the bar already frames the top).
+.dv-resize-container-with-titlebar > .dv-grid-view {
+    padding-top: var(
+        --dv-floating-inset-below-titlebar,
+        var(--dv-floating-inset, 0px)
+    );
+}
+
+// Border drawn around each group inside a floating window.
+.dv-resize-container .dv-groupview {
+    border: var(--dv-floating-group-border, none);
 }
 
 // When a dedicated drag-handle title bar is present the overlay stacks the
@@ -214,10 +238,8 @@
     border-top-right-radius: var(--dv-floating-border-radius);
 }
 
-// This ties the spaced themes' own floating content-radius rule on specificity
-// (both 0,3,0); the spaced value wins by source order because theme.scss (which
-// imports _space-mixin.scss) is concatenated after overlay.scss. Non-spaced
-// themes leave --dv-floating-border-radius at 0, so this is inert for them.
+// The content's bottom corners follow the window's (this outranks the general
+// `--dv-content-border-radius` rule inside a floating window).
 .dv-resize-container .dv-groupview > .dv-content-container {
     border-bottom-left-radius: var(--dv-floating-border-radius);
     border-bottom-right-radius: var(--dv-floating-border-radius);
