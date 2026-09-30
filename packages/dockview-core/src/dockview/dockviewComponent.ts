@@ -1,5 +1,7 @@
 import {
     getRelativeLocation,
+    getDirectionOrientation,
+    getLocationOrientation,
     SerializedGridObject,
     getGridLocation,
     ISerializedLeafNode,
@@ -14,6 +16,7 @@ import {
     PositionResolver,
 } from '../dnd/droptarget';
 import { tail, sequenceEquals } from '../array';
+import { DndCapabilities, resolveDndCapabilities } from './dndCapabilities';
 import { DockviewPanel, IDockviewPanel } from './dockviewPanel';
 import {
     CompositeDisposable,
@@ -122,7 +125,12 @@ import {
     DockviewPanelRenderer,
     OverlayRenderContainer,
 } from '../overlay/overlayRenderContainer';
-import { PopoutWindow } from '../popoutWindow';
+import {
+    getPopoutUrlError,
+    PopoutWindow,
+    PopoutWindowEvent,
+    PopoutWindowFailure,
+} from '../popoutWindow';
 import { StrictEventsSequencing } from './strictEventsSequencing';
 import { PopupService } from './components/popupService';
 import { IRootDropTargetHost } from './rootDropTargetService';
@@ -143,6 +151,22 @@ import {
     DockviewTabGroupColorEntry,
     TabGroupColorPalette,
 } from './tabGroupAccent';
+
+/**
+ * An error says the most about why, so it wins; a blocked window has none, and
+ * its usual cause is more useful than its name.
+ */
+function logFailedPopout(failure: PopoutWindowFailure): void {
+    if (failure.error) {
+        console.error('dockview: failed to create popout.', failure.error);
+    } else if (failure.reason === 'blocked') {
+        console.error(
+            'dockview: failed to create popout. perhaps you need to allow pop-ups for this website'
+        );
+    } else {
+        console.error(`dockview: failed to create popout (${failure.reason}).`);
+    }
+}
 
 function buildTabGroupColorPalette(options: {
     tabGroupColors?: DockviewTabGroupColorEntry[];
@@ -183,8 +207,16 @@ export interface DockviewPopoutGroupOptions {
      * Defaults to `/popout.html` if not provided
      */
     popoutUrl?: string;
-    onDidOpen?: (event: { id: string; window: Window }) => void;
-    onWillClose?: (event: { id: string; window: Window }) => void;
+    /**
+     * Called once this popout's window has opened, before its group is moved in.
+     * Scoped to this call; `onDidAddPopoutGroup` covers every popout.
+     */
+    onDidOpen?: (event: PopoutWindowEvent) => void;
+    /**
+     * Called while this popout's window is still open, as dockview lets go of
+     * it. Scoped to this call; `onWillClosePopoutWindow` covers every popout.
+     */
+    onWillClose?: (event: PopoutWindowEvent) => void;
 }
 
 interface DockviewPopoutGroupOptionsInternal
@@ -415,7 +447,8 @@ export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
     readonly onDidPopoutGroupPositionChange: Event<PopoutGroupChangePositionEvent>;
     readonly onDidAddPopoutGroup: Event<PopoutGroup>;
     readonly onDidRemovePopoutGroup: Event<PopoutGroup>;
-    readonly onDidOpenPopoutWindowFail: Event<void>;
+    readonly onDidOpenPopoutWindowFail: Event<PopoutWindowFailure>;
+    readonly onWillClosePopoutWindow: Event<PopoutWindowEvent>;
     getPopouts(): PopoutGroup[];
     readonly onDidCreateTabGroup: Event<DockviewTabGroupChangeEvent>;
     readonly onDidDestroyTabGroup: Event<DockviewTabGroupChangeEvent>;
@@ -424,6 +457,7 @@ export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
     readonly onDidTabGroupChange: Event<DockviewTabGroupChangeEvent>;
     readonly onDidTabGroupCollapsedChange: Event<DockviewTabGroupCollapsedChangeEvent>;
     readonly options: DockviewComponentOptions;
+    readonly dndCapabilities: DndCapabilities;
     readonly tabGroupColorPalette: TabGroupColorPalette;
     updateOptions(options: DockviewOptions): void;
     moveGroupOrPanel(options: MoveGroupOrPanelOptions): void;
@@ -641,9 +675,17 @@ export class DockviewComponent
      *  state (e.g. a live region in each popout). */
     readonly onDidChangePopouts: Event<void> = this._onDidChangePopouts.event;
 
-    private readonly _onDidOpenPopoutWindowFail = new Emitter<void>();
-    readonly onDidOpenPopoutWindowFail: Event<void> =
+    private readonly _onDidOpenPopoutWindowFail =
+        new Emitter<PopoutWindowFailure>();
+    readonly onDidOpenPopoutWindowFail: Event<PopoutWindowFailure> =
         this._onDidOpenPopoutWindowFail.event;
+
+    private readonly _onWillClosePopoutWindow =
+        new Emitter<PopoutWindowEvent>();
+    /** Fires for every popout window this component opened, however it was
+     *  opened, while that window is still there. See `DockviewApi`. */
+    readonly onWillClosePopoutWindow: Event<PopoutWindowEvent> =
+        this._onWillClosePopoutWindow.event;
 
     private readonly _onDidStartFloatingGroupDrag =
         new Emitter<DockviewGroupPanel>();
@@ -775,6 +817,11 @@ export class DockviewComponent
 
     get panels(): IDockviewPanel[] {
         return this.groups.flatMap((group) => group.panels);
+    }
+
+    /** `dndStrategy` resolved against this device; see `DockviewApi`. */
+    get dndCapabilities(): DndCapabilities {
+        return resolveDndCapabilities(this.options);
     }
 
     get options(): DockviewComponentOptions {
@@ -1756,7 +1803,11 @@ export class DockviewComponent
                 // don't hang. See issue #851.
                 this._moduleRegistry.dispose();
                 this._shellManager?.dispose();
-            })
+            }),
+            // Disposed after the registry above, which closes any open popout
+            // windows: its listeners have to outlive that step, and disposables
+            // run in registration order.
+            this._onWillClosePopoutWindow
         );
 
         // Root edge-drop wiring lives with its (optional) module; guard it so
@@ -1793,6 +1844,13 @@ export class DockviewComponent
         // Modules subscribe to host events here so the component doesn't
         // need to manually invoke them at scattered call sites.
         this._moduleRegistry.postConstruct(this);
+
+        // Seed the layout now that construction is complete, so anything built
+        // before the shell's ResizeObserver first reports - panels added
+        // straight after `createDockview` - sizes against the real dimensions
+        // rather than zero. The shell owns sizing here; this component's own
+        // Resizable observer is disabled above.
+        this._shellManager.layoutFromElement();
     }
 
     override setVisible(panel: DockviewGroupPanel, visible: boolean): void {
@@ -1940,18 +1998,25 @@ export class DockviewComponent
         // actually opening the window, not baked into saved layouts.
         const resolvedPopoutUrl = options?.popoutUrl ?? this.options?.popoutUrl;
 
+        const popoutUrl = resolvedPopoutUrl ?? '/popout.html';
+
         const _window = new PopoutWindow(
             `${this.id}-${groupId}`, // unique id
             theme ?? '',
             {
-                url: resolvedPopoutUrl ?? '/popout.html',
+                url: popoutUrl,
                 left: box.left,
                 top: box.top,
                 width: box.width,
                 height: box.height,
                 onDidOpen: options?.onDidOpen,
-                onWillClose: options?.onWillClose,
+                onWillClose: (event) => {
+                    // the call's own callback first, then the component-wide event
+                    options?.onWillClose?.(event);
+                    this._onWillClosePopoutWindow.fire(event);
+                },
                 nonce: this.options?.nonce,
+                styleRoot: () => this.element.getRootNode(),
             }
         );
 
@@ -1962,10 +2027,25 @@ export class DockviewComponent
             })
         );
 
-        return _window
-            .open()
+        // A URL the guard refuses - a packaged desktop shell serving the app
+        // from a custom protocol, say - is settled here rather than by catching
+        // the rejection from `open()`, so it reaches the same blocked-window
+        // fallback below and the group is returned to the grid instead of being
+        // left registered but unparented. Chaining a `.catch` would instead add
+        // a microtask hop to the path where the window does open.
+        const openError = getPopoutUrlError(popoutUrl);
+
+        return (openError ? Promise.resolve(null) : _window.open())
             .then((popoutContainer) => {
                 if (_window.isDisposed) {
+                    // Gone while opening, so nothing has left the grid and there
+                    // is no group to return - but the caller is owed the reason,
+                    // unless this component is itself being disposed.
+                    const failure = _window.failure;
+                    if (failure && !this.isDisposed) {
+                        logFailedPopout(failure);
+                        this._onDidOpenPopoutWindowFail.fire(failure);
+                    }
                     return false;
                 }
 
@@ -2008,6 +2088,9 @@ export class DockviewComponent
                         referenceGroup,
                         options,
                         popoutWindowDisposable,
+                        failure: openError
+                            ? { reason: 'url-refused', error: openError }
+                            : (_window.failure ?? { reason: 'blocked' }),
                     });
                     return false;
                 }
@@ -2310,26 +2393,32 @@ export class DockviewComponent
     }
 
     /**
-     * The popout window was blocked (e.g. by the browser's popup blocker,
-     * common when restoring popouts on load). Fall back gracefully so the
-     * group(s) end up valid and visible in the main grid rather than as
-     * orphans that later crash clear()/remove().
+     * The popout window never opened - blocked by the browser's popup blocker
+     * (common when restoring popouts on load), or refused outright because its
+     * URL failed the same-origin guard. Fall back gracefully so the group(s)
+     * end up valid and visible in the main grid rather than as orphans that
+     * render nothing and later crash clear()/remove().
      */
     private handleBlockedPopout(params: {
         group: DockviewGroupPanel;
         referenceGroup: DockviewGroupPanel;
         options?: DockviewPopoutGroupOptionsInternal;
         popoutWindowDisposable: CompositeDisposable;
+        /** Which way the window failed, reported to consumers. */
+        failure: PopoutWindowFailure;
     }): void {
-        const { group, referenceGroup, options, popoutWindowDisposable } =
-            params;
+        const {
+            group,
+            referenceGroup,
+            options,
+            popoutWindowDisposable,
+            failure,
+        } = params;
 
-        console.error(
-            'dockview: failed to create popout. perhaps you need to allow pop-ups for this website'
-        );
+        logFailedPopout(failure);
 
         popoutWindowDisposable.dispose();
-        this._onDidOpenPopoutWindowFail.fire();
+        this._onDidOpenPopoutWindowFail.fire(failure);
 
         if (options?.overridePopoutGridview) {
             // Restoring a multi-group popout window: its nested gridview was
@@ -2620,11 +2709,15 @@ export class DockviewComponent
 
             this.movingLock(() =>
                 this.removePanel(item, {
-                    removeEmptyGroup: true,
+                    removeEmptyGroup: false,
                     skipDispose: true,
                     skipSetActiveGroup: true,
                 })
             );
+
+            // outside `movingLock`: this group is destroyed rather than
+            // relocated, so its removal is owed an event
+            this.removeGroupIfEmpty(sourceGroup);
 
             this.movingLock(() =>
                 group.model.openPanel(item, { skipSetGroupActive: true })
@@ -2758,6 +2851,12 @@ export class DockviewComponent
 
         for (const { panel, from } of movedPanels) {
             this.fireDidMovePanel(panel, from);
+        }
+    }
+
+    private removeGroupIfEmpty(group: DockviewGroupPanel): void {
+        if (group.model.size === 0) {
+            this.doRemoveGroup(group, { skipActive: true });
         }
     }
 
@@ -3094,6 +3193,25 @@ export class DockviewComponent
             group.model.location = { type: 'edge', position };
             group.model.headerPosition = position;
 
+            // `setSize` surfaces as the group's `onDidChange` — consumed by a
+            // gridview LeafNode for a grid group, the overlay for a floating
+            // one, and the shell splitview for an edge group.
+            const resizeDisposable = group.onDidChange((event) => {
+                if (!event) {
+                    // constraint change, not a size request
+                    return;
+                }
+                const size =
+                    position === 'left' || position === 'right'
+                        ? event.width
+                        : event.height;
+                if (typeof size !== 'number') {
+                    // cross axis, which the shell splitview does not own
+                    return;
+                }
+                this._shellManager?.resizeEdgeGroup(position, size);
+            });
+
             // When the group becomes empty: an auto-reveal edge tears down to
             // zero footprint; every other edge group collapses to its strip.
             const autoCollapseDisposable = group.model.onDidRemovePanel(() => {
@@ -3118,7 +3236,14 @@ export class DockviewComponent
                 }
             });
 
-            service.add(position, group, autoCollapseDisposable);
+            service.add(
+                position,
+                group,
+                new CompositeDisposable(
+                    autoCollapseDisposable,
+                    resizeDisposable
+                )
+            );
             if (options.autoHide !== undefined) {
                 service.setAutoHide(group, options.autoHide);
             }
@@ -4182,7 +4307,7 @@ export class DockviewComponent
 
             return popoutService.scheduleRestoration(
                 index * DESERIALIZATION_POPOUT_DELAY_MS,
-                () => {
+                () =>
                     this.addPopoutGroup(group, {
                         position: position ?? undefined,
                         overridePopoutGroup: gridReferenceGroup
@@ -4193,8 +4318,7 @@ export class DockviewComponent
                             ? this.getPanel(gridReferenceGroup)
                             : undefined,
                         popoutUrl: url,
-                    });
-                },
+                    }),
                 () => {
                     // The group was registered in _groups synchronously but the
                     // timer that would parent it into the popout window never
@@ -5253,7 +5377,9 @@ export class DockviewComponent
 
                     const newGroup = this.createGroupAtLocation(
                         updatedTargetLocation,
-                        undefined,
+                        this.dropSizing(
+                            getGridLocation(destinationGroup.element)
+                        ),
                         undefined,
                         destinationGridview
                     );
@@ -5293,7 +5419,7 @@ export class DockviewComponent
 
                     const newGroup = this.createGroupAtLocation(
                         targetLocation,
-                        undefined,
+                        this.dropSizing(referenceLocation),
                         undefined,
                         destinationGridview
                     );
@@ -5330,7 +5456,7 @@ export class DockviewComponent
                     this.doAddGroup(
                         targetGroup,
                         location,
-                        undefined,
+                        this.dropSizing(updatedReferenceLocation),
                         destinationGridview
                     )
                 );
@@ -5368,7 +5494,7 @@ export class DockviewComponent
 
                 const group = this.createGroupAtLocation(
                     dropLocation,
-                    undefined,
+                    this.dropSizing(referenceLocation),
                     undefined,
                     destinationGridview
                 );
@@ -5483,7 +5609,10 @@ export class DockviewComponent
                 referenceLocation,
                 destinationTarget
             );
-            targetGroup = this.createGroupAtLocation(dropLocation);
+            targetGroup = this.createGroupAtLocation(
+                dropLocation,
+                this.dropSizing(referenceLocation)
+            );
         }
 
         // Remove the source group if it became empty. We compare against
@@ -5596,6 +5725,50 @@ export class DockviewComponent
                 this.doSetGroupAndPanelActive(to);
             }
         } else {
+            // A pure reorder: `from` and `to` are siblings in one branch and
+            // the drop runs along that branch's grain, so the branch loses and
+            // regains exactly the moved group's size. Read before the detach
+            // below, which invalidates both grid locations.
+            const isReorderWithinBranch = ((): boolean => {
+                // Edge groups are structural slots, never branch siblings,
+                // and sit outside any gridview root.
+                if (
+                    from.api.location.type === 'edge' ||
+                    to.api.location.type === 'edge'
+                ) {
+                    return false;
+                }
+                // A floating or popout window has a gridview of its own, so
+                // require the same root: locations from two roots are not
+                // comparable and match by coincidence — every top-level group
+                // has `[]` for a parent path, in every root.
+                const root = this.getGridviewForGroup(from);
+                if (root !== this.getGridviewForGroup(to)) {
+                    return false;
+                }
+                let fromLocation: number[];
+                let toLocation: number[];
+                try {
+                    fromLocation = getGridLocation(from.element);
+                    toLocation = getGridLocation(to.element);
+                } catch {
+                    // Throws for an element detached from its root, which a
+                    // group mid-move through a floating window can briefly be.
+                    return false;
+                }
+                if (fromLocation.length === 0 || toLocation.length === 0) {
+                    return false;
+                }
+                return (
+                    sequenceEquals(
+                        tail(fromLocation)[0],
+                        tail(toLocation)[0]
+                    ) &&
+                    getLocationOrientation(root.orientation, toLocation) ===
+                        getDirectionOrientation(target)
+                );
+            })();
+
             if (from.api.location.type === 'edge') {
                 /**
                  * Edge groups are permanent structural elements and must
@@ -5740,21 +5913,23 @@ export class DockviewComponent
                     target
                 );
 
-                let size: number;
+                // A reorder keeps the group's own size, measured along the
+                // branch's axis. Any other move takes its room from the group
+                // it was dropped on, the only space on offer: the reference is
+                // either wrapped in a fresh branch the two now share, or sits
+                // in a row whose extent is already spoken for (#1612).
+                let size: number | Sizing;
 
-                switch (destGridview.orientation) {
-                    case Orientation.VERTICAL:
-                        size =
-                            referenceLocation.length % 2 == 0
-                                ? from.api.width
-                                : from.api.height;
-                        break;
-                    case Orientation.HORIZONTAL:
-                        size =
-                            referenceLocation.length % 2 == 0
-                                ? from.api.height
-                                : from.api.width;
-                        break;
+                if (isReorderWithinBranch) {
+                    size =
+                        getDirectionOrientation(target) ===
+                        Orientation.HORIZONTAL
+                            ? from.api.width
+                            : from.api.height;
+                } else {
+                    size = Sizing.Split(
+                        referenceLocation[referenceLocation.length - 1] ?? 0
+                    );
                 }
 
                 destGridview.addView(source, size, dropLocation);
@@ -5974,9 +6149,24 @@ export class DockviewComponent
         return panel;
     }
 
+    /**
+     * Sizing for a group created by a drop next to `referenceLocation`: half
+     * of the group the overlay was drawn over, leaving its siblings alone, so
+     * the panel lands in the region the overlay indicated (#1612). Gridview
+     * rewrites the index to 0 when a cross-axis drop wraps the reference in a
+     * new branch, so one value serves both paths.
+     */
+    private dropSizing(referenceLocation: number[]): Sizing {
+        return Sizing.Split(
+            referenceLocation.length === 0
+                ? 0
+                : referenceLocation[referenceLocation.length - 1]
+        );
+    }
+
     private createGroupAtLocation(
         location: number[],
-        size?: number,
+        size?: number | Sizing,
         options?: GroupOptions,
         gridview: Gridview = this.gridview
     ): DockviewGroupPanel {

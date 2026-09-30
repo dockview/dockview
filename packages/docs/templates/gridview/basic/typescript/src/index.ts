@@ -54,9 +54,6 @@ const api = createGridview(container, {
     },
 });
 
-// Layout BEFORE adding panels (critical for gridview)
-api.layout(container.clientWidth, container.clientHeight);
-
 const panel1 = api.addPanel({
     id: 'panel_1',
     component: 'default',

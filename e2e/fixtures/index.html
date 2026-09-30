@@ -48,8 +48,32 @@
                     '[KeyId:TEST]_[Company:Tests]_[Plan:team]_[AppName:Tests]_[Email:test@test]_[ValidFrom:01_Jan_2020]_[ValidUntil:01_Jan_2999]__8d12a26c8376cc3b'
                 );
 
-                const el = document.getElementById('app');
                 const params = new URLSearchParams(location.search);
+                // `?shadow=1` mounts the dock inside an open shadow root, the
+                // web-component case (a Lit host, say). The stylesheet is
+                // linked in <head>, which shadow DOM does not inherit, so copy
+                // it into the root as a real host would.
+                let el = document.getElementById('app');
+                if (params.get('shadow') === '1') {
+                    const shadowHost = document.createElement('div');
+                    shadowHost.id = 'shadow-host';
+                    // The `#app` rule in <head> styles the original mount;
+                    // the host needs the size inline to fill the page.
+                    shadowHost.style.cssText = 'height:100%;width:100%;';
+                    el.replaceWith(shadowHost);
+                    const shadowRoot = shadowHost.attachShadow({
+                        mode: 'open',
+                    });
+                    const link = document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.href =
+                        '/packages/dockview-core/dist/styles/dockview.css';
+                    const mount = document.createElement('div');
+                    mount.id = 'app';
+                    mount.style.cssText = 'height:100%;width:100%;';
+                    shadowRoot.append(link, mount);
+                    el = mount;
+                }
                 // Opt-in multi-row (wrapping) tabs via `?overflow=wrap` so the
                 // wrap behaviour is exercised without affecting other specs.
                 // `?maxRows=N` caps the header at N rows (surplus spills to the
@@ -157,7 +181,25 @@
                     // `?dnd=html5` swaps in the native HTML5 backend (needed to
                     // exercise the pinned row's pin-by-drag-in path, which reads
                     // the drag payload the main strip's HTML5 source populates).
-                    dndCompass: true,
+                    // `?compass=0` turns the compass off so the plain
+                    // cursor-quadrant drop resolution can be exercised; on by
+                    // default so the compass specs are unaffected.
+                    dndCompass: params.get('compass') !== '0',
+                    // `?dndEdges=N` widens the root edge-dock activation band
+                    // to N pixels so the tab strip falls inside it (the 10px
+                    // default leaves the strip clear of the band). Inert when
+                    // absent, so other specs keep the default band.
+                    ...(params.get('dndEdges')
+                        ? {
+                              dndEdges: {
+                                  activationSize: {
+                                      type: 'pixels',
+                                      value: Number(params.get('dndEdges')),
+                                  },
+                                  size: { type: 'pixels', value: 20 },
+                              },
+                          }
+                        : {}),
                     dndStrategy:
                         params.get('dnd') === 'html5' ? 'html5' : 'pointer',
                     // Custom drop-position resolver (opt-in via `?resolver=`),
@@ -655,6 +697,25 @@
                     activeGroupId: () => dockview.activeGroup?.id,
                     // Two side-by-side groups for keyboard navigation — like
                     // setupDndCompass but with stable ids the spec can compare.
+                    // Four groups in the four quadrants, with stable ids, for
+                    // drop-target boundary specs.
+                    setupQuad: () => {
+                        panels['tl'] = dockview.addPanel({
+                            id: 'tl', component: 'default', title: 'tl',
+                        });
+                        panels['tr'] = dockview.addPanel({
+                            id: 'tr', component: 'default', title: 'tr',
+                            position: { direction: 'right', referencePanel: 'tl' },
+                        });
+                        panels['bl'] = dockview.addPanel({
+                            id: 'bl', component: 'default', title: 'bl',
+                            position: { direction: 'below', referencePanel: 'tl' },
+                        });
+                        panels['br'] = dockview.addPanel({
+                            id: 'br', component: 'default', title: 'br',
+                            position: { direction: 'below', referencePanel: 'tr' },
+                        });
+                    },
                     setupTwoGroups: () => {
                         panels['one'] = dockview.addPanel({
                             id: 'one',
@@ -706,6 +767,61 @@
                     // that must stay repeatable (#1410). Flat order is
                     // red,green,blue,yellow so the chips render Feature then
                     // Monitoring. Returns the ids the spec needs.
+                    // Two dockview groups side by side, each with its own
+                    // tab group: a chip in the left group, grouped tabs in the
+                    // right. Dragging the left chip onto a grouped tab in the
+                    // right group is a *cross-group* move, which is a separate
+                    // commit path from reordering within one strip.
+                    setupCrossGroupTabGroups: () => {
+                        for (const id of ['red', 'green']) {
+                            panels[id] = dockview.addPanel({
+                                id,
+                                component: 'default',
+                                title: id,
+                            });
+                        }
+                        for (const id of ['blue', 'yellow']) {
+                            panels[id] = dockview.addPanel({
+                                id,
+                                component: 'default',
+                                title: id,
+                                position: {
+                                    referencePanel: 'red',
+                                    direction: 'right',
+                                },
+                            });
+                        }
+
+                        const left = panels['red'].group.id;
+                        const right = panels['blue'].group.id;
+
+                        const feature = dockview.api.createTabGroup({
+                            groupId: left,
+                            label: 'Feature',
+                        });
+                        for (const panelId of ['red', 'green']) {
+                            dockview.api.addPanelToTabGroup({
+                                groupId: left,
+                                tabGroupId: feature.id,
+                                panelId,
+                            });
+                        }
+
+                        const monitoring = dockview.api.createTabGroup({
+                            groupId: right,
+                            label: 'Monitoring',
+                        });
+                        for (const panelId of ['blue', 'yellow']) {
+                            dockview.api.addPanelToTabGroup({
+                                groupId: right,
+                                tabGroupId: monitoring.id,
+                                panelId,
+                            });
+                        }
+
+                        return { left, right };
+                    },
+                    groupOf: (id) => panels[id] && panels[id].group.id,
                     setupTwoTabGroupChips: () => {
                         for (const id of ['red', 'green', 'blue', 'yellow']) {
                             panels[id] = dockview.addPanel({
@@ -737,6 +853,69 @@
                                 panelId,
                             });
                         }
+                        return {
+                            groupId,
+                            featureId: feature.id,
+                            monitoringId: monitoring.id,
+                        };
+                    },
+                    // The docs "Tab Groups" template layout: an expanded
+                    // Feature group, an ungrouped Billing tab and a collapsed
+                    // Monitoring group in a single group. The mixed
+                    // grouped/ungrouped strip that chip reorder drags cross.
+                    setupTemplateTabGroups: () => {
+                        const titles = {
+                            panel_1: 'Dashboard',
+                            panel_2: 'Settings',
+                            panel_3: 'Users',
+                            panel_4: 'Analytics',
+                            panel_5: 'Reports',
+                            panel_6: 'Billing',
+                            panel_7: 'Notifications',
+                            panel_8: 'Logs',
+                        };
+                        for (const id of Object.keys(titles)) {
+                            panels[id] = dockview.addPanel({
+                                id,
+                                component: 'default',
+                                title: titles[id],
+                            });
+                        }
+                        const groupId = panels['panel_1'].group.id;
+                        const feature = dockview.api.createTabGroup({
+                            groupId,
+                            label: 'Feature',
+                            color: 'blue',
+                        });
+                        for (const panelId of [
+                            'panel_1',
+                            'panel_2',
+                            'panel_3',
+                            'panel_4',
+                        ]) {
+                            dockview.api.addPanelToTabGroup({
+                                groupId,
+                                tabGroupId: feature.id,
+                                panelId,
+                            });
+                        }
+                        const monitoring = dockview.api.createTabGroup({
+                            groupId,
+                            label: 'Monitoring',
+                            color: 'purple',
+                        });
+                        for (const panelId of [
+                            'panel_5',
+                            'panel_7',
+                            'panel_8',
+                        ]) {
+                            dockview.api.addPanelToTabGroup({
+                                groupId,
+                                tabGroupId: monitoring.id,
+                                panelId,
+                            });
+                        }
+                        monitoring.collapse();
                         return {
                             groupId,
                             featureId: feature.id,
@@ -875,6 +1054,79 @@
                     },
                     peekEdge: (position, on) =>
                         dockview.api.peekEdgeGroup(position, on),
+                    // A two-group centre split (something to redistribute
+                    // against) plus an edge group at `position` holding one
+                    // panel. `autoHide: false` keeps it statically docked,
+                    // since the harness turns `autoHideEdgeGroups` on globally.
+                    setupEdgeSizing: (position) => {
+                        const pos = position || 'left';
+                        dockview.addPanel({
+                            id: 'main',
+                            component: 'default',
+                            title: 'main',
+                        });
+                        dockview.addPanel({
+                            id: 'other',
+                            component: 'default',
+                            title: 'other',
+                            position: { direction: 'right' },
+                        });
+                        dockview.addEdgeGroup(pos, {
+                            id: 'edge-' + pos,
+                            initialSize: 260,
+                            autoHide: false,
+                        });
+                        dockview.addPanel({
+                            id: 'side',
+                            component: 'default',
+                            title: 'side',
+                            position: {
+                                referenceGroup: 'edge-' + pos,
+                                direction: 'within',
+                            },
+                        });
+                    },
+                    setEdgeGroupSize: (position, size) =>
+                        dockview.getEdgeGroup(position)?.setSize(size),
+                    collapseEdgeGroup: (position) =>
+                        dockview.getEdgeGroup(position)?.collapse(),
+                    expandEdgeGroup: (position) =>
+                        dockview.getEdgeGroup(position)?.expand(),
+                    // A second dockview whose edge group is created — and
+                    // optionally sized — synchronously at construction, before
+                    // the ResizeObserver has fired: the ordering a real app
+                    // hits, which the first layout has to honour.
+                    setupPreLayoutEdge: (width) => {
+                        const host = document.createElement('div');
+                        host.id = 'pre-layout';
+                        host.style.cssText =
+                            'position:fixed;inset:0;width:800px;height:600px;background:#fff;';
+                        document.body.appendChild(host);
+                        const dv = new lib.DockviewComponent(host, {
+                            createComponent: (o) => {
+                                const e = document.createElement('div');
+                                e.className = 'dv-test-panel';
+                                e.textContent = o.id;
+                                return { element: e, init() {}, dispose() {} };
+                            },
+                        });
+                        dv.addPanel({ id: 'pre-main', component: 'default' });
+                        dv.addEdgeGroup('left', {
+                            id: 'pre-edge',
+                            initialSize: 260,
+                        });
+                        dv.addPanel({
+                            id: 'pre-side',
+                            component: 'default',
+                            position: {
+                                referenceGroup: 'pre-edge',
+                                direction: 'within',
+                            },
+                        });
+                        if (typeof width === 'number') {
+                            dv.getEdgeGroup('left').setSize({ width });
+                        }
+                    },
                     // Two floating groups for Smart Guides: a target float on
                     // the left (left edge ~120) and a draggable float to its
                     // right. Dragging the right one near x=120 should snap +

@@ -12,7 +12,14 @@ const config: Config = {
         '<rootDir>/packages/dockview-react/src/__tests__/__mocks__/resizeObserver.js',
     ],
     setupFilesAfterEnv: ['<rootDir>/jest-setup.ts'],
-    coveragePathIgnorePatterns: ['/node_modules/'],
+    // Report coverage only for this package. `moduleNameMapper` points the
+    // other dockview packages at their source, so specs here load those files
+    // and jest emits a second, near-empty coverage map for each; merging the
+    // two instrumentations of one file overwrites the real counters.
+    coveragePathIgnorePatterns: [
+        '/node_modules/',
+        '<rootDir>/packages/(?!dockview-react/)[^/]+/src/',
+    ],
     moduleNameMapper: {
         '^dockview-core$': '<rootDir>/packages/dockview-core/src/index.ts',
         '^dockview$': '<rootDir>/packages/dockview/src/index.ts',

@@ -193,6 +193,42 @@ describe('PointerDragSource', () => {
         source.dispose();
     });
 
+    test('shields text selection from pointerdown until the gesture ends', () => {
+        const element = document.createElement('div');
+        document.body.appendChild(element);
+        const root = document.documentElement;
+
+        const source = new PointerDragSource(element, {
+            getData: () => ({ dispose: jest.fn() }),
+            touchOnly: false,
+        });
+        const mouse = (overrides: Partial<PointerEventInit> = {}) =>
+            pointerEventInit({ pointerType: 'mouse', ...overrides });
+
+        // The browser starts selecting from the pointerdown, well before the
+        // drag threshold is cleared, so the shield must be up from here.
+        fireEvent.pointerDown(element, mouse());
+        expect(root.style.getPropertyValue('user-select')).toBe('none');
+
+        // A press that never becomes a drag releases it on pointerup.
+        fireEvent.pointerUp(window, mouse());
+        expect(root.style.getPropertyValue('user-select')).toBe('');
+
+        // Across the hand-over to the controller the shield stays up ...
+        fireEvent.pointerDown(element, mouse());
+        fireEvent.pointerMove(window, mouse({ clientX: 10 }));
+        expect(PointerDragController.getInstance().active).toBeDefined();
+        expect(root.style.getPropertyValue('user-select')).toBe('none');
+
+        // ... and comes down with the drag.
+        fireEvent.pointerUp(window, mouse({ clientX: 10 }));
+        expect(PointerDragController.getInstance().active).toBeUndefined();
+        expect(root.style.getPropertyValue('user-select')).toBe('');
+
+        source.dispose();
+        document.body.removeChild(element);
+    });
+
     test('a pointerup before threshold cancels the pending gesture', () => {
         const element = document.createElement('div');
         document.body.appendChild(element);

@@ -9,6 +9,7 @@ import {
     createCloseButton,
     createDismissableLayer,
     createPinButton,
+    getActiveElement,
     prefersReducedMotion,
     resolveOpaqueBackground,
     IAutoHideEdgeGroupHost,
@@ -607,6 +608,11 @@ class EdgeGroupController extends CompositeDisposable {
                 resize: true,
                 focusOut: true,
                 isFocusInside: withinCentre,
+                // The peek decides inside/outside by geometry, so it has no
+                // `elements` to locate its shadow roots from. Without this a
+                // focus move within a shadow-hosted dock never reaches the
+                // window and the peek stays open.
+                anchor: () => this.group.element,
             })
         );
     }
@@ -621,11 +627,12 @@ class EdgeGroupController extends CompositeDisposable {
         }
         // If focus is inside the peek (a keyboard close: Esc / pin / close),
         // return it to the strip tab so it isn't dropped onto <body>.
-        const doc = this.group.element.ownerDocument;
+        // (Read via the strip's root node so a shadow-hosted dock sees the
+        // focused element, not the shadow host.)
+        const active = getActiveElement(this.group.element);
         const restoreFocus =
-            doc.activeElement instanceof Node &&
-            (peek.overlay.contains(doc.activeElement) ||
-                peek.header.contains(doc.activeElement));
+            active instanceof Node &&
+            (peek.overlay.contains(active) || peek.header.contains(active));
         // Restore the content container before removing the overlay.
         peek.content.style.width = '';
         peek.content.style.height = '';

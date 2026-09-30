@@ -197,6 +197,13 @@ export interface DroptargetOptions {
      * `undefined` (the default) uses the built-in cursor-quadrant logic.
      */
     getPositionResolver?: () => PositionResolver | undefined;
+    /**
+     * Pointer backend only: skip this target during hit-testing so the ancestor
+     * walk continues past it, making an element a hit-test stop for some
+     * payloads and transparent for the rest. The HTML5 backend ignores it —
+     * propagation there is the DOM event flow's job.
+     */
+    isHitTestTransparent?: () => boolean;
 }
 
 /**
@@ -211,6 +218,10 @@ export interface IDropTarget extends IDisposable {
     disabled: boolean;
     setTargetZones(zones: Position[]): void;
     setOverlayModel(model: DroptargetOverlayModel): void;
+    /** Drop whatever this target is showing, for a consumer that commits a
+     *  drop this target never sees (a capturing listener that stops the
+     *  event, say) and so has to tear the overlay down itself. */
+    clearOverlay(): void;
 }
 
 export class Droptarget extends CompositeDisposable implements IDropTarget {

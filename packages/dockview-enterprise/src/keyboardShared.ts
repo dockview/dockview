@@ -1,8 +1,4 @@
-import {
-    DockviewComponentOptions,
-    DockviewIDisposable as IDisposable,
-    KeyboardNavigationOptions,
-} from 'dockview';
+import { DockviewComponentOptions, KeyboardNavigationOptions } from 'dockview';
 
 /**
  * Marks (on the dockview root element) that a keyboard move is in progress, so
@@ -42,87 +38,4 @@ export function readKeyboardNavigation(
         return undefined;
     }
     return opt === true ? {} : opt;
-}
-
-/** A document-level listener to mirror across every window the dock occupies. */
-export interface DocumentListenerSpec {
-    readonly type: string;
-    readonly handler: (e: Event) => void;
-    /** Capture phase? Must match the value used to remove the listener. */
-    readonly capture: boolean;
-}
-
-/** The slice of the accessibility host the multi-window binder needs. */
-interface MultiWindowHost {
-    readonly rootElement: HTMLElement;
-    getPopoutWindows(): Window[];
-    onDidChangePopouts(listener: () => void): IDisposable;
-}
-
-/**
- * Attach `specs` to the main document **and to every popout document**, keeping
- * the set in sync as popouts open and close. A popout window is a separate
- * `document`, so a capture-phase listener on the main document alone never sees
- * keystrokes made inside a popout, so each document needs its own listener.
- *
- * A popout that shares the main document (the jsdom mock) is skipped, since the
- * main document's listener already covers it and a second would double-fire.
- *
- * Returns a disposable that removes every listener from every document.
- */
-export function bindDocumentListeners(
-    host: MultiWindowHost,
-    specs: DocumentListenerSpec[]
-): IDisposable {
-    const mainDoc = host.rootElement.ownerDocument;
-    const attached = new Set<Document>();
-
-    const attach = (doc: Document): void => {
-        if (attached.has(doc)) {
-            return;
-        }
-        for (const s of specs) {
-            doc.addEventListener(s.type, s.handler, s.capture);
-        }
-        attached.add(doc);
-    };
-    const detach = (doc: Document): void => {
-        if (!attached.has(doc)) {
-            return;
-        }
-        for (const s of specs) {
-            doc.removeEventListener(s.type, s.handler, s.capture);
-        }
-        attached.delete(doc);
-    };
-
-    const sync = (): void => {
-        const desired = new Set<Document>([mainDoc]);
-        for (const win of host.getPopoutWindows()) {
-            const doc = win.document;
-            if (doc === mainDoc) {
-                continue;
-            }
-            desired.add(doc);
-            attach(doc);
-        }
-        for (const doc of attached) {
-            if (!desired.has(doc)) {
-                detach(doc);
-            }
-        }
-    };
-
-    attach(mainDoc);
-    sync();
-    const sub = host.onDidChangePopouts(sync);
-
-    return {
-        dispose: () => {
-            sub.dispose();
-            for (const doc of attached) {
-                detach(doc);
-            }
-        },
-    };
 }

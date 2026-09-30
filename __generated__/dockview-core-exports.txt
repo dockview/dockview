@@ -23,8 +23,10 @@ BuiltInContextMenuItem
 CommonApi
 Constraints
 ContentContainer
+ContextMenuController
 ContextMenuItem
 ContextMenuItemConfig
+ContextMenuModule
 CreateComponentOptions
 CreateContextMenuItemComponentOptions
 CspNonceProvider
@@ -34,6 +36,7 @@ DefaultTab
 Direction
 DismissableLayerOptions
 DistributeSizing
+DndCapabilities
 DockviewActivePanelChangeEvent
 DockviewApi
 DockviewComponent
@@ -254,6 +257,9 @@ PinnedTabsOptions
 PopoutGroup
 PopoutGroupChangePositionEvent
 PopoutGroupChangeSizeEvent
+PopoutWindowEvent
+PopoutWindowFailure
+PopoutWindowFailureReason
 Position
 PositionResolver
 PositionResolverArgs
@@ -317,11 +323,13 @@ createSplitview
 defineModule
 directionToPosition
 findRelativeZIndexParent
+getActiveElement
 getDirectionOrientation
 getGridLocation
 getLocationOrientation
 getPaneData
 getPanelData
+getPopoutUrlError
 getRegisteredModules
 getRelativeLocation
 indexInParent

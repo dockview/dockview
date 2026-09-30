@@ -71,6 +71,11 @@
     @include dockview-theme-core-mixin();
     @include dockview-drop-target-no-travel();
 
+    // Tells the browser to render native UI inside the theme - most
+    // visibly the scrollbars of overflowing panel content - to match the
+    // theme brightness rather than the page default.
+    color-scheme: dark;
+
     //
     --dv-group-view-background-color: #1e1e1e;
     //
@@ -94,6 +99,8 @@
 @mixin dockview-theme-light-mixin {
     @include dockview-theme-core-mixin();
     @include dockview-drop-target-no-travel();
+
+    color-scheme: light;
 
     //
     --dv-group-view-background-color: white;
@@ -198,6 +205,8 @@
     @include dockview-theme-core-mixin();
     @include dockview-drop-target-no-travel();
 
+    color-scheme: dark;
+
     --dv-color-abyss-dark: #000c18;
     --dv-color-abyss: #10192c;
     --dv-color-abyss-light: #1c1c2a;
@@ -238,6 +247,8 @@
 @mixin dockview-theme-dracula-mixin {
     @include dockview-theme-core-mixin();
     @include dockview-drop-target-no-travel();
+
+    color-scheme: dark;
 
     //
     --dv-group-view-background-color: #282a36;
@@ -317,6 +328,8 @@
 @mixin dockview-theme-nord-mixin {
     @include dockview-theme-core-mixin();
     @include dockview-drop-target-no-travel();
+
+    color-scheme: dark;
 
     --dv-color-nord-polar-0: #2e3440;
     --dv-color-nord-polar-1: #3b4252;
@@ -402,6 +415,8 @@
     @include dockview-theme-core-mixin();
     @include dockview-design-space-mixin();
 
+    color-scheme: dark;
+
     --dv-color-nord-polar-0: #2e3440;
     --dv-color-nord-polar-1: #3b4252;
     --dv-color-nord-polar-2: #434c5e;
@@ -444,6 +459,8 @@
 @mixin dockview-theme-catppuccin-mocha-mixin {
     @include dockview-theme-core-mixin();
     @include dockview-drop-target-no-travel();
+
+    color-scheme: dark;
 
     --dv-color-mocha-crust: #11111b;
     --dv-color-mocha-mantle: #181825;
@@ -531,6 +548,8 @@
     @include dockview-theme-core-mixin();
     @include dockview-design-space-mixin();
 
+    color-scheme: dark;
+
     --dv-color-mocha-crust: #11111b;
     --dv-color-mocha-mantle: #181825;
     --dv-color-mocha-base: #1e1e2e;
@@ -575,6 +594,8 @@
 @mixin dockview-theme-monokai-mixin {
     @include dockview-theme-core-mixin();
     @include dockview-drop-target-no-travel();
+
+    color-scheme: dark;
 
     --dv-color-monokai-bg: #272822;
     --dv-color-monokai-bg-light: #3e3d32;
@@ -655,6 +676,8 @@
     @include dockview-theme-core-mixin();
     @include dockview-drop-target-no-travel();
 
+    color-scheme: light;
+
     --dv-color-sol-base3: #fdf6e3;
     --dv-color-sol-base2: #eee8d5;
     --dv-color-sol-base1: #93a1a1;
@@ -694,6 +717,8 @@
     @include dockview-theme-core-mixin();
     @include dockview-design-space-mixin();
 
+    color-scheme: light;
+
     --dv-color-sol-base3: #fdf6e3;
     --dv-color-sol-base2: #eee8d5;
     --dv-color-sol-base1: #93a1a1;
@@ -732,6 +757,8 @@
 @mixin dockview-theme-github-dark-mixin {
     @include dockview-theme-core-mixin();
     @include dockview-drop-target-no-travel();
+
+    color-scheme: dark;
 
     --dv-color-gh-canvas-default: #0d1117;
     --dv-color-gh-canvas-subtle: #161b22;
@@ -778,6 +805,8 @@
     @include dockview-theme-core-mixin();
     @include dockview-design-space-mixin();
 
+    color-scheme: dark;
+
     --dv-color-gh-canvas-default: #0d1117;
     --dv-color-gh-canvas-subtle: #161b22;
     --dv-color-gh-canvas-inset: #010409;
@@ -822,6 +851,8 @@
 @mixin dockview-theme-github-light-mixin {
     @include dockview-theme-core-mixin();
     @include dockview-drop-target-no-travel();
+
+    color-scheme: light;
 
     --dv-color-gh-light-canvas-default: #ffffff;
     --dv-color-gh-light-canvas-subtle: #f6f8fa;
@@ -874,6 +905,8 @@
     @include dockview-theme-core-mixin();
     @include dockview-design-space-mixin();
 
+    color-scheme: light;
+
     --dv-color-gh-light-canvas-default: #ffffff;
     --dv-color-gh-light-canvas-subtle: #f6f8fa;
     --dv-color-gh-light-border: #d0d7de;
@@ -921,6 +954,8 @@
 .dockview-theme-abyss-spaced {
     @include dockview-theme-core-mixin();
     @include dockview-design-space-mixin();
+
+    color-scheme: dark;
 
     //  stylesheet
     --dv-color-abyss-dark: rgb(11, 6, 17);
@@ -979,6 +1014,8 @@
 .dockview-theme-light-spaced {
     @include dockview-theme-core-mixin();
     @include dockview-design-space-mixin();
+
+    color-scheme: light;
 
     //
 

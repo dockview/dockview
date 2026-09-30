@@ -137,6 +137,19 @@ When an edge group loses all of its panels it is automatically collapsed. Adding
 
 Collapsed edge groups can auto-hide and peek back on demand. See [Auto-hide Edge Groups](/docs/core/groups/autoHideEdgeGroups).
 
+## Resizing
+
+An edge group is sized along its own axis: width for `left` and `right`, height for `top` and `bottom`. Beyond dragging the sash, `setSize` on the group api resizes it programmatically. The value is clamped by the group's `minimumSize` / `maximumSize` and by the space the layout has to give, and the value for the other axis (which the edge does not own) is ignored.
+
+<DocRef declaration="DockviewGroupPanelApi" methods={['setSize']} />
+
+```ts
+api.getEdgeGroup('left')?.setSize({ width: 420 }); // left/right: width
+api.getEdgeGroup('bottom')?.setSize({ height: 200 }); // top/bottom: height
+```
+
+The size given is also the size the group expands to, so calling `setSize` on a **collapsed** group leaves the strip in place and takes effect the next time the group is expanded. It is likewise the size persisted by `toJSON`.
+
 ## Dock to edge groups
 
 With the `dockToEdgeGroups` option an edge takes up **zero space** when empty and is revealed by dragging a panel to it, like a VS Code sidebar. See [Dock to edge groups](/docs/core/groups/autoEdgeGroups).

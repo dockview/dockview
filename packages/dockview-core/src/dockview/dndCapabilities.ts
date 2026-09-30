@@ -1,10 +1,9 @@
 import { DockviewOptions } from './options';
 
 /**
- * Internal mapping of the user-facing `dndStrategy` option into the
- * per-backend capability flags consumed by drag-source / drop-target
- * construction sites. Not part of the public API; consumers only see
- * the `dndStrategy` option itself.
+ * Which drag-and-drop backends are live: the `dndStrategy` option resolved
+ * against the device. Read by the drag-source / drop-target construction sites,
+ * and exposed to consumers as `api.dndCapabilities`.
  */
 export interface DndCapabilities {
     /** HTML5 drag/drop wiring active (draggable attr, dragstart). */

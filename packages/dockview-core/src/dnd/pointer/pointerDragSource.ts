@@ -1,3 +1,4 @@
+import { disableTextSelection } from '../../dom';
 import { addDisposableListener } from '../../events';
 import { CompositeDisposable, IDisposable } from '../../lifecycle';
 import { PointerDragController } from './pointerDragController';
@@ -46,6 +47,7 @@ export class PointerDragSource extends CompositeDisposable {
     private _pendingUpListener: IDisposable | undefined;
     private _pendingCancelListener: IDisposable | undefined;
     private _armTimer: ReturnType<typeof setTimeout> | undefined;
+    private _selectionShield: { release: () => void } | undefined;
     private _armed = false;
     private _startX = 0;
     private _startY = 0;
@@ -115,6 +117,15 @@ export class PointerDragSource extends CompositeDisposable {
 
         // A fresh pointerdown supersedes any in-flight tracking.
         this._cancelPending();
+
+        // The browser begins selecting text from this pointerdown, well before
+        // the drag clears `threshold`. Shielding only once the drag begins is
+        // too late: the selection is already in flight and keeps extending.
+        // Released by `_cancelPending`, which also runs when the drag starts -
+        // the controller shields the drag itself from there.
+        this._selectionShield = disableTextSelection(
+            this.element.ownerDocument ?? document
+        );
 
         this._pendingPointerId = event.pointerId;
         this._startX = event.clientX;
@@ -213,6 +224,8 @@ export class PointerDragSource extends CompositeDisposable {
     }
 
     private _cancelPending(): void {
+        this._selectionShield?.release();
+        this._selectionShield = undefined;
         this._pendingPointerId = undefined;
         if (this._armTimer !== undefined) {
             clearTimeout(this._armTimer);

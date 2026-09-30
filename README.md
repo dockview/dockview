@@ -79,11 +79,14 @@ function App() {
   };
 
   return (
-    <DockviewReact
-      theme={themeDark}
-      onReady={onReady}
-      components={components}
-    />
+    // Dockview fills its container, so the container needs a height of its own.
+    <div style={{ height: '100dvh' }}>
+      <DockviewReact
+        theme={themeDark}
+        onReady={onReady}
+        components={components}
+      />
+    </div>
   );
 }
 ```
