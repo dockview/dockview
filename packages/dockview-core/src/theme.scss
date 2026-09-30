@@ -1178,7 +1178,8 @@
     // Header at the bottom of the group: the tab hangs from the content above,
     // so the folder shape flips — bottom corners rounded, shoulders flaring at
     // the top edge. (A theme's `--dv-tab-margin` reveal inset is not flipped
-    // here; themes that use one, like slate, keep it on the top edge.)
+    // here; a theme that uses one re-declares it under
+    // `.dv-groupview-header-bottom`, as the sheet layout does.)
     .dv-groupview-header-bottom
         .dv-tabs-container:not(.dv-tabs-container-vertical)
         > .dv-tab {
@@ -1270,12 +1271,29 @@
     --dv-tab-margin: 3px 0 0 0;
     --dv-separator-border: transparent;
 
+    // Paint the theme root in the canvas too. The shell lays the edge rails
+    // out around the centre with the theme gap as the margin, and nothing
+    // else paints that band: without this the page shows through between a
+    // rail and the centre, and between the rails themselves (the bottom rail
+    // sits between the left and right ones). Canvas on canvas, the rails and
+    // the centre read as one frame with no visible seams.
+    background-color: var(--dv-group-view-background-color);
+
     @include dockview-connected-tabs-mixin();
 
     // A 12px gutter between tabs: wide enough for the 10px shoulder to flare
     // into, with the hairline centred in it. Declared after the mixin so it
     // overrides the mixin's own (shoulder + 4px) value.
     --dv-tab-connected-gap: 12px;
+
+    // Strip gutter: the shoulder plus the sheet radius, so a tab at the very
+    // start of the strip (no left actions, or a pinned tool window's bottom
+    // strip) flares into the sheet's flat edge rather than its rounded
+    // corner, which left a canvas sliver between the two curves.
+    .dv-tabs-container:not(.dv-tabs-container-vertical) {
+        padding: 0
+            calc(var(--dv-tab-shoulder-size) + var(--dv-sheet-border-radius));
+    }
 
     .dv-tab {
         padding-block: 0;
@@ -1315,6 +1333,13 @@
     // container; round it to match the sheet.
     .dv-render-overlay {
         border-radius: var(--dv-sheet-border-radius);
+    }
+
+    // Header at the bottom (a pinned auto-hide tool window moves its strip
+    // there): the tab hangs from the sheet, so the 3px reveal inset moves to
+    // the strip's far edge and the tab's base meets the sheet.
+    .dv-groupview-header-bottom {
+        --dv-tab-margin: 0 0 3px 0;
     }
 
     // Rail (left/right edge-group) pills: the mixin's inset is half the
