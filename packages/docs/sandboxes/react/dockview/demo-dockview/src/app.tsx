@@ -147,7 +147,6 @@ const components = {
                     gap: 8,
                     background: c.bg,
                     color: c.text,
-                    border: `1px solid ${c.border}`,
                     backgroundImage: `radial-gradient(${c.border} 1px, transparent 1px)`,
                     backgroundSize: '16px 16px',
                 }}
