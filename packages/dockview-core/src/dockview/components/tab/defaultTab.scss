@@ -31,24 +31,15 @@
     // Keyboard-only focus ring: :focus-visible suppresses it on mouse click,
     // :has(:focus-visible) keeps it when a child (e.g. the close button) is
     // keyboard-focused, the descendant case the old :focus-within covered.
+    // Drawn as the tab's own outline, inset by its width so it survives
+    // neighbouring tabs and the strip edge and follows the tab's corner
+    // radius. The tab's pseudo-elements stay free for themes (the divider on
+    // `::before`, the connected-tab shoulders on `::after`).
     &:focus-visible,
     &:has(:focus-visible) {
-        position: relative;
-
-        &::after {
-            position: absolute;
-            content: '';
-            height: 100%;
-            width: 100%;
-            top: 0px;
-            left: 0px;
-            pointer-events: none;
-            // Accent ring inset by its own width so it survives neighbouring
-            // tabs and the strip edge.
-            outline: var(--dv-focus-ring-width, 2px) solid var(--dv-focus-ring-color, var(--dv-paneview-active-outline-color)) !important;
-            outline-offset: calc(-1 * var(--dv-focus-ring-width, 2px));
-            z-index: 5;
-        }
+        outline: var(--dv-focus-ring-width, 2px) solid
+            var(--dv-focus-ring-color, var(--dv-paneview-active-outline-color));
+        outline-offset: calc(-1 * var(--dv-focus-ring-width, 2px));
     }
 
     &.dv-tab-dragging {

@@ -46,23 +46,13 @@
 
         // Discrete drop indicator for 2-D cross-row reorder (the 1-D gap
         // animation is suppressed in wrap). A bar on the leading/trailing edge
-        // of the tab the drop would land before/after.
-        .dv-tab--reorder-before::after,
-        .dv-tab--reorder-after::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            z-index: 10;
-            pointer-events: none;
-            background-color: var(--dv-drag-over-border-color);
+        // of the tab the drop would land before/after, drawn as an inset
+        // shadow so the tab's pseudo-elements stay free for themes.
+        .dv-tab--reorder-before {
+            box-shadow: inset 2px 0 0 0 var(--dv-drag-over-border-color);
         }
-        .dv-tab--reorder-before::after {
-            left: 0;
-        }
-        .dv-tab--reorder-after::after {
-            right: 0;
+        .dv-tab--reorder-after {
+            box-shadow: inset -2px 0 0 0 var(--dv-drag-over-border-color);
         }
     }
 
@@ -119,23 +109,13 @@
         }
 
         // Discrete drop indicator for 2-D cross-column reorder: a bar on the
-        // leading/trailing (top/bottom) edge of the target tab.
-        .dv-tab--reorder-before::after,
-        .dv-tab--reorder-after::after {
-            content: '';
-            position: absolute;
-            left: 0;
-            right: 0;
-            height: 2px;
-            z-index: 10;
-            pointer-events: none;
-            background-color: var(--dv-drag-over-border-color);
+        // leading/trailing (top/bottom) edge of the target tab (an inset
+        // shadow, as for the horizontal strip).
+        .dv-tab--reorder-before {
+            box-shadow: inset 0 2px 0 0 var(--dv-drag-over-border-color);
         }
-        .dv-tab--reorder-before::after {
-            top: 0;
-        }
-        .dv-tab--reorder-after::after {
-            bottom: 0;
+        .dv-tab--reorder-after {
+            box-shadow: inset 0 -2px 0 0 var(--dv-drag-over-border-color);
         }
     }
 

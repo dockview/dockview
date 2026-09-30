@@ -38,20 +38,17 @@
 
     // Keyboard focus: the accent ring is forced to CanvasText, which would
     // merge with the tab outline above; use the selection colour instead.
-    .dv-tab:focus-visible::after,
-    .dv-tab:has(:focus-visible)::after,
+    .dv-tab:focus-visible,
+    .dv-tab:has(:focus-visible),
     .dv-tab.dv-tabs-overflow-option--focused {
         outline-color: Highlight !important;
     }
 
     // The selected tab is itself Highlight and opts out of forcing, so its
-    // ring (on `::after`, or on the tab for connected tabs) takes the
-    // selection text colour instead: visible on the fill, and no author
-    // accent leaks through.
+    // ring takes the selection text colour instead: visible on the fill, and
+    // no author accent leaks through.
     .dv-tab.dv-active-tab:focus-visible,
-    .dv-tab.dv-active-tab:has(:focus-visible),
-    .dv-tab.dv-active-tab:focus-visible::after,
-    .dv-tab.dv-active-tab:has(:focus-visible)::after {
+    .dv-tab.dv-active-tab:has(:focus-visible) {
         outline-color: HighlightText !important;
     }
 
