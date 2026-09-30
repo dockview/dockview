@@ -3076,15 +3076,15 @@ export class DockviewComponent
             this.updateDragAndDropState();
         }
 
-        if (typeof options.proportionalLayout === 'boolean') {
+        if ('proportionalLayout' in options) {
             // super.updateOptions has already updated the main grid; floating
             // and popout windows host their own nested gridviews
+            const proportionalLayout = this.gridview.proportionalLayout;
             for (const floating of this.floatingGroups) {
-                floating.gridview.proportionalLayout =
-                    options.proportionalLayout;
+                floating.gridview.proportionalLayout = proportionalLayout;
             }
             for (const entry of this._popoutWindowService?.entries ?? []) {
-                entry.gridview.proportionalLayout = options.proportionalLayout;
+                entry.gridview.proportionalLayout = proportionalLayout;
             }
         }
 

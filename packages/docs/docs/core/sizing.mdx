@@ -103,8 +103,9 @@ its share of the layout.
 
 Set `proportionalLayout={false}` to hand the whole delta to the last group in
 each row/column instead. Every splitter but the last one then stays exactly
-where the user left it, which is how VS Code behaves. This applies to the
-nested layouts inside floating and popout windows too.
+where the user left it, which is how VS Code behaves. If the last group reaches
+its minimum or maximum size, the remainder moves on to the group before it.
+This applies to the nested layouts inside floating and popout windows too.
 
 ```tsx
 proportionalLayout={false}
@@ -144,7 +145,9 @@ const api = createDockview(element, {
 
 The option can also be changed after initialization with
 `api.updateOptions({ proportionalLayout })`. Re-enabling it adopts the group
-sizes in place at that moment as the proportions to preserve.
+sizes in place at that moment as the proportions to preserve, rather than the
+proportions from before it was disabled. Passing `undefined` restores the
+default.
 
 ## Hiding borders
 

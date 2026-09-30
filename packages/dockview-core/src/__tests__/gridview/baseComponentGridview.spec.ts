@@ -675,6 +675,12 @@ describe('baseComponentGridview', () => {
 
             expect(cut.gridview.proportionalLayout).toBe(true);
 
+            cut.updateOptions({ proportionalLayout: false });
+            cut.updateOptions({ proportionalLayout: undefined });
+
+            // an explicit undefined restores the default
+            expect(cut.gridview.proportionalLayout).toBe(true);
+
             cut.dispose();
         });
     });

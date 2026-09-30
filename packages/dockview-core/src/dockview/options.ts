@@ -359,7 +359,11 @@ export interface DockviewOptions {
      *
      * When `false` the extra (or missing) space is absorbed by the last group
      * in each row/column instead, leaving the other splitters where they are -
-     * the behaviour found in VS Code. Default: `true`.
+     * the behaviour found in VS Code. If the last group reaches its minimum or
+     * maximum size, the remainder moves on to the group before it.
+     *
+     * Applies to floating and popout windows too, and can be changed at runtime
+     * with `updateOptions`; `undefined` restores the default. Default: `true`.
      */
     proportionalLayout?: boolean;
     hideBorders?: boolean;

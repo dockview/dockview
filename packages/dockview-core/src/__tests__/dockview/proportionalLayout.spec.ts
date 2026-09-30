@@ -258,6 +258,21 @@ describe('dockview proportionalLayout option', () => {
         dockview.dispose();
     });
 
+    test('updateOptions with an explicit undefined restores the default', () => {
+        const dockview = createDockview(false);
+
+        dockview.layout(1200, 300);
+        expect(widths(dockview)).toEqual([300, 300, 600]);
+
+        // e.g. a React prop going from `false` to `undefined`
+        dockview.updateOptions({ proportionalLayout: undefined });
+
+        dockview.layout(2400, 300);
+        expect(widths(dockview)).toEqual([600, 600, 1200]);
+
+        dockview.dispose();
+    });
+
     test('an unrelated updateOptions leaves the behaviour untouched', () => {
         const dockview = createDockview(false);
 
@@ -362,6 +377,13 @@ describe('dockview proportionalLayout option', () => {
 
             gridview.layout(600, 300);
             expect(floatingWidths(dockview)).toEqual([200, 400]);
+
+            dockview.updateOptions({ proportionalLayout: undefined });
+
+            expect(gridview.proportionalLayout).toBe(true);
+
+            gridview.layout(1200, 300);
+            expect(floatingWidths(dockview)).toEqual([400, 800]);
 
             dockview.dispose();
         });
