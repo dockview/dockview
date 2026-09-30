@@ -202,8 +202,7 @@ class EdgeGroupController extends CompositeDisposable {
      *  the docked title bar, and the peek's backdrop and title bar. */
     private _refreshChrome(): void {
         if (this._docked) {
-            this._docked.bar.style.backgroundColor =
-                this._titleBarBackground();
+            this._docked.bar.style.backgroundColor = this._titleBarBackground();
         }
         if (this._peek) {
             this._peek.overlay.style.backgroundColor = resolveOpaqueBackground(
