@@ -14424,6 +14424,76 @@ describe('theme settings from CSS', () => {
         dv.dispose();
     });
 
+    test('re-reads the CSS settings when className changes', () => {
+        const style = document.createElement('style');
+        style.textContent = '.gap-class { --dv-group-gap: 9px; }';
+        document.head.appendChild(style);
+        try {
+            const dv = createDockview();
+            expect(dv.themeSettings.gap).toBe(0);
+
+            dv.updateOptions({ className: 'gap-class' });
+            expect(dv.themeSettings.gap).toBe(9);
+
+            dv.updateOptions({ className: '' });
+            expect(dv.themeSettings.gap).toBe(0);
+            dv.dispose();
+        } finally {
+            style.remove();
+        }
+    });
+
+    test('a dockview created detached reads its CSS once attached and laid out', () => {
+        const container = document.createElement('div');
+        const dv = new DockviewComponent(container, {
+            createComponent(options) {
+                return new PanelContentPartTest(options.id, options.name);
+            },
+        });
+        dv.element.style.setProperty('--dv-group-gap', '7px');
+        expect(dv.themeSettings.gap).toBe(0);
+
+        document.body.appendChild(container);
+        dv.layout(500, 500);
+        expect(dv.themeSettings.gap).toBe(7);
+        dv.dispose();
+    });
+
+    test('an unset tabAnimation is told apart from an explicit default', () => {
+        const dv = createDockview();
+        expect(dv.themeSettings.tabAnimation).toBe('default');
+        expect(dv.declaredThemeSettings.tabAnimation).toBeUndefined();
+        dv.dispose();
+    });
+
+    test('a className-applied theme hands its drop-preview styling to the shell', () => {
+        const style = document.createElement('style');
+        style.textContent =
+            '.drop-class { --dv-drag-over-border: 3px solid red; --dv-drop-target-border-radius: 5px; }';
+        document.head.appendChild(style);
+        try {
+            const dv = createDockview();
+            const shell = dv.element.closest('.dv-shell') as HTMLElement;
+            expect(shell).toBeTruthy();
+
+            dv.updateOptions({ className: 'drop-class' });
+            expect(shell.style.getPropertyValue('--dv-drag-over-border')).toBe(
+                '3px solid red'
+            );
+            expect(
+                shell.style.getPropertyValue('--dv-drop-target-border-radius')
+            ).toBe('5px');
+
+            dv.updateOptions({ className: '' });
+            expect(shell.style.getPropertyValue('--dv-drag-over-border')).toBe(
+                ''
+            );
+            dv.dispose();
+        } finally {
+            style.remove();
+        }
+    });
+
     test('a detached dockview falls back to the theme object and defaults', () => {
         const dv = new DockviewComponent(document.createElement('div'), {
             theme: { name: 't', className: 't', dndTabIndicator: 'line' },

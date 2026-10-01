@@ -27,14 +27,17 @@ const ENUM_THEME_SETTINGS = {
 
 /** A property's value, or `''` where the style can't provide one (e.g. a
  *  partial `getComputedStyle` in a test or non-browser environment). */
-function read(style: StyleSource, property: string): string {
+export function readStyleProperty(
+    style: StyleSource,
+    property: string
+): string {
     return typeof style.getPropertyValue === 'function'
         ? (style.getPropertyValue(property) ?? '').trim()
         : '';
 }
 
 function readPixels(style: StyleSource, property: string): number | undefined {
-    const value = read(style, property);
+    const value = readStyleProperty(style, property);
     // A bare number or a px length; anything else (other units, calc()) is
     // not a resolvable pixel value here.
     const number = value.endsWith('px') ? value.slice(0, -2) : value;
@@ -69,7 +72,7 @@ export function readThemeSettingsFromStyle(
         keyof typeof ENUM_THEME_SETTINGS
     >) {
         const [property, allowed] = ENUM_THEME_SETTINGS[key];
-        const value = read(style, property);
+        const value = readStyleProperty(style, property);
         if ((allowed as readonly string[]).includes(value)) {
             (settings as Record<string, string>)[key] = value;
         }
@@ -86,28 +89,46 @@ export function mergeThemeSettings(
     theme: DockviewTheme | undefined,
     fromCss: DockviewThemeSettings | undefined
 ): ResolvedDockviewThemeSettings {
-    const resolved = { ...DEFAULT_THEME_SETTINGS };
-    for (const key of Object.keys(resolved) as Array<
-        keyof ResolvedDockviewThemeSettings
-    >) {
-        const value = theme?.[key] ?? fromCss?.[key];
-        if (value !== undefined) {
-            (resolved as Record<string, unknown>)[key] = value;
-        }
-    }
-    return resolved;
+    return {
+        ...DEFAULT_THEME_SETTINGS,
+        ...declaredThemeSettings(theme, fromCss),
+    };
 }
 
 /**
- * One resolved setting for a dockview: its resolved theme settings when it
- * has them, else the theme object's value.
+ * The settings a theme actually declares, on its object or in its CSS, with
+ * no defaults filled in (`undefined` where neither sets one).
+ */
+export function declaredThemeSettings(
+    theme: DockviewTheme | undefined,
+    fromCss: DockviewThemeSettings | undefined
+): DockviewThemeSettings {
+    const declared: DockviewThemeSettings = {};
+    for (const key of Object.keys(DEFAULT_THEME_SETTINGS) as Array<
+        keyof DockviewThemeSettings
+    >) {
+        const value = theme?.[key] ?? fromCss?.[key];
+        if (value !== undefined) {
+            (declared as Record<string, unknown>)[key] = value;
+        }
+    }
+    return declared;
+}
+
+/**
+ * One setting as the theme declares it (object, then CSS), `undefined` when
+ * unset. Callers compare against the non-default value, and some tell an
+ * unset value apart from an explicit default (e.g. `tabAnimation`), so the
+ * defaults are deliberately not filled in here.
  */
 export function themeSetting<K extends keyof DockviewThemeSettings>(
     host: {
         readonly options: { readonly theme?: DockviewTheme };
-        readonly themeSettings?: ResolvedDockviewThemeSettings;
+        readonly declaredThemeSettings?: DockviewThemeSettings;
     },
     key: K
 ): DockviewThemeSettings[K] {
-    return host.themeSettings?.[key] ?? host.options.theme?.[key];
+    return host.declaredThemeSettings
+        ? host.declaredThemeSettings[key]
+        : host.options.theme?.[key];
 }

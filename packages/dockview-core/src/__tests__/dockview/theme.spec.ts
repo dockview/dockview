@@ -24,6 +24,7 @@ import {
     themeVisualStudio,
 } from '../../dockview/theme';
 import {
+    declaredThemeSettings,
     mergeThemeSettings,
     readThemeSettingsFromStyle,
     themeSetting,
@@ -304,26 +305,27 @@ describe('theme', () => {
             ).toEqual({});
         });
 
-        test("themeSetting prefers a host's resolved settings", () => {
+        test("themeSetting reads a host's declared settings, unset stays unset", () => {
             const theme: DockviewTheme = {
                 name: 'x',
                 className: 'x',
                 tabAnimation: 'default',
             };
+            // Without declared settings (e.g. a test double), the object.
             expect(themeSetting({ options: { theme } }, 'tabAnimation')).toBe(
                 'default'
             );
-            expect(
-                themeSetting(
-                    {
-                        options: { theme },
-                        themeSettings: mergeThemeSettings(undefined, {
-                            tabAnimation: 'smooth',
-                        }),
-                    },
-                    'tabAnimation'
-                )
-            ).toBe('smooth');
+            // CSS declarations count; defaults are not filled in, so an
+            // unset `tabAnimation` is distinguishable from 'default'.
+            const host = {
+                options: { theme: { name: 'y', className: 'y' } },
+                declaredThemeSettings: declaredThemeSettings(
+                    { name: 'y', className: 'y' },
+                    { dndTabIndicator: 'line' }
+                ),
+            };
+            expect(themeSetting(host, 'dndTabIndicator')).toBe('line');
+            expect(themeSetting(host, 'tabAnimation')).toBeUndefined();
         });
     });
 });

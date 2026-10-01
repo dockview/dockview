@@ -137,9 +137,15 @@ import { IRootDropTargetHost } from './rootDropTargetService';
 import { ILiveRegionHost } from './liveRegionService';
 import { IDragGhostSpec } from '../dnd/backend';
 import { DropTargetAnchorContainer } from '../dnd/dropTargetAnchorContainer';
-import { ResolvedDockviewThemeSettings, themeAbyss } from './theme';
 import {
+    DockviewThemeSettings,
+    ResolvedDockviewThemeSettings,
+    themeAbyss,
+} from './theme';
+import {
+    declaredThemeSettings,
     mergeThemeSettings,
+    readStyleProperty,
     readThemeSettingsFromStyle,
 } from './themeSettings';
 import {
@@ -422,10 +428,24 @@ export interface PopoutGroup {
     readonly window: Window;
 }
 
+/** Drop-preview styling that a `className`-applied theme hands up to the
+ *  shell, where the layout-root and floating drop previews mount. */
+const SHELL_DROP_PREVIEW_PROPERTIES = [
+    '--dv-drag-over-border',
+    '--dv-drag-over-background-color',
+    '--dv-drop-target-border-radius',
+    '--dv-drop-target-content-border-radius',
+    '--dv-drop-target-travel',
+] as const;
+
 export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
     /** The active theme's settings, resolved from the theme object, the
      *  theme's CSS custom properties and the defaults. */
     readonly themeSettings: ResolvedDockviewThemeSettings;
+    /** The settings the theme actually declares (object, then CSS), with no
+     *  defaults filled in. Internal: lets callers tell an unset value apart
+     *  from an explicit default. */
+    readonly declaredThemeSettings: DockviewThemeSettings;
     /** Re-read the theme's CSS settings (after changing them at runtime). */
     refreshTheme(): void;
     readonly activePanel: IDockviewPanel | undefined;
@@ -818,6 +838,18 @@ export class DockviewComponent
     get themeSettings(): ResolvedDockviewThemeSettings {
         return this._themeSettings;
     }
+
+    private _declaredThemeSettings: DockviewThemeSettings = {};
+
+    get declaredThemeSettings(): DockviewThemeSettings {
+        return this._declaredThemeSettings;
+    }
+
+    /** Whether the theme's CSS was read from an attached element when the
+     *  theme was last applied; `undefined` until it is first applied (layouts
+     *  run during construction). A dockview created detached reads it on its
+     *  first layout once attached. */
+    private _themeCssRead: boolean | undefined = undefined;
 
     private readonly _onDidActiveGroupChange = new Emitter<
         DockviewGroupPanel | undefined
@@ -3106,7 +3138,9 @@ export class DockviewComponent
             }
         }
 
-        if ('theme' in options) {
+        // A `className` change can apply or remove a theme (or
+        // `.dockview-spaced`), so its CSS settings are re-read too.
+        if ('theme' in options || 'className' in options) {
             this.updateTheme();
         }
 
@@ -3166,6 +3200,10 @@ export class DockviewComponent
         }
 
         this._syncFloatingOverlayHost();
+
+        if (this._themeCssRead === false && this.element.isConnected) {
+            this.updateTheme();
+        }
 
         // floatingGroupService may be undefined during super() (BaseGrid calls
         // layout(0, 0) before subclass field initialisers run).
@@ -6312,10 +6350,10 @@ export class DockviewComponent
             typeof getComputedStyle === 'function' && this.element.isConnected
                 ? getComputedStyle(this.element)
                 : undefined;
-        this._themeSettings = mergeThemeSettings(
-            theme,
-            style ? readThemeSettingsFromStyle(style) : undefined
-        );
+        this._themeCssRead = style !== undefined;
+        const fromCss = style ? readThemeSettingsFromStyle(style) : undefined;
+        this._declaredThemeSettings = declaredThemeSettings(theme, fromCss);
+        this._themeSettings = mergeThemeSettings(theme, fromCss);
         const settings = this._themeSettings;
 
         const gap = settings.gap;
@@ -6330,17 +6368,32 @@ export class DockviewComponent
         }
         this._shellManager?.updateTheme(gap, settings.edgeGroupCollapsedSize);
 
+        // The layout-root and floating drop previews mount on the shell,
+        // outside the component root. A theme applied through `className`
+        // sits on the component root, so carry its drop-preview styling up
+        // to the shell for those previews.
+        const shellStyle = this._shellManager?.element.style;
+        const classNameApplied =
+            style !== undefined && !!this._options.className?.trim();
+        for (const property of SHELL_DROP_PREVIEW_PROPERTIES) {
+            const value = classNameApplied
+                ? readStyleProperty(style, property)
+                : '';
+            if (value) {
+                shellStyle?.setProperty(property, value);
+            } else {
+                shellStyle?.removeProperty(property);
+            }
+        }
+
         if (theme.dndOverlayBorder === undefined) {
             this.element.style.removeProperty('--dv-drag-over-border');
-            this._shellManager?.element.style.removeProperty(
-                '--dv-drag-over-border'
-            );
         } else {
             this.element.style.setProperty(
                 '--dv-drag-over-border',
                 theme.dndOverlayBorder
             );
-            this._shellManager?.element.style.setProperty(
+            shellStyle?.setProperty(
                 '--dv-drag-over-border',
                 theme.dndOverlayBorder
             );
