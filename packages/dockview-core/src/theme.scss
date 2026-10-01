@@ -14,6 +14,7 @@
     // --dv-drag-over-background-color (e.g. the spaced themes).
     --dv-edge-dock-indicator-color: rgba(56, 139, 253, 0.9);
     --dv-tabs-container-scrollbar-color: #888;
+    --dv-scrollbar-background-color: rgba(255, 255, 255, 0.25);
     --dv-icon-hover-background-color: rgba(90, 93, 94, 0.31);
     --dv-floating-box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.25);
@@ -984,8 +985,12 @@
     --dv-tabs-and-actions-container-height: 32px;
     --dv-tab-margin: 3px 0 0 0;
     --dv-separator-border: transparent;
+    // One spacing between sheets, around the layout and beside the edge rails
+    // (the shell separates them by the group gap).
+    --dv-spacing-padding: 8px;
+    --dv-group-gap: var(--dv-spacing-padding);
+    --dv-root-padding: var(--dv-spacing-padding);
     // An insertion line reads better than a fill on tabs merged into the sheet.
-    --dv-group-gap: 8px;
     --dv-dnd-tab-indicator: line;
 
     // Nothing else paints the band between the edge rails and the centre, so
@@ -1262,6 +1267,10 @@
 // Individual spacing variables (--dv-spacing-padding, etc.) can be
 // overridden on the element after this class is applied.
 
+.dockview-base-colors {
+    @include dv.declare(dv.$color-tokens);
+}
+
 .dockview-spaced {
     @include dockview-design-space-mixin();
 }
@@ -1273,16 +1282,13 @@
     overflow: hidden;
     // Strip colour rather than the hidden-tab background, which is transparent
     // on themes with text-only tabs.
-    background: var(
-        --dv-context-menu-background-color,
-        #{dv.ref('tabs-and-actions-container-background-color')}
-    );
+    background: #{dv.ref('context-menu-background-color')};
     color: var(
         --dv-context-menu-color,
         #{dv.ref('activegroup-visiblepanel-tab-color')}
     );
     border: 1px solid
-        var(--dv-context-menu-border-color, #{dv.ref('separator-border')});
+        #{dv.ref('context-menu-border-color')};
     border-radius: #{dv.ref('dropdown-border-radius')};
     box-shadow: #{dv.ref('floating-box-shadow')};
     padding: 4px 0;
@@ -1311,7 +1317,7 @@
 
 .dv-context-menu-separator {
     height: 1px;
-    background: var(--dv-context-menu-border-color, #{dv.ref('separator-border')});
+    background: #{dv.ref('context-menu-border-color')};
     margin: 4px 0;
 }
 
@@ -1324,7 +1330,7 @@
     box-sizing: border-box;
     padding: 8px 10px;
     border: 1px solid
-        var(--dv-context-menu-border-color, #{dv.ref('separator-border')});
+        #{dv.ref('context-menu-border-color')};
     border-radius: #{dv.ref('dropdown-border-radius')};
     background: inherit;
     color: #{dv.ref('activegroup-visiblepanel-tab-color')};

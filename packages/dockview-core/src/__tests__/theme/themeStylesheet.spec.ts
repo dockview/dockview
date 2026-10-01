@@ -67,7 +67,8 @@ function parseRules(css: string): Rule[] {
     return rules;
 }
 
-const THEME_CLASS = /\.dockview-(theme-[\w-]+|spaced|tabs-connected)\b/;
+const THEME_CLASS =
+    /\.dockview-(theme-[\w-]+|spaced|tabs-connected|base-colors)\b/;
 
 describe('theme stylesheet', () => {
     const css = compile(path.join(__dirname, '..', '..', 'theme.scss')).css;
@@ -125,6 +126,18 @@ describe('theme stylesheet', () => {
         );
     });
 
+    test('the base colours part re-derives colours only', () => {
+        const d = declarationsOf('.dockview-base-colors');
+        expect(d.get('--dv-group-view-background-color')).toBe(
+            'var(--dv-background-color)'
+        );
+        expect(d.get('--dv-separator-border')).toContain(
+            'var(--dv-foreground-color)'
+        );
+        expect(d.has('--dv-tab-border-radius')).toBe(false);
+        expect(d.has('--dv-group-gap')).toBe(false);
+    });
+
     const spaced = [
         '.dockview-spaced',
         '.dockview-theme-abyss-spaced',
@@ -154,7 +167,9 @@ describe('theme stylesheet', () => {
         '.dockview-theme-slate-dark',
     ])('%s declares the sheet settings', (className) => {
         const d = declarationsOf(className);
-        expect(d.get('--dv-group-gap')).toBe('8px');
+        expect(d.get('--dv-spacing-padding')).toBe('8px');
+        expect(d.get('--dv-group-gap')).toBe('var(--dv-spacing-padding)');
+        expect(d.get('--dv-root-padding')).toBe('var(--dv-spacing-padding)');
         expect(d.get('--dv-tabs-and-actions-container-height')).toBe('32px');
         expect(d.get('--dv-dnd-tab-indicator')).toBe('line');
         expect(d.get('--dv-tab-shoulder-size')).toBe('10px');
