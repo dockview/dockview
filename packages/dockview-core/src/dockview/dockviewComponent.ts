@@ -138,6 +138,7 @@ import { ILiveRegionHost } from './liveRegionService';
 import { IDragGhostSpec } from '../dnd/backend';
 import { DropTargetAnchorContainer } from '../dnd/dropTargetAnchorContainer';
 import {
+    DockviewTheme,
     DockviewThemeSettings,
     ResolvedDockviewThemeSettings,
     themeAbyss,
@@ -6335,6 +6336,44 @@ export class DockviewComponent
         this.updateTheme();
     }
 
+    /** Drop-preview styling: the theme object's `dndOverlayBorder`, and a
+     *  `className`-applied theme's preview styling handed up to the shell. */
+    private applyDropPreviewStyle(
+        theme: DockviewTheme,
+        style: CSSStyleDeclaration | undefined
+    ): void {
+        // The layout-root and floating drop previews mount on the shell,
+        // outside the component root. A theme applied through `className`
+        // sits on the component root, so carry its drop-preview styling up
+        // to the shell for those previews.
+        const shellStyle = this._shellManager?.element.style;
+        const classNameApplied =
+            style !== undefined && !!this._options.className?.trim();
+        for (const property of SHELL_DROP_PREVIEW_PROPERTIES) {
+            const value = classNameApplied
+                ? readStyleProperty(style, property)
+                : '';
+            if (value) {
+                shellStyle?.setProperty(property, value);
+            } else {
+                shellStyle?.removeProperty(property);
+            }
+        }
+
+        if (theme.dndOverlayBorder === undefined) {
+            this.element.style.removeProperty('--dv-drag-over-border');
+        } else {
+            this.element.style.setProperty(
+                '--dv-drag-over-border',
+                theme.dndOverlayBorder
+            );
+            shellStyle?.setProperty(
+                '--dv-drag-over-border',
+                theme.dndOverlayBorder
+            );
+        }
+    }
+
     private updateTheme(): void {
         const theme = this._options.theme ?? themeAbyss;
         // Apply the theme class only to the shell so edge groups and the
@@ -6368,36 +6407,7 @@ export class DockviewComponent
         }
         this._shellManager?.updateTheme(gap, settings.edgeGroupCollapsedSize);
 
-        // The layout-root and floating drop previews mount on the shell,
-        // outside the component root. A theme applied through `className`
-        // sits on the component root, so carry its drop-preview styling up
-        // to the shell for those previews.
-        const shellStyle = this._shellManager?.element.style;
-        const classNameApplied =
-            style !== undefined && !!this._options.className?.trim();
-        for (const property of SHELL_DROP_PREVIEW_PROPERTIES) {
-            const value = classNameApplied
-                ? readStyleProperty(style, property)
-                : '';
-            if (value) {
-                shellStyle?.setProperty(property, value);
-            } else {
-                shellStyle?.removeProperty(property);
-            }
-        }
-
-        if (theme.dndOverlayBorder === undefined) {
-            this.element.style.removeProperty('--dv-drag-over-border');
-        } else {
-            this.element.style.setProperty(
-                '--dv-drag-over-border',
-                theme.dndOverlayBorder
-            );
-            shellStyle?.setProperty(
-                '--dv-drag-over-border',
-                theme.dndOverlayBorder
-            );
-        }
+        this.applyDropPreviewStyle(theme, style);
 
         switch (settings.dndOverlayMounting) {
             case 'absolute':
