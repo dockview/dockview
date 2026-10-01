@@ -83,6 +83,20 @@ const TextRow = (props: {
 
 const isHexColor = (v: string) => /^#[0-9a-fA-F]{6}$/.test(v);
 
+// Registered colour tokens compute to `rgb(...)`; the picker needs hex.
+const toHex = (v: string): string => {
+    if (isHexColor(v)) return v;
+    const m = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(v);
+    if (!m) return v;
+    return (
+        '#' +
+        m
+            .slice(1, 4)
+            .map((c) => Number(c).toString(16).padStart(2, '0'))
+            .join('')
+    );
+};
+
 const ColorRow = (props: {
     label: string;
     varName: keyof ThemeCssOverrides;
@@ -101,7 +115,11 @@ const ColorRow = (props: {
             ) as HTMLElement | null;
             if (!dvRoot) return;
             setPlaceholder(
-                getComputedStyle(dvRoot).getPropertyValue(props.varName).trim()
+                toHex(
+                    getComputedStyle(dvRoot)
+                        .getPropertyValue(props.varName)
+                        .trim()
+                )
             );
         });
         return () => cancelAnimationFrame(id);
@@ -295,6 +313,7 @@ export const Sidebar = (props: {
                     13
                 ),
                 '--dv-border-radius': val('--dv-border-radius', 0),
+                '--dv-spacing': val('--dv-spacing', 4),
                 '--dv-spacing-padding': val('--dv-spacing-padding', 0),
                 '--dv-tab-border-radius': val('--dv-tab-border-radius', 0),
                 '--dv-sash-border-radius': val('--dv-sash-border-radius', 0),
@@ -333,6 +352,7 @@ export const Sidebar = (props: {
     const tabFs = computedVar('--dv-tabs-and-actions-container-font-size', 13);
     const borderRadius = computedVar('--dv-border-radius', 0);
     const spacingPadding = computedVar('--dv-spacing-padding', 0);
+    const spacing = computedVar('--dv-spacing', 4);
     const tabBorderRadius = computedVar('--dv-tab-border-radius', 0);
     const sashBorderRadius = computedVar('--dv-sash-border-radius', 0);
 
@@ -426,6 +446,36 @@ export const Sidebar = (props: {
             >
                 {activeTab === 'theme' ? (
                     <>
+                        {/* Base tokens */}
+                        <Section title="Base" icon="tune" defaultOpen>
+                            {props.baseTheme.name !== 'custom' && (
+                                <div
+                                    style={{
+                                        fontSize: 11,
+                                        color: SB.muted,
+                                        padding: '2px 2px 6px',
+                                    }}
+                                >
+                                    Built-in themes set their colours
+                                    explicitly. Pick the Custom theme to derive
+                                    everything from these.
+                                </div>
+                            )}
+                            {colorRow('Background', '--dv-background-color')}
+                            {colorRow('Foreground', '--dv-foreground-color')}
+                            {colorRow('Accent', '--dv-accent-color')}
+                            <SliderRow
+                                label="Spacing"
+                                value={spacing}
+                                min={1}
+                                max={8}
+                                unit="px"
+                                onChange={(v) =>
+                                    set({ '--dv-spacing': `${v}px` })
+                                }
+                            />
+                        </Section>
+
                         {/* Layout */}
                         <Section
                             title="Layout"

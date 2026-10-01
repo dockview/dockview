@@ -50,6 +50,10 @@ export const BUILTIN_THEMES: { theme: DockviewTheme; label: string }[] = [
 ];
 
 export interface ThemeCssOverrides {
+    '--dv-background-color'?: string;
+    '--dv-foreground-color'?: string;
+    '--dv-accent-color'?: string;
+    '--dv-spacing'?: string;
     '--dv-group-view-background-color'?: string;
     '--dv-tabs-and-actions-container-background-color'?: string;
     '--dv-tabs-and-actions-container-height'?: string;
@@ -133,6 +137,9 @@ export function generateCodeSnippet(
     state: ThemeBuilderState
 ): string {
     const name = baseTheme.name;
+    if (name === 'custom') {
+        return generateCustomSnippet(state);
+    }
     const importName = `theme${name.charAt(0).toUpperCase()}${name.slice(1)}`;
 
     const overrideEntries = Object.entries(state.cssOverrides).filter(
@@ -188,4 +195,17 @@ export function generateCodeSnippet(
     }
 
     return out;
+}
+
+// The custom theme has no class of its own, so export the overrides as one.
+function generateCustomSnippet(state: ThemeBuilderState): string {
+    const lines = Object.entries(state.cssOverrides)
+        .filter(([, v]) => v !== undefined && v !== '')
+        .map(([k, v]) => `  ${k}: ${v};`);
+    return (
+        `.my-theme {\n${lines.join('\n')}\n}\n\n` +
+        `const myTheme: DockviewTheme = {\n  name: 'mine',\n  className: 'my-theme',\n` +
+        (state.gap ? `  gap: ${state.gap},\n` : '') +
+        `};\n`
+    );
 }

@@ -1,8 +1,29 @@
 // Every `--dv-*` custom property a theme can set, grouped by what it styles.
-// Defaults live in `dockview-theme-core-mixin` (packages/dockview-core/src/theme.scss)
-// or, for the structural properties, in the `var()` fallbacks where core reads
-// them. Every built-in theme is a set of these properties and nothing else.
+// Unset properties default to expressions of the base tokens below (see
+// packages/dockview-core/src/theme/_tokens.scss). Every built-in theme is a set
+// of these properties and nothing else.
 export const cssVariableConfig = [
+    // ── Base tokens (everything else derives from these) ─────────────────────
+    {
+        key: '--dv-background-color',
+        text: 'Base surface colour. Groups, the active tab and floating frames derive from it. Default `#1e1e1e`.',
+    },
+    {
+        key: '--dv-foreground-color',
+        text: 'Base text colour. Tab text, separators, dividers, hover fills and the tab strip tint are mixed from it. Default `#cccccc`.',
+    },
+    {
+        key: '--dv-accent-color',
+        text: 'Accent colour: focus ring, active sash, drop preview and edge indicator. Default `dodgerblue`.',
+    },
+    {
+        key: '--dv-spacing',
+        text: 'Spacing unit. Tab padding is one unit block and two inline. Default `4px`.',
+    },
+    {
+        key: '--dv-border-radius',
+        text: 'Base corner radius: groups, floating groups, peeks and drop targets use it; tabs and dropdowns ⅔ of it, sashes ⅓, drop indicators ¼. Default `0px`.',
+    },
     // ── Theme settings (read by dockview, see DockviewThemeSettings) ─────────
     {
         key: '--dv-group-gap',

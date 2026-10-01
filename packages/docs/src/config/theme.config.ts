@@ -20,7 +20,15 @@ import {
     themeGithubLightSpaced,
     themeSlate,
     themeSlateDark,
+    type DockviewTheme,
 } from 'dockview-react';
+
+// Sets nothing itself: every property derives from the base tokens, which the
+// demo's theme builder edits.
+const themeCustom: DockviewTheme = {
+    name: 'custom',
+    className: 'dockview-theme-custom',
+};
 
 export const themeConfig = [
     {
@@ -148,5 +156,11 @@ export const themeConfig = [
         label: 'Dark Rounded',
         key: '**[Dark Rounded](/demo?theme=darkRounded)**',
         text: 'The dark palette with a rounded, connected active tab cut out of a lighter strip',
+    },
+    {
+        id: themeCustom,
+        label: 'Custom',
+        key: '**[Custom](/demo?theme=custom)**',
+        text: 'No colours of its own: set the base tokens in the theme builder and everything else derives from them',
     },
 ].filter((entry) => entry.id != null);
