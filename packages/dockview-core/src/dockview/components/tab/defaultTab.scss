@@ -6,8 +6,7 @@
     ); /* forces tab to be drawn on a separate layer (see https://github.com/microsoft/vscode/issues/18733) */
 }
 
-/* Applied to the ghost tab clone during drag: a neutral hairline so the ghost
-   reads as a card over whatever it is dragged across. */
+/* Applied to the ghost tab clone during drag: a neutral hairline border */
 .dv-tab-ghost-drag {
     position: relative;
 
@@ -31,10 +30,8 @@
     // Keyboard-only focus ring: :focus-visible suppresses it on mouse click,
     // :has(:focus-visible) keeps it when a child (e.g. the close button) is
     // keyboard-focused, the descendant case the old :focus-within covered.
-    // Drawn as the tab's own outline, inset by its width so it survives
-    // neighbouring tabs and the strip edge and follows the tab's corner
-    // radius. The tab's pseudo-elements stay free for themes (the divider on
-    // `::before`, the connected-tab shoulders on `::after`).
+    // An inset outline, not a pseudo-element, so it follows the corner radius
+    // and leaves ::before/::after free for dividers and shoulders.
     &:focus-visible,
     &:has(:focus-visible) {
         outline: var(--dv-focus-ring-width, 2px) solid

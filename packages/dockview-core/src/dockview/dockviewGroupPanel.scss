@@ -1,10 +1,3 @@
-// Group shape tokens, all inert by default:
-//   --dv-group-border-radius     the group's corners
-//   --dv-header-border-radius    the tab strip's corners (a full shorthand)
-//   --dv-header-padding          inset along the strip (across it on rails)
-//   --dv-content-border-radius   the content area's corners (a shorthand;
-//                                see `.dv-content-container` below)
-//   --dv-content-background-color, --dv-content-overflow
 .dv-groupview {
     display: flex;
     height: 100%;
@@ -57,9 +50,8 @@
     overflow: var(--dv-content-overflow, visible);
 }
 
-// A docked auto-hide tool window stacks title bar, content and a bottom tab
-// strip, so its strip and content take their own corner shapes (defaulting
-// to the regular ones).
+// A docked tool window has a title bar above the content and the strip below,
+// so both take their own corner shapes.
 .dv-groupview.dv-edge-tool-window {
     .dv-content-container {
         border-radius: var(
@@ -76,9 +68,6 @@
     }
 }
 
-// The visible panel's tab on a collapsed edge rail whose group is not
-// focused. Defaults to the ordinary unfocused-group look; a theme can make it
-// a bare label on the rail instead.
 .dv-groupview.dv-groupview-edge.dv-edge-collapsed.dv-inactive-group
     > .dv-tabs-and-actions-container
     .dv-tabs-container

@@ -139,9 +139,8 @@ class EdgeGroupController extends CompositeDisposable {
                 }
                 this._updateDocked();
             }),
-            // A theme switch: the chrome's backgrounds are resolved colours
-            // set inline (see `_titleBarBackground`), so a docked or peeking
-            // tool window would otherwise keep the previous theme's colours.
+            // Chrome backgrounds are resolved colours set inline, so a theme
+            // switch must re-resolve them.
             this.host.onDidOptionsChange(() => this._refreshChrome()),
             {
                 dispose: () => {
@@ -198,8 +197,6 @@ class EdgeGroupController extends CompositeDisposable {
         return resolveOpaqueBackground(strip ?? this.group.element);
     }
 
-    /** Re-resolve the inline chrome colours after an option (theme) change:
-     *  the docked title bar, and the peek's backdrop and title bar. */
     private _refreshChrome(): void {
         if (this._docked) {
             this._docked.bar.style.backgroundColor = this._titleBarBackground();

@@ -74,10 +74,8 @@ export interface DockviewTheme {
 }
 
 /**
- * The theme settings that drive layout and drag-and-drop behaviour (rather
- * than appearance). Each can be given on the theme object or, equally, as a
- * CSS custom property on the element carrying the theme class, so a theme can
- * be defined entirely in CSS:
+ * Theme settings for layout and drag-and-drop behaviour. Each can be set on
+ * the theme object or as a CSS custom property on the theme class:
  *
  * | setting                  | CSS custom property              | default |
  * | ------------------------ | -------------------------------- | ------- |
@@ -89,9 +87,8 @@ export interface DockviewTheme {
  * | `tabGroupIndicator`      | `--dv-tab-group-indicator`       | `'wrap'` |
  * | `tabAnimation`           | `--dv-tab-animation`             | `'default'` |
  *
- * A value on the theme object wins over the CSS property. The CSS is read
- * when the theme is applied (at creation and on `updateOptions`); call
- * `api.refreshTheme()` after changing these properties at runtime.
+ * The theme object wins over CSS. Call `api.refreshTheme()` after changing
+ * the CSS properties at runtime.
  */
 export type DockviewThemeSettings = Pick<
     DockviewTheme,
@@ -107,10 +104,9 @@ export type DockviewThemeSettings = Pick<
 export type ResolvedDockviewThemeSettings = Required<DockviewThemeSettings>;
 
 /**
- * Resolve a theme's settings outside a live dockview (e.g. to seed a theme
- * editor): mounts a hidden element carrying `theme.className`, reads its
- * CSS settings and merges them with the theme object. Falls back to the
- * theme object and defaults where there is no document.
+ * Resolve a theme's settings outside a live dockview by reading the CSS of a
+ * hidden element with `theme.className`. Without a document, uses the theme
+ * object and defaults only.
  */
 export function resolveDockviewThemeSettings(
     theme: DockviewTheme

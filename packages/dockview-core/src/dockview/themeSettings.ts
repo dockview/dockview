@@ -4,7 +4,6 @@ import type {
     ResolvedDockviewThemeSettings,
 } from './theme';
 
-/** Anything with `getPropertyValue`, e.g. a `CSSStyleDeclaration`. */
 type StyleSource = Pick<CSSStyleDeclaration, 'getPropertyValue'>;
 
 const DEFAULT_THEME_SETTINGS: ResolvedDockviewThemeSettings = {
@@ -25,8 +24,8 @@ const ENUM_THEME_SETTINGS = {
     tabAnimation: ['--dv-tab-animation', ['smooth', 'default']],
 } as const;
 
-/** A property's value, or `''` where the style can't provide one (e.g. a
- *  partial `getComputedStyle` in a test or non-browser environment). */
+// Returns `''` when `getPropertyValue` is missing (partial `getComputedStyle`
+// mocks in tests or non-browser environments).
 export function readStyleProperty(
     style: StyleSource,
     property: string
@@ -36,7 +35,6 @@ export function readStyleProperty(
         : '';
 }
 
-/** The first non-empty value of `property` among `styles`, in order. */
 function readFirst(styles: StyleSource[], property: string): string {
     for (const style of styles) {
         const value = readStyleProperty(style, property);
@@ -48,8 +46,7 @@ function readFirst(styles: StyleSource[], property: string): string {
 }
 
 function toPixels(value: string): number | undefined {
-    // A bare number or a px length; anything else (other units, calc()) is
-    // not a resolvable pixel value here.
+    // Only bare numbers and px lengths; other units and calc() are ignored.
     const number = value.endsWith('px') ? value.slice(0, -2) : value;
     if (number === '' || !Number.isFinite(Number(number))) {
         return undefined;
@@ -58,11 +55,9 @@ function toPixels(value: string): number | undefined {
 }
 
 /**
- * Read the {@link DockviewThemeSettings} a theme declares in CSS (see the
- * table there) from computed styles. Each setting comes from the first style
- * that declares it, so `style` wins over `fallbacks` (the settings'
- * properties are registered as non-inheriting, so each element reports only
- * its own declarations). Unset or unrecognised values are omitted.
+ * Read the {@link DockviewThemeSettings} declared in CSS. Each setting comes
+ * from the first style that declares it; unset or unrecognised values are
+ * omitted. The properties don't inherit, so each element reports only its own.
  */
 export function readThemeSettingsFromStyle(
     style: StyleSource,
@@ -75,8 +70,7 @@ export function readThemeSettingsFromStyle(
     if (gap !== undefined) {
         settings.gap = gap;
     }
-    // The strip height is an ordinary inherited property, so `style` alone
-    // gives the one in effect.
+    // The strip height does inherit, so `style` alone gives the one in effect.
     const collapsed =
         toPixels(readFirst(styles, '--dv-edge-group-collapsed-size')) ??
         toPixels(
@@ -99,10 +93,7 @@ export function readThemeSettingsFromStyle(
     return settings;
 }
 
-/**
- * Merge a theme's settings: the theme object first, then the settings read
- * from CSS, then the defaults.
- */
+/** Theme object first, then CSS, then defaults. */
 export function mergeThemeSettings(
     theme: DockviewTheme | undefined,
     fromCss: DockviewThemeSettings | undefined
@@ -113,10 +104,7 @@ export function mergeThemeSettings(
     };
 }
 
-/**
- * The settings a theme actually declares, on its object or in its CSS, with
- * no defaults filled in (`undefined` where neither sets one).
- */
+/** The settings the theme object or CSS declares, without defaults. */
 export function declaredThemeSettings(
     theme: DockviewTheme | undefined,
     fromCss: DockviewThemeSettings | undefined
@@ -134,10 +122,8 @@ export function declaredThemeSettings(
 }
 
 /**
- * One setting as the theme declares it (object, then CSS), `undefined` when
- * unset. Callers compare against the non-default value, and some tell an
- * unset value apart from an explicit default (e.g. `tabAnimation`), so the
- * defaults are deliberately not filled in here.
+ * One declared setting, `undefined` when unset. No default is filled in, as
+ * some callers (e.g. `tabAnimation`) treat unset differently from the default.
  */
 export function themeSetting<K extends keyof DockviewThemeSettings>(
     host: {

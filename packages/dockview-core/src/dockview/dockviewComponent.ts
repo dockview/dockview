@@ -429,8 +429,8 @@ export interface PopoutGroup {
     readonly window: Window;
 }
 
-/** Drop-preview styling that a `className`-applied theme hands up to the
- *  shell, where the layout-root and floating drop previews mount. */
+// Copied from a `className`-applied theme to the shell, where the root and
+// floating drop previews mount (outside the component root).
 const SHELL_DROP_PREVIEW_PROPERTIES = [
     '--dv-drag-over-border',
     '--dv-drag-over-background-color',
@@ -440,12 +440,10 @@ const SHELL_DROP_PREVIEW_PROPERTIES = [
 ] as const;
 
 export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
-    /** The active theme's settings, resolved from the theme object, the
-     *  theme's CSS custom properties and the defaults. */
+    /** The active theme's settings (theme object, then CSS, then defaults). */
     readonly themeSettings: ResolvedDockviewThemeSettings;
-    /** The settings the theme actually declares (object, then CSS), with no
-     *  defaults filled in. Internal: lets callers tell an unset value apart
-     *  from an explicit default. */
+    /** Internal: the theme's declared settings without defaults, so an unset
+     *  value can be told apart from an explicit default. */
     readonly declaredThemeSettings: DockviewThemeSettings;
     /** Re-read the theme's CSS settings (after changing them at runtime). */
     refreshTheme(): void;
@@ -846,14 +844,12 @@ export class DockviewComponent
         return this._declaredThemeSettings;
     }
 
-    /** Whether the theme's CSS was read with dockview's stylesheet applied;
-     *  `undefined` until the theme is first applied. While `false`, a later
-     *  layout or stylesheet load re-reads it. */
+    // `false` means the theme CSS was read before dockview's stylesheet
+    // applied, so a later layout or stylesheet load re-reads it.
     private _themeCssRead: boolean | undefined = undefined;
 
     private get isStylesheetApplied(): boolean {
-        // Core's root rule sets `border-box`; the browser default is
-        // `content-box`.
+        // Core's root rule sets `border-box`; the browser default is `content-box`.
         return (
             this.element.isConnected &&
             typeof getComputedStyle === 'function' &&
@@ -871,6 +867,7 @@ export class DockviewComponent
                 this.retryThemeCss();
             }
         };
+        // Capture on the document: an element's `load` never reaches window.
         document.addEventListener('load', onLoad, true);
         return Disposable.from(() =>
             document.removeEventListener('load', onLoad, true)
@@ -1771,10 +1768,6 @@ export class DockviewComponent
             // so clearing both shell containers here guarantees no overlay
             // survives the drag. The pointer backend clears on drag-leave already
             // and doesn't emit `dragend`, so this is HTML5-only by construction.
-            // A stylesheet that loads after the theme was applied (e.g. a
-            // code-split CSS chunk). Captured on the document: `load` never
-            // reaches the window from an element.
-            this.listenForStylesheetLoads(),
             addDisposableListener(
                 this._shellManager.element,
                 'dragend',
@@ -1784,6 +1777,7 @@ export class DockviewComponent
                 },
                 true
             ),
+            this.listenForStylesheetLoads(),
             this.overlayRenderContainer,
             this._onWillDragPanel,
             this._onWillDragGroup,
@@ -3174,8 +3168,7 @@ export class DockviewComponent
             }
         }
 
-        // A `className` change can apply or remove a theme (or
-        // `.dockview-spaced`), so its CSS settings are re-read too.
+        // `className` can apply or remove a theme, so re-read its CSS settings.
         if ('theme' in options || 'className' in options) {
             this.updateTheme();
         }
@@ -6369,16 +6362,10 @@ export class DockviewComponent
         this.updateTheme();
     }
 
-    /** Drop-preview styling: the theme object's `dndOverlayBorder`, and a
-     *  `className`-applied theme's preview styling handed up to the shell. */
     private applyDropPreviewStyle(
         theme: DockviewTheme,
         style: CSSStyleDeclaration | undefined
     ): void {
-        // The layout-root and floating drop previews mount on the shell,
-        // outside the component root. A theme applied through `className`
-        // sits on the component root, so carry its drop-preview styling up
-        // to the shell for those previews.
         const shellStyle = this._shellManager?.element.style;
         const classNameApplied =
             style !== undefined && !!this._options.className?.trim();
@@ -6415,13 +6402,8 @@ export class DockviewComponent
         // set on the shell from reaching the dockview subtree.
         this._shellThemeClassnames?.setClassNames(theme.className);
 
-        // With the class applied, read the settings the theme declares in CSS
-        // (from the component root, which also sees a `className`-applied
-        // theme); a value on the theme object wins.
         const shell = this._shellManager?.element;
-        // Drop the drop-preview styling handed up to the shell last time
-        // (see `applyDropPreviewStyle`) before reading, so a previous theme's
-        // values are not inherited back and copied again.
+        // Clear values copied to the shell last time so they aren't read back.
         for (const property of SHELL_DROP_PREVIEW_PROPERTIES) {
             shell?.style.removeProperty(property);
         }
@@ -6432,9 +6414,8 @@ export class DockviewComponent
                 ? getComputedStyle(this.element)
                 : undefined;
         this._themeCssRead = this.isStylesheetApplied;
-        // The settings' properties don't inherit (so a nested dockview never
-        // picks up its host's): read the component root (`className`) first,
-        // then the shell (the theme class).
+        // The settings' properties don't inherit, so read the component root
+        // (`className` themes) and then the shell (the theme class).
         let fromCss: DockviewThemeSettings | undefined;
         if (style) {
             const fallbacks = shell ? [getComputedStyle(shell)] : [];

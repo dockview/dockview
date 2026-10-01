@@ -1313,18 +1313,16 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
     }
 
     /**
-     * The active theme's layout and drag-and-drop settings, resolved from the
-     * theme object, the theme's CSS custom properties and the defaults (see
-     * {@link DockviewThemeSettings}).
+     * The active theme's resolved {@link DockviewThemeSettings}: the theme
+     * object, then its CSS custom properties, then the defaults.
      */
     get themeSettings(): ResolvedDockviewThemeSettings {
         return this.component.themeSettings;
     }
 
     /**
-     * Re-read the theme's CSS settings (`--dv-group-gap` and the others listed
-     * on {@link DockviewThemeSettings}) after changing them at runtime. They
-     * are otherwise read when the theme is applied.
+     * Re-read the theme's CSS settings (see {@link DockviewThemeSettings})
+     * after changing them at runtime.
      */
     refreshTheme(): void {
         this.component.refreshTheme();

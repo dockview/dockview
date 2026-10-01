@@ -9,28 +9,21 @@
     --dv-tab-margin-block: 4px;
     --dv-tab-margin-inline: 0.25rem;
     --dv-tab-margin: var(--dv-tab-margin-block) var(--dv-tab-margin-inline);
-    // Vertical rails swap the parts (physical margins under the rail's
-    // vertical writing mode), so `--dv-tab-margin-block` stays the cross-axis
-    // margin that sets the pill's thickness in both orientations.
+    // Margins are physical under a rail's vertical writing mode, so swap the
+    // parts to keep `--dv-tab-margin-block` setting the pill's thickness.
     --dv-vertical-tab-margin: var(--dv-tab-margin-inline)
         var(--dv-tab-margin-block);
-    // Wider padding either side of the label than the core 8px so the pill
-    // has clear air around its text; no cross-axis padding (the pill's
-    // thickness is the strip height minus the tab margin).
+    // No block padding: the pill's thickness is the strip height minus margins.
     --dv-tab-padding-block: 0px;
     --dv-tab-padding-inline: 12px;
-    // A slightly bolder label on the selected tab (the pill fill alone reads
-    // faintly on the low-contrast themes).
+    // The pill fill alone reads faintly on the low-contrast themes.
     --dv-active-tab-font-weight: 500;
-    // Header height: a 32px strip with 4px tab margins gives a 24px pill
-    // (height − 2·margin-block), tall enough for the 13px label to breathe.
-    // The old 44px / 8px-margin strip read as too tall; the 28px / 20px-pill
-    // pass that followed cramped the label against the pill edge.
+    // 32px strip − 2 × 4px margin = a 24px pill.
     --dv-tabs-and-actions-container-height: 32px;
     --dv-tab-border-radius: 8px;
     --dv-sash-border-radius: 4px;
     --dv-dropdown-border-radius: 8px;
-    // 10px glyph + the action's 4px padding ≈ an 18px target; 8px left it ~16px.
+    // 10px glyph + the action's 4px padding = an 18px hit target.
     --dv-tab-close-icon-size: 10px;
     --dv-floating-group-border: 2px solid var(--dv-group-view-background-color);
     // Blend the drag-handle bar into the spaced backdrop: match the gap/frame
@@ -43,10 +36,6 @@
     --dv-floating-titlebar-border-bottom: none;
 
     // ── Behaviour ───────────────────────────────────────────────────────────
-    // 10px gaps between the group cards. Drop previews mount at the layout
-    // root and outline the whole group card with an accent border (the fill
-    // is dropped); a tab drop shows an insertion line. The collapsed size of
-    // an edge group follows the strip height.
     --dv-group-gap: 10px;
     --dv-dnd-overlay-mounting: absolute;
     --dv-dnd-panel-overlay: group;
@@ -54,14 +43,9 @@
     --dv-drag-over-border: 2px solid var(--dv-active-sash-color);
 
     // ── Layout frame ────────────────────────────────────────────────────────
-    // The element carrying the class pads the whole layout and paints the
-    // band around it in the gap colour.
     --dv-root-padding: var(--dv-spacing-padding);
     --dv-root-background-color: var(--dv-group-view-background-color);
 
-    // Each group is a rounded card: the strip rounds the card's top, the
-    // content its bottom, with the strip inset half a radius from the curve
-    // (across the strip on vertical rails).
     --dv-group-border-radius: var(--dv-border-radius);
     --dv-header-border-radius: var(--dv-border-radius) var(--dv-border-radius)
         0 0;
@@ -72,30 +56,22 @@
         --dv-tabs-and-actions-container-background-color
     );
 
-    // A docked auto-hide tool window stacks title bar, content and a bottom
-    // tab strip: the title bar (the peek header, below) caps the top, the
-    // strip the bottom, and the content stays flush between them.
+    // A tool window's title bar caps its top and the strip its bottom.
     --dv-tool-window-content-border-radius: 0;
     --dv-tool-window-header-border-radius: 0 0 var(--dv-border-radius)
         var(--dv-border-radius);
 
-    // Auto-hide peek: a card matching the groups.
     --dv-edge-peek-border-radius: var(--dv-border-radius);
 
-    // Floating windows: a rounded, borderless card whose nested layout is
-    // inset like the docked one. With a title bar the bar frames the top, so
-    // the top inset is dropped (the bar rounds with the container).
+    // A title bar already frames the top, so the top inset is dropped.
     --dv-floating-border-radius: var(--dv-border-radius);
     --dv-floating-border: none;
     --dv-floating-inset: var(--dv-spacing-padding);
     --dv-floating-inset-below-titlebar: 0px;
 
-    // Drop previews: softer corners on the layout-wide overlay, card corners
-    // when previewing a drop into a group's content.
     --dv-drop-target-border-radius: calc(var(--dv-border-radius) / 4);
     --dv-drop-target-content-border-radius: var(--dv-border-radius);
 
-    // The overflow button sizes to its content (the tab margin already
-    // insets it from the strip edges).
+    // The tab margin already insets the overflow button from the strip edges.
     --dv-tabs-overflow-dropdown-height: auto;
 }

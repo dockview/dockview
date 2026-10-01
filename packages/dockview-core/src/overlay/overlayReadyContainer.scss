@@ -7,8 +7,7 @@
     height: 100%;
     contain: layout paint;
     isolation: isolate;
-    // Always-rendered panels paint here, aligned to the content container, so
-    // they take its corner shape.
+    // Overlays the content container, so it takes the same corner shape.
     border-radius: var(--dv-content-border-radius, 0px);
     
     /* GPU optimizations */

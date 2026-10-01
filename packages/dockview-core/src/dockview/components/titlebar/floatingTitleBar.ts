@@ -54,10 +54,8 @@ export class FloatingTitleBar extends CompositeDisposable {
         this._element = document.createElement('div');
         this._element.className = 'dv-floating-titlebar';
 
-        // A contentless grip affordance. It is invisible by default
-        // (`--dv-floating-titlebar-handle-color` is transparent) and only
-        // renders as a dotted grip on themes that opt in (e.g. the slate
-        // theme). `pointer-events: none` (set in CSS) keeps drags on the bar.
+        // Grip decoration, transparent unless a theme sets
+        // `--dv-floating-titlebar-handle-color`.
         const handle = document.createElement('div');
         handle.className = 'dv-floating-titlebar-handle';
         this._element.appendChild(handle);

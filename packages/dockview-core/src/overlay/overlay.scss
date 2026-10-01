@@ -37,9 +37,6 @@
 // Auto-hide edge group "peek": the active panel slid out over the content. The
 // backdrop, the peeked content, and the Pin header are three separate sibling
 // overlays (the `always` render overlay can't be nested), layered by z-index.
-// Shape tokens: `--dv-edge-peek-border`, `--dv-edge-peek-box-shadow`, and
-// `--dv-edge-peek-border-radius` (the title bar takes the top corners, the
-// backdrop and its clip the bottom ones).
 .dv-edge-peek {
     background-color: var(--dv-group-view-background-color);
     border: var(--dv-edge-peek-border, 1px solid var(--dv-separator-border));
@@ -129,8 +126,7 @@
 }
 
 // A floating window hosts its own gridview as the overlay content; it must
-// fill the resize container so its size tracks the overlay box. The padding is
-// the optional inset frame (see the rounded-frame section below); 0 by default.
+// fill the resize container so its size tracks the overlay box.
 .dv-resize-container > .dv-grid-view {
     width: 100%;
     height: 100%;
@@ -138,7 +134,7 @@
     padding: var(--dv-floating-inset, 0px);
 }
 
-// Below a title bar the top inset can differ (the bar already frames the top).
+// The title bar already frames the top, so the top inset can differ.
 .dv-resize-container-with-titlebar > .dv-grid-view {
     padding-top: var(
         --dv-floating-inset-below-titlebar,
@@ -146,7 +142,6 @@
     );
 }
 
-// Border drawn around each group inside a floating window.
 .dv-resize-container .dv-groupview {
     border: var(--dv-floating-group-border, none);
 }
@@ -177,9 +172,7 @@
     background-color: var(--dv-floating-titlebar-background-color);
     border-bottom: var(--dv-floating-titlebar-border-bottom, none);
     user-select: none;
-    // Center the optional grip affordance (`.dv-floating-titlebar-handle`).
-    // The bar is empty on themes that leave the handle colour transparent, so
-    // this is inert there.
+    // Centres the optional grip handle.
     display: flex;
     align-items: center;
     justify-content: center;
@@ -196,9 +189,7 @@
     }
 }
 
-// Optional grip affordance inside the drag handle: a 3×3 dot grid painted with
-// `--dv-floating-titlebar-handle-color`. Transparent by default, so the bar is
-// empty on every theme until one opts in by setting the colour.
+// Invisible until a theme sets `--dv-floating-titlebar-handle-color`.
 .dv-floating-titlebar-handle {
     width: var(--dv-floating-titlebar-handle-size, 15px);
     height: var(--dv-floating-titlebar-handle-size, 15px);
@@ -217,14 +208,9 @@
     opacity: 1;
 }
 
-// Optional inset frame + rounded corners for floating groups, driven by
-// `--dv-floating-inset` / `--dv-floating-border-radius` (both 0 by default, so
-// this is inert until a theme opts in). No `overflow: hidden` — the edge resize
-// handles straddle the frame at -2px, so clipping would halve their grab area;
-// instead the frame plus the corner leaf elements are rounded (title bar caps
-// the top, content container caps the bottom), and the frame colour shows in
-// the inset band. (The inset padding itself lives on the
-// `.dv-resize-container > .dv-grid-view` rule above.)
+// Rounded floating windows round their corner leaf elements rather than use
+// `overflow: hidden`: the edge resize handles straddle the frame at -2px, so
+// clipping would halve their grab area.
 
 .dv-resize-container-with-titlebar > .dv-floating-titlebar {
     border-top-left-radius: var(--dv-floating-border-radius);
@@ -238,8 +224,7 @@
     border-top-right-radius: var(--dv-floating-border-radius);
 }
 
-// The content's bottom corners follow the window's (this outranks the general
-// `--dv-content-border-radius` rule inside a floating window).
+// Outranks the general `--dv-content-border-radius` rule.
 .dv-resize-container .dv-groupview > .dv-content-container {
     border-bottom-left-radius: var(--dv-floating-border-radius);
     border-bottom-right-radius: var(--dv-floating-border-radius);
@@ -251,11 +236,8 @@
     position: absolute;
     z-index: calc(var(--dv-overlay-z-index) - 2);
 
-    // The container is the backdrop behind its content, and (when a theme sets
-    // `--dv-floating-inset`) the frame that shows in the inset band around the
-    // content. `--dv-floating-frame-color` defaults to the docked backdrop
-    // colour, so with no inset it is invisible; a single floating group hides
-    // it entirely, while a nested floating layout exposes the gaps/sashes.
+    // Backdrop showing through a nested floating layout's gaps and sashes,
+    // and through the inset band when `--dv-floating-inset` is set.
     background-color: var(
         --dv-floating-frame-color,
         var(--dv-group-view-background-color)

@@ -38,9 +38,8 @@
             );
         }
 
-        // When the target moves to a different container (another group),
-        // the anchor glides there. `--dv-drop-target-travel: 0` makes it
-        // jump instead: hidden for the move, with no transition.
+        // Moving to another group glides by default; `--dv-drop-target-travel: 0`
+        // hides the anchor and drops the transition so it jumps instead.
         &.dv-drop-target-anchor-container-changed {
             opacity: var(--dv-drop-target-travel, 1);
             transition-duration: calc(

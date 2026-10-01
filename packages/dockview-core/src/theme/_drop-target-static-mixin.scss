@@ -1,5 +1,4 @@
-// Drop previews jump between groups instead of gliding (core reads the token
-// in dropTargetAnchorContainer.scss).
+// Drop previews jump between groups instead of gliding.
 @mixin dockview-drop-target-no-travel {
     --dv-drop-target-travel: 0;
 }

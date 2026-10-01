@@ -1,10 +1,5 @@
-// The element that carries a theme class (the shell for the `theme`
-// option, the component root for the `className` option) can pad the whole
-// layout and paint the band around it. Registered as non-inheriting, so only
-// the element that declares them is affected, wherever the class sits.
-// The theme settings read by dockview (see `DockviewThemeSettings`) apply to
-// one dockview: registered as non-inheriting so a dockview nested in another's
-// panel never picks up its host's gap, drop modes or tab indicators.
+// Non-inheriting, so each applies only where declared: a dockview nested in
+// another's panel never picks up its host's settings, padding or background.
 @property --dv-group-gap {
     syntax: '*';
     inherits: false;
@@ -84,8 +79,6 @@
 .dv-groupview {
     &.dv-active-group {
         > .dv-tabs-and-actions-container {
-            // Optional rule under the strip in the visible tab's fill
-            // (`--dv-tabs-and-actions-container-border-bottom-width`).
             border-bottom: var(
                     --dv-tabs-and-actions-container-border-bottom-width,
                     0px
@@ -98,15 +91,10 @@
                         --dv-activegroup-visiblepanel-tab-background-color
                     );
                     color: var(--dv-activegroup-visiblepanel-tab-color);
-                    // Optional accent edge along the tab's top, in the tab's
-                    // own fill (`--dv-tab-border-top-width`, 0 by default).
                     border-top: var(--dv-tab-border-top-width, 0px) solid
                         var(--dv-activegroup-visiblepanel-tab-background-color);
-                    // Active-tab marker colour (geometry in the shared rule
-                    // below). A gradient rather than a pseudo-element so it
-                    // never collides with the ::before dividers, ::after
-                    // reorder bars / connected-tab shoulders, and adds no
-                    // layout height.
+                    // A gradient, not a pseudo-element: ::before/::after are
+                    // taken by dividers and shoulders, and it adds no height.
                     background-image: linear-gradient(
                         var(--dv-activegroup-tab-marker-color),
                         var(--dv-activegroup-tab-marker-color)
@@ -117,17 +105,11 @@
                         --dv-activegroup-hiddenpanel-tab-background-color
                     );
                     color: var(--dv-activegroup-hiddenpanel-tab-color);
-                    // Optional accent edge along the tab's top, in the tab's
-                    // own fill (`--dv-tab-border-top-width`, 0 by default).
                     border-top: var(--dv-tab-border-top-width, 0px) solid
                         var(--dv-activegroup-hiddenpanel-tab-background-color);
 
-                    // Optional hover feedback: a theme opts in by setting
-                    // --dv-tab-inactive-hover-background-color. Unset, it
-                    // falls back to this tab's own background, so the hover
-                    // is a no-op and no theme is affected. This lives here
-                    // (rather than a standalone .dv-tab:hover rule) so it
-                    // outranks the group-scoped background above it.
+                    // Nested here, not a standalone .dv-tab:hover rule, so it
+                    // outranks the group-scoped background above.
                     &:hover {
                         background-color: var(
                             --dv-tab-inactive-hover-background-color,
@@ -140,8 +122,6 @@
     }
     &.dv-inactive-group {
         > .dv-tabs-and-actions-container {
-            // Optional rule under the strip in the visible tab's fill
-            // (`--dv-tabs-and-actions-container-border-bottom-width`).
             border-bottom: var(
                     --dv-tabs-and-actions-container-border-bottom-width,
                     0px
@@ -154,8 +134,6 @@
                         --dv-inactivegroup-visiblepanel-tab-background-color
                     );
                     color: var(--dv-inactivegroup-visiblepanel-tab-color);
-                    // Optional accent edge along the tab's top, in the tab's
-                    // own fill (`--dv-tab-border-top-width`, 0 by default).
                     border-top: var(--dv-tab-border-top-width, 0px) solid
                         var(--dv-inactivegroup-visiblepanel-tab-background-color);
                     background-image: linear-gradient(
@@ -168,13 +146,9 @@
                         --dv-inactivegroup-hiddenpanel-tab-background-color
                     );
                     color: var(--dv-inactivegroup-hiddenpanel-tab-color);
-                    // Optional accent edge along the tab's top, in the tab's
-                    // own fill (`--dv-tab-border-top-width`, 0 by default).
                     border-top: var(--dv-tab-border-top-width, 0px) solid
                         var(--dv-inactivegroup-hiddenpanel-tab-background-color);
 
-                    // See the active-group note above; falls back to this
-                    // tab's own background so unset themes are unaffected.
                     &:hover {
                         background-color: var(
                             --dv-tab-inactive-hover-background-color,
@@ -189,11 +163,8 @@
     }
 }
 
-// Active-tab marker geometry: `--dv-tab-marker-size` thick, pinned to the
-// tab edge that meets the content. Header on top (default) → bottom edge;
-// header at the bottom → top edge; left/right rails → the inner edge (the
-// keywords are physical, so they hold under the rail's vertical writing
-// mode). Colour comes from the group-scoped rules above.
+// Marker on the tab edge that meets the content. Physical keywords, so they
+// hold under a rail's vertical writing mode.
 .dv-groupview
     > .dv-tabs-and-actions-container
     .dv-tabs-container
