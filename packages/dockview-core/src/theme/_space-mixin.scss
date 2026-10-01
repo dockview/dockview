@@ -32,14 +32,9 @@
     // Keep the handle seamless with the gap: no divider line below it.
     --dv-floating-titlebar-border-bottom: none;
 
-    // Cards are separated by the gap, not by lines; this outranks
-    // .dockview-base-colors, which would otherwise draw them again.
+    // Cards are separated by the gap, not by lines.
     --dv-separator-border: transparent;
     --dv-tab-divider-color: transparent;
-    &.dockview-base-colors {
-        --dv-separator-border: transparent;
-        --dv-tab-divider-color: transparent;
-    }
 
     // ── Behaviour ───────────────────────────────────────────────────────────
     --dv-group-gap: var(--dv-spacing-padding);

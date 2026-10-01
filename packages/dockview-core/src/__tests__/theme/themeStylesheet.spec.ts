@@ -139,6 +139,16 @@ describe('theme stylesheet', () => {
         expect(d.has('--dv-group-gap')).toBe(false);
     });
 
+    test.each([
+        '.dockview-spaced.dockview-base-colors',
+        '.dockview-theme-nord-spaced.dockview-base-colors',
+        '.dockview-theme-slate-dark.dockview-base-colors',
+    ])('%s keeps its lines hidden', (selector) => {
+        expect(declarationsOf(selector).get('--dv-separator-border')).toBe(
+            'transparent'
+        );
+    });
+
     const spaced = [
         '.dockview-spaced',
         '.dockview-theme-abyss-spaced',

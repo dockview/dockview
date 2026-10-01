@@ -852,10 +852,6 @@
 .dockview-theme-abyss-spaced {
     @include dockview-theme-core-mixin();
     @include dockview-design-space-mixin();
-    // Drops show as a border only.
-    &.dockview-base-colors {
-        --dv-drag-over-background-color: transparent;
-    }
 
     color-scheme: dark;
 
@@ -904,10 +900,6 @@
 .dockview-theme-light-spaced {
     @include dockview-theme-core-mixin();
     @include dockview-design-space-mixin();
-    // Drops show as a border only.
-    &.dockview-base-colors {
-        --dv-drag-over-background-color: transparent;
-    }
 
     color-scheme: light;
 
@@ -1001,9 +993,6 @@
     --dv-tabs-and-actions-container-height: 32px;
     --dv-tab-margin: 3px 0 0 0;
     --dv-separator-border: transparent;
-    &.dockview-base-colors {
-        --dv-separator-border: transparent;
-    }
     // One spacing between sheets, around the layout and beside the edge rails
     // (the shell separates them by the group gap).
     --dv-spacing-padding: 8px;
@@ -1288,6 +1277,31 @@
 
 .dockview-base-colors {
     @include dv.declare(dv.$color-tokens);
+}
+
+// Layouts that separate groups by space rather than lines keep them hidden
+// when their colours are re-derived.
+.dockview-spaced.dockview-base-colors,
+.dockview-theme-nord-spaced.dockview-base-colors,
+.dockview-theme-catppuccin-mocha-spaced.dockview-base-colors,
+.dockview-theme-solarized-light-spaced.dockview-base-colors,
+.dockview-theme-github-dark-spaced.dockview-base-colors,
+.dockview-theme-github-light-spaced.dockview-base-colors,
+.dockview-theme-abyss-spaced.dockview-base-colors,
+.dockview-theme-light-spaced.dockview-base-colors {
+    --dv-separator-border: transparent;
+    --dv-tab-divider-color: transparent;
+}
+
+.dockview-theme-slate.dockview-base-colors,
+.dockview-theme-slate-dark.dockview-base-colors {
+    --dv-separator-border: transparent;
+}
+
+// These spaced themes show drops as a border only.
+.dockview-theme-abyss-spaced.dockview-base-colors,
+.dockview-theme-light-spaced.dockview-base-colors {
+    --dv-drag-over-background-color: transparent;
 }
 
 .dockview-spaced {
