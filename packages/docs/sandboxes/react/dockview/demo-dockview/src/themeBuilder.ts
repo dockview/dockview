@@ -1,68 +1,32 @@
 import {
-    TabAnimation,
     DockviewTheme,
+    DockviewThemeSettings,
+    ResolvedDockviewThemeSettings,
     resolveDockviewThemeSettings,
-    themeAbyss,
-    themeAbyssSpaced,
-    themeCatppuccinMocha,
-    themeCatppuccinMochaSpaced,
-    themeDark,
-    themeDarkRounded,
-    themeDracula,
-    themeGithubDark,
-    themeGithubDarkSpaced,
-    themeGithubLight,
-    themeGithubLightSpaced,
-    themeLight,
-    themeLightSpaced,
-    themeMonokai,
-    themeNord,
-    themeNordSpaced,
-    themeSlate,
-    themeSlateDark,
-    themeSolarizedLight,
-    themeSolarizedLightSpaced,
-    themeVisualStudio,
+    themeBase,
 } from 'dockview-react';
 
-export const BUILTIN_THEMES: { theme: DockviewTheme; label: string }[] = [
-    { theme: themeDark, label: 'Dark' },
-    { theme: themeLight, label: 'Light' },
-    { theme: themeVisualStudio, label: 'Visual Studio' },
-    { theme: themeAbyss, label: 'Abyss' },
-    { theme: themeDracula, label: 'Dracula' },
-    { theme: themeLightSpaced, label: 'Light Spaced' },
-    { theme: themeAbyssSpaced, label: 'Abyss Spaced' },
-    { theme: themeNord, label: 'Nord' },
-    { theme: themeNordSpaced, label: 'Nord Spaced' },
-    { theme: themeCatppuccinMocha, label: 'Catppuccin Mocha' },
-    { theme: themeCatppuccinMochaSpaced, label: 'Catppuccin Mocha Spaced' },
-    { theme: themeMonokai, label: 'Monokai' },
-    { theme: themeSolarizedLight, label: 'Solarized Light' },
-    { theme: themeSolarizedLightSpaced, label: 'Solarized Light Spaced' },
-    { theme: themeGithubDark, label: 'GitHub Dark' },
-    { theme: themeGithubDarkSpaced, label: 'GitHub Dark Spaced' },
-    { theme: themeGithubLight, label: 'GitHub Light' },
-    { theme: themeGithubLightSpaced, label: 'GitHub Light Spaced' },
-    { theme: themeSlate, label: 'Slate' },
-    { theme: themeSlateDark, label: 'Slate Dark' },
-    { theme: themeDarkRounded, label: 'Dark Rounded' },
-];
+/** The base theme derives everything from the tokens the builder sets. */
+export const isBaseTheme = (theme: DockviewTheme) =>
+    theme.name === themeBase.name;
 
 export interface ThemeCssOverrides {
+    'color-scheme'?: 'light' | 'dark';
+    // Base tokens
     '--dv-background-color'?: string;
     '--dv-foreground-color'?: string;
     '--dv-accent-color'?: string;
     '--dv-spacing'?: string;
-    '--dv-group-view-background-color'?: string;
-    '--dv-tabs-and-actions-container-background-color'?: string;
+    '--dv-border-radius'?: string;
+    // Layout
+    '--dv-spacing-padding'?: string;
     '--dv-tabs-and-actions-container-height'?: string;
     '--dv-tabs-and-actions-container-font-size'?: string;
-    '--dv-border-radius'?: string;
-    '--dv-spacing-padding'?: string;
     '--dv-tab-border-radius'?: string;
     '--dv-sash-border-radius'?: string;
-    '--dv-floating-group-border'?: string;
+    // Colours
+    '--dv-group-view-background-color'?: string;
+    '--dv-tabs-and-actions-container-background-color'?: string;
     '--dv-activegroup-visiblepanel-tab-background-color'?: string;
     '--dv-activegroup-hiddenpanel-tab-background-color'?: string;
     '--dv-inactivegroup-visiblepanel-tab-background-color'?: string;
@@ -76,136 +40,152 @@ export interface ThemeCssOverrides {
     '--dv-paneview-header-border-color'?: string;
     '--dv-icon-hover-background-color'?: string;
     '--dv-drag-over-background-color'?: string;
-    '--dv-drag-over-border'?: string;
     '--dv-active-sash-color'?: string;
     '--dv-sash-color'?: string;
-    '--dv-scrollbar-background-color'?: string;
+    '--dv-tabs-container-scrollbar-color'?: string;
+    // Floating groups
+    '--dv-floating-group-border'?: string;
     '--dv-floating-box-shadow'?: string;
     '--dv-floating-border'?: string;
     '--dv-floating-group-dragging-opacity'?: string;
 }
 
+/** Layout classes ("parts") added next to the theme's own class. */
+export interface ThemeParts {
+    cards: boolean;
+    connectedTabs: boolean;
+}
+
+const PART_CLASSES: Record<keyof ThemeParts, string> = {
+    cards: 'dockview-spaced',
+    connectedTabs: 'dockview-tabs-connected',
+};
+
+/**
+ * Settings the user has changed. Anything left undefined comes from the
+ * theme's CSS, so toggling a part (which declares its own settings) still
+ * takes effect.
+ */
+export type ThemeSettingOverrides = Omit<
+    DockviewThemeSettings,
+    'edgeGroupCollapsedSize'
+>;
+
 export interface ThemeBuilderState {
-    gap: number;
-    dndOverlayMounting: 'absolute' | 'relative';
-    dndPanelOverlay: 'content' | 'group';
-    dndTabIndicator: 'line' | 'fill';
+    settings: ThemeSettingOverrides;
     dndOverlayBorder: string;
-    tabGroupIndicator: 'wrap' | 'none';
-    tabAnimation: TabAnimation;
+    parts: ThemeParts;
     cssOverrides: ThemeCssOverrides;
 }
 
-// The built-in themes declare their settings in CSS, so seed the builder
-// from the resolved settings (theme object, then the theme's CSS, then the
-// defaults) rather than the theme object alone.
-export function getInitialStateFromTheme(
-    theme: DockviewTheme
+export function getInitialState(
+    seed: ThemeCssOverrides = {},
+    parts: Partial<ThemeParts> = {}
 ): ThemeBuilderState {
-    const settings = resolveDockviewThemeSettings(theme);
     return {
-        gap: settings.gap,
-        dndOverlayMounting: settings.dndOverlayMounting,
-        dndPanelOverlay: settings.dndPanelOverlay,
-        dndTabIndicator: settings.dndTabIndicator,
-        dndOverlayBorder: theme.dndOverlayBorder ?? '',
-        tabGroupIndicator: settings.tabGroupIndicator,
-        tabAnimation: settings.tabAnimation,
-        cssOverrides: {},
+        settings: {},
+        dndOverlayBorder: '',
+        parts: { cards: false, connectedTabs: false, ...parts },
+        cssOverrides: Object.fromEntries(
+            Object.entries(seed).filter(([, v]) => v !== undefined && v !== '')
+        ),
     };
+}
+
+function partClassNames(parts: ThemeParts): string[] {
+    return (Object.keys(PART_CLASSES) as (keyof ThemeParts)[])
+        .filter((key) => parts[key])
+        .map((key) => PART_CLASSES[key]);
 }
 
 export function buildEffectiveTheme(
     baseTheme: DockviewTheme,
     state: ThemeBuilderState
 ): DockviewTheme {
+    const className = [...partClassNames(state.parts), baseTheme.className]
+        .filter(Boolean)
+        .join(' ');
+    const settings = Object.fromEntries(
+        Object.entries(state.settings).filter(([, v]) => v !== undefined)
+    );
     return {
         ...baseTheme,
-        // Explicit, so 0 can override a theme whose CSS declares a gap.
-        gap: state.gap,
-        dndOverlayMounting: state.dndOverlayMounting,
-        dndPanelOverlay: state.dndPanelOverlay,
-        dndTabIndicator: state.dndTabIndicator,
-        dndOverlayBorder: state.dndOverlayBorder || undefined,
-        tabGroupIndicator: state.tabGroupIndicator,
-        tabAnimation: state.tabAnimation,
+        ...settings,
+        colorScheme: state.cssOverrides['color-scheme'] ?? baseTheme.colorScheme,
+        className,
+        dndOverlayBorder:
+            state.dndOverlayBorder || baseTheme.dndOverlayBorder || undefined,
     };
 }
 
+/** The settings in effect: user overrides, then the theme's CSS, then defaults. */
+export function resolveSettings(
+    baseTheme: DockviewTheme,
+    state: ThemeBuilderState
+): ResolvedDockviewThemeSettings {
+    return resolveDockviewThemeSettings(buildEffectiveTheme(baseTheme, state));
+}
+
+const importNameOf = (theme: DockviewTheme) =>
+    `theme${theme.name.charAt(0).toUpperCase()}${theme.name.slice(1)}`;
+
+/**
+ * The theme as code: a CSS class holding the overrides plus a theme object
+ * that adds it. The class sits on the same element as the theme's own class,
+ * so load it after dockview's stylesheet and its values win.
+ */
 export function generateCodeSnippet(
     baseTheme: DockviewTheme,
     state: ThemeBuilderState
 ): string {
-    const name = baseTheme.name;
-    if (name === 'custom') {
-        return generateCustomSnippet(state);
-    }
-    const importName = `theme${name.charAt(0).toUpperCase()}${name.slice(1)}`;
-
-    const overrideEntries = Object.entries(state.cssOverrides).filter(
+    const custom = isBaseTheme(baseTheme);
+    const overrides = Object.entries(state.cssOverrides).filter(
         ([, v]) => v !== undefined && v !== ''
     ) as [string, string][];
 
-    const base = resolveDockviewThemeSettings(baseTheme);
-    const themeFields: string[] = [];
-    if (state.gap !== base.gap) {
-        themeFields.push(`  gap: ${state.gap},`);
-    }
-    if (
-        state.dndOverlayMounting !== base.dndOverlayMounting
-    ) {
-        themeFields.push(
-            `  dndOverlayMounting: '${state.dndOverlayMounting}',`
-        );
-    }
-    if (state.dndPanelOverlay !== base.dndPanelOverlay) {
-        themeFields.push(`  dndPanelOverlay: '${state.dndPanelOverlay}',`);
-    }
-    if (state.dndTabIndicator !== base.dndTabIndicator) {
-        themeFields.push(`  dndTabIndicator: '${state.dndTabIndicator}',`);
-    }
-    if (state.dndOverlayBorder !== (baseTheme.dndOverlayBorder ?? '')) {
-        themeFields.push(`  dndOverlayBorder: '${state.dndOverlayBorder}',`);
-    }
-    if (
-        state.tabGroupIndicator !== base.tabGroupIndicator
-    ) {
-        themeFields.push(
-            `  tabGroupIndicator: '${state.tabGroupIndicator}',`
-        );
-    }
-    if (state.tabAnimation !== base.tabAnimation) {
-        themeFields.push(`  tabAnimation: '${state.tabAnimation}',`);
-    }
+    const classes = [
+        ...partClassNames(state.parts),
+        '${' + importNameOf(baseTheme) + '.className}',
+        ...(overrides.length > 0 ? ['my-theme'] : []),
+    ].join(' ');
 
-    let out = `import { ${importName} } from 'dockview-react';\n\n`;
-
-    if (themeFields.length > 0) {
-        out += `const myTheme = {\n  ...${importName},\n${themeFields.join('\n')}\n};\n`;
-    } else {
-        out += `const myTheme = ${importName};\n`;
-    }
-
-    if (overrideEntries.length > 0) {
-        out += `\n// Apply to the div wrapping <DockviewReact>:\nconst cssOverrides: React.CSSProperties = {\n`;
-        for (const [k, v] of overrideEntries) {
-            out += `  '${k}': '${v}',\n`;
+    const fields: string[] = [];
+    for (const [key, value] of Object.entries(state.settings)) {
+        if (value !== undefined) {
+            fields.push(`    ${key}: ${JSON.stringify(value)},`);
         }
-        out += `};\n`;
+    }
+    if (state.dndOverlayBorder) {
+        fields.push(
+            `    dndOverlayBorder: ${JSON.stringify(state.dndOverlayBorder)},`
+        );
     }
 
-    return out;
-}
+    let out = '';
+    if (overrides.length > 0) {
+        out += '/* Load after dockview.css */\n.my-theme {\n';
+        for (const [k, v] of overrides) {
+            out += `    ${k}: ${v};\n`;
+        }
+        out += '}\n\n';
+    }
 
-// The custom theme has no class of its own, so export the overrides as one.
-function generateCustomSnippet(state: ThemeBuilderState): string {
-    const lines = Object.entries(state.cssOverrides)
-        .filter(([, v]) => v !== undefined && v !== '')
-        .map(([k, v]) => `  ${k}: ${v};`);
-    return (
-        `.my-theme {\n${lines.join('\n')}\n}\n\n` +
-        `const myTheme: DockviewTheme = {\n  name: 'mine',\n  className: 'my-theme',\n` +
-        (state.gap ? `  gap: ${state.gap},\n` : '') +
-        `};\n`
-    );
+    const importName = importNameOf(baseTheme);
+    out += `import { ${importName} } from 'dockview-react';\n\n`;
+    out += `const myTheme: DockviewTheme = {\n    ...${importName},\n`;
+    if (custom) {
+        out += `    name: 'mine',\n`;
+    }
+    if (classes !== '${' + importName + '.className}') {
+        out += `    className: \`${classes}\`,\n`;
+    }
+    const scheme = state.cssOverrides['color-scheme'];
+    if (scheme && scheme !== baseTheme.colorScheme) {
+        out += `    colorScheme: '${scheme}',\n`;
+    }
+    if (fields.length > 0) {
+        out += fields.join('\n') + '\n';
+    }
+    out += '};\n';
+    return out;
 }

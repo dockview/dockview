@@ -1,9 +1,16 @@
 import * as React from 'react';
-import { DockviewApi, DockviewTheme } from 'dockview-react';
+import {
+    DockviewApi,
+    DockviewTheme,
+    ResolvedDockviewThemeSettings,
+} from 'dockview-react';
 import {
     ThemeBuilderState,
     ThemeCssOverrides,
+    ThemeParts,
     generateCodeSnippet,
+    isBaseTheme,
+    resolveSettings,
 } from './themeBuilder';
 import { ToggleRow } from './toggleRow';
 import { ControlsContent } from './settingsModal';
@@ -37,168 +44,6 @@ const Section = (props: {
 
 // Numeric slider. The kit `Slider` already matches this call signature.
 const SliderRow = Slider;
-
-const TextRow = (props: {
-    label: string;
-    varName?: keyof ThemeCssOverrides;
-    value: string;
-    containerEl?: HTMLElement | null;
-    themeKey?: string;
-    onChange: (v: string) => void;
-}) => {
-    const [computed, setComputed] = React.useState('');
-
-    React.useEffect(() => {
-        if (!props.varName || !props.containerEl) return;
-        const id = requestAnimationFrame(() => {
-            const dvRoot = props.containerEl!.querySelector(
-                '[class*="dockview-theme"]'
-            ) as HTMLElement | null;
-            if (!dvRoot) return;
-            setComputed(
-                getComputedStyle(dvRoot).getPropertyValue(props.varName!).trim()
-            );
-        });
-        return () => cancelAnimationFrame(id);
-    }, [props.containerEl, props.varName, props.themeKey]);
-
-    const displayed = props.value || computed;
-
-    return (
-        <Field label={props.label}>
-            <input
-                type="text"
-                className="dv-sb-input"
-                value={displayed}
-                onChange={(e) => props.onChange(e.target.value)}
-                placeholder="inherit"
-                style={{
-                    ...inputStyle,
-                    color: props.value ? SB.text : SB.faint,
-                }}
-            />
-        </Field>
-    );
-};
-
-const isHexColor = (v: string) => /^#[0-9a-fA-F]{6}$/.test(v);
-
-// Registered colour tokens compute to `rgb(...)`; the picker needs hex.
-const toHex = (v: string): string => {
-    if (isHexColor(v)) return v;
-    const m = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(v);
-    if (!m) return v;
-    return (
-        '#' +
-        m
-            .slice(1, 4)
-            .map((c) => Number(c).toString(16).padStart(2, '0'))
-            .join('')
-    );
-};
-
-const ColorRow = (props: {
-    label: string;
-    varName: keyof ThemeCssOverrides;
-    value: string;
-    onChange: (v: string) => void;
-    containerEl: HTMLElement | null;
-    themeKey: string;
-}) => {
-    const [placeholder, setPlaceholder] = React.useState('');
-
-    React.useEffect(() => {
-        if (!props.containerEl) return;
-        const id = requestAnimationFrame(() => {
-            const dvRoot = props.containerEl!.querySelector(
-                '[class*="dockview-theme"]'
-            ) as HTMLElement | null;
-            if (!dvRoot) return;
-            setPlaceholder(
-                toHex(
-                    getComputedStyle(dvRoot)
-                        .getPropertyValue(props.varName)
-                        .trim()
-                )
-            );
-        });
-        return () => cancelAnimationFrame(id);
-    }, [props.containerEl, props.varName, props.themeKey]);
-
-    return (
-        <div
-            style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '6px 2px',
-            }}
-        >
-            <input
-                type="color"
-                value={
-                    isHexColor(props.value)
-                        ? props.value
-                        : isHexColor(placeholder)
-                          ? placeholder
-                          : '#000000'
-                }
-                onChange={(e) => props.onChange(e.target.value)}
-                style={{
-                    width: 26,
-                    height: 26,
-                    padding: 2,
-                    border: `1px solid ${SB.border}`,
-                    borderRadius: SB.radiusChip,
-                    cursor: 'pointer',
-                    background: SB.inputBg,
-                    flexShrink: 0,
-                }}
-                title="Pick color"
-            />
-            <span
-                style={{
-                    flex: 1,
-                    fontSize: 12,
-                    color: SB.text,
-                    fontFamily: SB.ui,
-                }}
-            >
-                {props.label}
-            </span>
-            <input
-                type="text"
-                className="dv-sb-input"
-                value={props.value || placeholder}
-                onChange={(e) => props.onChange(e.target.value)}
-                style={{
-                    ...inputStyle,
-                    width: 104,
-                    flexShrink: 0,
-                    color: props.value ? SB.text : SB.faint,
-                }}
-            />
-            {props.value && (
-                <button
-                    onClick={() => props.onChange('')}
-                    style={{
-                        background: 'none',
-                        border: 'none',
-                        color: SB.faint,
-                        cursor: 'pointer',
-                        padding: '0 2px',
-                        fontSize: 15,
-                        lineHeight: 1,
-                        flexShrink: 0,
-                    }}
-                    title="Reset to theme default"
-                >
-                    ×
-                </button>
-            )}
-        </div>
-    );
-};
 
 type SidebarTab = 'theme' | 'controls';
 
@@ -254,6 +99,321 @@ const TabToggle = (props: {
     </div>
 );
 
+// ── Reading what the dock actually renders ───────────────────────────────────
+
+const findThemeRoot = (container: HTMLElement | null) =>
+    container?.querySelector('[class*="dockview-theme"]') as HTMLElement | null;
+
+// Derived tokens are not declared on the theme root (they resolve where they
+// are used), so for those read the colour off an element that uses them.
+const RENDERED: Partial<
+    Record<keyof ThemeCssOverrides, [selector: string, property: string]>
+> = {
+    '--dv-group-view-background-color': ['.dv-groupview', 'background-color'],
+    '--dv-tabs-and-actions-container-background-color': [
+        '.dv-tabs-and-actions-container',
+        'background-color',
+    ],
+    '--dv-activegroup-visiblepanel-tab-background-color': [
+        '.dv-active-group .dv-tab.dv-active-tab',
+        'background-color',
+    ],
+    '--dv-activegroup-visiblepanel-tab-color': [
+        '.dv-active-group .dv-tab.dv-active-tab',
+        'color',
+    ],
+    '--dv-activegroup-hiddenpanel-tab-background-color': [
+        '.dv-active-group .dv-tab.dv-inactive-tab',
+        'background-color',
+    ],
+    '--dv-activegroup-hiddenpanel-tab-color': [
+        '.dv-active-group .dv-tab.dv-inactive-tab',
+        'color',
+    ],
+    '--dv-inactivegroup-visiblepanel-tab-background-color': [
+        '.dv-inactive-group .dv-tab.dv-active-tab',
+        'background-color',
+    ],
+    '--dv-inactivegroup-visiblepanel-tab-color': [
+        '.dv-inactive-group .dv-tab.dv-active-tab',
+        'color',
+    ],
+    '--dv-inactivegroup-hiddenpanel-tab-background-color': [
+        '.dv-inactive-group .dv-tab.dv-inactive-tab',
+        'background-color',
+    ],
+    '--dv-inactivegroup-hiddenpanel-tab-color': [
+        '.dv-inactive-group .dv-tab.dv-inactive-tab',
+        'color',
+    ],
+};
+
+const channel = (v: number) =>
+    Math.round(Math.min(255, Math.max(0, v)))
+        .toString(16)
+        .padStart(2, '0');
+
+/**
+ * A computed colour as `#rrggbb`, or `transparent`. Browsers serialise
+ * `color-mix()` results as `color(srgb r g b / a)`.
+ */
+const toHex = (computed: string): string => {
+    const rgb = /^rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?/.exec(
+        computed
+    );
+    const srgb =
+        /^color\(srgb\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)(?:\s*\/\s*([\d.]+))?/.exec(
+            computed
+        );
+    let r: number, g: number, b: number, a: number;
+    if (rgb) {
+        [r, g, b] = rgb.slice(1, 4).map(Number);
+        a = rgb[4] === undefined ? 1 : Number(rgb[4]);
+    } else if (srgb) {
+        [r, g, b] = srgb.slice(1, 4).map((c) => Number(c) * 255);
+        a = srgb[4] === undefined ? 1 : Number(srgb[4]);
+    } else {
+        return computed;
+    }
+    return a === 0 ? 'transparent' : `#${channel(r)}${channel(g)}${channel(b)}`;
+};
+
+/** Resolve any CSS colour value (named, `var()`, `color-mix()`) to hex. */
+const normaliseColor = (root: HTMLElement, value: string): string => {
+    const probe = document.createElement('span');
+    probe.style.display = 'none';
+    probe.style.color = value;
+    root.appendChild(probe);
+    const computed = getComputedStyle(probe).color;
+    probe.remove();
+    return toHex(computed);
+};
+
+/** The value in effect for each token, as shown in the builder. */
+const readEffectiveValues = (
+    root: HTMLElement,
+    names: (keyof ThemeCssOverrides)[],
+    colors: Set<string>
+): Record<string, string> => {
+    const style = getComputedStyle(root);
+    const out: Record<string, string> = {};
+    for (const name of names) {
+        const declared = style.getPropertyValue(name).trim();
+        if (declared) {
+            out[name] = colors.has(name)
+                ? normaliseColor(root, declared)
+                : declared;
+            continue;
+        }
+        const rendered = RENDERED[name];
+        const el = rendered && root.querySelector(rendered[0]);
+        if (rendered && el) {
+            out[name] = toHex(getComputedStyle(el).getPropertyValue(rendered[1]));
+        }
+    }
+    return out;
+};
+
+// ── Rows ──────────────────────────────────────────────────────────────────────
+
+const isHexColor = (v: string) => /^#[0-9a-fA-F]{6}$/.test(v);
+
+const resetButton = (onClick: () => void) => (
+    <button
+        onClick={onClick}
+        style={{
+            background: 'none',
+            border: 'none',
+            color: SB.faint,
+            cursor: 'pointer',
+            padding: '0 2px',
+            fontSize: 15,
+            lineHeight: 1,
+            flexShrink: 0,
+        }}
+        title="Back to the derived / theme value"
+    >
+        ×
+    </button>
+);
+
+const ColorRow = (props: {
+    label: string;
+    value: string;
+    effective: string;
+    onChange: (v: string) => void;
+}) => {
+    const shown = props.value || props.effective;
+    return (
+        <div
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 2px',
+            }}
+        >
+            <input
+                type="color"
+                value={isHexColor(shown) ? shown : '#000000'}
+                onChange={(e) => props.onChange(e.target.value)}
+                style={{
+                    width: 26,
+                    height: 26,
+                    padding: 2,
+                    border: `1px solid ${SB.border}`,
+                    borderRadius: SB.radiusChip,
+                    cursor: 'pointer',
+                    background: SB.inputBg,
+                    flexShrink: 0,
+                    opacity: props.value ? 1 : 0.7,
+                }}
+                title="Pick colour"
+            />
+            <span
+                style={{
+                    flex: 1,
+                    fontSize: 12,
+                    color: SB.text,
+                    fontFamily: SB.ui,
+                }}
+            >
+                {props.label}
+            </span>
+            <input
+                type="text"
+                className="dv-sb-input"
+                value={props.value}
+                placeholder={props.effective || 'auto'}
+                onChange={(e) => props.onChange(e.target.value)}
+                style={{
+                    ...inputStyle,
+                    width: 104,
+                    flexShrink: 0,
+                    color: SB.text,
+                }}
+            />
+            {props.value && resetButton(() => props.onChange(''))}
+        </div>
+    );
+};
+
+const TextRow = (props: {
+    label: string;
+    value: string;
+    effective: string;
+    onChange: (v: string) => void;
+}) => (
+    <Field label={props.label}>
+        <input
+            type="text"
+            className="dv-sb-input"
+            value={props.value}
+            placeholder={props.effective || 'auto'}
+            onChange={(e) => props.onChange(e.target.value)}
+            style={{ ...inputStyle, color: SB.text }}
+        />
+    </Field>
+);
+
+const Hint = (props: { children: React.ReactNode }) => (
+    <div
+        style={{
+            fontSize: 11,
+            lineHeight: 1.45,
+            color: SB.muted,
+            padding: '2px 2px 6px',
+        }}
+    >
+        {props.children}
+    </div>
+);
+
+// Every token the builder shows; read together after each change.
+const COLOR_TOKENS: (keyof ThemeCssOverrides)[] = [
+    '--dv-background-color',
+    '--dv-foreground-color',
+    '--dv-accent-color',
+    '--dv-group-view-background-color',
+    '--dv-tabs-and-actions-container-background-color',
+    '--dv-activegroup-visiblepanel-tab-background-color',
+    '--dv-activegroup-hiddenpanel-tab-background-color',
+    '--dv-inactivegroup-visiblepanel-tab-background-color',
+    '--dv-inactivegroup-hiddenpanel-tab-background-color',
+    '--dv-activegroup-visiblepanel-tab-color',
+    '--dv-activegroup-hiddenpanel-tab-color',
+    '--dv-inactivegroup-visiblepanel-tab-color',
+    '--dv-inactivegroup-hiddenpanel-tab-color',
+    '--dv-tab-divider-color',
+    '--dv-separator-border',
+    '--dv-paneview-header-border-color',
+    '--dv-icon-hover-background-color',
+    '--dv-drag-over-background-color',
+    '--dv-active-sash-color',
+    '--dv-sash-color',
+    '--dv-tabs-container-scrollbar-color',
+];
+const OTHER_TOKENS: (keyof ThemeCssOverrides)[] = [
+    '--dv-spacing',
+    '--dv-border-radius',
+    '--dv-spacing-padding',
+    '--dv-tabs-and-actions-container-height',
+    '--dv-tabs-and-actions-container-font-size',
+    '--dv-tab-border-radius',
+    '--dv-sash-border-radius',
+    '--dv-floating-group-border',
+    '--dv-floating-box-shadow',
+    '--dv-floating-border',
+    '--dv-floating-group-dragging-opacity',
+    '--dv-drag-over-border',
+] as (keyof ThemeCssOverrides)[];
+const COLOR_SET = new Set<string>(COLOR_TOKENS);
+
+/**
+ * Seed for a custom theme that reproduces the current theme's look from the
+ * base tokens: its surface, text and accent colours plus its shape.
+ */
+const seedFromTheme = (
+    root: HTMLElement,
+    settings: ResolvedDockviewThemeSettings,
+    scheme: 'light' | 'dark'
+): { css: ThemeCssOverrides; parts: Partial<ThemeParts> } => {
+    const style = getComputedStyle(root);
+    const read = (name: string) => style.getPropertyValue(name).trim();
+    const color = (...names: string[]) => {
+        for (const name of names) {
+            const value = read(name);
+            if (value) {
+                const hex = normaliseColor(root, value);
+                if (hex !== 'transparent') return hex;
+            }
+        }
+        return undefined;
+    };
+    const css: ThemeCssOverrides = {
+        'color-scheme': scheme,
+        '--dv-background-color': color('--dv-group-view-background-color'),
+        '--dv-foreground-color': color('--dv-activegroup-visiblepanel-tab-color'),
+        '--dv-accent-color': color(
+            '--dv-active-sash-color',
+            '--dv-focus-ring-color',
+            '--dv-paneview-active-outline-color'
+        ),
+        '--dv-tabs-and-actions-container-background-color': color(
+            '--dv-tabs-and-actions-container-background-color'
+        ),
+    };
+    const radius = Number.parseFloat(read('--dv-border-radius'));
+    if (radius > 0) css['--dv-border-radius'] = `${radius}px`;
+    const height = read('--dv-tabs-and-actions-container-height');
+    if (height) css['--dv-tabs-and-actions-container-height'] = height;
+    const cards = settings.gap > 0;
+    if (cards) {
+        css['--dv-spacing-padding'] = `${settings.gap}px`;
+    }
+    return { css, parts: { cards } };
+};
+
 export const Sidebar = (props: {
     open: boolean;
     onClose: () => void;
@@ -262,7 +422,13 @@ export const Sidebar = (props: {
     onChange: (patch: Partial<ThemeBuilderState>) => void;
     onCssChange: (patch: Partial<ThemeCssOverrides>) => void;
     onReset: () => void;
+    /** Switch to the custom theme, seeded with these values. */
+    onDeriveCustomTheme?: (
+        css: ThemeCssOverrides,
+        parts: Partial<ThemeParts>
+    ) => void;
     baseTheme: DockviewTheme;
+    effectiveTheme: DockviewTheme;
     containerEl: HTMLElement | null;
     // Controls props
     api?: DockviewApi;
@@ -287,74 +453,51 @@ export const Sidebar = (props: {
     onClearLogs: () => void;
 }) => {
     const [activeTab, setActiveTab] = React.useState<SidebarTab>('theme');
-
-    const [themeDefaults, setThemeDefaults] = React.useState<
-        Record<string, number>
-    >({});
-
-    React.useEffect(() => {
-        if (!props.open || !props.containerEl) return;
-        const read = () => {
-            const dvRoot = props.containerEl!.querySelector(
-                '[class*="dockview-theme"]'
-            ) as HTMLElement | null;
-            if (!dvRoot) return;
-            const val = (v: string, fb: number) =>
-                parseInt(getComputedStyle(dvRoot).getPropertyValue(v)) || fb;
-            const fval = (v: string, fb: number) =>
-                parseFloat(getComputedStyle(dvRoot).getPropertyValue(v)) || fb;
-            setThemeDefaults({
-                '--dv-tabs-and-actions-container-height': val(
-                    '--dv-tabs-and-actions-container-height',
-                    35
-                ),
-                '--dv-tabs-and-actions-container-font-size': val(
-                    '--dv-tabs-and-actions-container-font-size',
-                    13
-                ),
-                '--dv-border-radius': val('--dv-border-radius', 0),
-                '--dv-spacing': val('--dv-spacing', 4),
-                '--dv-spacing-padding': val('--dv-spacing-padding', 0),
-                '--dv-tab-border-radius': val('--dv-tab-border-radius', 0),
-                '--dv-sash-border-radius': val('--dv-sash-border-radius', 0),
-                '--dv-floating-group-dragging-opacity': fval(
-                    '--dv-floating-group-dragging-opacity',
-                    0.5
-                ),
-            });
-        };
-        const id = requestAnimationFrame(read);
-        return () => cancelAnimationFrame(id);
-    }, [props.open, props.containerEl, props.baseTheme]);
-
+    const [effective, setEffective] = React.useState<Record<string, string>>(
+        {}
+    );
     const [showExport, setShowExport] = React.useState(false);
     const [copied, setCopied] = React.useState(false);
 
+    const css = props.state.cssOverrides;
+    const custom = isBaseTheme(props.baseTheme);
+    const settings = React.useMemo(
+        () => resolveSettings(props.baseTheme, props.state),
+        [props.baseTheme, props.state]
+    );
+
+    // Re-read after every change: derived values follow the base tokens, so
+    // editing one row changes what others show.
+    const revision = JSON.stringify([props.effectiveTheme, css]);
+    React.useEffect(() => {
+        if (!props.open || !props.containerEl) return;
+        const id = requestAnimationFrame(() => {
+            const root = findThemeRoot(props.containerEl);
+            if (root) {
+                setEffective(
+                    readEffectiveValues(
+                        root,
+                        [...COLOR_TOKENS, ...OTHER_TOKENS],
+                        COLOR_SET
+                    )
+                );
+            }
+        });
+        return () => cancelAnimationFrame(id);
+    }, [props.open, props.containerEl, revision]);
+
     if (!props.open) return null;
 
-    const css = props.state.cssOverrides;
-
     const set = (patch: Partial<ThemeCssOverrides>) => props.onCssChange(patch);
+    const setSetting = (patch: ThemeBuilderState['settings']) =>
+        props.onChange({ settings: { ...props.state.settings, ...patch } });
+    const setPart = (patch: Partial<ThemeParts>) =>
+        props.onChange({ parts: { ...props.state.parts, ...patch } });
 
-    const computedVar = (varName: string, fallback: number): number => {
-        const override = css[varName as keyof ThemeCssOverrides];
-        if (override !== undefined && override !== '')
-            return parseInt(override) || fallback;
-        return themeDefaults[varName] ?? fallback;
+    const px = (name: keyof ThemeCssOverrides, fallback: number): number => {
+        const value = Number.parseFloat(css[name] ?? effective[name] ?? '');
+        return Number.isFinite(value) ? value : fallback;
     };
-
-    const draggingOpacity =
-        css['--dv-floating-group-dragging-opacity'] !== undefined
-            ? parseFloat(css['--dv-floating-group-dragging-opacity'])
-            : (themeDefaults['--dv-floating-group-dragging-opacity'] ?? 0.5);
-
-    const tabH = computedVar('--dv-tabs-and-actions-container-height', 35);
-    const tabFs = computedVar('--dv-tabs-and-actions-container-font-size', 13);
-    const borderRadius = computedVar('--dv-border-radius', 0);
-    const spacingPadding = computedVar('--dv-spacing-padding', 0);
-    const spacing = computedVar('--dv-spacing', 4);
-    const tabBorderRadius = computedVar('--dv-tab-border-radius', 0);
-    const sashBorderRadius = computedVar('--dv-sash-border-radius', 0);
 
     const code = generateCodeSnippet(props.baseTheme, props.state);
 
@@ -365,18 +508,358 @@ export const Sidebar = (props: {
         });
     };
 
-    const colorRow = (label: string, varName: keyof ThemeCssOverrides) => (
+    const handleDerive = () => {
+        const root = findThemeRoot(props.containerEl);
+        if (!root || !props.onDeriveCustomTheme) return;
+        const seed = seedFromTheme(
+            root,
+            settings,
+            props.effectiveTheme.colorScheme ?? 'dark'
+        );
+        props.onDeriveCustomTheme(seed.css, seed.parts);
+    };
+
+    const colorRow = (label: string, name: keyof ThemeCssOverrides) => (
         <ColorRow
-            key={varName}
+            key={name}
             label={label}
-            varName={varName}
-            value={css[varName] ?? ''}
+            value={css[name] ?? ''}
+            effective={effective[name] ?? ''}
             onChange={(v) =>
-                set({ [varName]: v || undefined } as Partial<ThemeCssOverrides>)
+                set({ [name]: v || undefined } as Partial<ThemeCssOverrides>)
             }
-            containerEl={props.containerEl}
-            themeKey={props.baseTheme.name}
         />
+    );
+
+    const textRow = (label: string, name: keyof ThemeCssOverrides) => (
+        <TextRow
+            key={name}
+            label={label}
+            value={css[name] ?? ''}
+            effective={effective[name] ?? ''}
+            onChange={(v) =>
+                set({ [name]: v || undefined } as Partial<ThemeCssOverrides>)
+            }
+        />
+    );
+
+    const pxSlider = (
+        label: string,
+        name: keyof ThemeCssOverrides,
+        min: number,
+        max: number,
+        fallback = 0
+    ) => (
+        <SliderRow
+            key={name}
+            label={label}
+            value={px(name, fallback)}
+            min={min}
+            max={max}
+            unit="px"
+            onChange={(v) =>
+                set({ [name]: `${v}px` } as Partial<ThemeCssOverrides>)
+            }
+        />
+    );
+
+    const themeTab = (
+        <>
+            {/* Base tokens */}
+            <Section title="Base" icon="tune" defaultOpen>
+                {custom ? (
+                    <Hint>
+                        Everything else derives from these. Open the sections
+                        below to override individual values.
+                    </Hint>
+                ) : (
+                    <>
+                        <Hint>
+                            This theme sets its colours itself, so base colours
+                            have no effect on it. Derive a custom theme from its
+                            surface, text and accent colours to edit it from
+                            here.
+                        </Hint>
+                        {props.onDeriveCustomTheme && (
+                            <Btn
+                                onClick={handleDerive}
+                                icon="auto_fix_high"
+                                style={{ marginBottom: 6, width: '100%' }}
+                            >
+                                Derive from base colours
+                            </Btn>
+                        )}
+                    </>
+                )}
+                {custom && (
+                    <ToggleRow
+                        label="Scheme"
+                        value={css['color-scheme'] ?? 'dark'}
+                        options={[
+                            { value: 'dark', label: 'dark' },
+                            { value: 'light', label: 'light' },
+                        ]}
+                        onChange={(v) =>
+                            set({ 'color-scheme': v as 'light' | 'dark' })
+                        }
+                    />
+                )}
+                {custom && colorRow('Background', '--dv-background-color')}
+                {custom && colorRow('Foreground', '--dv-foreground-color')}
+                {custom && colorRow('Accent', '--dv-accent-color')}
+                {pxSlider('Spacing', '--dv-spacing', 1, 8, 4)}
+                {pxSlider('Border radius', '--dv-border-radius', 0, 20)}
+            </Section>
+
+            {/* Layout */}
+            <Section title="Layout" icon="space_dashboard" defaultOpen>
+                <ToggleRow
+                    label="Groups"
+                    value={props.state.parts.cards ? 'cards' : 'flat'}
+                    options={[
+                        { value: 'flat', label: 'flat' },
+                        { value: 'cards', label: 'cards' },
+                    ]}
+                    onChange={(v) => setPart({ cards: v === 'cards' })}
+                />
+                <ToggleRow
+                    label="Tabs"
+                    value={props.state.parts.connectedTabs ? 'connected' : 'plain'}
+                    options={[
+                        { value: 'plain', label: 'plain' },
+                        { value: 'connected', label: 'connected' },
+                    ]}
+                    onChange={(v) =>
+                        setPart({ connectedTabs: v === 'connected' })
+                    }
+                />
+                {props.state.parts.cards &&
+                    pxSlider('Card spacing', '--dv-spacing-padding', 0, 30, 10)}
+                <SliderRow
+                    label="Group gap"
+                    value={settings.gap}
+                    min={0}
+                    max={30}
+                    unit="px"
+                    onChange={(v) => setSetting({ gap: v })}
+                />
+                {pxSlider(
+                    'Tab bar height',
+                    '--dv-tabs-and-actions-container-height',
+                    20,
+                    60,
+                    35
+                )}
+                {pxSlider(
+                    'Font size',
+                    '--dv-tabs-and-actions-container-font-size',
+                    10,
+                    18,
+                    13
+                )}
+                {pxSlider('Tab radius', '--dv-tab-border-radius', 0, 20)}
+                {pxSlider('Sash radius', '--dv-sash-border-radius', 0, 20)}
+            </Section>
+
+            {/* Behaviour */}
+            <Section title="Behaviour" icon="tab">
+                <ToggleRow
+                    label="Tab animation"
+                    value={settings.tabAnimation}
+                    options={[
+                        { value: 'default', label: 'default' },
+                        { value: 'smooth', label: 'smooth' },
+                    ]}
+                    onChange={(v) =>
+                        setSetting({ tabAnimation: v as 'smooth' | 'default' })
+                    }
+                />
+                <ToggleRow
+                    label="Group indicator"
+                    value={settings.tabGroupIndicator}
+                    options={[
+                        { value: 'wrap', label: 'wrap' },
+                        { value: 'none', label: 'none' },
+                    ]}
+                    onChange={(v) =>
+                        setSetting({ tabGroupIndicator: v as 'wrap' | 'none' })
+                    }
+                />
+                <ToggleRow
+                    label="Drop overlay"
+                    value={settings.dndOverlayMounting}
+                    options={[
+                        { value: 'relative', label: 'relative' },
+                        { value: 'absolute', label: 'absolute' },
+                    ]}
+                    onChange={(v) =>
+                        setSetting({
+                            dndOverlayMounting: v as 'relative' | 'absolute',
+                        })
+                    }
+                />
+                <ToggleRow
+                    label="Drop target"
+                    value={settings.dndPanelOverlay}
+                    options={[
+                        { value: 'content', label: 'content' },
+                        { value: 'group', label: 'group' },
+                    ]}
+                    onChange={(v) =>
+                        setSetting({ dndPanelOverlay: v as 'content' | 'group' })
+                    }
+                />
+                <ToggleRow
+                    label="Tab drop"
+                    value={settings.dndTabIndicator}
+                    options={[
+                        { value: 'fill', label: 'fill' },
+                        { value: 'line', label: 'line' },
+                    ]}
+                    onChange={(v) =>
+                        setSetting({ dndTabIndicator: v as 'fill' | 'line' })
+                    }
+                />
+                <TextRow
+                    label="Drop border"
+                    value={props.state.dndOverlayBorder}
+                    effective={
+                        effective['--dv-drag-over-border' as keyof ThemeCssOverrides] ??
+                        ''
+                    }
+                    onChange={(v) => props.onChange({ dndOverlayBorder: v })}
+                />
+                {colorRow('Drop fill', '--dv-drag-over-background-color')}
+            </Section>
+
+            {/* Colours */}
+            <Section title="Surfaces" icon="format_color_fill">
+                {colorRow('Group background', '--dv-group-view-background-color')}
+                {colorRow(
+                    'Tab bar',
+                    '--dv-tabs-and-actions-container-background-color'
+                )}
+                {colorRow('Separator', '--dv-separator-border')}
+                {colorRow('Pane header border', '--dv-paneview-header-border-color')}
+            </Section>
+
+            <Section title="Tabs: focused group" icon="palette">
+                {colorRow(
+                    'Selected tab',
+                    '--dv-activegroup-visiblepanel-tab-background-color'
+                )}
+                {colorRow('Selected text', '--dv-activegroup-visiblepanel-tab-color')}
+                {colorRow(
+                    'Other tabs',
+                    '--dv-activegroup-hiddenpanel-tab-background-color'
+                )}
+                {colorRow('Other text', '--dv-activegroup-hiddenpanel-tab-color')}
+            </Section>
+
+            <Section title="Tabs: other groups" icon="palette">
+                {colorRow(
+                    'Selected tab',
+                    '--dv-inactivegroup-visiblepanel-tab-background-color'
+                )}
+                {colorRow(
+                    'Selected text',
+                    '--dv-inactivegroup-visiblepanel-tab-color'
+                )}
+                {colorRow(
+                    'Other tabs',
+                    '--dv-inactivegroup-hiddenpanel-tab-background-color'
+                )}
+                {colorRow('Other text', '--dv-inactivegroup-hiddenpanel-tab-color')}
+            </Section>
+
+            <Section title="Details" icon="contrast">
+                {colorRow('Tab divider', '--dv-tab-divider-color')}
+                {colorRow('Icon hover', '--dv-icon-hover-background-color')}
+                {colorRow('Sash', '--dv-sash-color')}
+                {colorRow('Sash (active)', '--dv-active-sash-color')}
+                {colorRow('Scrollbar', '--dv-tabs-container-scrollbar-color')}
+            </Section>
+
+            <Section title="Floating groups" icon="flip_to_front">
+                <Slider
+                    label="Dragging opacity"
+                    value={(() => {
+                        const v = Number.parseFloat(
+                            css['--dv-floating-group-dragging-opacity'] ??
+                                effective['--dv-floating-group-dragging-opacity'] ??
+                                ''
+                        );
+                        return Number.isFinite(v) ? v : 0.5;
+                    })()}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    format={(v) => v.toFixed(2)}
+                    onChange={(v) =>
+                        set({ '--dv-floating-group-dragging-opacity': String(v) })
+                    }
+                />
+                {textRow('Group border', '--dv-floating-group-border')}
+                {textRow('Frame border', '--dv-floating-border')}
+                {textRow('Shadow', '--dv-floating-box-shadow')}
+            </Section>
+
+            {/* Export */}
+            <Section title="Export" icon="code">
+                <div style={{ padding: '4px 0' }}>
+                    <Btn
+                        onClick={() => setShowExport((v) => !v)}
+                        icon={
+                            showExport
+                                ? 'visibility_off'
+                                : 'visibility'
+                        }
+                        style={{
+                            marginBottom: showExport ? 8 : 0,
+                        }}
+                    >
+                        {showExport ? 'Hide' : 'Show'} code
+                    </Btn>
+                    {showExport && (
+                        <div>
+                            <pre
+                                className="dv-trade-scroll"
+                                style={{
+                                    background: SB.inputBg,
+                                    border: `1px solid ${SB.border}`,
+                                    borderRadius: SB.radiusSm,
+                                    padding: '8px 10px',
+                                    fontSize: 10.5,
+                                    color: SB.muted,
+                                    overflow: 'auto',
+                                    fontFamily: SB.mono,
+                                    whiteSpace: 'pre',
+                                    margin: 0,
+                                    maxHeight: 240,
+                                }}
+                            >
+                                {code}
+                            </pre>
+                            <Btn
+                                onClick={handleCopy}
+                                primary={copied}
+                                icon={
+                                    copied ? 'check' : 'content_copy'
+                                }
+                                style={{
+                                    marginTop: 6,
+                                    width: '100%',
+                                }}
+                            >
+                                {copied
+                                    ? 'Copied!'
+                                    : 'Copy to clipboard'}
+                            </Btn>
+                        </div>
+                    )}
+                </div>
+            </Section>
+        </>
     );
 
     return (
@@ -445,429 +928,7 @@ export const Sidebar = (props: {
                 }}
             >
                 {activeTab === 'theme' ? (
-                    <>
-                        {/* Base tokens */}
-                        <Section title="Base" icon="tune" defaultOpen>
-                            {props.baseTheme.name !== 'custom' && (
-                                <div
-                                    style={{
-                                        fontSize: 11,
-                                        color: SB.muted,
-                                        padding: '2px 2px 6px',
-                                    }}
-                                >
-                                    Built-in themes set their colours
-                                    explicitly. Pick the Custom theme to derive
-                                    everything from these.
-                                </div>
-                            )}
-                            {colorRow('Background', '--dv-background-color')}
-                            {colorRow('Foreground', '--dv-foreground-color')}
-                            {colorRow('Accent', '--dv-accent-color')}
-                            <SliderRow
-                                label="Spacing"
-                                value={spacing}
-                                min={1}
-                                max={8}
-                                unit="px"
-                                onChange={(v) =>
-                                    set({ '--dv-spacing': `${v}px` })
-                                }
-                            />
-                        </Section>
-
-                        {/* Layout */}
-                        <Section
-                            title="Layout"
-                            icon="space_dashboard"
-                            defaultOpen
-                        >
-                            <SliderRow
-                                label="Gap"
-                                value={props.state.gap}
-                                min={0}
-                                max={20}
-                                onChange={(v) => props.onChange({ gap: v })}
-                            />
-                            <SliderRow
-                                label="Spacing Padding"
-                                value={spacingPadding}
-                                min={0}
-                                max={30}
-                                unit="px"
-                                onChange={(v) =>
-                                    set({
-                                        '--dv-spacing-padding': `${v}px`,
-                                    })
-                                }
-                            />
-                            <SliderRow
-                                label="Tab Bar Height"
-                                value={tabH}
-                                min={20}
-                                max={60}
-                                unit="px"
-                                onChange={(v) =>
-                                    set({
-                                        '--dv-tabs-and-actions-container-height': `${v}px`,
-                                    })
-                                }
-                            />
-                            <SliderRow
-                                label="Font Size"
-                                value={tabFs}
-                                min={10}
-                                max={18}
-                                unit="px"
-                                onChange={(v) =>
-                                    set({
-                                        '--dv-tabs-and-actions-container-font-size': `${v}px`,
-                                    })
-                                }
-                            />
-                        </Section>
-
-                        {/* Radius */}
-                        <Section
-                            title="Radius"
-                            icon="rounded_corner"
-                            defaultOpen
-                        >
-                            <SliderRow
-                                label="Border Radius"
-                                value={borderRadius}
-                                min={0}
-                                max={20}
-                                unit="px"
-                                onChange={(v) =>
-                                    set({
-                                        '--dv-border-radius': `${v}px`,
-                                    })
-                                }
-                            />
-                            <SliderRow
-                                label="Tab Border Radius"
-                                value={tabBorderRadius}
-                                min={0}
-                                max={20}
-                                unit="px"
-                                onChange={(v) =>
-                                    set({
-                                        '--dv-tab-border-radius': `${v}px`,
-                                    })
-                                }
-                            />
-                            <SliderRow
-                                label="Sash Border Radius"
-                                value={sashBorderRadius}
-                                min={0}
-                                max={20}
-                                unit="px"
-                                onChange={(v) =>
-                                    set({
-                                        '--dv-sash-border-radius': `${v}px`,
-                                    })
-                                }
-                            />
-                        </Section>
-
-                        {/* Tabs & Groups */}
-                        <Section title="Tabs & Groups" icon="tab">
-                            <ToggleRow
-                                label="Tab Animation"
-                                value={props.state.tabAnimation}
-                                options={[
-                                    { value: 'default', label: 'default' },
-                                    { value: 'smooth', label: 'smooth' },
-                                ]}
-                                onChange={(v) =>
-                                    props.onChange({
-                                        tabAnimation: v as
-                                            | 'smooth'
-                                            | 'default',
-                                    })
-                                }
-                            />
-                            <ToggleRow
-                                label="Group Indicator"
-                                value={props.state.tabGroupIndicator}
-                                options={[
-                                    { value: 'wrap', label: 'wrap' },
-                                    { value: 'none', label: 'none' },
-                                ]}
-                                onChange={(v) =>
-                                    props.onChange({
-                                        tabGroupIndicator: v as
-                                            | 'wrap'
-                                            | 'none',
-                                    })
-                                }
-                            />
-                        </Section>
-
-                        {/* DnD */}
-                        <Section title="Drag & Drop" icon="drag_pan">
-                            <ToggleRow
-                                label="DnD Overlay"
-                                value={props.state.dndOverlayMounting}
-                                options={[
-                                    {
-                                        value: 'relative',
-                                        label: 'relative',
-                                    },
-                                    {
-                                        value: 'absolute',
-                                        label: 'absolute',
-                                    },
-                                ]}
-                                onChange={(v) =>
-                                    props.onChange({
-                                        dndOverlayMounting: v as
-                                            | 'relative'
-                                            | 'absolute',
-                                    })
-                                }
-                            />
-                            <ToggleRow
-                                label="DnD Panel Target"
-                                value={props.state.dndPanelOverlay}
-                                options={[
-                                    { value: 'content', label: 'content' },
-                                    { value: 'group', label: 'group' },
-                                ]}
-                                onChange={(v) =>
-                                    props.onChange({
-                                        dndPanelOverlay: v as
-                                            | 'content'
-                                            | 'group',
-                                    })
-                                }
-                            />
-                            <ToggleRow
-                                label="Tab Indicator"
-                                value={props.state.dndTabIndicator}
-                                options={[
-                                    { value: 'fill', label: 'fill' },
-                                    { value: 'line', label: 'line' },
-                                ]}
-                                onChange={(v) =>
-                                    props.onChange({
-                                        dndTabIndicator: v as 'fill' | 'line',
-                                    })
-                                }
-                            />
-                            {colorRow(
-                                'Drag-over bg',
-                                '--dv-drag-over-background-color'
-                            )}
-                            <TextRow
-                                label="Drag-over border"
-                                varName="--dv-drag-over-border"
-                                value={props.state.dndOverlayBorder}
-                                containerEl={props.containerEl}
-                                themeKey={props.baseTheme.name}
-                                onChange={(v) =>
-                                    props.onChange({ dndOverlayBorder: v })
-                                }
-                            />
-                        </Section>
-
-                        {/* Backgrounds */}
-                        <Section
-                            title="Backgrounds"
-                            icon="format_color_fill"
-                        >
-                            {colorRow(
-                                'Panel background',
-                                '--dv-group-view-background-color'
-                            )}
-                            {colorRow(
-                                'Tab bar background',
-                                '--dv-tabs-and-actions-container-background-color'
-                            )}
-                            {colorRow('Separator', '--dv-separator-border')}
-                            {colorRow(
-                                'Pane header border',
-                                '--dv-paneview-header-border-color'
-                            )}
-                        </Section>
-
-                        {/* Active Group Tabs */}
-                        <Section title="Active Group Tabs" icon="palette">
-                            {colorRow(
-                                'Visible tab bg',
-                                '--dv-activegroup-visiblepanel-tab-background-color'
-                            )}
-                            {colorRow(
-                                'Hidden tab bg',
-                                '--dv-activegroup-hiddenpanel-tab-background-color'
-                            )}
-                            {colorRow(
-                                'Visible tab text',
-                                '--dv-activegroup-visiblepanel-tab-color'
-                            )}
-                            {colorRow(
-                                'Hidden tab text',
-                                '--dv-activegroup-hiddenpanel-tab-color'
-                            )}
-                        </Section>
-
-                        {/* Inactive Group Tabs */}
-                        <Section
-                            title="Inactive Group Tabs"
-                            icon="palette"
-                        >
-                            {colorRow(
-                                'Visible tab bg',
-                                '--dv-inactivegroup-visiblepanel-tab-background-color'
-                            )}
-                            {colorRow(
-                                'Hidden tab bg',
-                                '--dv-inactivegroup-hiddenpanel-tab-background-color'
-                            )}
-                            {colorRow(
-                                'Visible tab text',
-                                '--dv-inactivegroup-visiblepanel-tab-color'
-                            )}
-                            {colorRow(
-                                'Hidden tab text',
-                                '--dv-inactivegroup-hiddenpanel-tab-color'
-                            )}
-                        </Section>
-
-                        {/* Chrome */}
-                        <Section title="Chrome" icon="contrast">
-                            {colorRow(
-                                'Tab divider',
-                                '--dv-tab-divider-color'
-                            )}
-                            {colorRow(
-                                'Icon hover bg',
-                                '--dv-icon-hover-background-color'
-                            )}
-                            {colorRow(
-                                'Active sash',
-                                '--dv-active-sash-color'
-                            )}
-                            {colorRow('Sash', '--dv-sash-color')}
-                            {colorRow(
-                                'Scrollbar',
-                                '--dv-scrollbar-background-color'
-                            )}
-                        </Section>
-
-                        {/* Floating */}
-                        <Section title="Floating" icon="flip_to_front">
-                            <Slider
-                                label="Dragging Opacity"
-                                value={draggingOpacity}
-                                min={0}
-                                max={1}
-                                step={0.05}
-                                format={(v) => v.toFixed(2)}
-                                onChange={(v) =>
-                                    set({
-                                        '--dv-floating-group-dragging-opacity':
-                                            String(v),
-                                    })
-                                }
-                            />
-                            <TextRow
-                                label="Group Border"
-                                varName="--dv-floating-group-border"
-                                value={css['--dv-floating-group-border'] ?? ''}
-                                containerEl={props.containerEl}
-                                themeKey={props.baseTheme.name}
-                                onChange={(v) =>
-                                    set({
-                                        '--dv-floating-group-border':
-                                            v || undefined,
-                                    })
-                                }
-                            />
-                            <TextRow
-                                label="Box Shadow"
-                                varName="--dv-floating-box-shadow"
-                                value={css['--dv-floating-box-shadow'] ?? ''}
-                                containerEl={props.containerEl}
-                                themeKey={props.baseTheme.name}
-                                onChange={(v) =>
-                                    set({
-                                        '--dv-floating-box-shadow':
-                                            v || undefined,
-                                    })
-                                }
-                            />
-                            <TextRow
-                                label="Border"
-                                varName="--dv-floating-border"
-                                value={css['--dv-floating-border'] ?? ''}
-                                containerEl={props.containerEl}
-                                themeKey={props.baseTheme.name}
-                                onChange={(v) =>
-                                    set({
-                                        '--dv-floating-border': v || undefined,
-                                    })
-                                }
-                            />
-                        </Section>
-
-                        {/* Export */}
-                        <Section title="Export" icon="code">
-                            <div style={{ padding: '4px 0' }}>
-                                <Btn
-                                    onClick={() => setShowExport((v) => !v)}
-                                    icon={
-                                        showExport
-                                            ? 'visibility_off'
-                                            : 'visibility'
-                                    }
-                                    style={{
-                                        marginBottom: showExport ? 8 : 0,
-                                    }}
-                                >
-                                    {showExport ? 'Hide' : 'Show'} code
-                                </Btn>
-                                {showExport && (
-                                    <div>
-                                        <pre
-                                            className="dv-trade-scroll"
-                                            style={{
-                                                background: SB.inputBg,
-                                                border: `1px solid ${SB.border}`,
-                                                borderRadius: SB.radiusSm,
-                                                padding: '8px 10px',
-                                                fontSize: 10.5,
-                                                color: SB.muted,
-                                                overflow: 'auto',
-                                                fontFamily: SB.mono,
-                                                whiteSpace: 'pre',
-                                                margin: 0,
-                                                maxHeight: 240,
-                                            }}
-                                        >
-                                            {code}
-                                        </pre>
-                                        <Btn
-                                            onClick={handleCopy}
-                                            primary={copied}
-                                            icon={
-                                                copied ? 'check' : 'content_copy'
-                                            }
-                                            style={{
-                                                marginTop: 6,
-                                                width: '100%',
-                                            }}
-                                        >
-                                            {copied
-                                                ? 'Copied!'
-                                                : 'Copy to clipboard'}
-                                        </Btn>
-                                    </div>
-                                )}
-                            </div>
-                        </Section>
-                    </>
+                    themeTab
                 ) : (
                     <ControlsContent
                         api={props.api}

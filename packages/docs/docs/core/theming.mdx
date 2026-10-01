@@ -103,7 +103,7 @@ const { className } = themeAbyss;
 
 A theme is a CSS class that sets `--dv-*` custom properties, plus a `DockviewTheme` object that names it. Every built-in theme is built this way: its class declares custom properties and nothing else, and all rendering (rounded cards, folder tabs, pills, dividers, floating frames) is done by dockview's own stylesheet from those properties. So anything a built-in theme does, your theme can do with variables alone.
 
-At minimum the object needs a `name` and a `className`. A theme only has to set the five base tokens; every other property derives from them, so you start with a working theme and override individual properties to customise it:
+The quickest start is `themeBase`. It derives every colour, radius and padding from five base tokens, so your class only has to set those, and you override individual properties to customise further:
 
 ```css
 .my-theme {
@@ -127,14 +127,20 @@ At minimum the object needs a `name` and a `className`. A theme only has to set 
 | `--dv-spacing`          | tab padding                                                                                     |
 | `--dv-border-radius`    | group, floating, peek and drop-target radii; tab and dropdown (⅔), sash (⅓), drop indicator (¼) |
 
-Layout styles are separate classes you add next to your theme (the `className` takes several): `dockview-spaced` lays groups out as rounded cards with `--dv-spacing-padding` between them, and `dockview-tabs-connected` gives folder tabs. Put your stylesheet after dockview's so your values win.
+Add your class next to the base theme's. Layout styles are classes too: `dockview-spaced` lays groups out as rounded cards with `--dv-spacing-padding` between them, and `dockview-tabs-connected` gives folder tabs. Load your stylesheet after dockview's so your values win.
 
 ```ts
+import { themeBase } from 'dockview';
+
 const myTheme: DockviewTheme = {
+    ...themeBase,
     name: 'mine',
-    className: 'dockview-spaced my-theme',
+    colorScheme: 'light',
+    className: `dockview-spaced ${themeBase.className} my-theme`,
 };
 ```
+
+The [demo's theme builder](/demo?theme=base) edits these tokens live, can derive a starting point from any built-in theme, and exports the class and theme object.
 
 A fully hand-specified theme, like the built-in ones, sets the derived properties directly:
 

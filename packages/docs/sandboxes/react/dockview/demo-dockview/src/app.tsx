@@ -8,6 +8,7 @@ import {
     DockviewApi,
     DockviewTheme,
     themeAbyss,
+    themeBase,
     IContextMenuItemComponentProps,
     GetTabContextMenuItemsParams,
     GetTabGroupChipContextMenuItemsParams,
@@ -52,8 +53,9 @@ import {
 import {
     ThemeBuilderState,
     ThemeCssOverrides,
+    ThemeParts,
     buildEffectiveTheme,
-    getInitialStateFromTheme,
+    getInitialState,
 } from './themeBuilder';
 import { Sidebar } from './themeBuilderModal';
 
@@ -751,18 +753,32 @@ const DockviewDemo = (props: {
     }, [layoutReady, props]);
 
     const [builderState, setBuilderState] = React.useState<ThemeBuilderState>(
-        () => getInitialStateFromTheme(props.theme ?? themeAbyss)
+        () => getInitialState()
     );
+
+    // Seed for the custom theme when the builder switches to it ("derive from
+    // base colours"); consumed by the theme-change reset below.
+    const pendingSeed = React.useRef<{
+        css: ThemeCssOverrides;
+        parts: Partial<ThemeParts>;
+    } | null>(null);
 
     const prevTheme = React.useRef(props.theme);
     React.useEffect(() => {
         if (prevTheme.current !== props.theme) {
             prevTheme.current = props.theme;
-            setBuilderState(
-                getInitialStateFromTheme(props.theme ?? themeAbyss)
-            );
+            const seed = pendingSeed.current;
+            pendingSeed.current = null;
+            setBuilderState(getInitialState(seed?.css, seed?.parts));
         }
     }, [props.theme]);
+
+    const deriveCustomTheme = props.onChangeTheme
+        ? (css: ThemeCssOverrides, parts: Partial<ThemeParts>) => {
+              pendingSeed.current = { css, parts };
+              props.onChangeTheme!(themeBase);
+          }
+        : undefined;
 
     const updateBuilder = (patch: Partial<ThemeBuilderState>) =>
         setBuilderState((s) => ({ ...s, ...patch }));
@@ -1213,12 +1229,10 @@ const DockviewDemo = (props: {
                     state={builderState}
                     onChange={updateBuilder}
                     onCssChange={updateCss}
-                    onReset={() =>
-                        setBuilderState(
-                            getInitialStateFromTheme(props.theme ?? themeAbyss)
-                        )
-                    }
+                    onReset={() => setBuilderState(getInitialState())}
+                    onDeriveCustomTheme={deriveCustomTheme}
                     baseTheme={props.theme ?? themeAbyss}
+                    effectiveTheme={effectiveTheme}
                     containerEl={containerRef.current}
                     api={api}
                     panels={panels}
