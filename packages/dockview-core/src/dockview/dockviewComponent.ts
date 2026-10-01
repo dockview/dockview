@@ -6402,12 +6402,11 @@ export class DockviewComponent
         // The settings' properties don't inherit (so a nested dockview never
         // picks up its host's): read the component root (`className`) first,
         // then the shell (the theme class).
-        const fromCss = style
-            ? readThemeSettingsFromStyle(
-                  style,
-                  ...(shell ? [getComputedStyle(shell)] : [])
-              )
-            : undefined;
+        let fromCss: DockviewThemeSettings | undefined;
+        if (style) {
+            const fallbacks = shell ? [getComputedStyle(shell)] : [];
+            fromCss = readThemeSettingsFromStyle(style, ...fallbacks);
+        }
         this._declaredThemeSettings = declaredThemeSettings(theme, fromCss);
         this._themeSettings = mergeThemeSettings(theme, fromCss);
         const settings = this._themeSettings;
