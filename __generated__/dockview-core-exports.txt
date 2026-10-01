@@ -352,6 +352,7 @@ resolveOpaqueBackground
 resolveTabGroupAccent
 themeAbyss
 themeAbyssSpaced
+themeBase
 themeCatppuccinMocha
 themeCatppuccinMochaSpaced
 themeDark

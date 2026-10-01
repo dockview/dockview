@@ -92,6 +92,15 @@
     --dv-tab-group-line-opacity: 0.6;
 }
 
+// Every token declared from the base tokens, so a theme only has to set
+// --dv-background-color, --dv-foreground-color, --dv-accent-color, --dv-spacing
+// and --dv-border-radius. Before the part classes so they override it.
+.dockview-theme-base {
+    @include dockview-theme-core-mixin();
+    @include dv.declare-all();
+    color-scheme: dark;
+}
+
 @mixin dockview-theme-dark-mixin {
     @include dockview-theme-core-mixin();
     @include dockview-drop-target-no-travel();

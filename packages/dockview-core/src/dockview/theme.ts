@@ -128,6 +128,18 @@ export function resolveDockviewThemeSettings(
     }
 }
 
+/**
+ * Derives every colour, radius and padding from five base tokens:
+ * `--dv-background-color`, `--dv-foreground-color`, `--dv-accent-color`,
+ * `--dv-spacing` and `--dv-border-radius`. Add your own class next to it to set
+ * them, or to override any derived token.
+ */
+export const themeBase: DockviewTheme = {
+    name: 'base',
+    className: 'dockview-theme-base',
+    colorScheme: 'dark',
+};
+
 export const themeDark: DockviewTheme = {
     name: 'dark',
     className: 'dockview-theme-dark',

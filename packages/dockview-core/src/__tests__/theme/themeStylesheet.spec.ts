@@ -108,6 +108,23 @@ describe('theme stylesheet', () => {
         expect(offending).toEqual([]);
     });
 
+    test('the base theme derives its tokens from the base tokens', () => {
+        const d = declarationsOf('.dockview-theme-base');
+        expect(d.get('--dv-group-view-background-color')).toBe(
+            'var(--dv-background-color)'
+        );
+        expect(d.get('--dv-activegroup-visiblepanel-tab-color')).toBe(
+            'var(--dv-foreground-color)'
+        );
+        expect(d.get('--dv-active-sash-color')).toBe('var(--dv-accent-color)');
+        expect(d.get('--dv-tab-padding-inline')).toBe(
+            'calc(var(--dv-spacing) * 2)'
+        );
+        expect(d.get('--dv-floating-border-radius')).toBe(
+            'var(--dv-border-radius)'
+        );
+    });
+
     const spaced = [
         '.dockview-spaced',
         '.dockview-theme-abyss-spaced',

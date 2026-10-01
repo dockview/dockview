@@ -161,3 +161,7 @@ $radius-tokens: (
         --dv-#{$name}: #{default($name)};
     }
 }
+
+@mixin declare-all {
+    @include declare(map.keys($defaults));
+}
