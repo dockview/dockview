@@ -6385,12 +6385,29 @@ export class DockviewComponent
         // With the class applied, read the settings the theme declares in CSS
         // (from the component root, which also sees a `className`-applied
         // theme); a value on the theme object wins.
+        const shell = this._shellManager?.element;
+        // Drop the drop-preview styling handed up to the shell last time
+        // (see `applyDropPreviewStyle`) before reading, so a previous theme's
+        // values are not inherited back and copied again.
+        for (const property of SHELL_DROP_PREVIEW_PROPERTIES) {
+            shell?.style.removeProperty(property);
+        }
+        this.element.style.removeProperty('--dv-drag-over-border');
+
         const style =
             typeof getComputedStyle === 'function' && this.element.isConnected
                 ? getComputedStyle(this.element)
                 : undefined;
         this._themeCssRead = style !== undefined;
-        const fromCss = style ? readThemeSettingsFromStyle(style) : undefined;
+        // The settings' properties don't inherit (so a nested dockview never
+        // picks up its host's): read the component root (`className`) first,
+        // then the shell (the theme class).
+        const fromCss = style
+            ? readThemeSettingsFromStyle(
+                  style,
+                  ...(shell ? [getComputedStyle(shell)] : [])
+              )
+            : undefined;
         this._declaredThemeSettings = declaredThemeSettings(theme, fromCss);
         this._themeSettings = mergeThemeSettings(theme, fromCss);
         const settings = this._themeSettings;

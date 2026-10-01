@@ -36,8 +36,18 @@ export function readStyleProperty(
         : '';
 }
 
-function readPixels(style: StyleSource, property: string): number | undefined {
-    const value = readStyleProperty(style, property);
+/** The first non-empty value of `property` among `styles`, in order. */
+function readFirst(styles: StyleSource[], property: string): string {
+    for (const style of styles) {
+        const value = readStyleProperty(style, property);
+        if (value) {
+            return value;
+        }
+    }
+    return '';
+}
+
+function toPixels(value: string): number | undefined {
     // A bare number or a px length; anything else (other units, calc()) is
     // not a resolvable pixel value here.
     const number = value.endsWith('px') ? value.slice(0, -2) : value;
@@ -49,21 +59,29 @@ function readPixels(style: StyleSource, property: string): number | undefined {
 
 /**
  * Read the {@link DockviewThemeSettings} a theme declares in CSS (see the
- * table there) from a computed style. Unset or unrecognised values are
- * omitted.
+ * table there) from computed styles. Each setting comes from the first style
+ * that declares it, so `style` wins over `fallbacks` (the settings'
+ * properties are registered as non-inheriting, so each element reports only
+ * its own declarations). Unset or unrecognised values are omitted.
  */
 export function readThemeSettingsFromStyle(
-    style: StyleSource
+    style: StyleSource,
+    ...fallbacks: StyleSource[]
 ): DockviewThemeSettings {
+    const styles = [style, ...fallbacks];
     const settings: DockviewThemeSettings = {};
 
-    const gap = readPixels(style, '--dv-group-gap');
+    const gap = toPixels(readFirst(styles, '--dv-group-gap'));
     if (gap !== undefined) {
         settings.gap = gap;
     }
+    // The strip height is an ordinary inherited property, so `style` alone
+    // gives the one in effect.
     const collapsed =
-        readPixels(style, '--dv-edge-group-collapsed-size') ??
-        readPixels(style, '--dv-tabs-and-actions-container-height');
+        toPixels(readFirst(styles, '--dv-edge-group-collapsed-size')) ??
+        toPixels(
+            readStyleProperty(style, '--dv-tabs-and-actions-container-height')
+        );
     if (collapsed !== undefined) {
         settings.edgeGroupCollapsedSize = collapsed;
     }
@@ -72,7 +90,7 @@ export function readThemeSettingsFromStyle(
         keyof typeof ENUM_THEME_SETTINGS
     >) {
         const [property, allowed] = ENUM_THEME_SETTINGS[key];
-        const value = readStyleProperty(style, property);
+        const value = readFirst(styles, property);
         if ((allowed as readonly string[]).includes(value)) {
             (settings as Record<string, string>)[key] = value;
         }

@@ -2,6 +2,44 @@
 // option, the component root for the `className` option) can pad the whole
 // layout and paint the band around it. Registered as non-inheriting, so only
 // the element that declares them is affected, wherever the class sits.
+// The theme settings read by dockview (see `DockviewThemeSettings`) apply to
+// one dockview: registered as non-inheriting so a dockview nested in another's
+// panel never picks up its host's gap, drop modes or tab indicators.
+@property --dv-group-gap {
+    syntax: '*';
+    inherits: false;
+}
+
+@property --dv-edge-group-collapsed-size {
+    syntax: '*';
+    inherits: false;
+}
+
+@property --dv-dnd-overlay-mounting {
+    syntax: '*';
+    inherits: false;
+}
+
+@property --dv-dnd-panel-overlay {
+    syntax: '*';
+    inherits: false;
+}
+
+@property --dv-dnd-tab-indicator {
+    syntax: '*';
+    inherits: false;
+}
+
+@property --dv-tab-group-indicator {
+    syntax: '*';
+    inherits: false;
+}
+
+@property --dv-tab-animation {
+    syntax: '*';
+    inherits: false;
+}
+
 @property --dv-root-padding {
     syntax: '*';
     inherits: false;

@@ -251,6 +251,20 @@ describe('theme', () => {
             ).toEqual({ edgeGroupCollapsedSize: 22 });
         });
 
+        test('takes each setting from the first style that declares it', () => {
+            const root = style({ '--dv-group-gap': '4px' });
+            const shell = style({
+                '--dv-group-gap': '10px',
+                '--dv-dnd-tab-indicator': 'line',
+                '--dv-edge-group-collapsed-size': '30px',
+            });
+            expect(readThemeSettingsFromStyle(root, shell)).toEqual({
+                gap: 4,
+                dndTabIndicator: 'line',
+                edgeGroupCollapsedSize: 30,
+            });
+        });
+
         test('ignores unset and unrecognised values', () => {
             expect(
                 readThemeSettingsFromStyle(
