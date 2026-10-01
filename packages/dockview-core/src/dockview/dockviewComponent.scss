@@ -51,7 +51,10 @@
 }
 
 .dv-shell,
-.dv-component-root {
+.dv-component-root,
+.dv-popout-window,
+.dockview-spaced,
+[class*='dockview-theme-'] {
     box-sizing: border-box;
     padding: var(--dv-root-padding, 0px);
     background-color: var(--dv-root-background-color, transparent);

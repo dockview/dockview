@@ -846,11 +846,42 @@ export class DockviewComponent
         return this._declaredThemeSettings;
     }
 
-    /** Whether the theme's CSS was read from an attached element when the
-     *  theme was last applied; `undefined` until it is first applied (layouts
-     *  run during construction). A dockview created detached reads it on its
-     *  first layout once attached. */
+    /** Whether the theme's CSS was read with dockview's stylesheet applied;
+     *  `undefined` until the theme is first applied. While `false`, a later
+     *  layout or stylesheet load re-reads it. */
     private _themeCssRead: boolean | undefined = undefined;
+
+    private get isStylesheetApplied(): boolean {
+        // Core's root rule sets `border-box`; the browser default is
+        // `content-box`.
+        return (
+            this.element.isConnected &&
+            typeof getComputedStyle === 'function' &&
+            readStyleProperty(getComputedStyle(this.element), 'box-sizing') ===
+                'border-box'
+        );
+    }
+
+    private listenForStylesheetLoads(): IDisposable {
+        if (typeof document === 'undefined') {
+            return Disposable.NONE;
+        }
+        const onLoad = (event: globalThis.Event): void => {
+            if (event.target instanceof HTMLLinkElement) {
+                this.retryThemeCss();
+            }
+        };
+        document.addEventListener('load', onLoad, true);
+        return Disposable.from(() =>
+            document.removeEventListener('load', onLoad, true)
+        );
+    }
+
+    private retryThemeCss(): void {
+        if (this._themeCssRead === false && this.isStylesheetApplied) {
+            this.updateTheme();
+        }
+    }
 
     private readonly _onDidActiveGroupChange = new Emitter<
         DockviewGroupPanel | undefined
@@ -1740,6 +1771,10 @@ export class DockviewComponent
             // so clearing both shell containers here guarantees no overlay
             // survives the drag. The pointer backend clears on drag-leave already
             // and doesn't emit `dragend`, so this is HTML5-only by construction.
+            // A stylesheet that loads after the theme was applied (e.g. a
+            // code-split CSS chunk). Captured on the document: `load` never
+            // reaches the window from an element.
+            this.listenForStylesheetLoads(),
             addDisposableListener(
                 this._shellManager.element,
                 'dragend',
@@ -3202,9 +3237,7 @@ export class DockviewComponent
 
         this._syncFloatingOverlayHost();
 
-        if (this._themeCssRead === false && this.element.isConnected) {
-            this.updateTheme();
-        }
+        this.retryThemeCss();
 
         // floatingGroupService may be undefined during super() (BaseGrid calls
         // layout(0, 0) before subclass field initialisers run).
@@ -6398,7 +6431,7 @@ export class DockviewComponent
             typeof getComputedStyle === 'function' && this.element.isConnected
                 ? getComputedStyle(this.element)
                 : undefined;
-        this._themeCssRead = style !== undefined;
+        this._themeCssRead = this.isStylesheetApplied;
         // The settings' properties don't inherit (so a nested dockview never
         // picks up its host's): read the component root (`className`) first,
         // then the shell (the theme class).

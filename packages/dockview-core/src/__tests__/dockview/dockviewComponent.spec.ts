@@ -14444,6 +14444,9 @@ describe('theme settings from CSS', () => {
     });
 
     test('a dockview created detached reads its CSS once attached and laid out', () => {
+        const style = document.createElement('style');
+        style.textContent = '.dv-component-root { box-sizing: border-box; }';
+        document.head.appendChild(style);
         const container = document.createElement('div');
         const dv = new DockviewComponent(container, {
             createComponent(options) {
@@ -14457,6 +14460,28 @@ describe('theme settings from CSS', () => {
         dv.layout(500, 500);
         expect(dv.themeSettings.gap).toBe(7);
         dv.dispose();
+        style.remove();
+    });
+
+    test('re-reads the theme CSS when a stylesheet loads after the theme was applied', () => {
+        const dv = createDockview();
+        dv.element.style.setProperty('--dv-group-gap', '5px');
+        dv.refreshTheme();
+        // dockview's stylesheet is not applied yet: the read is retried.
+        expect(dv.themeSettings.gap).toBe(5);
+        dv.element.style.setProperty('--dv-group-gap', '11px');
+
+        const style = document.createElement('style');
+        style.textContent = '.dv-component-root { box-sizing: border-box; }';
+        document.head.appendChild(style);
+        const link = document.createElement('link');
+        document.head.appendChild(link);
+        link.dispatchEvent(new Event('load'));
+
+        expect(dv.themeSettings.gap).toBe(11);
+        dv.dispose();
+        style.remove();
+        link.remove();
     });
 
     test('an unset tabAnimation is told apart from an explicit default', () => {
