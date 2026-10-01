@@ -180,7 +180,7 @@ export function generateCodeSnippet(
     }
 
     const importName = importNameOf(baseTheme);
-    out += `import { ${importName} } from 'dockview-react';\n\n`;
+    out += `import { DockviewTheme, ${importName} } from 'dockview-react';\n\n`;
     out += `const myTheme: DockviewTheme = {\n    ...${importName},\n`;
     if (custom) {
         out += `    name: 'mine',\n`;

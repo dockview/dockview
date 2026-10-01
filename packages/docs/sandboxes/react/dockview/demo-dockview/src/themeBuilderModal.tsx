@@ -383,8 +383,8 @@ const luminance = (hex: string): number => {
  * Base colours that reproduce the current theme: its group background; as
  * foreground its most contrasting neutral tab text (some themes colour the
  * selected tab with the accent, or mute it); as accent its most saturated
- * accent-like colour. The tab strip and selected tab, which themes pick
- * deliberately, are kept as overrides.
+ * accent-like colour. The surfaces themes pick deliberately (tab strip,
+ * selected and unselected tabs) are kept as overrides.
  */
 const seedColors = (root: HTMLElement): ThemeCssOverrides => {
     const style = getComputedStyle(root);
@@ -422,6 +422,9 @@ const seedColors = (root: HTMLElement): ThemeCssOverrides => {
         '--dv-activegroup-visiblepanel-tab-background-color': colors(
             '--dv-activegroup-visiblepanel-tab-background-color'
         )[0],
+        '--dv-activegroup-hiddenpanel-tab-background-color': colors(
+            '--dv-activegroup-hiddenpanel-tab-background-color'
+        )[0],
     };
 };
 
@@ -431,6 +434,7 @@ const SEEDED: (keyof ThemeCssOverrides)[] = [
     '--dv-accent-color',
     '--dv-tabs-and-actions-container-background-color',
     '--dv-activegroup-visiblepanel-tab-background-color',
+    '--dv-activegroup-hiddenpanel-tab-background-color',
 ];
 
 export const Sidebar = (props: {

@@ -154,10 +154,6 @@ export const cssVariableConfig = [
         text: 'The spaced layout’s inset: feeds `--dv-root-padding` and `--dv-floating-inset` in the spaced themes.',
     },
     {
-        key: '--dv-border-radius',
-        text: 'The spaced layout’s card radius: feeds the group, strip, content, peek and floating radii in the spaced themes.',
-    },
-    {
         key: '--dv-tab-border-radius',
         text: 'Radius of a tab’s corners on the strip’s outer side (all corners unless `--dv-tab-content-side-border-radius` differs).',
     },
