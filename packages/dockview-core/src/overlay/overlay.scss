@@ -233,10 +233,10 @@
 }
 
 .dv-resize-container {
-    --dv-overlay-z-index: #{dv.ref('overlay-z-index')};
+    --dv-overlay-z-index: var(--dv-overlay-z-index, 999);
 
     position: absolute;
-    z-index: calc(#{dv.ref('overlay-z-index')} - 2);
+    z-index: calc(var(--dv-overlay-z-index) - 2);
 
     // Backdrop showing through a nested floating layout's gaps and sashes,
     // and through the inset band when `--dv-floating-inset` is set.
@@ -280,7 +280,7 @@
         width: calc(100% - 8px);
         left: 4px;
         top: -2px;
-        z-index: #{dv.ref('overlay-z-index')};
+        z-index: var(--dv-overlay-z-index);
         position: absolute;
         cursor: ns-resize;
     }
@@ -290,7 +290,7 @@
         width: calc(100% - 8px);
         left: 4px;
         bottom: -2px;
-        z-index: #{dv.ref('overlay-z-index')};
+        z-index: var(--dv-overlay-z-index);
         position: absolute;
         cursor: ns-resize;
     }
@@ -300,7 +300,7 @@
         width: 4px;
         left: -2px;
         top: 4px;
-        z-index: #{dv.ref('overlay-z-index')};
+        z-index: var(--dv-overlay-z-index);
         position: absolute;
         cursor: ew-resize;
     }
@@ -310,7 +310,7 @@
         width: 4px;
         right: -2px;
         top: 4px;
-        z-index: #{dv.ref('overlay-z-index')};
+        z-index: var(--dv-overlay-z-index);
         position: absolute;
         cursor: ew-resize;
     }
@@ -320,7 +320,7 @@
         width: 4px;
         top: -2px;
         left: -2px;
-        z-index: #{dv.ref('overlay-z-index')};
+        z-index: var(--dv-overlay-z-index);
         position: absolute;
         cursor: nw-resize;
     }
@@ -330,7 +330,7 @@
         width: 4px;
         right: -2px;
         top: -2px;
-        z-index: #{dv.ref('overlay-z-index')};
+        z-index: var(--dv-overlay-z-index);
         position: absolute;
         cursor: ne-resize;
     }
@@ -340,7 +340,7 @@
         width: 4px;
         left: -2px;
         bottom: -2px;
-        z-index: #{dv.ref('overlay-z-index')};
+        z-index: var(--dv-overlay-z-index);
         position: absolute;
         cursor: sw-resize;
     }
@@ -350,7 +350,7 @@
         width: 4px;
         right: -2px;
         bottom: -2px;
-        z-index: #{dv.ref('overlay-z-index')};
+        z-index: var(--dv-overlay-z-index);
         position: absolute;
         cursor: se-resize;
     }

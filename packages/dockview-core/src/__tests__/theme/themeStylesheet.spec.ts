@@ -93,7 +93,8 @@ describe('theme stylesheet', () => {
                 if (!THEME_CLASS.test(selector)) {
                     continue;
                 }
-                if (!/^\.dockview-[\w-]+$/.test(selector)) {
+                // A class, or two together (a theme with a part).
+                if (!/^(\.dockview-[\w-]+){1,2}$/.test(selector)) {
                     offending.push(`selector ${selector}`);
                 }
                 for (const [property] of rule.declarations) {

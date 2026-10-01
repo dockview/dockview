@@ -32,9 +32,14 @@
     // Keep the handle seamless with the gap: no divider line below it.
     --dv-floating-titlebar-border-bottom: none;
 
-    // Cards are separated by the gap, not by lines.
+    // Cards are separated by the gap, not by lines; this outranks
+    // .dockview-base-colors, which would otherwise draw them again.
     --dv-separator-border: transparent;
     --dv-tab-divider-color: transparent;
+    &.dockview-base-colors {
+        --dv-separator-border: transparent;
+        --dv-tab-divider-color: transparent;
+    }
 
     // ── Behaviour ───────────────────────────────────────────────────────────
     --dv-group-gap: var(--dv-spacing-padding);
@@ -63,6 +68,8 @@
     --dv-floating-border: none;
     --dv-floating-inset: var(--dv-spacing-padding);
     --dv-floating-inset-below-titlebar: 0px;
+
+    --dv-drop-target-content-border-radius: var(--dv-border-radius);
 
     // The tab margin already insets the overflow button from the strip edges.
     --dv-tabs-overflow-dropdown-height: auto;

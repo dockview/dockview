@@ -11,6 +11,7 @@
 // tokens through `ref()`, which expands the whole fallback chain.
 @use 'sass:map';
 @use 'sass:string';
+@use 'sass:list';
 
 $defaults: ();
 
@@ -115,7 +116,11 @@ $defaults: -set($defaults, 'active-sash-color', $accent);
 $defaults: -set($defaults, 'group-border-radius', ref('border-radius'));
 $defaults: -set($defaults, 'floating-border-radius', ref('border-radius'));
 $defaults: -set($defaults, 'edge-peek-border-radius', ref('border-radius'));
-$defaults: -set($defaults, 'drop-target-content-border-radius', ref('border-radius'));
+$defaults: -set(
+    $defaults,
+    'drop-target-content-border-radius',
+    ref('drop-target-border-radius')
+);
 $defaults: -set($defaults, 'tab-border-radius', scale('border-radius', string.unquote('2 / 3')));
 $defaults: -set($defaults, 'dropdown-border-radius', scale('border-radius', string.unquote('2 / 3')));
 $defaults: -set($defaults, 'sash-border-radius', scale('border-radius', string.unquote('1 / 3')));
@@ -188,6 +193,8 @@ $color-tokens: (
 // Re-declares a token family at a theme root, so it follows that root's base
 // tokens rather than values inherited from an enclosing element.
 $radius-tokens: (
+    'group-border-radius',
+    'edge-peek-border-radius',
     'tab-border-radius',
     'sash-border-radius',
     'dropdown-border-radius',
@@ -201,6 +208,10 @@ $radius-tokens: (
     }
 }
 
-@mixin declare-all {
-    @include declare(map.keys($defaults));
+@mixin declare-all($except: ()) {
+    @each $name in map.keys($defaults) {
+        @if not list.index($except, $name) {
+            --dv-#{$name}: #{default($name)};
+        }
+    }
 }

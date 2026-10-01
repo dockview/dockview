@@ -93,6 +93,14 @@
     --dv-tab-group-line-opacity: 0.6;
 }
 
+// Every theme root re-declares the derived tokens, at zero specificity so the
+// theme's own values win. Values are then resolved per theme (a dock nested in
+// another's panel does not inherit its host's), and app code reading
+// var(--dv-*) sees them. Hover falls back per group where it is used.
+:where([class*='dockview-theme-']) {
+    @include dv.declare-all($except: ('tab-inactive-hover-background-color'));
+}
+
 // Every token declared from the base tokens, so a theme only has to set
 // --dv-background-color, --dv-foreground-color, --dv-accent-color, --dv-spacing
 // and --dv-border-radius. Before the part classes so they override it.
@@ -844,6 +852,10 @@
 .dockview-theme-abyss-spaced {
     @include dockview-theme-core-mixin();
     @include dockview-design-space-mixin();
+    // Drops show as a border only.
+    &.dockview-base-colors {
+        --dv-drag-over-background-color: transparent;
+    }
 
     color-scheme: dark;
 
@@ -892,6 +904,10 @@
 .dockview-theme-light-spaced {
     @include dockview-theme-core-mixin();
     @include dockview-design-space-mixin();
+    // Drops show as a border only.
+    &.dockview-base-colors {
+        --dv-drag-over-background-color: transparent;
+    }
 
     color-scheme: light;
 
@@ -985,6 +1001,9 @@
     --dv-tabs-and-actions-container-height: 32px;
     --dv-tab-margin: 3px 0 0 0;
     --dv-separator-border: transparent;
+    &.dockview-base-colors {
+        --dv-separator-border: transparent;
+    }
     // One spacing between sheets, around the layout and beside the edge rails
     // (the shell separates them by the group gap).
     --dv-spacing-padding: 8px;

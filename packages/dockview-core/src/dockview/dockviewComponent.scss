@@ -141,7 +141,10 @@
                     // Nested here, not a standalone .dv-tab:hover rule, so it
                     // outranks the group-scoped background above.
                     &:hover {
-                        background-color: #{dv.ref('tab-inactive-hover-background-color')};
+                        background-color: var(
+                            --dv-tab-inactive-hover-background-color,
+                            #{dv.ref('activegroup-hiddenpanel-tab-background-color')}
+                        );
                     }
                 }
             }
@@ -173,7 +176,10 @@
                         #{dv.ref('inactivegroup-hiddenpanel-tab-background-color')};
 
                     &:hover {
-                        background-color: #{dv.ref('tab-inactive-hover-background-color')};
+                        background-color: var(
+                            --dv-tab-inactive-hover-background-color,
+                            #{dv.ref('inactivegroup-hiddenpanel-tab-background-color')}
+                        );
                     }
                 }
             }
