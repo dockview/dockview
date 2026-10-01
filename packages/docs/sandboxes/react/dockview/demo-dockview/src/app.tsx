@@ -8,7 +8,6 @@ import {
     DockviewApi,
     DockviewTheme,
     themeAbyss,
-    themeBase,
     IContextMenuItemComponentProps,
     GetTabContextMenuItemsParams,
     GetTabGroupChipContextMenuItemsParams,
@@ -53,7 +52,6 @@ import {
 import {
     ThemeBuilderState,
     ThemeCssOverrides,
-    ThemeParts,
     buildEffectiveTheme,
     getInitialState,
 } from './themeBuilder';
@@ -756,29 +754,14 @@ const DockviewDemo = (props: {
         () => getInitialState()
     );
 
-    // Seed for the custom theme when the builder switches to it ("derive from
-    // base colours"); consumed by the theme-change reset below.
-    const pendingSeed = React.useRef<{
-        css: ThemeCssOverrides;
-        parts: Partial<ThemeParts>;
-    } | null>(null);
-
     const prevTheme = React.useRef(props.theme);
     React.useEffect(() => {
         if (prevTheme.current !== props.theme) {
             prevTheme.current = props.theme;
-            const seed = pendingSeed.current;
-            pendingSeed.current = null;
-            setBuilderState(getInitialState(seed?.css, seed?.parts));
+            setBuilderState(getInitialState());
         }
     }, [props.theme]);
 
-    const deriveCustomTheme = props.onChangeTheme
-        ? (css: ThemeCssOverrides, parts: Partial<ThemeParts>) => {
-              pendingSeed.current = { css, parts };
-              props.onChangeTheme!(themeBase);
-          }
-        : undefined;
 
     const updateBuilder = (patch: Partial<ThemeBuilderState>) =>
         setBuilderState((s) => ({ ...s, ...patch }));
@@ -805,18 +788,22 @@ const DockviewDemo = (props: {
     const prevCssOverrideKeys = React.useRef<string[]>([]);
 
     React.useEffect(() => {
-        const dvRoot = containerRef.current?.querySelector(
+        // Every theme root, so docks nested in panels (which share the
+        // theme) pick up the overrides as a theme class would give them.
+        const roots = containerRef.current?.querySelectorAll<HTMLElement>(
             '[class*="dockview-theme"]'
-        ) as HTMLElement | null;
-        if (!dvRoot) return;
+        );
+        if (!roots?.length) return;
 
-        for (const k of prevCssOverrideKeys.current) {
-            if (!(k in builderState.cssOverrides)) {
-                dvRoot.style.removeProperty(k);
+        for (const dvRoot of roots) {
+            for (const k of prevCssOverrideKeys.current) {
+                if (!(k in builderState.cssOverrides)) {
+                    dvRoot.style.removeProperty(k);
+                }
             }
-        }
-        for (const [k, v] of Object.entries(builderState.cssOverrides)) {
-            dvRoot.style.setProperty(k, v as string);
+            for (const [k, v] of Object.entries(builderState.cssOverrides)) {
+                dvRoot.style.setProperty(k, v as string);
+            }
         }
         prevCssOverrideKeys.current = Object.keys(builderState.cssOverrides);
     }, [builderState.cssOverrides]);
@@ -1230,7 +1217,6 @@ const DockviewDemo = (props: {
                     onChange={updateBuilder}
                     onCssChange={updateCss}
                     onReset={() => setBuilderState(getInitialState())}
-                    onDeriveCustomTheme={deriveCustomTheme}
                     baseTheme={props.theme ?? themeAbyss}
                     effectiveTheme={effectiveTheme}
                     containerEl={containerRef.current}

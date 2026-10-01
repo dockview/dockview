@@ -43,6 +43,7 @@ export interface ThemeCssOverrides {
     '--dv-active-sash-color'?: string;
     '--dv-sash-color'?: string;
     '--dv-tabs-container-scrollbar-color'?: string;
+    '--dv-scrollbar-background-color'?: string;
     // Floating groups
     '--dv-floating-group-border'?: string;
     '--dv-floating-box-shadow'?: string;
@@ -50,13 +51,16 @@ export interface ThemeCssOverrides {
     '--dv-floating-group-dragging-opacity'?: string;
 }
 
-/** Layout classes ("parts") added next to the theme's own class. */
+/** Classes ("parts") added next to the theme's own class. */
 export interface ThemeParts {
+    /** Re-derive the theme's colours from the base tokens; layout unchanged. */
+    baseColors: boolean;
     cards: boolean;
     connectedTabs: boolean;
 }
 
 const PART_CLASSES: Record<keyof ThemeParts, string> = {
+    baseColors: 'dockview-base-colors',
     cards: 'dockview-spaced',
     connectedTabs: 'dockview-tabs-connected',
 };
@@ -85,7 +89,12 @@ export function getInitialState(
     return {
         settings: {},
         dndOverlayBorder: '',
-        parts: { cards: false, connectedTabs: false, ...parts },
+        parts: {
+            baseColors: false,
+            cards: false,
+            connectedTabs: false,
+            ...parts,
+        },
         cssOverrides: Object.fromEntries(
             Object.entries(seed).filter(([, v]) => v !== undefined && v !== '')
         ),

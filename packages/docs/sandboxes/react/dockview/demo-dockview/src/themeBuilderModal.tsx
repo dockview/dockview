@@ -1,9 +1,5 @@
 import * as React from 'react';
-import {
-    DockviewApi,
-    DockviewTheme,
-    ResolvedDockviewThemeSettings,
-} from 'dockview-react';
+import { DockviewApi, DockviewTheme } from 'dockview-react';
 import {
     ThemeBuilderState,
     ThemeCssOverrides,
@@ -352,6 +348,7 @@ const COLOR_TOKENS: (keyof ThemeCssOverrides)[] = [
     '--dv-active-sash-color',
     '--dv-sash-color',
     '--dv-tabs-container-scrollbar-color',
+    '--dv-scrollbar-background-color',
 ];
 const OTHER_TOKENS: (keyof ThemeCssOverrides)[] = [
     '--dv-spacing',
@@ -369,50 +366,72 @@ const OTHER_TOKENS: (keyof ThemeCssOverrides)[] = [
 ] as (keyof ThemeCssOverrides)[];
 const COLOR_SET = new Set<string>(COLOR_TOKENS);
 
-/**
- * Seed for a custom theme that reproduces the current theme's look from the
- * base tokens: its surface, text and accent colours plus its shape.
- */
-const seedFromTheme = (
-    root: HTMLElement,
-    settings: ResolvedDockviewThemeSettings,
-    scheme: 'light' | 'dark'
-): { css: ThemeCssOverrides; parts: Partial<ThemeParts> } => {
-    const style = getComputedStyle(root);
-    const read = (name: string) => style.getPropertyValue(name).trim();
-    const color = (...names: string[]) => {
-        for (const name of names) {
-            const value = read(name);
-            if (value) {
-                const hex = normaliseColor(root, value);
-                if (hex !== 'transparent') return hex;
-            }
-        }
-        return undefined;
-    };
-    const css: ThemeCssOverrides = {
-        'color-scheme': scheme,
-        '--dv-background-color': color('--dv-group-view-background-color'),
-        '--dv-foreground-color': color('--dv-activegroup-visiblepanel-tab-color'),
-        '--dv-accent-color': color(
-            '--dv-active-sash-color',
-            '--dv-focus-ring-color',
-            '--dv-paneview-active-outline-color'
-        ),
-        '--dv-tabs-and-actions-container-background-color': color(
-            '--dv-tabs-and-actions-container-background-color'
-        ),
-    };
-    const radius = Number.parseFloat(read('--dv-border-radius'));
-    if (radius > 0) css['--dv-border-radius'] = `${radius}px`;
-    const height = read('--dv-tabs-and-actions-container-height');
-    if (height) css['--dv-tabs-and-actions-container-height'] = height;
-    const cards = settings.gap > 0;
-    if (cards) {
-        css['--dv-spacing-padding'] = `${settings.gap}px`;
-    }
-    return { css, parts: { cards } };
+const rgbOf = (hex: string) =>
+    [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
+const saturation = (hex: string): number => {
+    const [r, g, b] = rgbOf(hex);
+    return Math.max(r, g, b) - Math.min(r, g, b);
 };
+
+const luminance = (hex: string): number => {
+    const [r, g, b] = rgbOf(hex);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+/**
+ * Base colours that reproduce the current theme: its group background; as
+ * foreground its most contrasting neutral tab text (some themes colour the
+ * selected tab with the accent, or mute it); as accent its most saturated
+ * accent-like colour. The tab strip and selected tab, which themes pick
+ * deliberately, are kept as overrides.
+ */
+const seedColors = (root: HTMLElement): ThemeCssOverrides => {
+    const style = getComputedStyle(root);
+    const colors = (...names: string[]) =>
+        names
+            .map((name) => style.getPropertyValue(name).trim())
+            .filter(Boolean)
+            .map((value) => normaliseColor(root, value))
+            .filter(isHexColor);
+    const [background] = colors('--dv-group-view-background-color');
+    const text = colors(
+        '--dv-activegroup-visiblepanel-tab-color',
+        '--dv-inactivegroup-visiblepanel-tab-color',
+        '--dv-activegroup-hiddenpanel-tab-color'
+    );
+    const neutral = text.filter((c) => saturation(c) < 48);
+    const contrast = (c: string) =>
+        background ? Math.abs(luminance(c) - luminance(background)) : 0;
+    const [foreground] = (neutral.length ? neutral : text).sort(
+        (a, b) => contrast(b) - contrast(a)
+    );
+    const [accent] = colors(
+        '--dv-focus-ring-color',
+        '--dv-paneview-active-outline-color',
+        '--dv-active-sash-color',
+        '--dv-activegroup-visiblepanel-tab-color'
+    ).sort((a, b) => saturation(b) - saturation(a));
+    return {
+        '--dv-background-color': background,
+        '--dv-foreground-color': foreground,
+        '--dv-accent-color': accent,
+        '--dv-tabs-and-actions-container-background-color': colors(
+            '--dv-tabs-and-actions-container-background-color'
+        )[0],
+        '--dv-activegroup-visiblepanel-tab-background-color': colors(
+            '--dv-activegroup-visiblepanel-tab-background-color'
+        )[0],
+    };
+};
+
+const SEEDED: (keyof ThemeCssOverrides)[] = [
+    '--dv-background-color',
+    '--dv-foreground-color',
+    '--dv-accent-color',
+    '--dv-tabs-and-actions-container-background-color',
+    '--dv-activegroup-visiblepanel-tab-background-color',
+];
 
 export const Sidebar = (props: {
     open: boolean;
@@ -422,11 +441,6 @@ export const Sidebar = (props: {
     onChange: (patch: Partial<ThemeBuilderState>) => void;
     onCssChange: (patch: Partial<ThemeCssOverrides>) => void;
     onReset: () => void;
-    /** Switch to the custom theme, seeded with these values. */
-    onDeriveCustomTheme?: (
-        css: ThemeCssOverrides,
-        parts: Partial<ThemeParts>
-    ) => void;
     baseTheme: DockviewTheme;
     effectiveTheme: DockviewTheme;
     containerEl: HTMLElement | null;
@@ -460,7 +474,10 @@ export const Sidebar = (props: {
     const [copied, setCopied] = React.useState(false);
 
     const css = props.state.cssOverrides;
-    const custom = isBaseTheme(props.baseTheme);
+    const isBase = isBaseTheme(props.baseTheme);
+    // Base colours apply on the base theme, or on any theme with the
+    // base-colours part added.
+    const derived = isBase || props.state.parts.baseColors;
     const settings = React.useMemo(
         () => resolveSettings(props.baseTheme, props.state),
         [props.baseTheme, props.state]
@@ -508,15 +525,17 @@ export const Sidebar = (props: {
         });
     };
 
-    const handleDerive = () => {
+    const setDerivedColors = (on: boolean) => {
         const root = findThemeRoot(props.containerEl);
-        if (!root || !props.onDeriveCustomTheme) return;
-        const seed = seedFromTheme(
-            root,
-            settings,
-            props.effectiveTheme.colorScheme ?? 'dark'
-        );
-        props.onDeriveCustomTheme(seed.css, seed.parts);
+        if (on && root) {
+            // Seed from the theme as it renders now, before the part applies.
+            props.onCssChange(seedColors(root));
+        } else if (!on) {
+            props.onCssChange(
+                Object.fromEntries(SEEDED.map((name) => [name, undefined]))
+            );
+        }
+        setPart({ baseColors: on });
     };
 
     const colorRow = (label: string, name: keyof ThemeCssOverrides) => (
@@ -567,31 +586,30 @@ export const Sidebar = (props: {
         <>
             {/* Base tokens */}
             <Section title="Base" icon="tune" defaultOpen>
-                {custom ? (
+                {isBase ? (
                     <Hint>
                         Everything else derives from these. Open the sections
                         below to override individual values.
                     </Hint>
                 ) : (
                     <>
+                        <ToggleRow
+                            label="Colours"
+                            value={derived ? 'derived' : 'theme'}
+                            options={[
+                                { value: 'theme', label: 'theme' },
+                                { value: 'derived', label: 'derived' },
+                            ]}
+                            onChange={(v) => setDerivedColors(v === 'derived')}
+                        />
                         <Hint>
-                            This theme sets its colours itself, so base colours
-                            have no effect on it. Derive a custom theme from its
-                            surface, text and accent colours to edit it from
-                            here.
+                            {derived
+                                ? 'Colours now derive from the three below, starting from this theme\'s own. Layout and spacing are unchanged.'
+                                : 'This theme sets every colour itself. Switch to derived to drive them from a background, foreground and accent.'}
                         </Hint>
-                        {props.onDeriveCustomTheme && (
-                            <Btn
-                                onClick={handleDerive}
-                                icon="auto_fix_high"
-                                style={{ marginBottom: 6, width: '100%' }}
-                            >
-                                Derive from base colours
-                            </Btn>
-                        )}
                     </>
                 )}
-                {custom && (
+                {isBase && (
                     <ToggleRow
                         label="Scheme"
                         value={css['color-scheme'] ?? 'dark'}
@@ -604,9 +622,9 @@ export const Sidebar = (props: {
                         }
                     />
                 )}
-                {custom && colorRow('Background', '--dv-background-color')}
-                {custom && colorRow('Foreground', '--dv-foreground-color')}
-                {custom && colorRow('Accent', '--dv-accent-color')}
+                {derived && colorRow('Background', '--dv-background-color')}
+                {derived && colorRow('Foreground', '--dv-foreground-color')}
+                {derived && colorRow('Accent', '--dv-accent-color')}
                 {pxSlider('Spacing', '--dv-spacing', 1, 8, 4)}
                 {pxSlider('Border radius', '--dv-border-radius', 0, 20)}
             </Section>
@@ -777,7 +795,11 @@ export const Sidebar = (props: {
                 {colorRow('Icon hover', '--dv-icon-hover-background-color')}
                 {colorRow('Sash', '--dv-sash-color')}
                 {colorRow('Sash (active)', '--dv-active-sash-color')}
-                {colorRow('Scrollbar', '--dv-tabs-container-scrollbar-color')}
+                {colorRow('Scrollbar', '--dv-scrollbar-background-color')}
+                {colorRow(
+                    'Tab strip scrollbar',
+                    '--dv-tabs-container-scrollbar-color'
+                )}
             </Section>
 
             <Section title="Floating groups" icon="flip_to_front">

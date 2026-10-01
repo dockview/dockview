@@ -140,7 +140,16 @@ const myTheme: DockviewTheme = {
 };
 ```
 
-The [demo's theme builder](/demo?theme=base) edits these tokens live, can derive a starting point from any built-in theme, and exports the class and theme object.
+To recolour an existing theme while keeping its layout, add `dockview-base-colors` next to it: its colours then derive from the base tokens, and its spacing, radii and tab shapes stay as they are.
+
+```ts
+const myTheme: DockviewTheme = {
+    ...themeSlateDark,
+    className: `${themeSlateDark.className} dockview-base-colors my-theme`,
+};
+```
+
+The [demo's theme builder](/demo?theme=base) edits these tokens live, switches any built-in theme to derived colours (seeded from its own palette), and exports the class and theme object.
 
 A fully hand-specified theme, like the built-in ones, sets the derived properties directly:
 
