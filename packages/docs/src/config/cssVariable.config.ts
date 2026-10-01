@@ -292,10 +292,6 @@ export const cssVariableConfig = [
         key: '--dv-tab-shoulder-size',
         text: 'Size of the concave shoulders at the base of the active tab; `0` turns them off.',
     },
-    {
-        key: '--dv-tab-shoulder-color',
-        text: 'Shoulder colour; defaults to the active tab background.',
-    },
 
     // ── Edge groups ────────────────────────────────────────────────────────
     {

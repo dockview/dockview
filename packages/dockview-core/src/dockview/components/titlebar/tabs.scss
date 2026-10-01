@@ -208,10 +208,7 @@
             left: calc(-1 * var(--dv-tab-shoulder-size, 0px));
             width: calc(100% + 2 * var(--dv-tab-shoulder-size, 0px));
             height: var(--dv-tab-shoulder-size, 0px);
-            background-color: var(
-                --dv-tab-shoulder-color,
-                var(--dv-activegroup-visiblepanel-tab-background-color)
-            );
+            background-color: inherit;
             pointer-events: none;
             z-index: 2;
             -webkit-mask-image:

@@ -57,6 +57,15 @@ export interface ITabGroupIndicator {
  * Shared positioning logic for tab group indicators.
  * Subclasses implement `applyShape` to control the visual output.
  */
+function readLineThickness(element: HTMLElement): number {
+    const value = Number.parseFloat(
+        getComputedStyle(element).getPropertyValue?.(
+            '--dv-tab-group-line-height'
+        ) ?? ''
+    );
+    return Number.isFinite(value) && value >= 0 ? value : 2;
+}
+
 abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
     protected readonly _underlines = new Map<string, HTMLElement>();
     /**
@@ -66,6 +75,8 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
      */
     private readonly _continuationMarkers = new Map<string, HTMLElement[]>();
     private _rafId: number | null = null;
+    /** `--dv-tab-group-line-height`, read once per positioning pass. */
+    protected _lineThickness = 2;
 
     get underlines(): ReadonlyMap<string, HTMLElement> {
         return this._underlines;
@@ -208,6 +219,7 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
 
     private _positionUnderlinesSync(): void {
         const containerRect = this._ctx.tabsList.getBoundingClientRect();
+        this._lineThickness = readLineThickness(this._ctx.tabsList);
         const tabGroups = this._ctx.getTabGroups();
         const isVertical = this._ctx.getDirection() === 'vertical';
         // Multi-line wrap (`MultiRowTabsModule`): a group's tabs can span
@@ -397,7 +409,7 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
         tabMap: Map<string, IValueDisposable<Tab>>,
         isVertical: boolean
     ): void {
-        const t = 2; // line thickness
+        const t = this._lineThickness;
         const color = resolveTabGroupAccent(
             tg.color,
             this._ctx.getColorPalette()
@@ -680,7 +692,7 @@ export class WrapTabGroupIndicator extends BaseTabGroupIndicator {
         containerRect: DOMRect,
         isVertical: boolean
     ): void {
-        const t = 2; // line thickness in px
+        const t = this._lineThickness;
         const crossSize = containerCrossSize;
         const mainSize = groupSpan;
         const color = resolveTabGroupAccent(
@@ -852,7 +864,7 @@ export class NoneTabGroupIndicator extends BaseTabGroupIndicator {
         _containerRect: DOMRect,
         isVertical: boolean
     ): void {
-        const t = 2; // line thickness in px
+        const t = this._lineThickness;
         const color = resolveTabGroupAccent(
             tg.color,
             this._ctx.getColorPalette()
