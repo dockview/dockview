@@ -1,3 +1,4 @@
+@use 'theme/tokens' as dv;
 @import 'theme/_drop-target-static-mixin';
 @import 'theme/_space-mixin';
 
@@ -8,7 +9,7 @@
     --dv-drag-over-background-color: rgba(83, 89, 93, 0.5);
     // Tab insertion line, reorder bars and pinned-tab drop bar. Must not
     // default to transparent or they vanish on themes that don't set it.
-    --dv-drag-over-border-color: var(--dv-paneview-active-outline-color);
+    --dv-drag-over-border-color: #{dv.ref('paneview-active-outline-color')};
     // Concrete default so the edge indicator stays visible on themes that blank
     // --dv-drag-over-background-color (e.g. the spaced themes).
     --dv-edge-dock-indicator-color: rgba(56, 139, 253, 0.9);
@@ -22,18 +23,19 @@
 
     --dv-tab-font-size: inherit;
     --dv-border-radius: 0px;
+    @include dv.declare(dv.$radius-tokens);
     --dv-tab-margin: 0;
     // Also the context-menu / overflow-list border. Declared as transparent,
     // not left unset, so `var()` consumers without a fallback stay valid.
     --dv-tab-divider-color: transparent;
-    --dv-paneview-header-border-color: var(--dv-separator-border);
+    --dv-paneview-header-border-color: #{dv.ref('separator-border')};
     // Active-tab marker on the tab edge facing the content (drawn in
     // dockviewComponent.scss). Transparent by default; a theme opts in.
     --dv-tab-marker-size: 2px;
     --dv-activegroup-tab-marker-color: transparent;
     --dv-inactivegroup-tab-marker-color: transparent;
     // Override per theme if the accent lacks 3:1 against tab and strip fills.
-    --dv-focus-ring-color: var(--dv-paneview-active-outline-color);
+    --dv-focus-ring-color: #{dv.ref('paneview-active-outline-color')};
     --dv-focus-ring-width: 2px;
     --dv-sash-color: transparent;
     --dv-active-sash-color: transparent;
@@ -42,9 +44,6 @@
 
     // spacing variables - overridden by dockview-design-space-mixin / .dockview-spaced
     --dv-spacing-padding: 0px;
-    --dv-tab-border-radius: 0px;
-    --dv-sash-border-radius: 0px;
-    --dv-dropdown-border-radius: 0px;
     --dv-tab-close-icon-size: 11px;
     --dv-floating-group-border: none;
     --dv-drag-over-border: none;
@@ -53,10 +52,8 @@
     // Dedicated floating-group drag handle ("title bar"). The bar itself is
     // contentless; these variables control its appearance.
     --dv-floating-titlebar-height: 22px;
-    --dv-floating-titlebar-background-color: var(
-        --dv-tabs-and-actions-container-background-color
-    );
-    --dv-floating-titlebar-border-bottom: var(--dv-floating-border);
+    --dv-floating-titlebar-background-color: #{dv.ref('tabs-and-actions-container-background-color')};
+    --dv-floating-titlebar-border-bottom: #{dv.ref('floating-border')};
     // Dotted grip in the floating title bar; transparent (hidden) by default.
     --dv-floating-titlebar-handle-color: transparent;
     --dv-floating-titlebar-cursor: grab;
@@ -67,14 +64,12 @@
     // tokens not declared here default via `var()` fallbacks in core.
 
     // Floating-group frame (see overlay.scss).
-    --dv-floating-border-radius: 0px;
     --dv-floating-inset: 0px;
-    --dv-floating-frame-color: var(--dv-group-view-background-color);
+    --dv-floating-frame-color: #{dv.ref('group-view-background-color')};
 
     // Connected tabs (tabs.scss). A shoulder size of 0 disables them.
     --dv-tab-shoulder-size: 0px;
 
-    --dv-drop-target-border-radius: 0px;
 
     // Tab group color palette
     --dv-tab-group-color-grey: #5f6368;
@@ -971,7 +966,9 @@
 // Flat canvas between groups, strips and rails; each group's content is a
 // rounded sheet the selected tab merges into. Used by slate / slate-dark.
 @mixin dockview-design-sheet-mixin {
-    --dv-sheet-border-radius: 6px;
+    --dv-border-radius: 6px;
+    --dv-sash-border-radius: 0px;
+    --dv-dropdown-border-radius: 0px;
     --dv-tab-border-radius: 10px;
     --dv-tab-shoulder-size: 10px;
     // The 3px top inset lets the tab's rounded corners show against the canvas.
@@ -984,7 +981,7 @@
 
     // Nothing else paints the band between the edge rails and the centre, so
     // paint the root in the canvas colour or the page shows through.
-    --dv-root-background-color: var(--dv-group-view-background-color);
+    --dv-root-background-color: #{dv.ref('group-view-background-color')};
 
     @include dockview-connected-tabs-mixin();
 
@@ -994,7 +991,7 @@
     // Shoulder plus sheet radius, so a tab at the strip's start flares into the
     // sheet's flat edge rather than its rounded corner.
     --dv-tabs-container-padding: 0
-        calc(var(--dv-tab-shoulder-size) + var(--dv-sheet-border-radius));
+        calc(var(--dv-tab-shoulder-size) + var(--dv-border-radius));
 
     --dv-tab-padding-inline: 12px;
     --dv-tab-font-weight: 500;
@@ -1010,28 +1007,20 @@
     --dv-vertical-tab-margin: 3px 4px;
     --dv-vertical-tab-border-radius: 6px;
 
-    // Rounding the group too gives the sheet its bottom corners where the
-    // group clips.
-    --dv-group-border-radius: var(--dv-sheet-border-radius);
-    --dv-content-border-radius: var(--dv-sheet-border-radius);
-    --dv-content-background-color: var(
-        --dv-activegroup-visiblepanel-tab-background-color
-    );
+    --dv-content-border-radius: var(--dv-border-radius);
+    --dv-content-background-color: #{dv.ref('activegroup-visiblepanel-tab-background-color')};
     --dv-content-overflow: hidden;
 
     // Collapsed rails are part of the canvas, so their tabs are bare labels;
     // the pill shows only while the rail's group has focus.
     --dv-collapsed-edge-visiblepanel-tab-background-color: transparent;
-    --dv-collapsed-edge-visiblepanel-tab-color: var(
-        --dv-activegroup-hiddenpanel-tab-color
-    );
+    --dv-collapsed-edge-visiblepanel-tab-color: #{dv.ref('activegroup-hiddenpanel-tab-color')};
     --dv-collapsed-edge-tab-marker-color: transparent;
 
     // The peek already reads as a group (canvas frame over the content sheet),
     // so round it like one and use the floating shadow instead of a border.
     --dv-edge-peek-border: none;
-    --dv-edge-peek-border-radius: var(--dv-sheet-border-radius);
-    --dv-edge-peek-box-shadow: var(--dv-floating-box-shadow);
+    --dv-edge-peek-box-shadow: #{dv.ref('floating-box-shadow')};
 }
 
 @mixin dockview-theme-slate-light-mixin {
@@ -1054,7 +1043,6 @@
     @include dockview-design-sheet-mixin();
     --dv-tab-font-size: 13px;
 
-    --dv-floating-border-radius: 6px;
     --dv-floating-inset: 5px;
     --dv-floating-frame-color: var(--dv-color-slate-1);
     --dv-drop-target-border-radius: 4px;
@@ -1123,7 +1111,6 @@
     @include dockview-design-sheet-mixin();
     --dv-tab-font-size: 13px;
 
-    --dv-floating-border-radius: 6px;
     --dv-floating-inset: 5px;
     --dv-floating-frame-color: var(--dv-color-slate-1);
     --dv-drop-target-border-radius: 4px;
@@ -1210,7 +1197,7 @@
     // A fill can't show on a tab merged into the panel, so use an insertion
     // line with an accent border.
     --dv-dnd-tab-indicator: line;
-    --dv-drag-over-border: 2px solid var(--dv-active-sash-color);
+    --dv-drag-over-border: 2px solid #{dv.ref('active-sash-color')};
 
     --dv-group-view-background-color: var(--dv-color-dark-rounded-editor);
     --dv-tabs-and-actions-container-background-color: var(
@@ -1279,16 +1266,16 @@
     // on themes with text-only tabs.
     background: var(
         --dv-context-menu-background-color,
-        var(--dv-tabs-and-actions-container-background-color)
+        #{dv.ref('tabs-and-actions-container-background-color')}
     );
     color: var(
         --dv-context-menu-color,
-        var(--dv-activegroup-visiblepanel-tab-color)
+        #{dv.ref('activegroup-visiblepanel-tab-color')}
     );
     border: 1px solid
-        var(--dv-context-menu-border-color, var(--dv-separator-border));
-    border-radius: var(--dv-dropdown-border-radius);
-    box-shadow: var(--dv-floating-box-shadow);
+        var(--dv-context-menu-border-color, #{dv.ref('separator-border')});
+    border-radius: #{dv.ref('dropdown-border-radius')};
+    box-shadow: #{dv.ref('floating-box-shadow')};
     padding: 4px 0;
 }
 
@@ -1298,12 +1285,12 @@
     display: flex;
     align-items: center;
     cursor: pointer;
-    font-size: var(--dv-tabs-and-actions-container-font-size);
+    font-size: #{dv.ref('tabs-and-actions-container-font-size')};
     white-space: nowrap;
     user-select: none;
 
     &:hover {
-        background: var(--dv-icon-hover-background-color);
+        background: #{dv.ref('icon-hover-background-color')};
     }
 
     &.dv-context-menu-item--disabled {
@@ -1315,7 +1302,7 @@
 
 .dv-context-menu-separator {
     height: 1px;
-    background: var(--dv-context-menu-border-color, var(--dv-separator-border));
+    background: var(--dv-context-menu-border-color, #{dv.ref('separator-border')});
     margin: 4px 0;
 }
 
@@ -1328,19 +1315,19 @@
     box-sizing: border-box;
     padding: 8px 10px;
     border: 1px solid
-        var(--dv-context-menu-border-color, var(--dv-separator-border));
-    border-radius: var(--dv-dropdown-border-radius);
+        var(--dv-context-menu-border-color, #{dv.ref('separator-border')});
+    border-radius: #{dv.ref('dropdown-border-radius')};
     background: inherit;
-    color: var(--dv-activegroup-visiblepanel-tab-color);
-    font-size: var(--dv-tabs-and-actions-container-font-size);
+    color: #{dv.ref('activegroup-visiblepanel-tab-color')};
+    font-size: #{dv.ref('tabs-and-actions-container-font-size')};
     outline: none;
 
     &:focus {
-        border-color: var(--dv-activegroup-visiblepanel-tab-color);
+        border-color: #{dv.ref('activegroup-visiblepanel-tab-color')};
     }
 
     &::placeholder {
-        color: var(--dv-activegroup-hiddenpanel-tab-color);
+        color: #{dv.ref('activegroup-hiddenpanel-tab-color')};
     }
 }
 
@@ -1369,7 +1356,7 @@
     }
 
     &.dv-context-menu-color-swatch--selected {
-        outline: 2px solid var(--dv-activegroup-visiblepanel-tab-color);
+        outline: 2px solid #{dv.ref('activegroup-visiblepanel-tab-color')};
         outline-offset: 2px;
     }
 }

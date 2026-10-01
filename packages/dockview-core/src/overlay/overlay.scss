@@ -1,3 +1,5 @@
+@use '../theme/tokens' as dv;
+
 .dv-debug {
     .dv-resize-container {
         .dv-resize-handle-top {
@@ -38,8 +40,8 @@
 // backdrop, the peeked content, and the Pin header are three separate sibling
 // overlays (the `always` render overlay can't be nested), layered by z-index.
 .dv-edge-peek {
-    background-color: var(--dv-group-view-background-color);
-    border: var(--dv-edge-peek-border, 1px solid var(--dv-separator-border));
+    background-color: #{dv.ref('group-view-background-color')};
+    border: var(--dv-edge-peek-border, 1px solid #{dv.ref('separator-border')});
     box-shadow: var(--dv-edge-peek-box-shadow, 0 6px 16px rgba(0, 0, 0, 0.4));
 
     // the reparented content container fills the backdrop
@@ -52,8 +54,8 @@
 
 .dv-edge-peek,
 .dv-edge-peek-clip {
-    border-bottom-left-radius: var(--dv-edge-peek-border-radius, 0px);
-    border-bottom-right-radius: var(--dv-edge-peek-border-radius, 0px);
+    border-bottom-left-radius: #{dv.ref('edge-peek-border-radius')};
+    border-bottom-right-radius: #{dv.ref('edge-peek-border-radius')};
 }
 
 // Drag-reveal edge indicator: a thin accent line hugging the content-area edge
@@ -64,9 +66,9 @@
 .dv-auto-edge-band {
     position: absolute;
     pointer-events: none;
-    z-index: var(--dv-overlay-z-index, 999);
-    background-color: var(--dv-edge-dock-indicator-color);
-    box-shadow: 0 0 6px var(--dv-edge-dock-indicator-color);
+    z-index: #{dv.ref('overlay-z-index')};
+    background-color: #{dv.ref('edge-dock-indicator-color')};
+    box-shadow: 0 0 6px #{dv.ref('edge-dock-indicator-color')};
 }
 
 // The title bar is a sibling overlay so it can sit above an `always` panel's
@@ -78,12 +80,12 @@
     gap: 4px;
     padding: 0 4px 0 8px;
     box-sizing: border-box;
-    background-color: var(--dv-group-view-background-color);
-    border: var(--dv-edge-peek-border, 1px solid var(--dv-separator-border));
+    background-color: #{dv.ref('group-view-background-color')};
+    border: var(--dv-edge-peek-border, 1px solid #{dv.ref('separator-border')});
     border-bottom: none;
-    border-top-left-radius: var(--dv-edge-peek-border-radius, 0px);
-    border-top-right-radius: var(--dv-edge-peek-border-radius, 0px);
-    color: var(--dv-activegroup-visiblepanel-tab-color);
+    border-top-left-radius: #{dv.ref('edge-peek-border-radius')};
+    border-top-right-radius: #{dv.ref('edge-peek-border-radius')};
+    color: #{dv.ref('activegroup-visiblepanel-tab-color')};
     font-size: 12px;
 
     // Behave like the tab close icon: borderless, monotone, with a hover
@@ -106,14 +108,14 @@
 
         &:hover {
             border-radius: 2px;
-            background-color: var(--dv-icon-hover-background-color);
+            background-color: #{dv.ref('icon-hover-background-color')};
         }
 
         // Keyboard-only focus ring (suppressed on mouse click).
         &:focus-visible {
             border-radius: 2px;
-            outline: var(--dv-focus-ring-width, 2px) solid var(--dv-focus-ring-color, var(--dv-paneview-active-outline-color));
-            outline-offset: calc(-1 * var(--dv-focus-ring-width, 2px));
+            outline: #{dv.ref('focus-ring-width')} solid #{dv.ref('focus-ring-color')};
+            outline-offset: calc(-1 * #{dv.ref('focus-ring-width')});
         }
     }
 }
@@ -168,9 +170,9 @@
 .dv-floating-titlebar {
     box-sizing: border-box;
     flex-shrink: 0;
-    height: var(--dv-floating-titlebar-height, 22px);
-    background-color: var(--dv-floating-titlebar-background-color);
-    border-bottom: var(--dv-floating-titlebar-border-bottom, none);
+    height: #{dv.ref('floating-titlebar-height')};
+    background-color: #{dv.ref('floating-titlebar-background-color')};
+    border-bottom: #{dv.ref('floating-titlebar-border-bottom')};
     user-select: none;
     // Centres the optional grip handle.
     display: flex;
@@ -191,8 +193,8 @@
 
 // Invisible until a theme sets `--dv-floating-titlebar-handle-color`.
 .dv-floating-titlebar-handle {
-    width: var(--dv-floating-titlebar-handle-size, 15px);
-    height: var(--dv-floating-titlebar-handle-size, 15px);
+    width: #{dv.ref('floating-titlebar-handle-size')};
+    height: #{dv.ref('floating-titlebar-handle-size')};
     background-image: radial-gradient(
         circle,
         var(--dv-floating-titlebar-handle-color) 1.4px,
@@ -213,39 +215,36 @@
 // clipping would halve their grab area.
 
 .dv-resize-container-with-titlebar > .dv-floating-titlebar {
-    border-top-left-radius: var(--dv-floating-border-radius);
-    border-top-right-radius: var(--dv-floating-border-radius);
+    border-top-left-radius: #{dv.ref('floating-border-radius')};
+    border-top-right-radius: #{dv.ref('floating-border-radius')};
 }
 
 .dv-resize-container:not(.dv-resize-container-with-titlebar)
     .dv-groupview
     > .dv-tabs-and-actions-container {
-    border-top-left-radius: var(--dv-floating-border-radius);
-    border-top-right-radius: var(--dv-floating-border-radius);
+    border-top-left-radius: #{dv.ref('floating-border-radius')};
+    border-top-right-radius: #{dv.ref('floating-border-radius')};
 }
 
 // Outranks the general `--dv-content-border-radius` rule.
 .dv-resize-container .dv-groupview > .dv-content-container {
-    border-bottom-left-radius: var(--dv-floating-border-radius);
-    border-bottom-right-radius: var(--dv-floating-border-radius);
+    border-bottom-left-radius: #{dv.ref('floating-border-radius')};
+    border-bottom-right-radius: #{dv.ref('floating-border-radius')};
 }
 
 .dv-resize-container {
-    --dv-overlay-z-index: var(--dv-overlay-z-index, 999);
+    --dv-overlay-z-index: #{dv.ref('overlay-z-index')};
 
     position: absolute;
-    z-index: calc(var(--dv-overlay-z-index) - 2);
+    z-index: calc(#{dv.ref('overlay-z-index')} - 2);
 
     // Backdrop showing through a nested floating layout's gaps and sashes,
     // and through the inset band when `--dv-floating-inset` is set.
-    background-color: var(
-        --dv-floating-frame-color,
-        var(--dv-group-view-background-color)
-    );
+    background-color: #{dv.ref('floating-frame-color')};
 
-    border: var(--dv-floating-border);
-    border-radius: var(--dv-floating-border-radius);
-    box-shadow: var(--dv-floating-box-shadow);
+    border: #{dv.ref('floating-border')};
+    border-radius: #{dv.ref('floating-border-radius')};
+    box-shadow: #{dv.ref('floating-box-shadow')};
 
     /* GPU optimizations for floating group movement */
     will-change: transform, opacity;
@@ -257,7 +256,7 @@
     }
 
     &.dv-resize-container-dragging {
-        opacity: var(--dv-floating-group-dragging-opacity);
+        opacity: #{dv.ref('floating-group-dragging-opacity')};
         /* Enhanced GPU acceleration during drag */
         will-change: transform, opacity;
     }
@@ -281,7 +280,7 @@
         width: calc(100% - 8px);
         left: 4px;
         top: -2px;
-        z-index: var(--dv-overlay-z-index);
+        z-index: #{dv.ref('overlay-z-index')};
         position: absolute;
         cursor: ns-resize;
     }
@@ -291,7 +290,7 @@
         width: calc(100% - 8px);
         left: 4px;
         bottom: -2px;
-        z-index: var(--dv-overlay-z-index);
+        z-index: #{dv.ref('overlay-z-index')};
         position: absolute;
         cursor: ns-resize;
     }
@@ -301,7 +300,7 @@
         width: 4px;
         left: -2px;
         top: 4px;
-        z-index: var(--dv-overlay-z-index);
+        z-index: #{dv.ref('overlay-z-index')};
         position: absolute;
         cursor: ew-resize;
     }
@@ -311,7 +310,7 @@
         width: 4px;
         right: -2px;
         top: 4px;
-        z-index: var(--dv-overlay-z-index);
+        z-index: #{dv.ref('overlay-z-index')};
         position: absolute;
         cursor: ew-resize;
     }
@@ -321,7 +320,7 @@
         width: 4px;
         top: -2px;
         left: -2px;
-        z-index: var(--dv-overlay-z-index);
+        z-index: #{dv.ref('overlay-z-index')};
         position: absolute;
         cursor: nw-resize;
     }
@@ -331,7 +330,7 @@
         width: 4px;
         right: -2px;
         top: -2px;
-        z-index: var(--dv-overlay-z-index);
+        z-index: #{dv.ref('overlay-z-index')};
         position: absolute;
         cursor: ne-resize;
     }
@@ -341,7 +340,7 @@
         width: 4px;
         left: -2px;
         bottom: -2px;
-        z-index: var(--dv-overlay-z-index);
+        z-index: #{dv.ref('overlay-z-index')};
         position: absolute;
         cursor: sw-resize;
     }
@@ -351,7 +350,7 @@
         width: 4px;
         right: -2px;
         bottom: -2px;
-        z-index: var(--dv-overlay-z-index);
+        z-index: #{dv.ref('overlay-z-index')};
         position: absolute;
         cursor: se-resize;
     }
@@ -431,7 +430,7 @@
     // overlays. `always`/force-visible panel content carries an inline z-index
     // (1000, or `--dv-overlay-z-index` + aria-level) and would otherwise paint
     // over the alignment lines. Lift the guides clear of that whole band.
-    z-index: calc(var(--dv-overlay-z-index, 999) + 100);
+    z-index: calc(#{dv.ref('overlay-z-index')} + 100);
 }
 
 .dv-smart-guide {

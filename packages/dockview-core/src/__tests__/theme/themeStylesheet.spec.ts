@@ -121,13 +121,14 @@ describe('theme stylesheet', () => {
 
     test.each(spaced)('%s declares the spaced settings', (className) => {
         const d = declarationsOf(className);
-        expect(d.get('--dv-group-gap')).toBe('10px');
+        expect(d.get('--dv-spacing-padding')).toBe('10px');
+        expect(d.get('--dv-group-gap')).toBe('var(--dv-spacing-padding)');
         expect(d.get('--dv-tabs-and-actions-container-height')).toBe('32px');
         expect(d.get('--dv-dnd-overlay-mounting')).toBe('absolute');
         expect(d.get('--dv-dnd-panel-overlay')).toBe('group');
         expect(d.get('--dv-dnd-tab-indicator')).toBe('line');
-        expect(d.get('--dv-drag-over-border')).toBe(
-            '2px solid var(--dv-active-sash-color)'
+        expect(d.get('--dv-drag-over-border')).toMatch(
+            /^2px solid var\(--dv-active-sash-color\b/
         );
     });
 
@@ -145,8 +146,8 @@ describe('theme stylesheet', () => {
     test('dark rounded declares its drop settings', () => {
         const d = declarationsOf('.dockview-theme-dark-rounded');
         expect(d.get('--dv-dnd-tab-indicator')).toBe('line');
-        expect(d.get('--dv-drag-over-border')).toBe(
-            '2px solid var(--dv-active-sash-color)'
+        expect(d.get('--dv-drag-over-border')).toMatch(
+            /^2px solid var\(--dv-active-sash-color\b/
         );
     });
 

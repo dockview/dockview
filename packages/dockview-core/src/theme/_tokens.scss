@@ -1,0 +1,163 @@
+// Token registry: the default of every derived `--dv-*` property.
+//
+// A theme only has to set the base tokens (registered with initial values in
+// dockviewComponent.scss):
+//
+//   --dv-background-color  --dv-foreground-color  --dv-accent-color
+//   --dv-spacing           --dv-border-radius
+//
+// Every other token falls back to an expression of those, resolved where it is
+// used, so setting any token overrides just that one value. Consumers read
+// tokens through `ref()`, which expands the whole fallback chain.
+@use 'sass:map';
+@use 'sass:string';
+
+$defaults: ();
+
+@function ref($name) {
+    @if map.has-key($defaults, $name) {
+        @return string.unquote(
+            'var(--dv-#{$name}, #{map.get($defaults, $name)})'
+        );
+    }
+    @return string.unquote('var(--dv-#{$name})');
+}
+
+// The default expression alone, for a theme that re-declares a token at its
+// root (so an enclosing theme's explicit value does not leak in).
+@function default($name) {
+    @return map.get($defaults, $name);
+}
+
+@function mix($color, $amount, $onto: transparent) {
+    @return string.unquote('color-mix(in srgb, #{$color} #{$amount}, #{$onto})');
+}
+
+@function scale($token, $factor) {
+    @return string.unquote('calc(#{ref($token)} * #{$factor})');
+}
+
+@function -set($map, $name, $value) {
+    @return map.set($map, $name, $value);
+}
+
+$fg: ref('foreground-color');
+$accent: ref('accent-color');
+
+// ── Surfaces ───────────────────────────────────────────────────────────────
+$defaults: -set($defaults, 'group-view-background-color', ref('background-color'));
+$defaults: -set(
+    $defaults,
+    'tabs-and-actions-container-background-color',
+    mix($fg, 4%, ref('background-color'))
+);
+$defaults: -set(
+    $defaults,
+    'activegroup-visiblepanel-tab-background-color',
+    ref('group-view-background-color')
+);
+$defaults: -set(
+    $defaults,
+    'activegroup-hiddenpanel-tab-background-color',
+    ref('tabs-and-actions-container-background-color')
+);
+$defaults: -set(
+    $defaults,
+    'inactivegroup-visiblepanel-tab-background-color',
+    ref('activegroup-visiblepanel-tab-background-color')
+);
+$defaults: -set(
+    $defaults,
+    'inactivegroup-hiddenpanel-tab-background-color',
+    ref('activegroup-hiddenpanel-tab-background-color')
+);
+$defaults: -set(
+    $defaults,
+    'tab-inactive-hover-background-color',
+    mix($fg, 6%, ref('activegroup-hiddenpanel-tab-background-color'))
+);
+$defaults: -set(
+    $defaults,
+    'floating-titlebar-background-color',
+    ref('tabs-and-actions-container-background-color')
+);
+$defaults: -set($defaults, 'floating-frame-color', ref('group-view-background-color'));
+
+// ── Text ───────────────────────────────────────────────────────────────────
+$defaults: -set($defaults, 'activegroup-visiblepanel-tab-color', $fg);
+$defaults: -set($defaults, 'activegroup-hiddenpanel-tab-color', mix($fg, 65%));
+$defaults: -set($defaults, 'inactivegroup-visiblepanel-tab-color', mix($fg, 75%));
+$defaults: -set($defaults, 'inactivegroup-hiddenpanel-tab-color', mix($fg, 50%));
+
+// ── Lines and fills ────────────────────────────────────────────────────────
+$defaults: -set($defaults, 'separator-border', mix($fg, 18%));
+$defaults: -set($defaults, 'paneview-header-border-color', ref('separator-border'));
+$defaults: -set($defaults, 'tab-divider-color', ref('separator-border'));
+$defaults: -set($defaults, 'icon-hover-background-color', mix($fg, 15%));
+$defaults: -set($defaults, 'tabs-container-scrollbar-color', mix($fg, 35%));
+
+// ── Accent ─────────────────────────────────────────────────────────────────
+$defaults: -set($defaults, 'paneview-active-outline-color', $accent);
+$defaults: -set($defaults, 'focus-ring-color', ref('paneview-active-outline-color'));
+$defaults: -set($defaults, 'drag-over-border-color', ref('paneview-active-outline-color'));
+$defaults: -set($defaults, 'drag-over-background-color', mix($accent, 25%));
+$defaults: -set($defaults, 'edge-dock-indicator-color', $accent);
+$defaults: -set($defaults, 'active-sash-color', $accent);
+
+// ── Radii (from --dv-border-radius) ────────────────────────────────────────
+$defaults: -set($defaults, 'group-border-radius', ref('border-radius'));
+$defaults: -set($defaults, 'floating-border-radius', ref('border-radius'));
+$defaults: -set($defaults, 'edge-peek-border-radius', ref('border-radius'));
+$defaults: -set($defaults, 'drop-target-content-border-radius', ref('border-radius'));
+$defaults: -set($defaults, 'tab-border-radius', scale('border-radius', string.unquote('2 / 3')));
+$defaults: -set($defaults, 'dropdown-border-radius', scale('border-radius', string.unquote('2 / 3')));
+$defaults: -set($defaults, 'sash-border-radius', scale('border-radius', string.unquote('1 / 3')));
+$defaults: -set($defaults, 'drop-target-border-radius', scale('border-radius', 0.25));
+
+// ── Spacing (from --dv-spacing) ────────────────────────────────────────────
+$defaults: -set($defaults, 'tab-padding-block', ref('spacing'));
+$defaults: -set($defaults, 'tab-padding-inline', scale('spacing', 2));
+$defaults: -set(
+    $defaults,
+    'tab-group-chip-padding',
+    string.unquote('#{ref("spacing")} #{scale("spacing", 2)}')
+);
+
+// ── Fixed defaults ─────────────────────────────────────────────────────────
+$defaults: -set($defaults, 'tabs-and-actions-container-height', 35px);
+$defaults: -set($defaults, 'tabs-and-actions-container-font-size', 13px);
+$defaults: -set($defaults, 'tab-margin', 0);
+$defaults: -set($defaults, 'tab-close-icon-size', 11px);
+$defaults: -set($defaults, 'tab-marker-size', 2px);
+$defaults: -set($defaults, 'focus-ring-width', 2px);
+$defaults: -set($defaults, 'overlay-z-index', 999);
+$defaults: -set(
+    $defaults,
+    'floating-box-shadow',
+    string.unquote('0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.25)')
+);
+$defaults: -set(
+    $defaults,
+    'floating-border',
+    string.unquote('1px solid #{mix($fg, 10%)}')
+);
+$defaults: -set($defaults, 'floating-titlebar-height', 22px);
+$defaults: -set($defaults, 'floating-titlebar-border-bottom', ref('floating-border'));
+$defaults: -set($defaults, 'floating-titlebar-handle-size', 15px);
+$defaults: -set($defaults, 'floating-group-dragging-opacity', 0.5);
+
+// Re-declares a token family at a theme root, so it follows that root's base
+// tokens rather than values inherited from an enclosing element.
+$radius-tokens: (
+    'tab-border-radius',
+    'sash-border-radius',
+    'dropdown-border-radius',
+    'floating-border-radius',
+    'drop-target-border-radius'
+);
+
+@mixin declare($names) {
+    @each $name in $names {
+        --dv-#{$name}: #{default($name)};
+    }
+}

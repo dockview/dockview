@@ -1,3 +1,5 @@
+@use '../theme/tokens' as dv;
+
 .dv-drop-target-container {
     position: absolute;
     z-index: 9999;
@@ -12,7 +14,7 @@
     .dv-drop-target-anchor {
         position: relative;
         border: var(--dv-drag-over-border);
-        background-color: var(--dv-drag-over-background-color);
+        background-color: #{dv.ref('drag-over-background-color')};
 
         opacity: 1;
 
@@ -29,13 +31,10 @@
             width var(--dv-transition-duration) ease-out,
             height var(--dv-transition-duration) ease-out;
 
-        border-radius: var(--dv-drop-target-border-radius, 0px);
+        border-radius: #{dv.ref('drop-target-border-radius')};
 
         &.dv-drop-target-content {
-            border-radius: var(
-                --dv-drop-target-content-border-radius,
-                var(--dv-drop-target-border-radius, 0px)
-            );
+            border-radius: #{dv.ref('drop-target-content-border-radius')};
         }
 
         // Moving to another group glides by default; `--dv-drop-target-travel: 0`

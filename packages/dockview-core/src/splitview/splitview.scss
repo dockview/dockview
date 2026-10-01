@@ -1,3 +1,5 @@
+@use '../theme/tokens' as dv;
+
 .dv-debug {
     .dv-split-view-container {
         .dv-sash-container {
@@ -121,11 +123,11 @@
             -ms-user-select: none; // IE 10 and IE 11
             touch-action: none;
             background-color: var(--dv-sash-color, transparent);
-            border-radius: var(--dv-sash-border-radius, 0px);
+            border-radius: #{dv.ref('sash-border-radius')};
 
             &:not(.disabled):active,
             &:not(.disabled):hover {
-                background-color: var(--dv-active-sash-color, transparent);
+                background-color: #{dv.ref('active-sash-color')};
                 transition-property: background-color;
                 transition-timing-function: ease-in-out;
                 transition-duration: var(
@@ -184,7 +186,7 @@
             left: 0;
             z-index: 5;
             pointer-events: none;
-            background-color: var(--dv-separator-border);
+            background-color: #{dv.ref('separator-border')};
         }
     }
 }

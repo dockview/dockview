@@ -1,3 +1,5 @@
+@use '../theme/tokens' as dv;
+
 .dv-drop-target {
     position: relative;
     --dv-transition-duration: 70ms;
@@ -17,8 +19,8 @@
             height: 100%;
             width: 100%;
             border: var(--dv-drag-over-border);
-            border-radius: var(--dv-drop-target-border-radius);
-            background-color: var(--dv-drag-over-background-color);
+            border-radius: #{dv.ref('drop-target-border-radius')};
+            background-color: #{dv.ref('drag-over-background-color')};
 
             transition:
                 top var(--dv-transition-duration) ease-out,
@@ -31,25 +33,25 @@
 
             &.dv-drop-target-top {
                 &.dv-drop-target-small-vertical {
-                    border-top: 1px solid var(--dv-drag-over-border-color);
+                    border-top: 1px solid #{dv.ref('drag-over-border-color')};
                 }
             }
 
             &.dv-drop-target-bottom {
                 &.dv-drop-target-small-vertical {
-                    border-bottom: 1px solid var(--dv-drag-over-border-color);
+                    border-bottom: 1px solid #{dv.ref('drag-over-border-color')};
                 }
             }
 
             &.dv-drop-target-left {
                 &.dv-drop-target-small-horizontal {
-                    border-left: 1px solid var(--dv-drag-over-border-color);
+                    border-left: 1px solid #{dv.ref('drag-over-border-color')};
                 }
             }
 
             &.dv-drop-target-right {
                 &.dv-drop-target-small-horizontal {
-                    border-right: 1px solid var(--dv-drag-over-border-color);
+                    border-right: 1px solid #{dv.ref('drag-over-border-color')};
                 }
             }
         }
@@ -95,6 +97,6 @@
     // preview; sits beneath the compass cross (z below `.dv-dnd-compass`).
     z-index: 1000;
     box-sizing: border-box;
-    background-color: var(--dv-drag-over-background-color);
+    background-color: #{dv.ref('drag-over-background-color')};
     border: var(--dv-drag-over-border);
 }

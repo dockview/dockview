@@ -1,3 +1,4 @@
+@use 'tokens' as dv;
 @mixin dockview-design-handle-mixin {
     .dv-vertical > .dv-sash-container > .dv-sash {
         background-color: transparent;
@@ -19,7 +20,7 @@
             &:active {
                 background-color: transparent;
                 &::after {
-                    background-color: var(--dv-active-sash-color);
+                    background-color: #{dv.ref('active-sash-color')};
                 }
             }
         }
@@ -45,7 +46,7 @@
             &:active {
                 background-color: transparent;
                 &::after {
-                    background-color: var(--dv-active-sash-color);
+                    background-color: #{dv.ref('active-sash-color')};
                 }
             }
         }

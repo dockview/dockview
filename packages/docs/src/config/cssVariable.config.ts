@@ -150,10 +150,6 @@ export const cssVariableConfig = [
     },
     { key: '--dv-sash-border-radius', text: 'Corner radius of the resize sashes.' },
     {
-        key: '--dv-sheet-border-radius',
-        text: 'Corner radius of the content sheet in the sheet-layout themes (slate).',
-    },
-    {
         key: '--dv-dropdown-border-radius',
         text: 'Corner radius of the tab overflow button and list.',
     },

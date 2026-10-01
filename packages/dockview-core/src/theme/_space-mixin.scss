@@ -1,7 +1,9 @@
+@use 'tokens' as dv;
 @mixin dockview-design-space-mixin {
     --dv-spacing-padding: 10px;
     --dv-tab-font-size: 13px;
     --dv-border-radius: 12px;
+    @include dv.declare(dv.$radius-tokens);
     // Split into block (top/bottom) and inline (left/right) parts so the
     // multi-row wrap rule below can subtract the exact vertical margin from
     // the wrapped-tab height (calc can't read a component out of the
@@ -20,57 +22,47 @@
     --dv-active-tab-font-weight: 500;
     // 32px strip − 2 × 4px margin = a 24px pill.
     --dv-tabs-and-actions-container-height: 32px;
-    --dv-tab-border-radius: 8px;
-    --dv-sash-border-radius: 4px;
-    --dv-dropdown-border-radius: 8px;
     // 10px glyph + the action's 4px padding = an 18px hit target.
     --dv-tab-close-icon-size: 10px;
-    --dv-floating-group-border: 2px solid var(--dv-group-view-background-color);
+    --dv-floating-group-border: 2px solid #{dv.ref('group-view-background-color')};
     // Blend the drag-handle bar into the spaced backdrop: match the gap/frame
     // color between groups (--dv-group-view-background-color) rather than the
     // tab-bar color, so the handle reads as part of the card frame.
-    --dv-floating-titlebar-background-color: var(
-        --dv-group-view-background-color
-    );
+    --dv-floating-titlebar-background-color: #{dv.ref('group-view-background-color')};
     // Keep the handle seamless with the gap: no divider line below it.
     --dv-floating-titlebar-border-bottom: none;
 
+    // Cards are separated by the gap, not by lines.
+    --dv-separator-border: transparent;
+    --dv-tab-divider-color: transparent;
+
     // ── Behaviour ───────────────────────────────────────────────────────────
-    --dv-group-gap: 10px;
+    --dv-group-gap: var(--dv-spacing-padding);
     --dv-dnd-overlay-mounting: absolute;
     --dv-dnd-panel-overlay: group;
     --dv-dnd-tab-indicator: line;
-    --dv-drag-over-border: 2px solid var(--dv-active-sash-color);
+    --dv-drag-over-border: 2px solid #{dv.ref('active-sash-color')};
 
     // ── Layout frame ────────────────────────────────────────────────────────
     --dv-root-padding: var(--dv-spacing-padding);
-    --dv-root-background-color: var(--dv-group-view-background-color);
+    --dv-root-background-color: #{dv.ref('group-view-background-color')};
 
-    --dv-group-border-radius: var(--dv-border-radius);
     --dv-header-border-radius: var(--dv-border-radius) var(--dv-border-radius)
         0 0;
     --dv-header-padding: calc(var(--dv-border-radius) / 2);
     --dv-content-border-radius: 0 0 var(--dv-border-radius)
         var(--dv-border-radius);
-    --dv-content-background-color: var(
-        --dv-tabs-and-actions-container-background-color
-    );
+    --dv-content-background-color: #{dv.ref('tabs-and-actions-container-background-color')};
 
     // A tool window's title bar caps its top and the strip its bottom.
     --dv-tool-window-content-border-radius: 0;
     --dv-tool-window-header-border-radius: 0 0 var(--dv-border-radius)
         var(--dv-border-radius);
 
-    --dv-edge-peek-border-radius: var(--dv-border-radius);
-
     // A title bar already frames the top, so the top inset is dropped.
-    --dv-floating-border-radius: var(--dv-border-radius);
     --dv-floating-border: none;
     --dv-floating-inset: var(--dv-spacing-padding);
     --dv-floating-inset-below-titlebar: 0px;
-
-    --dv-drop-target-border-radius: calc(var(--dv-border-radius) / 4);
-    --dv-drop-target-content-border-radius: var(--dv-border-radius);
 
     // The tab margin already insets the overflow button from the strip edges.
     --dv-tabs-overflow-dropdown-height: auto;
