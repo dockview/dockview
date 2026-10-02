@@ -2,6 +2,7 @@ import { fireEvent } from '@testing-library/dom';
 import { DockviewComponent } from '../../dockview/dockviewComponent';
 import { DockviewComponentOptions } from '../../dockview/options';
 import { setupDeferredMockWindow } from '../__mocks__/mockWindow';
+import { exhaustMicrotaskQueue } from '../__test_utils__/utils';
 import {
     createRendererTracker,
     RendererTracker,
@@ -413,6 +414,48 @@ describe('renderer lifecycle', () => {
                 headerAction: 0,
                 contextMenuItem: 0,
             });
+        });
+    });
+    describe('floating groups', () => {
+        test('closing an always-rendered floating panel in the tick it was added leaves no observer behind', async () => {
+            const RealMutationObserver = globalThis.MutationObserver;
+            const live = new Set<MutationObserver>();
+            globalThis.MutationObserver = class extends RealMutationObserver {
+                observe(target: Node, options?: MutationObserverInit): void {
+                    live.add(this);
+                    super.observe(target, options);
+                }
+                disconnect(): void {
+                    live.delete(this);
+                    super.disconnect();
+                }
+            };
+
+            try {
+                create({ defaultRenderer: 'always' });
+                const p1 = dockview.addPanel({
+                    id: 'p1',
+                    component: 'default',
+                    floating: true,
+                });
+                await exhaustMicrotaskQueue();
+                const baseline = live.size;
+
+                const p2 = dockview.addPanel({
+                    id: 'p2',
+                    component: 'default',
+                    position: { referenceGroup: p1.group },
+                });
+                p2.api.close();
+                await exhaustMicrotaskQueue();
+
+                expect(live.size).toBe(baseline);
+
+                expectNothingAliveAfterDispose();
+                expect(live.size).toBe(0);
+            } finally {
+                globalThis.MutationObserver = RealMutationObserver;
+            }
         });
     });
 });

@@ -39,16 +39,30 @@ export function watchElementResize(
     element: HTMLElement,
     cb: (entry: ResizeObserverEntry) => void
 ): IDisposable {
+    // Frames still pending; cancelled on dispose so the callback never runs
+    // against an owner that has already been torn down.
+    const pendingFrames = new Set<number>();
+
     const observer = new ResizeObserver((entires) => {
         /**
          * Fast browser window resize produces Error: ResizeObserver loop limit exceeded.
          * The error isn't visible in browser console, doesn't affect functionality, but degrades performance.
          * See https://stackoverflow.com/questions/49384120/resizeobserver-loop-limit-exceeded/58701523#58701523
          */
-        requestAnimationFrame(() => {
+        let ran = false;
+        let frame: number | undefined;
+        frame = requestAnimationFrame(() => {
+            ran = true;
+            if (frame !== undefined) {
+                pendingFrames.delete(frame);
+            }
             const firstEntry = entires[0];
             cb(firstEntry);
         });
+        // a synchronous scheduler has already run it
+        if (!ran) {
+            pendingFrames.add(frame);
+        }
     });
 
     observer.observe(element);
@@ -57,6 +71,10 @@ export function watchElementResize(
         dispose: () => {
             observer.unobserve(element);
             observer.disconnect();
+            for (const frame of pendingFrames) {
+                cancelAnimationFrame(frame);
+            }
+            pendingFrames.clear();
         },
     };
 }
