@@ -3459,6 +3459,8 @@ export class DockviewComponent
             group.dispose();
             this._groups.delete(group.id);
             this._onDidRemoveGroup.fire(group);
+
+            this.activateFallbackGroupIfRemoved(group);
         });
     }
 
@@ -5092,10 +5094,24 @@ export class DockviewComponent
         return () => {
             this._mutationDepth--;
             if (this._mutationDepth === 0) {
+                this.releaseDisposedActiveGroup();
                 this.flushLocationChanges();
                 this._onDidMutateLayout.fire({ kind, origin });
             }
         };
+    }
+
+    /**
+     * Removals that skip re-activation (`skipActive`, as used by moves with
+     * `skipSetActive`) can dispose the active group and leave it selected.
+     * Left in place, the next `addPanel()` would open into the disposed group
+     * and the panel would be lost, so clear the selection once the
+     * transaction settles.
+     */
+    private releaseDisposedActiveGroup(): void {
+        if (this._activeGroup?.model.isDisposed) {
+            this.doSetGroupAndPanelActive(undefined);
+        }
     }
 
     /**
@@ -5268,7 +5284,14 @@ export class DockviewComponent
                 throw new Error(`dockview: No panel with id ${sourceItemId}`);
             }
 
-            if (!options.keepEmptyGroups && sourceGroup.model.size === 0) {
+            // A move within the source group leaves it empty only while the
+            // panel is in flight; removing it here would reopen the panel in
+            // a disposed group.
+            if (
+                !options.keepEmptyGroups &&
+                sourceGroup.model.size === 0 &&
+                sourceGroup !== destinationGroup
+            ) {
                 // remove the group and do not set a new group as active
                 this.doRemoveGroup(sourceGroup, { skipActive: true });
             }
@@ -5665,6 +5688,12 @@ export class DockviewComponent
         const from = options.from.group;
         const to = options.to.group;
         const target = options.to.position;
+
+        // Merging a group into itself changes nothing. Running the merge would
+        // dispose the group and then reopen its panels inside it.
+        if (target === 'center' && from === to) {
+            return;
+        }
 
         // The group whose panels end up at the target. For non-edge moves
         // we relocate `from` itself; for edge moves we move panels into a
