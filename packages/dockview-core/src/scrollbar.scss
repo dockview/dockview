@@ -1,3 +1,5 @@
+@use 'theme/tokens' as dv;
+
 .dv-scrollable {
     position: relative;
     overflow: hidden;
@@ -35,10 +37,7 @@
     &.dv-scrollable-resizing,
     &.dv-scrollable-scrolling {
         .dv-scrollbar {
-            background-color: var(
-                --dv-scrollbar-background-color,
-                rgba(255, 255, 255, 0.25)
-            );
+            background-color: #{dv.ref('scrollbar-background-color')};
         }
     }
 }

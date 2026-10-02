@@ -88,6 +88,10 @@ import {
     AddEdgeGroupOptions,
 } from '../dockview/dockviewShell';
 import { DockviewGroupPanelApi } from './dockviewGroupPanelApi';
+import type {
+    DockviewThemeSettings,
+    ResolvedDockviewThemeSettings,
+} from '../dockview/theme';
 
 export interface CommonApi<T = any> {
     readonly height: number;
@@ -1306,6 +1310,22 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
 
     updateOptions(options: Partial<DockviewComponentOptions>) {
         this.component.updateOptions(options);
+    }
+
+    /**
+     * The active theme's resolved {@link DockviewThemeSettings}: the theme
+     * object, then its CSS custom properties, then the defaults.
+     */
+    get themeSettings(): ResolvedDockviewThemeSettings {
+        return this.component.themeSettings;
+    }
+
+    /**
+     * Re-read the theme's CSS settings (see {@link DockviewThemeSettings})
+     * after changing them at runtime.
+     */
+    refreshTheme(): void {
+        this.component.refreshTheme();
     }
 
     // === Tab Group API ===

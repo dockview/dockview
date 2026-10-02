@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from '@docusaurus/Link';
+import { useLocation } from '@docusaurus/router';
 import styles from './NewsletterWidget.module.css';
 
 const MailIcon = () => (
@@ -36,10 +37,14 @@ const CloseIcon = () => (
 
 const DISMISS_KEY = 'dv-newsletter-dismissed';
 
+// Full-screen tool pages where the floating button would cover the workspace.
+const HIDDEN_ON = ['/theme-builder'];
+
 export default function NewsletterWidget() {
     // Start hidden during SSR / first paint, then reveal only if the visitor
     // hasn't previously dismissed it. This avoids a flash on dismissed sessions.
     const [hidden, setHidden] = React.useState(true);
+    const { pathname } = useLocation();
 
     React.useEffect(() => {
         try {
@@ -58,7 +63,7 @@ export default function NewsletterWidget() {
         }
     };
 
-    if (hidden) return null;
+    if (hidden || HIDDEN_ON.some((p) => pathname.startsWith(p))) return null;
 
     return (
         <div className={styles.wrapper}>

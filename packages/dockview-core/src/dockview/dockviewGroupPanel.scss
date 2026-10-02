@@ -1,7 +1,10 @@
+@use '../theme/tokens' as dv;
+
 .dv-groupview {
     display: flex;
     height: 100%;
-    background-color: var(--dv-group-view-background-color);
+    border-radius: #{dv.ref('group-border-radius')};
+    background-color: #{dv.ref('group-view-background-color')};
     overflow: hidden;
     flex-direction: column;
 
@@ -30,4 +33,63 @@
     &.dv-groupview-edge.dv-edge-collapsed > .dv-content-container {
         display: none;
     }
+
+    .dv-tabs-and-actions-container {
+        padding: 0 var(--dv-header-padding, 0px);
+        border-radius: var(--dv-header-border-radius, 0px);
+
+        &.dv-groupview-header-vertical {
+            padding: var(--dv-header-padding, 0px) 0;
+        }
+    }
+}
+
+// Not scoped to `.dv-groupview`: the auto-hide peek reparents the content
+// container into its own overlay, and it keeps its shape there.
+.dv-content-container {
+    background-color: var(--dv-content-background-color, transparent);
+    border-radius: var(--dv-content-border-radius, 0px);
+    overflow: var(--dv-content-overflow, visible);
+}
+
+// A docked tool window has a title bar above the content and the strip below,
+// so both take their own corner shapes.
+.dv-groupview.dv-edge-tool-window {
+    .dv-content-container {
+        border-radius: var(
+            --dv-tool-window-content-border-radius,
+            var(--dv-content-border-radius, 0px)
+        );
+    }
+
+    .dv-tabs-and-actions-container {
+        border-radius: var(
+            --dv-tool-window-header-border-radius,
+            var(--dv-header-border-radius, 0px)
+        );
+    }
+}
+
+.dv-groupview.dv-groupview-edge.dv-edge-collapsed.dv-inactive-group
+    > .dv-tabs-and-actions-container
+    .dv-tabs-container
+    > .dv-tab.dv-active-tab {
+    background-color: var(
+        --dv-collapsed-edge-visiblepanel-tab-background-color,
+        #{dv.ref('inactivegroup-visiblepanel-tab-background-color')}
+    );
+    color: var(
+        --dv-collapsed-edge-visiblepanel-tab-color,
+        #{dv.ref('inactivegroup-visiblepanel-tab-color')}
+    );
+    background-image: linear-gradient(
+        var(
+            --dv-collapsed-edge-tab-marker-color,
+            var(--dv-inactivegroup-tab-marker-color)
+        ),
+        var(
+            --dv-collapsed-edge-tab-marker-color,
+            var(--dv-inactivegroup-tab-marker-color)
+        )
+    );
 }

@@ -137,7 +137,18 @@ import { IRootDropTargetHost } from './rootDropTargetService';
 import { ILiveRegionHost } from './liveRegionService';
 import { IDragGhostSpec } from '../dnd/backend';
 import { DropTargetAnchorContainer } from '../dnd/dropTargetAnchorContainer';
-import { themeAbyss } from './theme';
+import {
+    DockviewTheme,
+    DockviewThemeSettings,
+    ResolvedDockviewThemeSettings,
+    themeAbyss,
+} from './theme';
+import {
+    declaredThemeSettings,
+    mergeThemeSettings,
+    readStyleProperty,
+    readThemeSettingsFromStyle,
+} from './themeSettings';
 import {
     EdgeGroupPosition,
     AddEdgeGroupOptions,
@@ -418,7 +429,24 @@ export interface PopoutGroup {
     readonly window: Window;
 }
 
+// Copied from a `className`-applied theme to the shell, where the root and
+// floating drop previews mount (outside the component root).
+const SHELL_DROP_PREVIEW_PROPERTIES = [
+    '--dv-drag-over-border',
+    '--dv-drag-over-background-color',
+    '--dv-drop-target-border-radius',
+    '--dv-drop-target-content-border-radius',
+    '--dv-drop-target-travel',
+] as const;
+
 export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
+    /** The active theme's settings (theme object, then CSS, then defaults). */
+    readonly themeSettings: ResolvedDockviewThemeSettings;
+    /** Internal: the theme's declared settings without defaults, so an unset
+     *  value can be told apart from an explicit default. */
+    readonly declaredThemeSettings: DockviewThemeSettings;
+    /** Re-read the theme's CSS settings (after changing them at runtime). */
+    refreshTheme(): void;
     readonly activePanel: IDockviewPanel | undefined;
     readonly totalPanels: number;
     readonly panels: IDockviewPanel[];
@@ -801,6 +829,57 @@ export class DockviewComponent
     private readonly _onDidOptionsChange = new Emitter<void>();
     readonly onDidOptionsChange: Event<void> = this._onDidOptionsChange.event;
 
+    private _themeSettings: ResolvedDockviewThemeSettings = mergeThemeSettings(
+        undefined,
+        undefined
+    );
+
+    get themeSettings(): ResolvedDockviewThemeSettings {
+        return this._themeSettings;
+    }
+
+    private _declaredThemeSettings: DockviewThemeSettings = {};
+
+    get declaredThemeSettings(): DockviewThemeSettings {
+        return this._declaredThemeSettings;
+    }
+
+    // `false` means the theme CSS was read before dockview's stylesheet
+    // applied, so a later layout or stylesheet load re-reads it.
+    private _themeCssRead: boolean | undefined = undefined;
+
+    private get isStylesheetApplied(): boolean {
+        // Core's root rule sets `border-box`; the browser default is `content-box`.
+        return (
+            this.element.isConnected &&
+            typeof getComputedStyle === 'function' &&
+            readStyleProperty(getComputedStyle(this.element), 'box-sizing') ===
+                'border-box'
+        );
+    }
+
+    private listenForStylesheetLoads(): IDisposable {
+        if (typeof document === 'undefined') {
+            return Disposable.NONE;
+        }
+        const onLoad = (event: globalThis.Event): void => {
+            if (event.target instanceof HTMLLinkElement) {
+                this.retryThemeCss();
+            }
+        };
+        // Capture on the document: an element's `load` never reaches window.
+        document.addEventListener('load', onLoad, true);
+        return Disposable.from(() =>
+            document.removeEventListener('load', onLoad, true)
+        );
+    }
+
+    private retryThemeCss(): void {
+        if (this._themeCssRead === false && this.isStylesheetApplied) {
+            this.updateTheme();
+        }
+    }
+
     private readonly _onDidActiveGroupChange = new Emitter<
         DockviewGroupPanel | undefined
     >();
@@ -1105,7 +1184,7 @@ export class DockviewComponent
         if (!content) {
             return undefined;
         }
-        return this.options.theme?.dndPanelOverlay === 'group'
+        return this.themeSettings.dndPanelOverlay === 'group'
             ? (content.parentElement ?? content)
             : content;
     }
@@ -1698,6 +1777,7 @@ export class DockviewComponent
                 },
                 true
             ),
+            this.listenForStylesheetLoads(),
             this.overlayRenderContainer,
             this._onWillDragPanel,
             this._onWillDragGroup,
@@ -2875,7 +2955,7 @@ export class DockviewComponent
                 : undefined,
             orientation,
             false,
-            this.options.theme?.gap ?? 0
+            this.themeSettings.gap
         );
     }
 
@@ -3088,7 +3168,8 @@ export class DockviewComponent
             }
         }
 
-        if ('theme' in options) {
+        // `className` can apply or remove a theme, so re-read its CSS settings.
+        if ('theme' in options || 'className' in options) {
             this.updateTheme();
         }
 
@@ -3148,6 +3229,8 @@ export class DockviewComponent
         }
 
         this._syncFloatingOverlayHost();
+
+        this.retryThemeCss();
 
         // floatingGroupService may be undefined during super() (BaseGrid calls
         // layout(0, 0) before subclass field initialisers run).
@@ -6275,6 +6358,42 @@ export class DockviewComponent
             : orthogonal(rootOrientation);
     }
 
+    refreshTheme(): void {
+        this.updateTheme();
+    }
+
+    private applyDropPreviewStyle(
+        theme: DockviewTheme,
+        style: CSSStyleDeclaration | undefined
+    ): void {
+        const shellStyle = this._shellManager?.element.style;
+        const classNameApplied =
+            style !== undefined && !!this._options.className?.trim();
+        for (const property of SHELL_DROP_PREVIEW_PROPERTIES) {
+            const value = classNameApplied
+                ? readStyleProperty(style, property)
+                : '';
+            if (value) {
+                shellStyle?.setProperty(property, value);
+            } else {
+                shellStyle?.removeProperty(property);
+            }
+        }
+
+        if (theme.dndOverlayBorder === undefined) {
+            this.element.style.removeProperty('--dv-drag-over-border');
+        } else {
+            this.element.style.setProperty(
+                '--dv-drag-over-border',
+                theme.dndOverlayBorder
+            );
+            shellStyle?.setProperty(
+                '--dv-drag-over-border',
+                theme.dndOverlayBorder
+            );
+        }
+    }
+
     private updateTheme(): void {
         const theme = this._options.theme ?? themeAbyss;
         // Apply the theme class only to the shell so edge groups and the
@@ -6283,7 +6402,30 @@ export class DockviewComponent
         // set on the shell from reaching the dockview subtree.
         this._shellThemeClassnames?.setClassNames(theme.className);
 
-        const gap = theme.gap ?? 0;
+        const shell = this._shellManager?.element;
+        // Clear values copied to the shell last time so they aren't read back.
+        for (const property of SHELL_DROP_PREVIEW_PROPERTIES) {
+            shell?.style.removeProperty(property);
+        }
+        this.element.style.removeProperty('--dv-drag-over-border');
+
+        const style =
+            typeof getComputedStyle === 'function' && this.element.isConnected
+                ? getComputedStyle(this.element)
+                : undefined;
+        this._themeCssRead = this.isStylesheetApplied;
+        // The settings' properties don't inherit, so read the component root
+        // (`className` themes) and then the shell (the theme class).
+        let fromCss: DockviewThemeSettings | undefined;
+        if (style) {
+            const fallbacks = shell ? [getComputedStyle(shell)] : [];
+            fromCss = readThemeSettingsFromStyle(style, ...fallbacks);
+        }
+        this._declaredThemeSettings = declaredThemeSettings(theme, fromCss);
+        this._themeSettings = mergeThemeSettings(theme, fromCss);
+        const settings = this._themeSettings;
+
+        const gap = settings.gap;
         this.gridview.margin = gap;
         // Floating / popout windows host their own nested gridviews; keep their
         // gap in sync with the main grid when the theme changes at runtime.
@@ -6293,28 +6435,11 @@ export class DockviewComponent
         for (const entry of this._popoutWindowService?.entries ?? []) {
             entry.gridview.margin = gap;
         }
-        this._shellManager?.updateTheme(
-            gap,
-            theme.edgeGroupCollapsedSize ?? 35
-        );
+        this._shellManager?.updateTheme(gap, settings.edgeGroupCollapsedSize);
 
-        if (theme.dndOverlayBorder === undefined) {
-            this.element.style.removeProperty('--dv-drag-over-border');
-            this._shellManager?.element.style.removeProperty(
-                '--dv-drag-over-border'
-            );
-        } else {
-            this.element.style.setProperty(
-                '--dv-drag-over-border',
-                theme.dndOverlayBorder
-            );
-            this._shellManager?.element.style.setProperty(
-                '--dv-drag-over-border',
-                theme.dndOverlayBorder
-            );
-        }
+        this.applyDropPreviewStyle(theme, style);
 
-        switch (theme.dndOverlayMounting) {
+        switch (settings.dndOverlayMounting) {
             case 'absolute':
                 this.rootDropTargetContainer.disabled = false;
                 break;
@@ -6326,7 +6451,7 @@ export class DockviewComponent
 
         // Toggle a CSS class so theme stylesheets can scope pure-CSS
         // tab group indicator rules to the 'none' mode only.
-        const indicatorNone = (theme.tabGroupIndicator ?? 'wrap') === 'none';
+        const indicatorNone = settings.tabGroupIndicator === 'none';
         toggleClass(this.element, 'dv-tab-group-indicator-none', indicatorNone);
         if (this._shellManager) {
             toggleClass(

@@ -1,0 +1,18 @@
+// Durations collapse to 0.01ms rather than `none` so `transitionend` /
+// `animationend` still fire for the code that awaits them (tab reorder, tab
+// groups). The attribute selectors also reach popout and floating trees.
+@media (prefers-reduced-motion: reduce) {
+    [class^='dv-'],
+    [class*=' dv-'],
+    [class^='dv-']::before,
+    [class*=' dv-']::before,
+    [class^='dv-']::after,
+    [class*=' dv-']::after {
+        transition-duration: 0.01ms !important;
+        transition-delay: 0ms !important;
+        animation-duration: 0.01ms !important;
+        animation-delay: 0ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+    }
+}

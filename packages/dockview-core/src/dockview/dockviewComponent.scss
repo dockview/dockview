@@ -1,6 +1,97 @@
+@use '../theme/tokens' as dv;
+
+// Base theme tokens. Registered with initial values so every derived token
+// (see theme/_tokens.scss) resolves even when a theme sets none of them.
+@property --dv-background-color {
+    syntax: '<color>';
+    inherits: true;
+    initial-value: #1e1e1e;
+}
+
+@property --dv-foreground-color {
+    syntax: '<color>';
+    inherits: true;
+    initial-value: #cccccc;
+}
+
+@property --dv-accent-color {
+    syntax: '<color>';
+    inherits: true;
+    initial-value: #1e90ff;
+}
+
+@property --dv-spacing {
+    syntax: '<length>';
+    inherits: true;
+    initial-value: 4px;
+}
+
+@property --dv-border-radius {
+    syntax: '<length>';
+    inherits: true;
+    initial-value: 0px;
+}
+
+// Non-inheriting, so each applies only where declared: a dockview nested in
+// another's panel never picks up its host's settings, padding or background.
+@property --dv-group-gap {
+    syntax: '*';
+    inherits: false;
+}
+
+@property --dv-edge-group-collapsed-size {
+    syntax: '*';
+    inherits: false;
+}
+
+@property --dv-dnd-overlay-mounting {
+    syntax: '*';
+    inherits: false;
+}
+
+@property --dv-dnd-panel-overlay {
+    syntax: '*';
+    inherits: false;
+}
+
+@property --dv-dnd-tab-indicator {
+    syntax: '*';
+    inherits: false;
+}
+
+@property --dv-tab-group-indicator {
+    syntax: '*';
+    inherits: false;
+}
+
+@property --dv-tab-animation {
+    syntax: '*';
+    inherits: false;
+}
+
+@property --dv-root-padding {
+    syntax: '*';
+    inherits: false;
+}
+
+@property --dv-root-background-color {
+    syntax: '*';
+    inherits: false;
+}
+
+.dv-shell,
+.dv-component-root,
+.dv-popout-window,
+.dockview-spaced,
+[class*='dockview-theme-'] {
+    box-sizing: border-box;
+    padding: var(--dv-root-padding, 0px);
+    background-color: var(--dv-root-background-color, transparent);
+}
+
 .dv-dockview {
     position: relative;
-    background-color: var(--dv-group-view-background-color);
+    background-color: #{dv.ref('group-view-background-color')};
     // Avoid `contain: layout` here: it creates a stacking context that traps
     // inner sash z-index inside the dockview's SC, so render-overlays mounted
     // at the shell level paint on top of the sashes (and separators).
@@ -22,40 +113,112 @@
 .dv-groupview {
     &.dv-active-group {
         > .dv-tabs-and-actions-container {
+            border-bottom: var(
+                    --dv-tabs-and-actions-container-border-bottom-width,
+                    0px
+                )
+                solid #{dv.ref('activegroup-visiblepanel-tab-background-color')};
+
             .dv-tabs-container > .dv-tab {
                 &.dv-active-tab {
-                    background-color: var(
-                        --dv-activegroup-visiblepanel-tab-background-color
+                    background-color: #{dv.ref('activegroup-visiblepanel-tab-background-color')};
+                    color: #{dv.ref('activegroup-visiblepanel-tab-color')};
+                    border-top: var(--dv-tab-border-top-width, 0px) solid
+                        #{dv.ref('activegroup-visiblepanel-tab-background-color')};
+                    // A gradient, not a pseudo-element: ::before/::after are
+                    // taken by dividers and shoulders, and it adds no height.
+                    background-image: linear-gradient(
+                        var(--dv-activegroup-tab-marker-color),
+                        var(--dv-activegroup-tab-marker-color)
                     );
-                    color: var(--dv-activegroup-visiblepanel-tab-color);
                 }
                 &.dv-inactive-tab {
-                    background-color: var(
-                        --dv-activegroup-hiddenpanel-tab-background-color
-                    );
-                    color: var(--dv-activegroup-hiddenpanel-tab-color);
+                    background-color: #{dv.ref('activegroup-hiddenpanel-tab-background-color')};
+                    color: #{dv.ref('activegroup-hiddenpanel-tab-color')};
+                    border-top: var(--dv-tab-border-top-width, 0px) solid
+                        #{dv.ref('activegroup-hiddenpanel-tab-background-color')};
+
+                    // Nested here, not a standalone .dv-tab:hover rule, so it
+                    // outranks the group-scoped background above.
+                    &:hover {
+                        background-color: var(
+                            --dv-tab-inactive-hover-background-color,
+                            #{dv.ref('activegroup-hiddenpanel-tab-background-color')}
+                        );
+                    }
                 }
             }
         }
     }
     &.dv-inactive-group {
         > .dv-tabs-and-actions-container {
+            border-bottom: var(
+                    --dv-tabs-and-actions-container-border-bottom-width,
+                    0px
+                )
+                solid #{dv.ref('inactivegroup-visiblepanel-tab-background-color')};
+
             .dv-tabs-container > .dv-tab {
                 &.dv-active-tab {
-                    background-color: var(
-                        --dv-inactivegroup-visiblepanel-tab-background-color
+                    background-color: #{dv.ref('inactivegroup-visiblepanel-tab-background-color')};
+                    color: #{dv.ref('inactivegroup-visiblepanel-tab-color')};
+                    border-top: var(--dv-tab-border-top-width, 0px) solid
+                        #{dv.ref('inactivegroup-visiblepanel-tab-background-color')};
+                    background-image: linear-gradient(
+                        var(--dv-inactivegroup-tab-marker-color),
+                        var(--dv-inactivegroup-tab-marker-color)
                     );
-                    color: var(--dv-inactivegroup-visiblepanel-tab-color);
                 }
                 &.dv-inactive-tab {
-                    background-color: var(
-                        --dv-inactivegroup-hiddenpanel-tab-background-color
-                    );
-                    color: var(--dv-inactivegroup-hiddenpanel-tab-color);
+                    background-color: #{dv.ref('inactivegroup-hiddenpanel-tab-background-color')};
+                    color: #{dv.ref('inactivegroup-hiddenpanel-tab-color')};
+                    border-top: var(--dv-tab-border-top-width, 0px) solid
+                        #{dv.ref('inactivegroup-hiddenpanel-tab-background-color')};
+
+                    &:hover {
+                        background-color: var(
+                            --dv-tab-inactive-hover-background-color,
+                            #{dv.ref('inactivegroup-hiddenpanel-tab-background-color')}
+                        );
+                    }
                 }
             }
         }
     }
+}
+
+// Marker on the tab edge that meets the content. Physical keywords, so they
+// hold under a rail's vertical writing mode.
+.dv-groupview
+    > .dv-tabs-and-actions-container
+    .dv-tabs-container
+    > .dv-tab.dv-active-tab {
+    background-repeat: no-repeat;
+    background-size: 100% #{dv.ref('tab-marker-size')};
+    background-position: bottom;
+}
+
+.dv-groupview.dv-groupview-header-bottom
+    > .dv-tabs-and-actions-container
+    .dv-tabs-container
+    > .dv-tab.dv-active-tab {
+    background-position: top;
+}
+
+.dv-groupview.dv-groupview-header-left
+    > .dv-tabs-and-actions-container
+    .dv-tabs-container
+    > .dv-tab.dv-active-tab {
+    background-size: #{dv.ref('tab-marker-size')} 100%;
+    background-position: right;
+}
+
+.dv-groupview.dv-groupview-header-right
+    > .dv-tabs-and-actions-container
+    .dv-tabs-container
+    > .dv-tab.dv-active-tab {
+    background-size: #{dv.ref('tab-marker-size')} 100%;
+    background-position: left;
 }
 
 /**
@@ -64,10 +227,8 @@
  **/
 .dv-tab {
     &.dv-tab-dragging {
-        background-color: var(
-            --dv-activegroup-visiblepanel-tab-background-color
-        );
-        color: var(--dv-activegroup-visiblepanel-tab-color);
+        background-color: #{dv.ref('activegroup-visiblepanel-tab-background-color')};
+        color: #{dv.ref('activegroup-visiblepanel-tab-color')};
     }
 }
 
@@ -93,9 +254,9 @@
     pointer-events: none;
     background-color: var(
         --dv-context-menu-background-color,
-        var(--dv-group-view-background-color)
+        #{dv.ref('group-view-background-color')}
     );
-    color: var(--dv-activegroup-visiblepanel-tab-color);
-    border: 1px solid var(--dv-tab-divider-color);
+    color: #{dv.ref('activegroup-visiblepanel-tab-color')};
+    border: 1px solid #{dv.ref('tab-divider-color')};
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }

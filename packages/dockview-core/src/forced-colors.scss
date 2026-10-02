@@ -1,0 +1,69 @@
+// Forced colours erase states told apart only by background colour, so they
+// are redrawn here with system colours and outlines. Not yet verified in a
+// real Windows high-contrast session.
+@media (forced-colors: active) {
+    .dv-tab {
+        outline: 1px solid CanvasText;
+        outline-offset: -1px;
+    }
+
+    // `!important`: `forced-color-adjust: none` turns author colours back on,
+    // and the theme-scoped tab rules in theme.scss (concatenated later)
+    // would otherwise outrank this and paint their own fill.
+    .dv-groupview.dv-active-group
+        > .dv-tabs-and-actions-container
+        .dv-tabs-container
+        > .dv-tab.dv-active-tab,
+    .dv-groupview.dv-inactive-group
+        > .dv-tabs-and-actions-container
+        .dv-tabs-container
+        > .dv-tab.dv-active-tab {
+        forced-color-adjust: none;
+        background-color: Highlight !important;
+        background-image: none !important;
+        color: HighlightText !important;
+    }
+
+    // Forced to CanvasText, the focus ring would merge with the tab outline.
+    .dv-tab:focus-visible,
+    .dv-tab:has(:focus-visible),
+    .dv-tab.dv-tabs-overflow-option--focused {
+        outline-color: Highlight !important;
+    }
+
+    .dv-tab.dv-active-tab:focus-visible,
+    .dv-tab.dv-active-tab:has(:focus-visible) {
+        outline-color: HighlightText !important;
+    }
+
+    .dv-drop-target-selection,
+    .dv-drop-target-anchor,
+    .dv-dnd-compass-edge-preview {
+        forced-color-adjust: none;
+        background-color: Highlight !important;
+        border: 2px solid Highlight !important;
+        opacity: 0.4;
+    }
+
+    .dv-dnd-compass-cell {
+        forced-color-adjust: none;
+        background-color: Canvas !important;
+        border-color: CanvasText !important;
+        color: CanvasText !important;
+    }
+
+    .dv-dnd-compass-cell-active {
+        background-color: Highlight !important;
+    }
+
+    .dv-sash:hover,
+    .dv-sash:active {
+        forced-color-adjust: none;
+        background-color: Highlight !important;
+    }
+
+    .dv-separator-border .dv-view:not(:first-child)::before {
+        forced-color-adjust: none;
+        background-color: CanvasText !important;
+    }
+}

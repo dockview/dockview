@@ -54,6 +54,12 @@ export class FloatingTitleBar extends CompositeDisposable {
         this._element = document.createElement('div');
         this._element.className = 'dv-floating-titlebar';
 
+        // Grip decoration, transparent unless a theme sets
+        // `--dv-floating-titlebar-handle-color`.
+        const handle = document.createElement('div');
+        handle.className = 'dv-floating-titlebar-handle';
+        this._element.appendChild(handle);
+
         this.addDisposables(
             this._onDragStart,
             addDisposableListener(this._element, 'pointerdown', () => {

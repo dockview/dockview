@@ -36,6 +36,7 @@ import {
     NoneTabGroupIndicator,
     WrapTabGroupIndicator,
 } from './tabGroupIndicator';
+import { themeSetting } from '../../themeSettings';
 
 const EMPTY_MAP: ReadonlyMap<string, HTMLElement> = new Map();
 
@@ -378,7 +379,7 @@ export class TabGroupManager {
 
     private _ensureIndicator(): void {
         const mode =
-            this._ctx.accessor.options.theme?.tabGroupIndicator ?? 'wrap';
+            themeSetting(this._ctx.accessor, 'tabGroupIndicator') ?? 'wrap';
 
         const Ctor =
             mode === 'none' ? NoneTabGroupIndicator : WrapTabGroupIndicator;
@@ -619,7 +620,7 @@ export class TabGroupManager {
                     // is drawn by shifting this chip aside, which marks no
                     // boundary of its own.
                     if (
-                        this._ctx.accessor.options.theme?.tabAnimation ===
+                        themeSetting(this._ctx.accessor, 'tabAnimation') ===
                             'smooth' &&
                         !data.tabGroupId
                     ) {

@@ -1,3 +1,5 @@
+@use '../theme/tokens' as dv;
+
 .dv-pane-container {
     height: 100%;
     width: 100%;
@@ -24,13 +26,13 @@
 
         &:not(:first-child) {
             .dv-pane > .dv-pane-header {
-                border-top: 1px solid var(--dv-paneview-header-border-color);
+                border-top: 1px solid #{dv.ref('paneview-header-border-color')};
             }
         }
 
         .dv-default-header {
-            background-color: var(--dv-group-view-background-color);
-            color: var(--dv-activegroup-visiblepanel-tab-color);
+            background-color: #{dv.ref('group-view-background-color')};
+            color: #{dv.ref('activegroup-visiblepanel-tab-color')};
             display: flex;
             padding: 0px 8px;
             cursor: pointer;
@@ -79,11 +81,9 @@
                     z-index: 5;
                     content: '';
                     pointer-events: none;
-                    outline: 1px solid;
-                    outline-width: -1px;
-                    outline-style: solid;
-                    outline-offset: -1px;
-                    outline-color: var(--dv-paneview-active-outline-color);
+                    outline: #{dv.ref('focus-ring-width')} solid
+                        #{dv.ref('focus-ring-color')};
+                    outline-offset: calc(-1 * #{dv.ref('focus-ring-width')});
                 }
             }
         }
@@ -105,11 +105,9 @@
                     z-index: 5;
                     content: '';
                     pointer-events: none;
-                    outline: 1px solid;
-                    outline-width: -1px;
-                    outline-style: solid;
-                    outline-offset: -1px;
-                    outline-color: var(--dv-paneview-active-outline-color);
+                    outline: #{dv.ref('focus-ring-width')} solid
+                        #{dv.ref('focus-ring-color')};
+                    outline-offset: calc(-1 * #{dv.ref('focus-ring-width')});
                 }
             }
         }

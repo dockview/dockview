@@ -115,6 +115,7 @@
 
 .toggleButton {
     display: flex;
+    text-decoration: none !important;
     align-items: center;
     gap: 6px;
     background: var(--ifm-hover-overlay);

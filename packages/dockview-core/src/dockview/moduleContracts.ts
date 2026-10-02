@@ -445,6 +445,8 @@ export interface IAutoHideEdgeGroupHost {
     /** Fires when a group's resolved auto-hide state changes at runtime
      *  (per-group `setAutoHide`), so a controller can dock/undock retroactively. */
     readonly onDidEdgeGroupAutoHideChange: Event<DockviewGroupPanel>;
+    /** Fires after `updateOptions`, including a theme switch. */
+    readonly onDidOptionsChange: Event<void>;
     /** The element the slide-out peek mounts on: the shell, which is also the
      *  `OverlayRenderContainer` root, so `always`-rendered content anchors in
      *  the same coordinate space as the peek. */

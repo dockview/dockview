@@ -166,11 +166,18 @@ const DemoPage: React.FC = () => {
                     }}
                 />
                 <div className={styles.divider} />
+                <a
+                    className={styles.toggleButton}
+                    href={`/theme-builder?theme=${encodeURIComponent(theme.name)}`}
+                    title="Customise this theme in the theme builder"
+                >
+                    Theme builder
+                </a>
                 <button
                     className={`${styles.toggleButton} ${
                         showSidebar ? styles.toggleButtonActive : ''
                     }`}
-                    title={showSidebar ? 'Close panel' : 'Open controls & theme'}
+                    title={showSidebar ? 'Close panel' : 'Open controls'}
                     aria-pressed={showSidebar}
                     onClick={() => setShowSidebar((v) => !v)}
                 >
@@ -195,7 +202,7 @@ const DemoPage: React.FC = () => {
                         <line x1="9" y1="8" x2="15" y2="8" />
                         <line x1="17" y1="16" x2="23" y2="16" />
                     </svg>
-                    Controls &amp; Theme
+                    Controls
                 </button>
             </div>
             <div className={styles.demoBody}>
@@ -486,6 +493,7 @@ const ThemeSelector = (props: {
                         side="bottom"
                         align="end"
                         sideOffset={10}
+                        collisionPadding={8}
                         className="DropdownMenuContent"
                         style={{ zIndex: 100000 }}
                     >
