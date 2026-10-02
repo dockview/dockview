@@ -390,6 +390,9 @@ export class PaneviewComponent extends Resizable implements IPaneviewComponent {
         const width = this.width;
         const height = this.height;
 
+        // dispose the empty paneview left by clear()
+        this.paneview.dispose();
+
         this.paneview = new Paneview(this.element, {
             orientation: Orientation.VERTICAL,
             descriptor: {
@@ -473,7 +476,15 @@ export class PaneviewComponent extends Resizable implements IPaneviewComponent {
         }
         this._viewDisposables.clear();
 
+        const width = this.width;
+        const height = this.height;
+
         this.paneview.dispose();
+        // replace with an empty paneview at the same size
+        this.paneview = new Paneview(this.element, {
+            orientation: Orientation.VERTICAL,
+        });
+        this.layout(width, height);
     }
 
     private doAddPanel(panel: PaneFramework): void {

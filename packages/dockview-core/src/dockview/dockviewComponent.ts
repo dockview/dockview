@@ -618,6 +618,8 @@ export class DockviewComponent
     // by the panel api that owns them so a panel reports at most once per
     // transaction. See `deferLocationChange()`.
     private readonly _pendingLocationChanges = new Map<object, () => void>();
+    // popout windows still opening, closed on dispose
+    private readonly _openingPopoutWindows = new Set<IDisposable>();
     // Current operation origin. Defaults to `'user'`; the DockviewApi boundary
     // flips it to `'api'` for the duration of a programmatic call via
     // `withOrigin`. Nested operations inherit the outermost origin (tracked by
@@ -1615,6 +1617,15 @@ export class DockviewComponent
         }
 
         this.popupService = new PopupService(this.element);
+        this.addDisposables(
+            this.popupService,
+            Disposable.from(() => {
+                for (const opening of this._openingPopoutWindows) {
+                    opening.dispose();
+                }
+                this._openingPopoutWindows.clear();
+            })
+        );
         this._api = new DockviewApi(this);
 
         // The shell always wraps the dockview element so edge groups can be
@@ -2026,6 +2037,7 @@ export class DockviewComponent
                 popoutWindowDisposable.dispose();
             })
         );
+        this._openingPopoutWindows.add(popoutWindowDisposable);
 
         // A URL the guard refuses - a packaged desktop shell serving the app
         // from a custom protocol, say - is settled here rather than by catching
@@ -2037,6 +2049,13 @@ export class DockviewComponent
 
         return (openError ? Promise.resolve(null) : _window.open())
             .then((popoutContainer) => {
+                this._openingPopoutWindows.delete(popoutWindowDisposable);
+
+                if (this.isDisposed) {
+                    popoutWindowDisposable.dispose();
+                    return false;
+                }
+
                 if (_window.isDisposed) {
                     // Gone while opening, so nothing has left the grid and there
                     // is no group to return - but the caller is owed the reason,
@@ -3459,6 +3478,8 @@ export class DockviewComponent
             group.dispose();
             this._groups.delete(group.id);
             this._onDidRemoveGroup.fire(group);
+
+            this.activateFallbackGroupIfRemoved(group);
         });
     }
 
@@ -3812,6 +3833,8 @@ export class DockviewComponent
                             }
                         });
                         record?.disposable.dispose();
+                        // release the staging group's header actions
+                        this.headerActionsService?.disposeGroup(temporaryGroup);
                         temporaryGroup.dispose();
                     })
                 );
@@ -5092,10 +5115,21 @@ export class DockviewComponent
         return () => {
             this._mutationDepth--;
             if (this._mutationDepth === 0) {
+                this.releaseDisposedActiveGroup();
                 this.flushLocationChanges();
                 this._onDidMutateLayout.fire({ kind, origin });
             }
         };
+    }
+
+    /**
+     * Clears the active group if it was disposed by a removal that skipped
+     * re-activation (`skipActive`).
+     */
+    private releaseDisposedActiveGroup(): void {
+        if (!this.isDisposed && this._activeGroup?.model.isDisposed) {
+            this.doSetGroupAndPanelActive(undefined);
+        }
     }
 
     /**
@@ -5268,7 +5302,12 @@ export class DockviewComponent
                 throw new Error(`dockview: No panel with id ${sourceItemId}`);
             }
 
-            if (!options.keepEmptyGroups && sourceGroup.model.size === 0) {
+            // keep the source group when moving within it
+            if (
+                !options.keepEmptyGroups &&
+                sourceGroup.model.size === 0 &&
+                sourceGroup !== destinationGroup
+            ) {
                 // remove the group and do not set a new group as active
                 this.doRemoveGroup(sourceGroup, { skipActive: true });
             }
@@ -5665,6 +5704,11 @@ export class DockviewComponent
         const from = options.from.group;
         const to = options.to.group;
         const target = options.to.position;
+
+        // merging a group into itself is a no-op
+        if (target === 'center' && from === to) {
+            return;
+        }
 
         // The group whose panels end up at the target. For non-edge moves
         // we relocate `from` itself; for edge moves we move panels into a

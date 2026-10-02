@@ -591,6 +591,9 @@ export class TabsContainer
         const popup = (): PopupService =>
             this.accessor.getPopupServiceForGroup(this.group);
 
+        // overflow row tab renderers, disposed when the popover closes
+        const rowRenderers = new CompositeDisposable();
+
         const buildGroupHeader = (tg: OverflowTabGroup): HTMLElement => {
             const groupHeader = document.createElement('div');
             groupHeader.className = 'dv-tabs-overflow-group-header';
@@ -671,6 +674,9 @@ export class TabsContainer
 
                 const tabComponent =
                     panel.view.createTabRenderer('headerOverflow');
+                rowRenderers.addDisposables(
+                    Disposable.from(() => tabComponent.dispose?.())
+                );
                 const child = tabComponent.element;
 
                 const wrapper = document.createElement('div');
@@ -719,7 +725,7 @@ export class TabsContainer
                 };
             },
             open: (body) => {
-                popup().openPopover(body, anchor);
+                popup().openPopover(body, anchor, rowRenderers);
             },
             close: () => popup().close(),
             focusTrigger: () => {

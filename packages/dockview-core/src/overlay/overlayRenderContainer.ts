@@ -466,6 +466,11 @@ export class OverlayRenderContainer extends CompositeDisposable {
         const correctLayerPosition = () => {
             if (panel.api.location.type === 'floating') {
                 queueMicrotask(() => {
+                    // skip if detached before the microtask ran
+                    if (disposable.isDisposed) {
+                        return;
+                    }
+
                     // Resolve by membership, not anchor identity: a floating
                     // window can host a nested gridview, so a panel split into
                     // it lives in a non-anchor member group. Matching only the
