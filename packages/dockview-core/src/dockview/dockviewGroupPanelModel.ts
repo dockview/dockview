@@ -1597,6 +1597,11 @@ export class DockviewGroupPanelModel
     }
 
     public setActive(isGroupActive: boolean, force = false): void {
+        // A removed group is deactivated after disposal; touching it then
+        // would recreate a watermark that nothing disposes (#1661).
+        if (this.isDisposed) {
+            return;
+        }
         if (!force && this.isActive === isGroupActive) {
             return;
         }
