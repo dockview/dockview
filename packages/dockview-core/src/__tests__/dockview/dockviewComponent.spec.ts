@@ -5710,6 +5710,46 @@ describe('dockviewComponent', () => {
         ).toHaveLength(0);
     });
 
+    test('removing the last panel of the active group does not leak a watermark', () => {
+        // https://github.com/dockview/dockview/issues/1661
+        const container = document.createElement('div');
+
+        let created = 0;
+        const alive = new Set<number>();
+
+        const dockview = new DockviewComponent(container, {
+            createComponent(options) {
+                return new PanelContentPartTest(options.id, options.name);
+            },
+            createWatermarkComponent: () => {
+                const id = ++created;
+                alive.add(id);
+                return {
+                    element: document.createElement('div'),
+                    init: () => {
+                        /* noop */
+                    },
+                    dispose: () => {
+                        alive.delete(id);
+                    },
+                };
+            },
+        });
+        dockview.layout(800, 600);
+
+        for (let i = 1; i <= 3; i++) {
+            const panel = dockview.addPanel({
+                id: `panel${i}`,
+                component: 'default',
+            });
+            dockview.removePanel(panel);
+
+            // Only the dockview-level watermark should be alive.
+            expect(dockview.groups).toHaveLength(0);
+            expect(alive.size).toBe(1);
+        }
+    });
+
     test('that deserializing an empty layout has zero groups and a watermark', () => {
         const container = document.createElement('div');
 
