@@ -1624,7 +1624,7 @@ export class DockviewComponent
             this.popupService,
             // closes popout windows that have not finished opening
             Disposable.from(() => {
-                for (const opening of [...this._openingPopoutWindows]) {
+                for (const opening of this._openingPopoutWindows) {
                     opening.dispose();
                 }
                 this._openingPopoutWindows.clear();
