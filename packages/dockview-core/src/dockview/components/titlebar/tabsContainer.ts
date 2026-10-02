@@ -591,8 +591,7 @@ export class TabsContainer
         const popup = (): PopupService =>
             this.accessor.getPopupServiceForGroup(this.group);
 
-        // Each row mounts a fresh tab renderer; the popover owns them and
-        // disposes them when it closes.
+        // overflow row tab renderers, disposed when the popover closes
         const rowRenderers = new CompositeDisposable();
 
         const buildGroupHeader = (tg: OverflowTabGroup): HTMLElement => {

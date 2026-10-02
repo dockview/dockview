@@ -466,9 +466,7 @@ export class OverlayRenderContainer extends CompositeDisposable {
         const correctLayerPosition = () => {
             if (panel.api.location.type === 'floating') {
                 queueMicrotask(() => {
-                    // Detached before the microtask ran (e.g. the panel was
-                    // closed in the same tick): an observer created now would
-                    // never be disconnected.
+                    // skip if detached before the microtask ran
                     if (disposable.isDisposed) {
                         return;
                     }

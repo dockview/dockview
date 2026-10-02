@@ -39,8 +39,7 @@ export function watchElementResize(
     element: HTMLElement,
     cb: (entry: ResizeObserverEntry) => void
 ): IDisposable {
-    // Frames still pending; cancelled on dispose so the callback never runs
-    // against an owner that has already been torn down.
+    // pending frames, cancelled on dispose
     const pendingFrames = new Set<number>();
 
     const observer = new ResizeObserver((entires) => {
@@ -59,7 +58,7 @@ export function watchElementResize(
             const firstEntry = entires[0];
             cb(firstEntry);
         });
-        // a synchronous scheduler has already run it
+        // skip if the frame already ran synchronously
         if (!ran) {
             pendingFrames.add(frame);
         }

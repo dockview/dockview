@@ -16,12 +16,7 @@ const KINDS: TrackedRendererKind[] = [
 ];
 
 export interface RendererTracker {
-    /**
-     * Factories for every framework renderer dockview creates. Spread into the
-     * component options; each renderer they return counts as alive until its
-     * `dispose()` runs. `defaultTabComponent` is set so that tabs go through
-     * the tracked factory too.
-     */
+    /** Tracked renderer factories to spread into the component options. */
     readonly options: Required<
         Pick<
             DockviewFrameworkOptions,
@@ -37,15 +32,12 @@ export interface RendererTracker {
     alive(kind?: TrackedRendererKind): number;
     /** Renderers created so far, for one kind or all kinds. */
     created(kind?: TrackedRendererKind): number;
-    /** Live renderer counts keyed by kind, for readable failure output. */
+    /** Live renderer counts keyed by kind. */
     snapshot(): Record<TrackedRendererKind, number>;
 }
 
 /**
- * Counts every framework renderer a dockview creates and disposes, so tests can
- * assert that nothing outlives the panel, group or component that owns it.
- * A renderer that is never disposed is a leak: with a framework binding it is a
- * component that stays mounted, effects and all.
+ * Counts the framework renderers a dockview creates and disposes.
  */
 export function createRendererTracker(): RendererTracker {
     const alive = new Map<TrackedRendererKind, Set<number>>(

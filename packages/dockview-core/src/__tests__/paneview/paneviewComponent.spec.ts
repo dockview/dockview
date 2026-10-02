@@ -765,8 +765,7 @@ describe('paneviewComponent', () => {
             paneview.element.contains(paneview.getPanel('panel2')!.element)
         ).toBe(true);
 
-        // fromJSON goes through clear() and must not leave an empty paneview
-        // mounted beside the restored one
+        // only the restored paneview is mounted
         paneview.fromJSON(paneview.toJSON());
         expect(paneview.element.children).toHaveLength(1);
 

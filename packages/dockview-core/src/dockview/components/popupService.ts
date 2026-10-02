@@ -48,8 +48,7 @@ export class PopupService extends CompositeDisposable {
     }
 
     /**
-     * @param owned disposed when this popover closes or is replaced, for the
-     * renderers mounted into `element` that would otherwise outlive it.
+     * @param owned disposed when this popover closes or is replaced
      */
     openPopover(
         element: HTMLElement,

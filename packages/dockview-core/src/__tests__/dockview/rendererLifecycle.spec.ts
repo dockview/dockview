@@ -9,14 +9,8 @@ import {
 } from '../__test_utils__/rendererTracker';
 
 /**
- * Every framework renderer dockview creates must be disposed by the time the
- * panel, group or component that owns it goes away. A renderer that is never
- * disposed is a leak: with a framework binding it is a component that stays
- * mounted, effects included, until the page reloads.
- *
- * Each test drives a public API sequence, then asserts on the live renderer
- * counts — while the layout is alive where the expected count is known, and
- * always zero after `dispose()`.
+ * Asserts live renderer counts after public API sequences, and zero live
+ * renderers after `dispose()`.
  */
 describe('renderer lifecycle', () => {
     let tracker: RendererTracker;
@@ -316,7 +310,7 @@ describe('renderer lifecycle', () => {
                 expect(tracker.alive('tab')).toBe(3);
             }
 
-            // reopening replaces the open dropdown's rows rather than adding
+            // reopening replaces the open dropdown's rows
             fireEvent.click(root);
             fireEvent.click(root);
             expect(tracker.alive('tab')).toBe(5);
@@ -400,7 +394,7 @@ describe('renderer lifecycle', () => {
 
             const opened = dockview.addPopoutGroup(p1);
             dockview.dispose();
-            // the window is closed as part of teardown, not left loading
+            // the loading window is closed on dispose
             expect(close).toHaveBeenCalled();
 
             deferred.load();

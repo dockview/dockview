@@ -618,9 +618,7 @@ export class DockviewComponent
     // by the panel api that owns them so a panel reports at most once per
     // transaction. See `deferLocationChange()`.
     private readonly _pendingLocationChanges = new Map<object, () => void>();
-    // Popout windows still opening. Nothing else owns them until they finish,
-    // so teardown closes them here rather than letting one finish opening on a
-    // disposed component.
+    // popout windows still opening, closed on dispose
     private readonly _openingPopoutWindows = new Set<IDisposable>();
     // Current operation origin. Defaults to `'user'`; the DockviewApi boundary
     // flips it to `'api'` for the duration of a programmatic call via
@@ -1620,9 +1618,7 @@ export class DockviewComponent
 
         this.popupService = new PopupService(this.element);
         this.addDisposables(
-            // closes a popover still open at teardown, disposing what it owns
             this.popupService,
-            // closes popout windows that have not finished opening
             Disposable.from(() => {
                 for (const opening of this._openingPopoutWindows) {
                     opening.dispose();
@@ -3837,9 +3833,7 @@ export class DockviewComponent
                             }
                         });
                         record?.disposable.dispose();
-                        // The header actions mounted for the group are only
-                        // released on `onDidRemoveGroup`, which a staging
-                        // group never fires.
+                        // release the staging group's header actions
                         this.headerActionsService?.disposeGroup(temporaryGroup);
                         temporaryGroup.dispose();
                     })
@@ -5129,14 +5123,11 @@ export class DockviewComponent
     }
 
     /**
-     * Removals that skip re-activation (`skipActive`, as used by moves with
-     * `skipSetActive`) can dispose the active group and leave it selected.
-     * Left in place, the next `addPanel()` would open into the disposed group
-     * and the panel would be lost, so clear the selection once the
-     * transaction settles.
+     * Clears the active group if it was disposed by a removal that skipped
+     * re-activation (`skipActive`).
      */
     private releaseDisposedActiveGroup(): void {
-        if (this._activeGroup?.model.isDisposed) {
+        if (!this.isDisposed && this._activeGroup?.model.isDisposed) {
             this.doSetGroupAndPanelActive(undefined);
         }
     }
@@ -5311,9 +5302,7 @@ export class DockviewComponent
                 throw new Error(`dockview: No panel with id ${sourceItemId}`);
             }
 
-            // A move within the source group leaves it empty only while the
-            // panel is in flight; removing it here would reopen the panel in
-            // a disposed group.
+            // keep the source group when moving within it
             if (
                 !options.keepEmptyGroups &&
                 sourceGroup.model.size === 0 &&
@@ -5716,8 +5705,7 @@ export class DockviewComponent
         const to = options.to.group;
         const target = options.to.position;
 
-        // Merging a group into itself changes nothing. Running the merge would
-        // dispose the group and then reopen its panels inside it.
+        // merging a group into itself is a no-op
         if (target === 'center' && from === to) {
             return;
         }
