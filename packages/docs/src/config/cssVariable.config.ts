@@ -6,11 +6,11 @@ export const cssVariableConfig = [
     // ── Base tokens (everything else derives from these) ─────────────────────
     {
         key: '--dv-background-color',
-        text: 'Base surface colour. Groups, the active tab and floating frames derive from it. Default `#1e1e1e`.',
+        text: 'Base surface colour: content, the selected tab and floating frames. The tab strip, unselected tabs and hover are steps away from it, darker on a light colour scheme and lighter on a dark one. Default `#1e1e1e`.',
     },
     {
         key: '--dv-foreground-color',
-        text: 'Base text colour. Tab text, separators, dividers, hover fills and the tab strip tint are mixed from it. Default `#cccccc`.',
+        text: 'Base text colour. Tab text, separators, dividers and icon hover fills are mixed from it. Default `#cccccc`.',
     },
     {
         key: '--dv-accent-color',

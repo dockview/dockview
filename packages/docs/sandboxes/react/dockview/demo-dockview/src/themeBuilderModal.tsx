@@ -404,56 +404,10 @@ const luminance = (hex: string): number => {
     return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 };
 
-// Surfaces the derived colours express relative to the background.
-const SURFACES: (keyof ThemeCssOverrides)[] = [
-    '--dv-group-view-background-color',
-    '--dv-tabs-and-actions-container-background-color',
-    '--dv-activegroup-visiblepanel-tab-background-color',
-    '--dv-activegroup-hiddenpanel-tab-background-color',
-    '--dv-inactivegroup-visiblepanel-tab-background-color',
-    '--dv-inactivegroup-hiddenpanel-tab-background-color',
-];
-
-/**
- * `target` as a mix of the background towards the foreground, white or
- * black, whichever reproduces it best. Kept as an expression, so the surface
- * follows the background when it is edited.
- */
-const relativeTo = (
-    background: string,
-    foreground: string,
-    target: string
-): string => {
-    if (target === 'transparent') return target;
-    const b = rgbOf(background);
-    const t = rgbOf(target);
-    let best = { anchor: '', amount: 0, error: Infinity };
-    for (const [anchor, hex] of [
-        ['var(--dv-foreground-color)', foreground],
-        ['white', '#ffffff'],
-        ['black', '#000000'],
-    ]) {
-        const a = rgbOf(hex);
-        const d = a.map((c, i) => c - b[i]);
-        const len = d.reduce((sum, c) => sum + c * c, 0);
-        if (len === 0) continue;
-        const amount = Math.min(
-            1,
-            Math.max(0, d.reduce((sum, c, i) => sum + c * (t[i] - b[i]), 0) / len)
-        );
-        const error = Math.hypot(...t.map((c, i) => b[i] + amount * d[i] - c));
-        if (error < best.error) best = { anchor, amount, error };
-    }
-    const pct = Math.round(best.amount * 1000) / 10;
-    return pct < 0.5
-        ? 'var(--dv-background-color)'
-        : `color-mix(in srgb, ${best.anchor} ${pct}%, var(--dv-background-color))`;
-};
-
 /**
  * Base colours that approximate the current theme. Background is the content
  * surface (the cards or sheets) where the theme has one, otherwise the group
- * background; the other surfaces are then fitted relative to it. Foreground is the
+ * background. The strip, tabs and hover then step away from it. Foreground is the
  * most contrasting neutral tab text (some themes colour the selected tab with
  * the accent, or mute it); accent the most saturated accent-like colour.
  * Everything else then follows these, so editing them recolours the theme.
@@ -488,32 +442,17 @@ const seedColors = (root: HTMLElement): ThemeCssOverrides => {
         '--dv-active-sash-color',
         '--dv-activegroup-visiblepanel-tab-color'
     ).sort((a, b) => saturation(b) - saturation(a));
-    const seed: ThemeCssOverrides = {
+    return {
         '--dv-background-color': background,
         '--dv-foreground-color': foreground,
         '--dv-accent-color': accent,
     };
-    if (background && foreground) {
-        for (const name of SURFACES) {
-            const raw = style.getPropertyValue(name).trim();
-            const value = raw ? normaliseColor(root, raw) : '';
-            if (value === 'transparent' || isHexColor(value)) {
-                (seed as Record<string, string>)[name] = relativeTo(
-                    background,
-                    foreground,
-                    value
-                );
-            }
-        }
-    }
-    return seed;
 };
 
 const SEEDED: (keyof ThemeCssOverrides)[] = [
     '--dv-background-color',
     '--dv-foreground-color',
     '--dv-accent-color',
-    ...SURFACES,
 ];
 
 export const Sidebar = (props: {
@@ -687,7 +626,7 @@ export const Sidebar = (props: {
                         />
                         <Hint>
                             {derived
-                                ? 'Colours now derive from the three below, starting from this theme\'s own. Layout and spacing are unchanged.'
+                                ? 'Colours now derive from the three below: the tab strip, tabs and hover each step away from Background. Layout and spacing are unchanged.'
                                 : 'This theme sets every colour itself. Switch to derived to drive them from a background, foreground and accent.'}
                         </Hint>
                     </>
@@ -764,12 +703,12 @@ export const Sidebar = (props: {
             <Section title="Shape" icon="rounded_corner" defaultOpen>
                 <Hint>
                     Each radius follows Border radius until you set it.
-                    Shoulders are the curved flares where a connected tab
-                    meets the content (0 turns them off).
+                    Tab flare is the curve where the selected tab meets the
+                    content (0 turns it off).
                 </Hint>
                 {pxSlider('Tab radius', '--dv-tab-border-radius', 0, 20)}
                 {pxSlider(
-                    'Tab shoulders',
+                    'Tab flare',
                     '--dv-tab-shoulder-size',
                     0,
                     16
