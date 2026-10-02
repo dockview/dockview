@@ -1619,9 +1619,10 @@ export class DockviewComponent
         }
 
         this.popupService = new PopupService(this.element);
-        // Closes a popover still open at teardown, disposing what it owns.
         this.addDisposables(
+            // closes a popover still open at teardown, disposing what it owns
             this.popupService,
+            // closes popout windows that have not finished opening
             Disposable.from(() => {
                 for (const opening of [...this._openingPopoutWindows]) {
                     opening.dispose();
