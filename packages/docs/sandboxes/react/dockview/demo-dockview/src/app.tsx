@@ -50,12 +50,6 @@ import {
     LIGHT_COLORS,
     usePanelColors,
 } from './panelTheme';
-import {
-    ThemeBuilderState,
-    ThemeCssOverrides,
-    buildEffectiveTheme,
-    getInitialState,
-} from './themeBuilder';
 import { Sidebar } from './themeBuilderModal';
 
 // Set the docs license key here (not only in index.tsx): the docs /demo page
@@ -751,75 +745,17 @@ const DockviewDemo = (props: {
         }
     }, [layoutReady, props]);
 
-    const [builderState, setBuilderState] = React.useState<ThemeBuilderState>(
-        () => getInitialState()
-    );
-
-    const prevTheme = React.useRef(props.theme);
-    React.useEffect(() => {
-        if (prevTheme.current !== props.theme) {
-            prevTheme.current = props.theme;
-            setBuilderState(getInitialState());
-        }
-    }, [props.theme]);
-
-
-    const updateBuilder = (patch: Partial<ThemeBuilderState>) =>
-        setBuilderState((s) => ({ ...s, ...patch }));
-
-    const updateCss = (patch: Partial<ThemeCssOverrides>) =>
-        setBuilderState((s) => {
-            const next = { ...s.cssOverrides };
-            for (const [k, v] of Object.entries(patch)) {
-                if (v === undefined || v === '') {
-                    delete (next as Record<string, unknown>)[k];
-                } else {
-                    (next as Record<string, unknown>)[k] = v;
-                }
-            }
-            return { ...s, cssOverrides: next };
-        });
-
-    const effectiveTheme = React.useMemo(
-        () => buildEffectiveTheme(props.theme ?? themeAbyss, builderState),
-        [props.theme, builderState]
-    );
-
+    const effectiveTheme = props.theme ?? themeAbyss;
     const containerRef = React.useRef<HTMLDivElement>(null);
-    const prevCssOverrideKeys = React.useRef<string[]>([]);
 
-    React.useEffect(() => {
-        // Every theme root, so docks nested in panels (which share the
-        // theme) pick up the overrides as a theme class would give them.
-        const roots = containerRef.current?.querySelectorAll<HTMLElement>(
-            '[class*="dockview-theme"]'
-        );
-        if (!roots?.length) return;
-
-        for (const dvRoot of roots) {
-            for (const k of prevCssOverrideKeys.current) {
-                if (!(k in builderState.cssOverrides)) {
-                    dvRoot.style.removeProperty(k);
-                }
-            }
-            for (const [k, v] of Object.entries(builderState.cssOverrides)) {
-                dvRoot.style.setProperty(k, v as string);
-            }
-        }
-        prevCssOverrideKeys.current = Object.keys(builderState.cssOverrides);
-    }, [builderState.cssOverrides]);
-
-    const derivedColors =
-        (props.theme ?? themeAbyss).name === themeBase.name ||
-        builderState.parts.baseColors;
     const panelColors = React.useMemo(() => {
         const palette =
             effectiveTheme.colorScheme === 'light' ? LIGHT_COLORS : DARK_COLORS;
-        if (!derivedColors) {
+        if (effectiveTheme.name !== themeBase.name) {
             return palette;
         }
-        // With derived colours the panels take the theme's content surface and
-        // text, so editing the base colours shows in the content area too.
+        // The base theme derives from its base tokens, so the panels take its
+        // content surface and text too.
         const surface =
             'var(--dv-content-background-color, var(--dv-group-view-background-color))';
         const tint = (amount: number) =>
@@ -831,7 +767,7 @@ const DockviewDemo = (props: {
             elevated: tint(6),
             text: 'var(--dv-foreground-color)',
         };
-    }, [effectiveTheme, derivedColors]);
+    }, [effectiveTheme]);
 
     // Briefly enable colour transitions when the light/dark scheme flips, so the
     // dock crossfades between modes instead of hard-cutting. Scoped to the
@@ -1232,13 +1168,7 @@ const DockviewDemo = (props: {
                 <Sidebar
                     open={props.showSidebar ?? false}
                     onClose={props.onCloseSidebar ?? (() => {})}
-                    state={builderState}
-                    onChange={updateBuilder}
-                    onCssChange={updateCss}
-                    onReset={() => setBuilderState(getInitialState())}
-                    baseTheme={props.theme ?? themeAbyss}
-                    effectiveTheme={effectiveTheme}
-                    containerEl={containerRef.current}
+                    theme={effectiveTheme}
                     api={api}
                     panels={panels}
                     groups={groups}
