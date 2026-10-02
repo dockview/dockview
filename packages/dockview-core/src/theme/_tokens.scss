@@ -57,10 +57,12 @@ $defaults: -set(
     'activegroup-visiblepanel-tab-background-color',
     ref('group-view-background-color')
 );
+// A tint over the strip, so unselected tabs read as tabs (and as pills in the
+// spaced layout, where the strip is the card).
 $defaults: -set(
     $defaults,
     'activegroup-hiddenpanel-tab-background-color',
-    ref('tabs-and-actions-container-background-color')
+    mix($fg, 5%, ref('tabs-and-actions-container-background-color'))
 );
 $defaults: -set(
     $defaults,

@@ -1296,6 +1296,28 @@
 .dockview-theme-slate.dockview-base-colors,
 .dockview-theme-slate-dark.dockview-base-colors {
     --dv-separator-border: transparent;
+    // The sheets (selected tab and content) are the background colour; the
+    // canvas around them is a tint of it.
+    --dv-group-view-background-color: #{dv.mix(
+            var(--dv-foreground-color),
+            10%,
+            var(--dv-background-color)
+        )};
+    --dv-tabs-and-actions-container-background-color: var(
+        --dv-group-view-background-color
+    );
+    --dv-activegroup-visiblepanel-tab-background-color: var(
+        --dv-background-color
+    );
+    --dv-inactivegroup-visiblepanel-tab-background-color: var(
+        --dv-background-color
+    );
+    --dv-activegroup-hiddenpanel-tab-background-color: var(
+        --dv-group-view-background-color
+    );
+    --dv-inactivegroup-hiddenpanel-tab-background-color: var(
+        --dv-group-view-background-color
+    );
 }
 
 // These spaced themes show drops as a border only.
