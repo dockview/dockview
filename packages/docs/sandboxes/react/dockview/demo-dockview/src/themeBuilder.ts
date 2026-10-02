@@ -25,6 +25,7 @@ export interface ThemeCssOverrides {
     '--dv-tab-border-radius'?: string;
     '--dv-sash-border-radius'?: string;
     '--dv-vertical-tab-border-radius'?: string;
+    '--dv-tab-shoulder-size'?: string;
     '--dv-dropdown-border-radius'?: string;
     '--dv-floating-border-radius'?: string;
     // Colours

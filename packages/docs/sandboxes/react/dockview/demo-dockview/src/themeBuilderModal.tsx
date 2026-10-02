@@ -380,6 +380,7 @@ const OTHER_TOKENS: (keyof ThemeCssOverrides)[] = [
     '--dv-tab-border-radius',
     '--dv-sash-border-radius',
     '--dv-vertical-tab-border-radius',
+    '--dv-tab-shoulder-size',
     '--dv-dropdown-border-radius',
     '--dv-floating-border-radius',
     '--dv-floating-group-border',
@@ -763,8 +764,16 @@ export const Sidebar = (props: {
             <Section title="Shape" icon="rounded_corner" defaultOpen>
                 <Hint>
                     Each radius follows Border radius until you set it.
+                    Shoulders are the curved flares where a connected tab
+                    meets the content (0 turns them off).
                 </Hint>
                 {pxSlider('Tab radius', '--dv-tab-border-radius', 0, 20)}
+                {pxSlider(
+                    'Tab shoulders',
+                    '--dv-tab-shoulder-size',
+                    0,
+                    16
+                )}
                 {pxSlider(
                     'Tab radius on rails',
                     '--dv-vertical-tab-border-radius',
