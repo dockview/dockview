@@ -50,7 +50,7 @@ $defaults: -set($defaults, 'group-view-background-color', ref('background-color'
 $defaults: -set(
     $defaults,
     'tabs-and-actions-container-background-color',
-    mix($fg, 4%, ref('background-color'))
+    mix($fg, 8%, ref('background-color'))
 );
 $defaults: -set(
     $defaults,
