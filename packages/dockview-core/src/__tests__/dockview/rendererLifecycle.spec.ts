@@ -1,6 +1,7 @@
 import { fireEvent } from '@testing-library/dom';
 import { DockviewComponent } from '../../dockview/dockviewComponent';
 import { DockviewComponentOptions } from '../../dockview/options';
+import { setupDeferredMockWindow } from '../__mocks__/mockWindow';
 import {
     createRendererTracker,
     RendererTracker,
@@ -374,6 +375,44 @@ describe('renderer lifecycle', () => {
             }
 
             expectNothingAliveAfterDispose();
+        });
+    });
+    describe('popout windows', () => {
+        const originalOpen = window.open;
+
+        afterEach(() => {
+            window.open = originalOpen;
+        });
+
+        test('a popout that finishes opening after dispose() is abandoned', async () => {
+            const deferred = setupDeferredMockWindow();
+            const close = jest.spyOn(deferred.window, 'close');
+            window.open = jest.fn(() => deferred.window);
+
+            create();
+            const p1 = dockview.addPanel({ id: 'p1', component: 'default' });
+            dockview.addPanel({
+                id: 'p2',
+                component: 'default',
+                position: { direction: 'right' },
+            });
+
+            const opened = dockview.addPopoutGroup(p1);
+            dockview.dispose();
+            // the window is closed as part of teardown, not left loading
+            expect(close).toHaveBeenCalled();
+
+            deferred.load();
+            await expect(opened).resolves.toBe(false);
+
+            expect(p1.api.location.type).toBe('grid');
+            expect(tracker.snapshot()).toEqual({
+                content: 0,
+                tab: 0,
+                watermark: 0,
+                headerAction: 0,
+                contextMenuItem: 0,
+            });
         });
     });
 });

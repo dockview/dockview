@@ -618,6 +618,10 @@ export class DockviewComponent
     // by the panel api that owns them so a panel reports at most once per
     // transaction. See `deferLocationChange()`.
     private readonly _pendingLocationChanges = new Map<object, () => void>();
+    // Popout windows still opening. Nothing else owns them until they finish,
+    // so teardown closes them here rather than letting one finish opening on a
+    // disposed component.
+    private readonly _openingPopoutWindows = new Set<IDisposable>();
     // Current operation origin. Defaults to `'user'`; the DockviewApi boundary
     // flips it to `'api'` for the duration of a programmatic call via
     // `withOrigin`. Nested operations inherit the outermost origin (tracked by
@@ -1616,7 +1620,15 @@ export class DockviewComponent
 
         this.popupService = new PopupService(this.element);
         // Closes a popover still open at teardown, disposing what it owns.
-        this.addDisposables(this.popupService);
+        this.addDisposables(
+            this.popupService,
+            Disposable.from(() => {
+                for (const opening of [...this._openingPopoutWindows]) {
+                    opening.dispose();
+                }
+                this._openingPopoutWindows.clear();
+            })
+        );
         this._api = new DockviewApi(this);
 
         // The shell always wraps the dockview element so edge groups can be
@@ -2028,6 +2040,7 @@ export class DockviewComponent
                 popoutWindowDisposable.dispose();
             })
         );
+        this._openingPopoutWindows.add(popoutWindowDisposable);
 
         // A URL the guard refuses - a packaged desktop shell serving the app
         // from a custom protocol, say - is settled here rather than by catching
@@ -2039,6 +2052,13 @@ export class DockviewComponent
 
         return (openError ? Promise.resolve(null) : _window.open())
             .then((popoutContainer) => {
+                this._openingPopoutWindows.delete(popoutWindowDisposable);
+
+                if (this.isDisposed) {
+                    popoutWindowDisposable.dispose();
+                    return false;
+                }
+
                 if (_window.isDisposed) {
                     // Gone while opening, so nothing has left the grid and there
                     // is no group to return - but the caller is owed the reason,
