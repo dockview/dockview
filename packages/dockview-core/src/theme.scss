@@ -1299,11 +1299,7 @@
     --dv-separator-border: transparent;
     // The sheets (selected tab and content) are the background colour; the
     // canvas around them is a tint of it.
-    --dv-group-view-background-color: #{dv.mix(
-            var(--dv-foreground-color),
-            10%,
-            var(--dv-background-color)
-        )};
+    --dv-group-view-background-color: #{dv.step(10%)};
     --dv-tabs-and-actions-container-background-color: var(
         --dv-group-view-background-color
     );

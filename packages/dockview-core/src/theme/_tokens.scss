@@ -34,6 +34,15 @@ $defaults: ();
     @return string.unquote('color-mix(in srgb, #{$color} #{$amount}, #{$onto})');
 }
 
+// A surface a fixed step away from the background: darker on a light colour
+// scheme, lighter on a dark one. Mixing towards black or white (not the
+// foreground) keeps the step visible whatever background is chosen.
+@function step($amount, $onto: ref('background-color')) {
+    @return string.unquote(
+        'color-mix(in oklab, light-dark(black, white) #{$amount}, #{$onto})'
+    );
+}
+
 @function scale($token, $factor) {
     @return string.unquote('calc(#{ref($token)} * #{$factor})');
 }
@@ -47,22 +56,22 @@ $accent: ref('accent-color');
 
 // ── Surfaces ───────────────────────────────────────────────────────────────
 $defaults: -set($defaults, 'group-view-background-color', ref('background-color'));
+// Content and the selected tab are the background; the strip, unselected
+// tabs and hover each step further from it.
 $defaults: -set(
     $defaults,
     'tabs-and-actions-container-background-color',
-    mix($fg, 8%, ref('background-color'))
+    step(7%)
 );
 $defaults: -set(
     $defaults,
     'activegroup-visiblepanel-tab-background-color',
     ref('group-view-background-color')
 );
-// A tint over the strip, so unselected tabs read as tabs (and as pills in the
-// spaced layout, where the strip is the card).
 $defaults: -set(
     $defaults,
     'activegroup-hiddenpanel-tab-background-color',
-    mix($fg, 5%, ref('tabs-and-actions-container-background-color'))
+    step(12%)
 );
 $defaults: -set(
     $defaults,
@@ -77,7 +86,7 @@ $defaults: -set(
 $defaults: -set(
     $defaults,
     'tab-inactive-hover-background-color',
-    mix($fg, 6%, ref('activegroup-hiddenpanel-tab-background-color'))
+    step(18%)
 );
 $defaults: -set(
     $defaults,
