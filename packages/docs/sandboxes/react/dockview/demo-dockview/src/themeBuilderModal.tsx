@@ -185,6 +185,21 @@ const normaliseColor = (root: HTMLElement, value: string): string => {
     return toHex(computed);
 };
 
+/**
+ * Resolve a derived length (`calc(var(--dv-border-radius) * 2 / 3)`) to px so
+ * sliders show the value in effect; anything else is returned as is.
+ */
+const normaliseLength = (root: HTMLElement, value: string): string => {
+    if (!/calc\(|var\(/.test(value)) return value;
+    const probe = document.createElement('div');
+    probe.style.display = 'none';
+    probe.style.width = value;
+    root.appendChild(probe);
+    const computed = getComputedStyle(probe).width;
+    probe.remove();
+    return computed.endsWith('px') ? computed : value;
+};
+
 /** The value in effect for each token, as shown in the builder. */
 const readEffectiveValues = (
     root: HTMLElement,
@@ -198,7 +213,7 @@ const readEffectiveValues = (
         if (declared) {
             out[name] = colors.has(name)
                 ? normaliseColor(root, declared)
-                : declared;
+                : normaliseLength(root, declared);
             continue;
         }
         const rendered = RENDERED[name];
@@ -251,7 +266,13 @@ const ColorRow = (props: {
         >
             <input
                 type="color"
-                value={isHexColor(shown) ? shown : '#000000'}
+                value={
+                    isHexColor(shown)
+                        ? shown
+                        : isHexColor(props.effective)
+                          ? props.effective
+                          : '#000000'
+                }
                 onChange={(e) => props.onChange(e.target.value)}
                 style={{
                     width: 26,
@@ -358,6 +379,9 @@ const OTHER_TOKENS: (keyof ThemeCssOverrides)[] = [
     '--dv-tabs-and-actions-container-font-size',
     '--dv-tab-border-radius',
     '--dv-sash-border-radius',
+    '--dv-vertical-tab-border-radius',
+    '--dv-dropdown-border-radius',
+    '--dv-floating-border-radius',
     '--dv-floating-group-border',
     '--dv-floating-box-shadow',
     '--dv-floating-border',
@@ -379,12 +403,59 @@ const luminance = (hex: string): number => {
     return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 };
 
+// Surfaces the derived colours express relative to the background.
+const SURFACES: (keyof ThemeCssOverrides)[] = [
+    '--dv-group-view-background-color',
+    '--dv-tabs-and-actions-container-background-color',
+    '--dv-activegroup-visiblepanel-tab-background-color',
+    '--dv-activegroup-hiddenpanel-tab-background-color',
+    '--dv-inactivegroup-visiblepanel-tab-background-color',
+    '--dv-inactivegroup-hiddenpanel-tab-background-color',
+];
+
 /**
- * Base colours that reproduce the current theme: its group background; as
- * foreground its most contrasting neutral tab text (some themes colour the
- * selected tab with the accent, or mute it); as accent its most saturated
- * accent-like colour. The surfaces themes pick deliberately (tab strip,
- * selected and unselected tabs) are kept as overrides.
+ * `target` as a mix of the background towards the foreground, white or
+ * black, whichever reproduces it best. Kept as an expression, so the surface
+ * follows the background when it is edited.
+ */
+const relativeTo = (
+    background: string,
+    foreground: string,
+    target: string
+): string => {
+    if (target === 'transparent') return target;
+    const b = rgbOf(background);
+    const t = rgbOf(target);
+    let best = { anchor: '', amount: 0, error: Infinity };
+    for (const [anchor, hex] of [
+        ['var(--dv-foreground-color)', foreground],
+        ['white', '#ffffff'],
+        ['black', '#000000'],
+    ]) {
+        const a = rgbOf(hex);
+        const d = a.map((c, i) => c - b[i]);
+        const len = d.reduce((sum, c) => sum + c * c, 0);
+        if (len === 0) continue;
+        const amount = Math.min(
+            1,
+            Math.max(0, d.reduce((sum, c, i) => sum + c * (t[i] - b[i]), 0) / len)
+        );
+        const error = Math.hypot(...t.map((c, i) => b[i] + amount * d[i] - c));
+        if (error < best.error) best = { anchor, amount, error };
+    }
+    const pct = Math.round(best.amount * 1000) / 10;
+    return pct < 0.5
+        ? 'var(--dv-background-color)'
+        : `color-mix(in srgb, ${best.anchor} ${pct}%, var(--dv-background-color))`;
+};
+
+/**
+ * Base colours that approximate the current theme. Background is the content
+ * surface (the cards or sheets) where the theme has one, otherwise the group
+ * background; the other surfaces are then fitted relative to it. Foreground is the
+ * most contrasting neutral tab text (some themes colour the selected tab with
+ * the accent, or mute it); accent the most saturated accent-like colour.
+ * Everything else then follows these, so editing them recolours the theme.
  */
 const seedColors = (root: HTMLElement): ThemeCssOverrides => {
     const style = getComputedStyle(root);
@@ -394,7 +465,11 @@ const seedColors = (root: HTMLElement): ThemeCssOverrides => {
             .filter(Boolean)
             .map((value) => normaliseColor(root, value))
             .filter(isHexColor);
-    const [background] = colors('--dv-group-view-background-color');
+    // The content surface (cards, sheets) where the layout has one, so the
+    // canvas around it is expressed relative to it rather than the reverse.
+    const [group] = colors('--dv-group-view-background-color');
+    const [content] = colors('--dv-content-background-color');
+    const background = content ?? group;
     const text = colors(
         '--dv-activegroup-visiblepanel-tab-color',
         '--dv-inactivegroup-visiblepanel-tab-color',
@@ -412,29 +487,32 @@ const seedColors = (root: HTMLElement): ThemeCssOverrides => {
         '--dv-active-sash-color',
         '--dv-activegroup-visiblepanel-tab-color'
     ).sort((a, b) => saturation(b) - saturation(a));
-    return {
+    const seed: ThemeCssOverrides = {
         '--dv-background-color': background,
         '--dv-foreground-color': foreground,
         '--dv-accent-color': accent,
-        '--dv-tabs-and-actions-container-background-color': colors(
-            '--dv-tabs-and-actions-container-background-color'
-        )[0],
-        '--dv-activegroup-visiblepanel-tab-background-color': colors(
-            '--dv-activegroup-visiblepanel-tab-background-color'
-        )[0],
-        '--dv-activegroup-hiddenpanel-tab-background-color': colors(
-            '--dv-activegroup-hiddenpanel-tab-background-color'
-        )[0],
     };
+    if (background && foreground) {
+        for (const name of SURFACES) {
+            const raw = style.getPropertyValue(name).trim();
+            const value = raw ? normaliseColor(root, raw) : '';
+            if (value === 'transparent' || isHexColor(value)) {
+                (seed as Record<string, string>)[name] = relativeTo(
+                    background,
+                    foreground,
+                    value
+                );
+            }
+        }
+    }
+    return seed;
 };
 
 const SEEDED: (keyof ThemeCssOverrides)[] = [
     '--dv-background-color',
     '--dv-foreground-color',
     '--dv-accent-color',
-    '--dv-tabs-and-actions-container-background-color',
-    '--dv-activegroup-visiblepanel-tab-background-color',
-    '--dv-activegroup-hiddenpanel-tab-background-color',
+    ...SURFACES,
 ];
 
 export const Sidebar = (props: {
@@ -679,7 +757,29 @@ export const Sidebar = (props: {
                     18,
                     13
                 )}
+            </Section>
+
+            {/* Shape */}
+            <Section title="Shape" icon="rounded_corner" defaultOpen>
+                <Hint>
+                    Each radius follows Border radius until you set it.
+                </Hint>
                 {pxSlider('Tab radius', '--dv-tab-border-radius', 0, 20)}
+                {pxSlider(
+                    'Tab radius on rails',
+                    '--dv-vertical-tab-border-radius',
+                    0,
+                    20,
+                    // Unset, rails use the tab radius.
+                    px('--dv-tab-border-radius', 0)
+                )}
+                {pxSlider(
+                    'Floating group radius',
+                    '--dv-floating-border-radius',
+                    0,
+                    20
+                )}
+                {pxSlider('Menu radius', '--dv-dropdown-border-radius', 0, 20)}
                 {pxSlider('Sash radius', '--dv-sash-border-radius', 0, 20)}
             </Section>
 

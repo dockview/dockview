@@ -24,6 +24,9 @@ export interface ThemeCssOverrides {
     '--dv-tabs-and-actions-container-font-size'?: string;
     '--dv-tab-border-radius'?: string;
     '--dv-sash-border-radius'?: string;
+    '--dv-vertical-tab-border-radius'?: string;
+    '--dv-dropdown-border-radius'?: string;
+    '--dv-floating-border-radius'?: string;
     // Colours
     '--dv-group-view-background-color'?: string;
     '--dv-tabs-and-actions-container-background-color'?: string;
