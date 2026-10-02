@@ -8,6 +8,7 @@ import {
     DockviewApi,
     DockviewTheme,
     themeAbyss,
+    themeBase,
     IContextMenuItemComponentProps,
     GetTabContextMenuItemsParams,
     GetTabGroupChipContextMenuItemsParams,
@@ -808,11 +809,29 @@ const DockviewDemo = (props: {
         prevCssOverrideKeys.current = Object.keys(builderState.cssOverrides);
     }, [builderState.cssOverrides]);
 
-    const panelColors = React.useMemo(
-        () =>
-            effectiveTheme.colorScheme === 'light' ? LIGHT_COLORS : DARK_COLORS,
-        [effectiveTheme]
-    );
+    const derivedColors =
+        (props.theme ?? themeAbyss).name === themeBase.name ||
+        builderState.parts.baseColors;
+    const panelColors = React.useMemo(() => {
+        const palette =
+            effectiveTheme.colorScheme === 'light' ? LIGHT_COLORS : DARK_COLORS;
+        if (!derivedColors) {
+            return palette;
+        }
+        // With derived colours the panels take the theme's content surface and
+        // text, so editing the base colours shows in the content area too.
+        const surface =
+            'var(--dv-content-background-color, var(--dv-group-view-background-color))';
+        const tint = (amount: number) =>
+            `color-mix(in srgb, var(--dv-foreground-color) ${amount}%, ${surface})`;
+        return {
+            ...palette,
+            bg: surface,
+            bgAlt: tint(3),
+            elevated: tint(6),
+            text: 'var(--dv-foreground-color)',
+        };
+    }, [effectiveTheme, derivedColors]);
 
     // Briefly enable colour transitions when the light/dark scheme flips, so the
     // dock crossfades between modes instead of hard-cutting. Scoped to the
