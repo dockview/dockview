@@ -1,4 +1,5 @@
 import { findRelativeZIndexParent } from '../dom';
+import { CompositeDisposable } from '../lifecycle';
 import { DockviewGroupPanel } from './dockviewGroupPanel';
 import { IDockviewPanel } from './dockviewPanel';
 import {
@@ -254,7 +255,8 @@ export class ContextMenuController implements IContextMenuService {
             | Pick<IContextMenuItemComponentProps, 'panel'>
             | Pick<IChipContextMenuItemComponentProps, 'tabGroup'>,
         group: DockviewGroupPanel,
-        close: () => void
+        close: () => void,
+        owned: CompositeDisposable
     ): void {
         const renderer = this.accessor.options.createContextMenuItemComponent?.(
             {
@@ -265,6 +267,7 @@ export class ContextMenuController implements IContextMenuService {
         if (!renderer) {
             return;
         }
+        owned.addDisposables(renderer);
         renderer.init({
             ...identity,
             group,
@@ -371,12 +374,20 @@ export class ContextMenuController implements IContextMenuService {
             | Pick<IContextMenuItemComponentProps, 'panel'>
             | Pick<IChipContextMenuItemComponentProps, 'tabGroup'>,
         group: DockviewGroupPanel,
-        close: () => void
+        close: () => void,
+        owned: CompositeDisposable
     ): void {
         if (item.element) {
             menuEl.appendChild(item.element);
         } else if (item.component) {
-            this.appendComponentItem(menuEl, item, identity, group, close);
+            this.appendComponentItem(
+                menuEl,
+                item,
+                identity,
+                group,
+                close,
+                owned
+            );
         } else if (item.label) {
             menuEl.appendChild(
                 buildItem(
@@ -408,13 +419,22 @@ export class ContextMenuController implements IContextMenuService {
 
         const popupService = this.accessor.getPopupServiceForGroup(group);
         const close = () => popupService.close();
+        // component items, disposed with the menu
+        const owned = new CompositeDisposable();
         const menuEl = document.createElement('div');
         menuEl.className = 'dv-context-menu';
         menuEl.setAttribute('role', 'menu');
 
         for (const item of items) {
             if (isItemConfig(item)) {
-                this.appendConfigItem(menuEl, item, { panel }, group, close);
+                this.appendConfigItem(
+                    menuEl,
+                    item,
+                    { panel },
+                    group,
+                    close,
+                    owned
+                );
                 continue;
             }
             const el = this.buildBuiltInTabItem(item, panel, group, close);
@@ -423,11 +443,15 @@ export class ContextMenuController implements IContextMenuService {
             }
         }
 
-        popupService.openPopover(menuEl, {
-            x: event.clientX,
-            y: event.clientY,
-            zIndex: popoverZIndexFor(event.target, group),
-        });
+        popupService.openPopover(
+            menuEl,
+            {
+                x: event.clientX,
+                y: event.clientY,
+                zIndex: popoverZIndexFor(event.target, group),
+            },
+            owned
+        );
     }
 
     showForChip(
@@ -454,6 +478,8 @@ export class ContextMenuController implements IContextMenuService {
 
         const popupService = this.accessor.getPopupServiceForGroup(group);
         const close = () => popupService.close();
+        // component items, disposed with the menu
+        const owned = new CompositeDisposable();
         const menuEl = document.createElement('div');
         menuEl.className = 'dv-context-menu';
         menuEl.setAttribute('role', 'menu');
@@ -481,15 +507,26 @@ export class ContextMenuController implements IContextMenuService {
                     })
                 );
             } else if (isItemConfig(item)) {
-                this.appendConfigItem(menuEl, item, { tabGroup }, group, close);
+                this.appendConfigItem(
+                    menuEl,
+                    item,
+                    { tabGroup },
+                    group,
+                    close,
+                    owned
+                );
             }
         }
 
-        popupService.openPopover(menuEl, {
-            x: event.clientX,
-            y: event.clientY,
-            zIndex: popoverZIndexFor(event.target, group),
-        });
+        popupService.openPopover(
+            menuEl,
+            {
+                x: event.clientX,
+                y: event.clientY,
+                zIndex: popoverZIndexFor(event.target, group),
+            },
+            owned
+        );
     }
 }
 

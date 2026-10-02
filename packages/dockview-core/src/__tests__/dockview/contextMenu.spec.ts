@@ -144,10 +144,14 @@ describe('ContextMenuController', () => {
 
             controller.show(makePanel(), makeGroup(), event);
 
-            expect(openPopover).toHaveBeenCalledWith(expect.any(HTMLElement), {
-                x: 150,
-                y: 300,
-            });
+            expect(openPopover).toHaveBeenCalledWith(
+                expect.any(HTMLElement),
+                {
+                    x: 150,
+                    y: 300,
+                },
+                expect.anything()
+            );
         });
 
         test('does not call openPopover when getTabContextMenuItems returns empty array', () => {
@@ -245,7 +249,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(1001 * 2)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(floating);
@@ -296,7 +301,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(999 * 2)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(floating);
@@ -326,7 +332,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(1003 * 2)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(outer);
@@ -375,7 +382,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(var(--dv-overlay-z-index, 999) + 100)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(tab);
@@ -402,7 +410,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(var(--dv-overlay-z-index, 999) + 100)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(floating);
@@ -428,7 +437,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(var(--dv-overlay-z-index, 999) + 100)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(chip);
@@ -1374,7 +1384,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(1001 * 2)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(floating);

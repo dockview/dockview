@@ -1615,6 +1615,8 @@ export class DockviewComponent
         }
 
         this.popupService = new PopupService(this.element);
+        // Closes a popover still open at teardown, disposing what it owns.
+        this.addDisposables(this.popupService);
         this._api = new DockviewApi(this);
 
         // The shell always wraps the dockview element so edge groups can be
@@ -3814,6 +3816,10 @@ export class DockviewComponent
                             }
                         });
                         record?.disposable.dispose();
+                        // The header actions mounted for the group are only
+                        // released on `onDidRemoveGroup`, which a staging
+                        // group never fires.
+                        this.headerActionsService?.disposeGroup(temporaryGroup);
                         temporaryGroup.dispose();
                     })
                 );

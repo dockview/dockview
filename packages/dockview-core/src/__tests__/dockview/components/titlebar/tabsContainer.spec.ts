@@ -2081,6 +2081,7 @@ describe('tabsContainer', () => {
             capturedContext.open(body);
             expect(mockPopupService.openPopover).toHaveBeenCalledWith(
                 body,
+                expect.anything(),
                 expect.anything()
             );
             mockPopupService.close.mockClear();

@@ -1,3 +1,4 @@
+import { fireEvent } from '@testing-library/dom';
 import { DockviewComponent } from '../../dockview/dockviewComponent';
 import { DockviewComponentOptions } from '../../dockview/options';
 import {
@@ -284,6 +285,93 @@ describe('renderer lifecycle', () => {
             expect(removed.model.isDisposed).toBe(true);
             expect(dockview.activeGroup?.id).not.toBe(removed.id);
             expectNextPanelLandsInALiveGroup();
+
+            expectNothingAliveAfterDispose();
+        });
+    });
+    describe('popover content', () => {
+        test('overflow dropdown rows are disposed when it closes', () => {
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            dockview = new DockviewComponent(container, tracker.options);
+            dockview.layout(400, 300);
+            const panels = ['a', 'b', 'c'].map((id) =>
+                dockview.addPanel({ id, component: 'default' })
+            );
+            const header = (panels[0].group.model as any).header;
+            header.setForcedOverflow((id: string) => id !== 'a');
+            header.refreshOverflow();
+            const root = container.querySelector<HTMLElement>(
+                '.dv-tabs-overflow-dropdown-root'
+            )!;
+            const popup = dockview.getPopupServiceForGroup(panels[0].group);
+
+            for (let i = 0; i < 3; i++) {
+                fireEvent.click(root);
+                // three header tabs plus the two overflow rows
+                expect(tracker.alive('tab')).toBe(5);
+                popup.close();
+                expect(tracker.alive('tab')).toBe(3);
+            }
+
+            // reopening replaces the open dropdown's rows rather than adding
+            fireEvent.click(root);
+            fireEvent.click(root);
+            expect(tracker.alive('tab')).toBe(5);
+
+            expectNothingAliveAfterDispose();
+            container.remove();
+        });
+
+        test('context menu component items are disposed when it closes', () => {
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            dockview = new DockviewComponent(container, {
+                ...tracker.options,
+                getTabContextMenuItems: () => [{ component: 'item' }],
+            });
+            dockview.layout(400, 300);
+            const panel = dockview.addPanel({ id: 'a', component: 'default' });
+            const tab = container.querySelector<HTMLElement>('.dv-tab')!;
+            const popup = dockview.getPopupServiceForGroup(panel.group);
+
+            for (let i = 0; i < 3; i++) {
+                fireEvent.contextMenu(tab);
+                expect(tracker.alive('contextMenuItem')).toBe(1);
+                popup.close();
+                expect(tracker.alive('contextMenuItem')).toBe(0);
+            }
+            expect(tracker.created('contextMenuItem')).toBe(3);
+
+            fireEvent.contextMenu(tab);
+            expectNothingAliveAfterDispose();
+            container.remove();
+        });
+    });
+
+    describe('fromJSON', () => {
+        test('reuseExistingPanels does not leak staging group header actions', () => {
+            create();
+            dockview.addPanel({ id: 'p1', component: 'default' });
+            dockview.addPanel({
+                id: 'p2',
+                component: 'default',
+                position: { direction: 'right' },
+            });
+            dockview.addPanel({
+                id: 'p3',
+                component: 'default',
+                position: { direction: 'below' },
+            });
+            const json = dockview.toJSON();
+
+            for (let i = 0; i < 3; i++) {
+                dockview.fromJSON(json, { reuseExistingPanels: true });
+                expect(dockview.groups).toHaveLength(3);
+                expect(tracker.alive('headerAction')).toBe(3);
+                expect(tracker.alive('content')).toBe(3);
+                expect(tracker.alive('tab')).toBe(3);
+            }
 
             expectNothingAliveAfterDispose();
         });
