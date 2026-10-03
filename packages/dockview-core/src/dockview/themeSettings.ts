@@ -45,13 +45,37 @@ function readFirst(styles: StyleSource[], property: string): string {
     return '';
 }
 
-function toPixels(value: string): number | undefined {
-    // Only bare numbers and px lengths; other units and calc() are ignored.
+function parsePixels(value: string): number | undefined {
     const number = value.endsWith('px') ? value.slice(0, -2) : value;
     if (number === '' || !Number.isFinite(Number(number))) {
         return undefined;
     }
     return Number(number);
+}
+
+function toPixels(value: string): number | undefined {
+    const pixels = parsePixels(value);
+    if (
+        pixels !== undefined ||
+        value === '' ||
+        typeof document === 'undefined'
+    ) {
+        return pixels;
+    }
+    // Other lengths (`rem`, `calc()`, ...) resolve through a probe's width.
+    const probe = document.createElement('div');
+    probe.style.position = 'absolute';
+    probe.style.visibility = 'hidden';
+    probe.style.width = value;
+    if (!probe.style.width || !document.body) {
+        return undefined;
+    }
+    document.body.appendChild(probe);
+    try {
+        return parsePixels(getComputedStyle(probe).width);
+    } finally {
+        probe.remove();
+    }
 }
 
 /**

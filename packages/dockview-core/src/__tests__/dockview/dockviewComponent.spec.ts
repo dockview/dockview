@@ -14426,16 +14426,17 @@ describe('theme settings from CSS', () => {
         dv.dispose();
     });
 
-    test('detects the stylesheet by its registered property, despite a box-sizing reset', () => {
+    test('detects the stylesheet by its marker, not by page resets or base tokens', () => {
         const dv = createDockview();
         const applied = () =>
             (dv as unknown as { isStylesheetApplied: boolean })
                 .isStylesheetApplied;
-        dv.element.style.setProperty('box-sizing', 'content-box');
+        // A CSS reset (e.g. Tailwind preflight) or a user's base token.
+        dv.element.style.setProperty('box-sizing', 'border-box');
+        dv.element.style.setProperty('--dv-spacing', '4px');
         expect(applied()).toBe(false);
 
-        // dockview's stylesheet registers --dv-spacing with an initial value.
-        dv.element.style.setProperty('--dv-spacing', '4px');
+        dv.element.style.setProperty('--dv-stylesheet', '1');
         expect(applied()).toBe(true);
         dv.dispose();
     });
@@ -14471,7 +14472,7 @@ describe('theme settings from CSS', () => {
 
     test('a dockview created detached reads its CSS once attached and laid out', () => {
         const style = document.createElement('style');
-        style.textContent = '.dv-component-root { box-sizing: border-box; }';
+        style.textContent = '.dv-component-root { --dv-stylesheet: 1; }';
         document.head.appendChild(style);
         const container = document.createElement('div');
         const dv = new DockviewComponent(container, {
@@ -14498,7 +14499,7 @@ describe('theme settings from CSS', () => {
         dv.element.style.setProperty('--dv-group-gap', '11px');
 
         const style = document.createElement('style');
-        style.textContent = '.dv-component-root { box-sizing: border-box; }';
+        style.textContent = '.dv-component-root { --dv-stylesheet: 1; }';
         document.head.appendChild(style);
         const link = document.createElement('link');
         document.head.appendChild(link);
@@ -14543,6 +14544,53 @@ describe('theme settings from CSS', () => {
         } finally {
             style.remove();
         }
+    });
+
+    test('the shell keeps its own drop-preview values when className leaves them unchanged', () => {
+        const style = document.createElement('style');
+        style.textContent =
+            '.dv-shell { --dv-drop-target-border-radius: 6px; } .layout-class { --dv-group-gap: 3px; }';
+        document.head.appendChild(style);
+        try {
+            const dv = createDockview();
+            const shell = dv.element.closest('.dv-shell') as HTMLElement;
+
+            dv.updateOptions({ className: 'layout-class' });
+            // Not copied inline, so the shell's own (live) value still applies.
+            expect(
+                shell.style.getPropertyValue('--dv-drop-target-border-radius')
+            ).toBe('');
+            dv.dispose();
+        } finally {
+            style.remove();
+        }
+    });
+
+    test('a popout uses a theme applied through className over the theme object', async () => {
+        window.open = () => setupMockWindow();
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        const dv = new DockviewComponent(container, {
+            theme: { name: 'obj', className: 'dockview-theme-abyss' },
+            className: 'dockview-theme-light h-full',
+            createComponent(options) {
+                return new PanelContentPartTest(options.id, options.name);
+            },
+        });
+        dv.layout(1000, 500);
+        dv.addPanel({ id: 'a', component: 'default' });
+        const panel = dv.addPanel({ id: 'b', component: 'default' });
+
+        await dv.addPopoutGroup(panel);
+
+        const popout = Array.from(
+            document.querySelectorAll<HTMLElement>('.dv-popout-window')
+        ).pop();
+        expect(popout?.classList).toContain('dockview-theme-light');
+        expect(popout?.classList).not.toContain('dockview-theme-abyss');
+        expect(popout?.classList).not.toContain('h-full');
+        dv.dispose();
+        container.remove();
     });
 
     test('a detached dockview falls back to the theme object and defaults', () => {

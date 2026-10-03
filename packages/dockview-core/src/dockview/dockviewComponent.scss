@@ -88,6 +88,8 @@
         .dockview-spaced,
         [class*='dockview-theme-']
     ) {
+    // Marks the stylesheet as applied, for the theme-settings read in JS.
+    --dv-stylesheet: 1;
     box-sizing: border-box;
     padding: var(--dv-root-padding, 0px);
     background-color: var(--dv-root-background-color, transparent);

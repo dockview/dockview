@@ -581,15 +581,11 @@ const NO_EVENT: Event<any> = () => ({
 const NO_LAYOUT_HISTORY_CHANGES: Event<LayoutHistoryChangeEvent> = NO_EVENT;
 
 /**
- * Whether dockview's stylesheet applies to an element: its registered
- * `--dv-spacing` resolves (immune to page CSS resets), or, where `@property`
- * is unsupported, its root rule's `box-sizing` shows.
+ * Whether dockview's stylesheet applies to an element: its root rule declares
+ * the private `--dv-stylesheet` marker, which no page CSS reset or theme sets.
  */
 function stylesheetApplied(style: CSSStyleDeclaration): boolean {
-    return (
-        readStyleProperty(style, '--dv-spacing') !== '' ||
-        readStyleProperty(style, 'box-sizing') === 'border-box'
-    );
+    return readStyleProperty(style, '--dv-stylesheet') !== '';
 }
 
 export class DockviewComponent
@@ -861,7 +857,6 @@ export class DockviewComponent
     private _themeCssRead: boolean | undefined = undefined;
 
     private get isStylesheetApplied(): boolean {
-        // Core's root rule sets `border-box`; the browser default is `content-box`.
         return (
             this.element.isConnected &&
             typeof getComputedStyle === 'function' &&
@@ -2049,11 +2044,19 @@ export class DockviewComponent
             return this.addPopoutGroup(itemToPopout.group, options);
         }
 
-        // Every class of the theme (its parts and custom classes too), or the
-        // theme class found on an ancestor when no theme object is set.
-        const theme =
-            this._options.theme?.className ??
-            getDockviewTheme(this.gridview.element);
+        // A theme applied through `className` overrides the theme object in
+        // the main window, so it wins here too. Otherwise every class of the
+        // theme object (its parts and custom classes), or the theme class
+        // found on an ancestor.
+        const classNameTheme = (this._options.className ?? '')
+            .split(/\s+/)
+            .filter((cls) => cls.startsWith('dockview-'));
+        const theme = classNameTheme.some((cls) =>
+            cls.startsWith('dockview-theme-')
+        )
+            ? classNameTheme.join(' ')
+            : (this._options.theme?.className ??
+              getDockviewTheme(this.gridview.element));
         const element = this.element;
 
         // Always returns absolute *screen* coordinates. A caller-supplied /
@@ -2305,7 +2308,9 @@ export class DockviewComponent
                 const anchor = document.createElement('div');
                 const dropTargetContainer = new DropTargetAnchorContainer(
                     anchor,
-                    { disabled: this.rootDropTargetContainer.disabled }
+                    {
+                        disabled: this.rootDropTargetContainer.disabled,
+                    }
                 );
                 popoutContainer.appendChild(anchor);
 
@@ -6385,15 +6390,24 @@ export class DockviewComponent
         theme: DockviewTheme,
         style: CSSStyleDeclaration | undefined
     ): void {
-        const shellStyle = this._shellManager?.element.style;
+        const shell = this._shellManager?.element;
+        const shellStyle = shell?.style;
         const classNameApplied =
             style !== undefined && !!this._options.className?.trim();
-        // updateTheme has already cleared these; only set values here.
+        const shellComputed =
+            classNameApplied && shell ? getComputedStyle(shell) : undefined;
+        // updateTheme has already cleared these; only set values here. Copy
+        // only what `className` changes, so the shell otherwise keeps its own
+        // (live, `var()`-based) values.
         for (const property of SHELL_DROP_PREVIEW_PROPERTIES) {
             const value = classNameApplied
                 ? readStyleProperty(style, property)
                 : '';
-            if (value) {
+            if (
+                value &&
+                (!shellComputed ||
+                    value !== readStyleProperty(shellComputed, property))
+            ) {
                 shellStyle?.setProperty(property, value);
             }
         }
