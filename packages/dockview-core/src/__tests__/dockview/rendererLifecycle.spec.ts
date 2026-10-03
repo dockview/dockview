@@ -419,6 +419,26 @@ describe('renderer lifecycle', () => {
             expectNothingAliveAfterDispose();
         });
 
+        test('a popout whose window fails to open is not left tracked', async () => {
+            const consoleError = jest
+                .spyOn(console, 'error')
+                .mockImplementation(() => {
+                    /* the failure is logged */
+                });
+            window.open = jest.fn(() => {
+                throw new Error('sandboxed');
+            });
+
+            create();
+            const p1 = dockview.addPanel({ id: 'p1', component: 'default' });
+
+            await expect(dockview.addPopoutGroup(p1)).resolves.toBe(false);
+            expect((dockview as any)._openingPopoutWindows.size).toBe(0);
+
+            consoleError.mockRestore();
+            expectNothingAliveAfterDispose();
+        });
+
         test('a popout that finishes opening after dispose() is abandoned', async () => {
             const deferred = setupDeferredMockWindow();
             const close = jest.spyOn(deferred.window, 'close');

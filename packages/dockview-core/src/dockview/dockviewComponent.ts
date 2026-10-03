@@ -2408,6 +2408,7 @@ export class DockviewComponent
                 return true;
             })
             .catch((err) => {
+                this._openingPopoutWindows.delete(popoutWindowDisposable);
                 console.error('dockview: failed to create popout.', err);
                 return false;
             });
