@@ -6,6 +6,7 @@ import {
     DockviewTheme,
     IDockviewPanelProps,
 } from 'dockview-react';
+import { PREVIEW_CLASS, cssRule } from './model';
 import styles from './themeBuilder.module.css';
 
 // Plain content so the theme is all that shows: text in the theme's own tab
@@ -125,29 +126,40 @@ export const Preview = (props: {
     onRendered: (root: HTMLElement) => void;
 }) => {
     const containerRef = React.useRef<HTMLDivElement>(null);
-    const appliedKeys = React.useRef<string[]>([]);
+    const styleRef = React.useRef<HTMLStyleElement | null>(null);
+    React.useEffect(
+        () => () => {
+            styleRef.current?.remove();
+            styleRef.current = null;
+        },
+        []
+    );
+    const theme = React.useMemo(
+        () => ({
+            ...props.theme,
+            className: `${props.theme.className} ${PREVIEW_CLASS}`,
+        }),
+        [props.theme]
+    );
 
     const onReady = (event: DockviewReadyEvent) => {
         buildLayout(event.api);
     };
 
-    // The builder's custom properties go on every theme root in the preview,
-    // as a theme class would apply them.
+    // The builder's custom properties go in a one-class rule in a stylesheet
+    // after dockview's, exactly as the exported CSS applies them, so the
+    // preview shows what the export produces.
     React.useLayoutEffect(() => {
         const container = containerRef.current;
         if (!container) return;
-        const roots = container.querySelectorAll<HTMLElement>(
-            '[class*="dockview-theme"]'
-        );
-        for (const root of Array.from(roots)) {
-            for (const key of appliedKeys.current) {
-                if (!(key in props.vars)) root.style.removeProperty(key);
-            }
-            for (const [key, value] of Object.entries(props.vars)) {
-                root.style.setProperty(key, value);
-            }
+        if (!styleRef.current) {
+            styleRef.current = document.createElement('style');
+            document.head.appendChild(styleRef.current);
         }
-        appliedKeys.current = Object.keys(props.vars);
+        styleRef.current.textContent = cssRule(
+            `.${PREVIEW_CLASS}`,
+            props.vars
+        );
         const id = requestAnimationFrame(() => {
             const root = container.querySelector<HTMLElement>(
                 '[class*="dockview-theme"]'
@@ -201,7 +213,7 @@ export const Preview = (props: {
             className={`${styles.preview} ${props.inspecting ? styles.previewInspecting : ''}`}
         >
             <DockviewReact
-                theme={props.theme}
+                theme={theme}
                 components={components}
                 onReady={onReady}
             />

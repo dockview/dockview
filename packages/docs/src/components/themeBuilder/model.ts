@@ -94,8 +94,7 @@ export function exportCss(state: BuilderState): string {
     if (entries.length === 0) {
         return '/* No overrides: the theme object alone reproduces this theme. */\n';
     }
-    const body = entries.map(([k, v]) => `    ${k}: ${v};`).join('\n');
-    return `/* Load after dockview.css */\n.my-theme {\n${body}\n}\n`;
+    return `/* Load after dockview.css */\n${cssRule('.my-theme', state.vars)}`;
 }
 
 /** The theme object that applies the theme, its parts and the class. */
@@ -134,6 +133,26 @@ export function exportTs(state: BuilderState): string {
     }
     lines.push('};', '');
     return lines.join('\n');
+}
+
+// ── CSS ──────────────────────────────────────────────────────────────────────
+
+/** The class carrying the builder's custom properties in the preview. */
+export const PREVIEW_CLASS = 'dv-theme-builder-preview';
+
+/**
+ * A rule declaring `vars`. Values come from the page and from share links, so
+ * anything that could end the declaration or the rule is dropped.
+ */
+export function cssRule(selector: string, vars: Record<string, string>) {
+    const body = Object.entries(vars)
+        .filter(
+            ([k, v]) =>
+                /^(--[\w-]+|color-scheme)$/.test(k) && v && !/[;{}<>\\]/.test(v)
+        )
+        .map(([k, v]) => `    ${k}: ${v};`)
+        .join('\n');
+    return `${selector} {\n${body}\n}\n`;
 }
 
 // ── Share links ──────────────────────────────────────────────────────────────

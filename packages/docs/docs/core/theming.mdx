@@ -4,10 +4,7 @@ description: Theming Dockview Components
 title: Theming
 ---
 
-import {
-    CSSVariablesTable,
-    ThemeTable,
-} from '@site/src/components/cssVariables';
+import { ThemeTable } from '@site/src/components/cssVariables';
 import { DocRef } from '@site/src/components/ui/reference/docRef';
 
 Dockview components accept a `theme` property which is highly customisable. Theming is largely controlled through CSS variables, however some properties can only be adjusted by editing the `theme` object directly.
@@ -251,9 +248,7 @@ The [theme builder](/theme-builder) lets you tweak these variables and the theme
 
 ## Customising theme
 
-The provided themes are controlled through CSS variables which can be overridden entirely for a new theme, or partially to tweak an existing one.
-
-<CSSVariablesTable />
+The provided themes are controlled through CSS variables which can be overridden entirely for a new theme, or partially to tweak an existing one. The [theme reference](/docs/core/themeReference) lists every variable, grouped and searchable, alongside every property of the theme object.
 
 ## Extending theme
 

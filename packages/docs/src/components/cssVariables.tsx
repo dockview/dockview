@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { convertMarkdown } from '../util/markdown';
 import { themeConfig } from '../config/theme.config';
-import { cssVariableConfig } from '../config/cssVariable.config';
 
 type Description = { key: string; text: string };
 
@@ -44,10 +43,6 @@ export const Table = (props: { title: string; values: Description[] }) => {
             </table>
         </>
     );
-};
-
-export const CSSVariablesTable = () => {
-    return <Table title="Variable" values={cssVariableConfig} />;
 };
 
 export const ThemeTable = () => {

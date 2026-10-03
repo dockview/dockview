@@ -450,6 +450,13 @@ export const ThemeBuilder = (props: { initialTheme?: string }) => {
             <aside className={styles.panel} aria-label="Theme controls">
                 <div className={styles.toolbar}>
                     <h1 className={styles.title}>Theme builder</h1>
+                    <a
+                        className={styles.button}
+                        href="/docs/core/themeReference"
+                        title="Every theme property, on the theme object and as CSS variables"
+                    >
+                        Reference
+                    </a>
                     <button
                         type="button"
                         className={styles.button}

@@ -33,6 +33,7 @@
 
 .button {
     font: inherit;
+    text-decoration: none !important;
     font-size: 0.8rem;
     font-weight: 600;
     padding: 4px 10px;
