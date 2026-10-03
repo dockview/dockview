@@ -1302,6 +1302,35 @@ describe('ContextMenuController', () => {
             expect(second.dispose).toHaveBeenCalledTimes(1);
         });
 
+        test('chip menu disposes the renderers built so far when an item init throws', () => {
+            const first = makeRenderer();
+            const second = makeRenderer();
+            second.init.mockImplementation(() => {
+                throw new Error('init failed');
+            });
+            const { accessor, openPopover } = makeAccessor({
+                getTabGroupChipContextMenuItems: jest
+                    .fn()
+                    .mockReturnValue([{ component: 'a' }, { component: 'b' }]),
+                createContextMenuItemComponent: jest
+                    .fn()
+                    .mockReturnValueOnce(first)
+                    .mockReturnValueOnce(second),
+            });
+
+            expect(() =>
+                new ContextMenuController(accessor).showForChip(
+                    fromPartial<ITabGroup>({}),
+                    makeGroup(),
+                    new MouseEvent('contextmenu', { cancelable: true })
+                )
+            ).toThrow('init failed');
+
+            expect(openPopover).not.toHaveBeenCalled();
+            expect(first.dispose).toHaveBeenCalledTimes(1);
+            expect(second.dispose).toHaveBeenCalledTimes(1);
+        });
+
         test('chip menu disposes its renderers on close', () => {
             const renderer = makeRenderer();
             const { accessor, openPopover } = makeAccessor({
