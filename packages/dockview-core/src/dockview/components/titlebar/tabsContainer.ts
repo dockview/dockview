@@ -674,9 +674,14 @@ export class TabsContainer
 
                 const tabComponent =
                     panel.view.createTabRenderer('headerOverflow');
-                rowRenderers.addDisposables(
-                    Disposable.from(() => tabComponent.dispose?.())
-                );
+                if (rowRenderers.isDisposed) {
+                    // built after the popover closed
+                    tabComponent.dispose?.();
+                } else {
+                    rowRenderers.addDisposables(
+                        Disposable.from(() => tabComponent.dispose?.())
+                    );
+                }
                 const child = tabComponent.element;
 
                 const wrapper = document.createElement('div');

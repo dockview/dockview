@@ -2090,6 +2090,76 @@ describe('tabsContainer', () => {
             expect(() => capturedContext.focusTrigger()).not.toThrow();
         });
 
+        test('overflow rows built after the popover closes are disposed', () => {
+            let owned: { dispose(): void } | undefined;
+            const mockPopupService = {
+                openPopover: jest.fn((_el, _pos, disposable) => {
+                    owned = disposable;
+                }),
+                close: jest.fn(() => owned?.dispose()),
+            };
+
+            let capturedContext: any;
+            const accessor = makeAccessor({
+                getPopupServiceForGroup: () => mockPopupService as any,
+                advancedOverflowService: {
+                    renderOverflow: (args: any) => {
+                        capturedContext = args.context;
+                    },
+                } as any,
+            });
+
+            const renderers: { dispose: jest.Mock }[] = [];
+            const mockPanel = fromPartial<IDockviewPanel>({
+                id: 'panel-a',
+                api: { isActive: false, setActive: jest.fn() },
+                view: {
+                    createTabRenderer: jest.fn(() => {
+                        const renderer = {
+                            element: document.createElement('div'),
+                            dispose: jest.fn(),
+                        };
+                        renderers.push(renderer);
+                        return renderer;
+                    }),
+                },
+            });
+
+            const group = makeGroup({
+                panels: [mockPanel],
+                model: fromPartial<DockviewGroupPanelModel>({
+                    getTabGroups: () => [],
+                }),
+            });
+
+            const cut = new TabsContainer(accessor, group);
+            (cut as any).tabs = makeOverflowMockTabs([
+                {
+                    panel: mockPanel,
+                    element: { scrollIntoView: jest.fn() },
+                },
+            ]);
+            (cut as any).toggleDropdown({
+                tabs: ['panel-a'],
+                tabGroups: [],
+                pinnedTabs: [],
+                reset: false,
+            });
+            fireEvent.click(
+                cut.element.querySelector('.dv-tabs-overflow-dropdown-root')!
+            );
+
+            capturedContext.buildRow('panel-a');
+            capturedContext.open(document.createElement('div'));
+            expect(renderers[0].dispose).not.toHaveBeenCalled();
+
+            capturedContext.close();
+            expect(renderers[0].dispose).toHaveBeenCalledTimes(1);
+
+            // e.g. a debounced search re-rendering after the popover closed
+            capturedContext.buildRow('panel-a');
+            expect(renderers[1].dispose).toHaveBeenCalledTimes(1);
+        });
         test('free overflow list renders pinned section and group headers', () => {
             const mockPopupService = {
                 openPopover: jest.fn(),
