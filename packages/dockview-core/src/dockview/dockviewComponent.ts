@@ -614,6 +614,8 @@ export class DockviewComponent
     // Compound operations (e.g. a drag that relocates a panel) nest via the
     // depth counter and bracket as a single transaction. See `mutation()`.
     private _mutationDepth = 0;
+    // depth of synchronous `mutation()` calls only
+    private _syncMutationDepth = 0;
     // Panel location events awaiting the end of the current transaction, keyed
     // by the panel api that owns them so a panel reports at most once per
     // transaction. See `deferLocationChange()`.
@@ -5061,9 +5063,15 @@ export class DockviewComponent
      */
     mutation<T>(kind: DockviewLayoutMutationKind, func: () => T): T {
         const close = this.openMutation(kind);
+        this._syncMutationDepth++;
         try {
             return func();
         } finally {
+            this._syncMutationDepth--;
+            // an async popout can hold the transaction open past this point
+            if (this._syncMutationDepth === 0) {
+                this.releaseDisposedActiveGroup();
+            }
             close();
         }
     }

@@ -539,23 +539,29 @@ export class TabsContainer
                         : undefined,
                 };
 
-                const context = this.createOverflowRenderContext(root, anchor);
+                const { context, rowRenderers } =
+                    this.createOverflowRenderContext(root, anchor);
 
                 // When the AdvancedOverflowModule is registered it upgrades the
                 // dropdown in place (search + MRU + keyboard), building and
                 // opening the popover itself. Absent (the free path), core
                 // renders the flat list and opens it, byte-identical to before.
                 const advancedOverflow = this.accessor.advancedOverflowService;
-                if (advancedOverflow) {
-                    advancedOverflow.renderOverflow({
-                        group: this.group,
-                        overflowTabs: [...this._overflowTabs],
-                        overflowTabGroups: [...this._overflowTabGroups],
-                        pinnedOverflowTabs: [...this._overflowPinnedTabs],
-                        context,
-                    });
-                } else {
-                    context.open(this.renderFreeOverflowList(context));
+                try {
+                    if (advancedOverflow) {
+                        advancedOverflow.renderOverflow({
+                            group: this.group,
+                            overflowTabs: [...this._overflowTabs],
+                            overflowTabGroups: [...this._overflowTabGroups],
+                            pinnedOverflowTabs: [...this._overflowPinnedTabs],
+                            context,
+                        });
+                    } else {
+                        context.open(this.renderFreeOverflowList(context));
+                    }
+                } catch (err) {
+                    rowRenderers.dispose();
+                    throw err;
                 }
             })
         );
@@ -572,7 +578,10 @@ export class TabsContainer
     private createOverflowRenderContext(
         root: HTMLElement,
         anchor: { x: number; y: number; zIndex?: string }
-    ): IAdvancedOverflowRenderContext {
+    ): {
+        context: IAdvancedOverflowRenderContext;
+        rowRenderers: CompositeDisposable;
+    } {
         // Build lookup: panelId → tabGroup for overflow groups.
         const overflowGroupSet = new Set(this._overflowTabGroups);
         const allTabGroups = this.group.model.getTabGroups();
@@ -638,7 +647,7 @@ export class TabsContainer
             return groupHeader;
         };
 
-        return {
+        const context: IAdvancedOverflowRenderContext = {
             overflowGroupIdForPanel: (panelId) => panelToGroup.get(panelId)?.id,
             buildGroupHeader: (tabGroupId) => {
                 const tg = groupById.get(tabGroupId);
@@ -750,6 +759,7 @@ export class TabsContainer
                 root.focus();
             },
         };
+        return { context, rowRenderers };
     }
 
     /**

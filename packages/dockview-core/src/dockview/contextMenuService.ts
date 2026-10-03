@@ -424,22 +424,27 @@ export class ContextMenuController implements IContextMenuService {
         menuEl.className = 'dv-context-menu';
         menuEl.setAttribute('role', 'menu');
 
-        for (const item of items) {
-            if (isItemConfig(item)) {
-                this.appendConfigItem(
-                    menuEl,
-                    item,
-                    { panel },
-                    group,
-                    close,
-                    renderers
-                );
-                continue;
+        try {
+            for (const item of items) {
+                if (isItemConfig(item)) {
+                    this.appendConfigItem(
+                        menuEl,
+                        item,
+                        { panel },
+                        group,
+                        close,
+                        renderers
+                    );
+                    continue;
+                }
+                const el = this.buildBuiltInTabItem(item, panel, group, close);
+                if (el) {
+                    menuEl.appendChild(el);
+                }
             }
-            const el = this.buildBuiltInTabItem(item, panel, group, close);
-            if (el) {
-                menuEl.appendChild(el);
-            }
+        } catch (err) {
+            renderers.dispose();
+            throw err;
         }
 
         popupService.openPopover(
@@ -482,38 +487,43 @@ export class ContextMenuController implements IContextMenuService {
         menuEl.className = 'dv-context-menu';
         menuEl.setAttribute('role', 'menu');
 
-        for (const item of items) {
-            if (item === 'separator') {
-                menuEl.appendChild(buildSeparator());
-            } else if (item === 'rename') {
-                menuEl.appendChild(buildRenameInput(tabGroup));
-            } else if (item === 'colorPicker') {
-                menuEl.appendChild(
-                    buildColorPicker(
-                        tabGroup,
-                        this.accessor.tabGroupColorPalette
-                    )
-                );
-            } else if (item === 'collapse') {
-                menuEl.appendChild(this.buildCollapseItem(tabGroup, close));
-            } else if (item === 'close') {
-                menuEl.appendChild(
-                    buildItem('Close All', close, () => {
-                        group.panels
-                            .filter((p) => tabGroup.containsPanel(p.id))
-                            .forEach((p) => p.api.close());
-                    })
-                );
-            } else if (isItemConfig(item)) {
-                this.appendConfigItem(
-                    menuEl,
-                    item,
-                    { tabGroup },
-                    group,
-                    close,
-                    renderers
-                );
+        try {
+            for (const item of items) {
+                if (item === 'separator') {
+                    menuEl.appendChild(buildSeparator());
+                } else if (item === 'rename') {
+                    menuEl.appendChild(buildRenameInput(tabGroup));
+                } else if (item === 'colorPicker') {
+                    menuEl.appendChild(
+                        buildColorPicker(
+                            tabGroup,
+                            this.accessor.tabGroupColorPalette
+                        )
+                    );
+                } else if (item === 'collapse') {
+                    menuEl.appendChild(this.buildCollapseItem(tabGroup, close));
+                } else if (item === 'close') {
+                    menuEl.appendChild(
+                        buildItem('Close All', close, () => {
+                            group.panels
+                                .filter((p) => tabGroup.containsPanel(p.id))
+                                .forEach((p) => p.api.close());
+                        })
+                    );
+                } else if (isItemConfig(item)) {
+                    this.appendConfigItem(
+                        menuEl,
+                        item,
+                        { tabGroup },
+                        group,
+                        close,
+                        renderers
+                    );
+                }
             }
+        } catch (err) {
+            renderers.dispose();
+            throw err;
         }
 
         popupService.openPopover(

@@ -383,6 +383,42 @@ describe('renderer lifecycle', () => {
             window.open = originalOpen;
         });
 
+        test('a skipSetActive removal falls back while a popout is still opening', async () => {
+            const deferred = setupDeferredMockWindow();
+            window.open = jest.fn(() => deferred.window);
+
+            create();
+            const p1 = dockview.addPanel({ id: 'p1', component: 'default' });
+            const p2 = dockview.addPanel({
+                id: 'p2',
+                component: 'default',
+                position: { direction: 'right' },
+            });
+            const p3 = dockview.addPanel({
+                id: 'p3',
+                component: 'default',
+                position: { direction: 'right' },
+            });
+            p1.api.setActive();
+            const removed = p1.group;
+
+            const opened = dockview.addPopoutGroup(p3);
+            p1.api.moveTo({
+                group: p2.group,
+                position: 'center',
+                skipSetActive: true,
+            });
+
+            expect(removed.model.isDisposed).toBe(true);
+            expect(dockview.activeGroup?.model.isDisposed).toBe(false);
+            const p4 = dockview.addPanel({ id: 'p4', component: 'default' });
+            expect(p4.group.model.isDisposed).toBe(false);
+
+            deferred.load();
+            await opened;
+            expectNothingAliveAfterDispose();
+        });
+
         test('a popout that finishes opening after dispose() is abandoned', async () => {
             const deferred = setupDeferredMockWindow();
             const close = jest.spyOn(deferred.window, 'close');
