@@ -1597,7 +1597,6 @@ export class DockviewGroupPanelModel
     }
 
     public setActive(isGroupActive: boolean, force = false): void {
-        // no-op once disposed
         if (this.isDisposed) {
             return;
         }
