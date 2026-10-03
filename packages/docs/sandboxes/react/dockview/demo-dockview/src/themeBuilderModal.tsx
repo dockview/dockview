@@ -4,8 +4,7 @@ import { ControlsContent } from './settingsModal';
 import { SB } from './sidebarTheme';
 import { Card, IconBtn, IconChip } from './sidebarKit';
 
-// The demo's side panel: dock controls, plus a way into the theme builder,
-// which has its own page with a dedicated preview.
+// The demo's side panel: dock controls and a link to the theme builder page.
 export const Sidebar = (props: {
     open: boolean;
     onClose: () => void;

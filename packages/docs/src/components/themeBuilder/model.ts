@@ -88,7 +88,7 @@ const importNameOf = (theme: DockviewTheme) =>
 const overrideEntries = (state: BuilderState) =>
     Object.entries(state.vars).filter(([, v]) => v !== '');
 
-/** The CSS class holding the builder's custom properties. */
+/** The exported CSS: a `.my-theme` rule with the builder's custom properties. */
 export function exportCss(state: BuilderState): string {
     const entries = overrideEntries(state);
     if (entries.length === 0) {
@@ -97,7 +97,7 @@ export function exportCss(state: BuilderState): string {
     return `/* Load after dockview.css */\n${cssRule('.my-theme', state.vars)}`;
 }
 
-/** The theme object that applies the theme, its parts and the class. */
+/** The exported theme object: the base theme plus its layout classes, `.my-theme` and settings. */
 export function exportTs(state: BuilderState): string {
     const theme = themeByName(state.base);
     const importName = importNameOf(theme);

@@ -164,14 +164,11 @@
         }
     }
 
-    // Dockview renders the tab close control and the auto-hide peek's pin /
-    // close controls as real <button>s (divs before v8), so they match this
-    // bare selector and pick up the accent outline and the fixed height meant
-    // for the demo's own chrome. The dock styles its own controls, so exclude
-    // them. The demo's controls are unclassed buttons and rely on the rule,
-    // which is why this excludes the dock controls by name rather than
-    // everything carrying a dv- class: the side panel kit uses dv-sb- names of
-    // its own.
+    // The tab close and auto-hide peek pin/close controls are <button>s
+    // (divs before v8) and would pick up this rule's outline and height, so
+    // exclude them by name. The demo's own buttons rely on the rule, and the
+    // side panel kit uses dv-sb- classes, so excluding every dv- class would
+    // catch those too.
     button:not(.dv-default-tab-action):not(.dv-edge-peek-pin):not(
             .dv-edge-peek-close
         ) {
@@ -270,12 +267,9 @@
     }
 }
 
-// Spaced dockview themes inset each tab into a short rounded pill, but the
-// prefix / left / right header action items (the `group-control` icons) fill
-// the full strip height with a barely-rounded hover box, so on a spaced theme
-// they read as tall square boxes beside the pills. Size the action box to the
-// tab-pill height and round it to the tab radius so the header actions match
-// the spaced tabs. Demo-only.
+// Spaced themes inset tabs as short pills, but the header action icons
+// (`group-control`) fill the full strip height. Match them to the pill height
+// and tab radius. Demo-only.
 .dockview-demo [class*='-spaced'] .group-control .action {
     height: calc(
         var(--dv-tabs-and-actions-container-height) - 2 *

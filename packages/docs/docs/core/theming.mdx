@@ -98,9 +98,9 @@ const { className } = themeAbyss;
 
 ## Build your own theme
 
-A theme is a CSS class that sets `--dv-*` custom properties, plus a `DockviewTheme` object that names it. Every built-in theme is built this way: its class declares custom properties and nothing else, and all rendering (rounded cards, folder tabs, pills, dividers, floating frames) is done by dockview's own stylesheet from those properties. So anything a built-in theme does, your theme can do with variables alone.
+A theme is a CSS class that sets `--dv-*` custom properties, plus a `DockviewTheme` object that names it. Every built-in theme works this way: its class only declares custom properties, and dockview's stylesheet does all the rendering (rounded cards, folder tabs, pills, dividers, floating frames) from them. Anything a built-in theme does, your theme can do with variables alone.
 
-The quickest start is `themeBase`. It derives every colour, radius and padding from five base tokens, so your class only has to set those, and you override individual properties to customise further:
+The quickest start is `themeBase`. It derives every colour, radius and padding from five base tokens, so your class only has to set those. Override individual properties to customise further:
 
 ```css
 .my-theme {
@@ -137,7 +137,7 @@ const myTheme: DockviewTheme = {
 };
 ```
 
-To recolour an existing theme while keeping its layout, add `dockview-base-colors` next to it: its colours then derive from the base tokens, and its spacing, radii and tab shapes stay as they are. Surfaces step darker on a light `color-scheme` and lighter on a dark one, so set `color-scheme` to match a background that changes from light to dark or back.
+To recolour an existing theme while keeping its layout, add `dockview-base-colors` next to it: its colours then derive from the base tokens, and its spacing, radii and tab shapes stay as they are. Surfaces step darker on a light `color-scheme` and lighter on a dark one, so if your background switches between light and dark, set `color-scheme` to match.
 
 ```ts
 import { DockviewTheme, themeSlateDark } from 'dockview';
@@ -148,7 +148,7 @@ const myTheme: DockviewTheme = {
 };
 ```
 
-The [theme builder](/theme-builder) edits these tokens with a live preview, starts from any built-in theme, and exports the class and theme object.
+The [theme builder](/theme-builder) starts from any built-in theme, edits these tokens with a live preview and exports the class and theme object.
 
 A fully hand-specified theme, like the built-in ones, sets the derived properties directly:
 
@@ -179,7 +179,7 @@ A fully hand-specified theme, like the built-in ones, sets the derived propertie
 const myTheme: DockviewTheme = { name: 'mine', className: 'my-theme' };
 ```
 
-The built-in themes are also available as SCSS mixins (for example `dockview-connected-tabs-mixin` and `dockview-design-space-mixin`) and utility classes (`.dockview-tabs-connected`, `.dockview-spaced`) that set a coherent group of these properties at once.
+The built-in themes are also available as SCSS mixins (for example `dockview-connected-tabs-mixin` and `dockview-design-space-mixin`) and utility classes (`.dockview-tabs-connected`, `.dockview-spaced`) that each set a related group of these properties.
 
 <DocRef declaration="DockviewTheme" />
 
@@ -199,11 +199,9 @@ A theme's layout and drag-and-drop settings can be given on the `DockviewTheme` 
 
 The CSS values are read when the theme is applied (on creation and on `updateOptions`). After changing them at runtime, call `api.refreshTheme()`. `api.themeSettings` returns the resolved values, and `resolveDockviewThemeSettings(theme)` resolves a theme's settings without a dockview instance.
 
-`dndOverlayBorder` sets `--dv-drag-over-border`, so it too can be set in CSS directly.
+`dndOverlayBorder` sets `--dv-drag-over-border`, so it can also be set in CSS.
 
 ## Theme properties
-
-The individual settings are described below.
 
 ### `tabAnimation`
 
@@ -227,7 +225,7 @@ Controls how the indicator under a tab group's tabs is rendered.
 
 ### `dndOverlayBorder`
 
-A CSS `border` value for the drop preview (the highlight that appears when dragging a panel over a group), for example `'2px solid var(--dv-active-sash-color)'`. It sets `--dv-drag-over-border`, which a theme can also set in CSS.
+A CSS `border` value for the drop preview (the highlight that appears when dragging a panel over a group), for example `'2px solid var(--dv-active-sash-color)'`. It sets `--dv-drag-over-border`.
 
 ### `dndTabIndicator`
 
@@ -238,19 +236,19 @@ Controls how the drop position indicator within a tab strip is drawn while dragg
 
 ### `edgeGroupCollapsedSize`
 
-The pixel size of an [edge group](/docs/core/groups/edgeGroups) when it is collapsed. It defaults to the theme's tab strip height (`--dv-tabs-and-actions-container-height`), so a collapsed rail matches the strip; set it (or `--dv-edge-group-collapsed-size`) when you need a different rail size.
+The pixel size of a collapsed [edge group](/docs/core/groups/edgeGroups). It defaults to the theme's tab strip height (`--dv-tabs-and-actions-container-height`) so a collapsed rail matches the strip. Set it, or `--dv-edge-group-collapsed-size`, for a different size.
 
 ### `colorScheme`
 
-Whether the theme is `'light'` or `'dark'`, so an app can match its panel content. dockview does not apply it: the theme class sets the CSS `color-scheme` itself, which native form controls and scrollbars follow.
+Whether the theme is `'light'` or `'dark'`, so an app can match its panel content. It is not applied by dockview: the theme class sets the CSS `color-scheme` itself, which native form controls and scrollbars follow.
 
 ## Interactive theme builder
 
-The [theme builder](/theme-builder) lets you tweak these variables and the theme settings above with a live preview, then copy the resulting CSS and theme object. Click Inspect and then any part of the preview to find the setting that styles it.
+The [theme builder](/theme-builder) edits these variables and the theme settings above with a live preview, and you can copy the resulting CSS and theme object. Click Inspect, then any part of the preview, to find the setting that styles it.
 
 ## Customising theme
 
-The provided themes are controlled through CSS variables which can be overridden entirely for a new theme, or partially to tweak an existing one. The [theme reference](/docs/core/themeReference) lists every variable, grouped and searchable, alongside every property of the theme object.
+The provided themes are controlled through CSS variables which can be overridden entirely for a new theme, or partially to tweak an existing one. The [theme reference](/docs/core/themeReference) lists every variable, grouped and searchable, and every property of the theme object.
 
 ## Extending theme
 

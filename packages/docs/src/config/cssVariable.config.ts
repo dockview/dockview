@@ -74,7 +74,7 @@ export const cssVariableGroups: CssVariableGroup[] = [
         },
         {
             key: '--dv-root-background-color',
-            text: 'Background of the element carrying the theme class, i.e. the band around the layout (non-inheriting).',
+            text: 'Background of the element carrying the theme class: the band around the layout (non-inheriting).',
         },
         {
             key: '--dv-group-border-radius',
