@@ -206,7 +206,6 @@ describe('renderer lifecycle', () => {
         }
 
         function expectNextPanelLandsInALiveGroup() {
-            // falls back to the first remaining group, as removeGroup does
             const fallback = dockview.groups[0];
             expect(dockview.activeGroup?.id).toBe(fallback.id);
             expect(fallback.model.isDisposed).toBe(false);
