@@ -32,7 +32,6 @@ export interface RendererTracker {
     alive(kind?: TrackedRendererKind): number;
     /** Renderers created so far, for one kind or all kinds. */
     created(kind?: TrackedRendererKind): number;
-    /** Live renderer counts keyed by kind. */
     snapshot(): Record<TrackedRendererKind, number>;
 }
 

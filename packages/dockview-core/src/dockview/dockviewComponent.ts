@@ -3833,7 +3833,6 @@ export class DockviewComponent
                             }
                         });
                         record?.disposable.dispose();
-                        // release the staging group's header actions
                         this.headerActionsService?.disposeGroup(temporaryGroup);
                         temporaryGroup.dispose();
                     })
@@ -5122,10 +5121,7 @@ export class DockviewComponent
         };
     }
 
-    /**
-     * Activates the first remaining group if the active group was disposed by
-     * a removal that skipped re-activation (`skipActive`).
-     */
+    /** Covers removals with `skipActive` that disposed the active group. */
     private releaseDisposedActiveGroup(): void {
         if (!this.isDisposed && this._activeGroup?.model.isDisposed) {
             this.activateFallbackGroupIfRemoved(this._activeGroup);
@@ -5705,7 +5701,6 @@ export class DockviewComponent
         const to = options.to.group;
         const target = options.to.position;
 
-        // merging a group into itself is a no-op
         if (target === 'center' && from === to) {
             return;
         }

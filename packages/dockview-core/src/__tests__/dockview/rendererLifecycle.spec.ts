@@ -398,7 +398,6 @@ describe('renderer lifecycle', () => {
 
             const opened = dockview.addPopoutGroup(p1);
             dockview.dispose();
-            // the loading window is closed on dispose
             expect(close).toHaveBeenCalled();
 
             deferred.load();

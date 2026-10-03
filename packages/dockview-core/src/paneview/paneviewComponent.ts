@@ -480,7 +480,6 @@ export class PaneviewComponent extends Resizable implements IPaneviewComponent {
         const height = this.height;
 
         this.paneview.dispose();
-        // replace with an empty paneview at the same size
         this.paneview = new Paneview(this.element, {
             orientation: Orientation.VERTICAL,
         });

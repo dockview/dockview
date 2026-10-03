@@ -39,7 +39,6 @@ export function watchElementResize(
     element: HTMLElement,
     cb: (entry: ResizeObserverEntry) => void
 ): IDisposable {
-    // pending frames, cancelled on dispose
     const pendingFrames = new Set<number>();
 
     const observer = new ResizeObserver((entires) => {

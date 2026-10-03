@@ -419,7 +419,6 @@ export class ContextMenuController implements IContextMenuService {
 
         const popupService = this.accessor.getPopupServiceForGroup(group);
         const close = () => popupService.close();
-        // component item renderers, disposed when the menu closes
         const owned = new CompositeDisposable();
         const menuEl = document.createElement('div');
         menuEl.className = 'dv-context-menu';
@@ -478,7 +477,6 @@ export class ContextMenuController implements IContextMenuService {
 
         const popupService = this.accessor.getPopupServiceForGroup(group);
         const close = () => popupService.close();
-        // component item renderers, disposed when the menu closes
         const owned = new CompositeDisposable();
         const menuEl = document.createElement('div');
         menuEl.className = 'dv-context-menu';
