@@ -1597,6 +1597,9 @@ export class DockviewGroupPanelModel
     }
 
     public setActive(isGroupActive: boolean, force = false): void {
+        if (this.isDisposed) {
+            return;
+        }
         if (!force && this.isActive === isGroupActive) {
             return;
         }
