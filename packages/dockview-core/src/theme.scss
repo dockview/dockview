@@ -347,7 +347,7 @@
     --dv-activegroup-visiblepanel-tab-color: var(--dv-color-nord-snow-0);
     --dv-activegroup-hiddenpanel-tab-color: var(--dv-color-nord-snow-1);
     // Unfocused-group tones are held to ≥3:1 (hidden) / ≥4.5:1 (visible panel)
-    // against their tab backgrounds; see the theme contrast audit.
+    // against their tab backgrounds.
     --dv-inactivegroup-visiblepanel-tab-color: #a1afcc;
     --dv-inactivegroup-hiddenpanel-tab-color: #8e9ab0;
     --dv-separator-border: var(--dv-color-nord-polar-3);
@@ -855,11 +855,9 @@
 
     color-scheme: dark;
 
-    // Cards are the abyss step on the abyss-dark backdrop; pills step up the
-    // ramp.
     @include dockview-palette-abyss();
 
-    // No fill on the drop preview: the spaced themes rely on the border only.
+    // Spaced themes show drops as a border only.
     --dv-drag-over-background-color: transparent;
 
     --dv-group-view-background-color: var(--dv-color-abyss-dark);

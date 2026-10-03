@@ -2044,10 +2044,8 @@ export class DockviewComponent
             return this.addPopoutGroup(itemToPopout.group, options);
         }
 
-        // A theme applied through `className` overrides the theme object in
-        // the main window, so it wins here too. Otherwise every class of the
-        // theme object (its parts and custom classes), or the theme class
-        // found on an ancestor.
+        // A `className` theme overrides the theme object in the main window,
+        // so it wins here too.
         const classNameTheme = (this._options.className ?? '')
             .split(/\s+/)
             .filter((cls) => cls.startsWith('dockview-'));
@@ -6396,9 +6394,8 @@ export class DockviewComponent
             style !== undefined && !!this._options.className?.trim();
         const shellComputed =
             classNameApplied && shell ? getComputedStyle(shell) : undefined;
-        // updateTheme has already cleared these; only set values here. Copy
-        // only what `className` changes, so the shell otherwise keeps its own
-        // (live, `var()`-based) values.
+        // Copy only what `className` changes: copies are resolved values, so
+        // the shell's own `var()`-based ones stay live.
         for (const property of SHELL_DROP_PREVIEW_PROPERTIES) {
             const value = classNameApplied
                 ? readStyleProperty(style, property)

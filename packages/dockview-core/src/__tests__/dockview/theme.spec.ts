@@ -325,7 +325,7 @@ describe('theme', () => {
                 className: 'x',
                 tabAnimation: 'default',
             };
-            // Without declared settings (e.g. a test double), the object.
+            // Without declared settings (e.g. a test double), reads the object.
             expect(themeSetting({ options: { theme } }, 'tabAnimation')).toBe(
                 'default'
             );

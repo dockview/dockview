@@ -175,8 +175,7 @@
     }
 
     &.dv-horizontal {
-        // Vertical rails space their tabs with `--dv-vertical-tab-margin`
-        // instead.
+        // Horizontal only: vertical rails use `--dv-vertical-tab-margin`.
         column-gap: var(--dv-tab-gap, 0px);
         padding: var(--dv-tabs-container-padding, 0px);
 
