@@ -117,27 +117,47 @@ describe('theme stylesheet', () => {
     test('the base theme derives its tokens from the base tokens', () => {
         const d = declarationsOf('.dockview-theme-base');
         expect(d.get('--dv-group-view-background-color')).toBe(
-            'var(--dv-background-color)'
+            'var(--dv-background-color, #1e1e1e)'
         );
         expect(d.get('--dv-activegroup-visiblepanel-tab-color')).toBe(
-            'var(--dv-foreground-color)'
+            'var(--dv-foreground-color, #cccccc)'
         );
-        expect(d.get('--dv-active-sash-color')).toBe('var(--dv-accent-color)');
+        expect(d.get('--dv-active-sash-color')).toBe('var(--dv-accent-color, #1e90ff)');
         expect(d.get('--dv-tab-padding-inline')).toBe(
-            'calc(var(--dv-spacing) * 2)'
+            'calc(var(--dv-spacing, 0.25rem) * 2)'
         );
         expect(d.get('--dv-floating-border-radius')).toBe(
-            'var(--dv-border-radius)'
+            'var(--dv-border-radius, 0px)'
         );
+    });
+
+    test('dockview\'s own root elements keep their frame against resets', () => {
+        // One class, so `div { padding: 0 }` or a later `*` reset loses.
+        const component = parseRules(
+            compile(
+                path.join(
+                    __dirname,
+                    '..',
+                    '..',
+                    'dockview',
+                    'dockviewComponent.scss'
+                )
+            ).css
+        );
+        const root = component.find((r) => r.selectors.includes('.dv-shell'));
+        expect(root?.declarations).toContainEqual([
+            'padding',
+            'var(--dv-root-padding, 0px)',
+        ]);
     });
 
     test('the base colours part re-derives colours only', () => {
         const d = declarationsOf('.dockview-base-colors');
         expect(d.get('--dv-group-view-background-color')).toBe(
-            'var(--dv-background-color)'
+            'var(--dv-background-color, #1e1e1e)'
         );
         expect(d.get('--dv-separator-border')).toContain(
-            'var(--dv-foreground-color)'
+            'var(--dv-foreground-color, #cccccc)'
         );
         expect(d.has('--dv-tab-border-radius')).toBe(false);
         expect(d.has('--dv-group-gap')).toBe(false);

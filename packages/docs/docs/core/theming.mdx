@@ -137,7 +137,7 @@ const myTheme: DockviewTheme = {
 };
 ```
 
-To recolour an existing theme while keeping its layout, add `dockview-base-colors` next to it: its colours then derive from the base tokens, and its spacing, radii and tab shapes stay as they are.
+To recolour an existing theme while keeping its layout, add `dockview-base-colors` next to it: its colours then derive from the base tokens, and its spacing, radii and tab shapes stay as they are. Surfaces step darker on a light `color-scheme` and lighter on a dark one, so set `color-scheme` to match a background that changes from light to dark or back.
 
 ```ts
 import { DockviewTheme, themeSlateDark } from 'dockview';

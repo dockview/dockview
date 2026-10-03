@@ -20,12 +20,6 @@
     initial-value: #1e90ff;
 }
 
-@property --dv-spacing {
-    syntax: '<length>';
-    inherits: true;
-    initial-value: 4px;
-}
-
 @property --dv-border-radius {
     syntax: '<length>';
     inherits: true;
@@ -79,16 +73,14 @@
     inherits: false;
 }
 
-// Zero specificity, so a page's own styles on an element that carries a theme
-// class (a wrapper, say) still win.
-:where(
-        .dv-shell,
-        .dv-component-root,
-        .dv-popout-window,
-        .dockview-spaced,
-        [class*='dockview-theme-']
-    ) {
-    // Marks the stylesheet as applied, for the theme-settings read in JS.
+// dockview's own elements take one class, so element and `*` resets don't
+// strip the frame; on an app's element carrying a theme class (a wrapper,
+// say) the rule has zero specificity, so the app's styles win.
+.dv-shell,
+.dv-component-root,
+.dv-popout-window,
+:where(.dockview-spaced, [class*='dockview-theme-']) {
+    // Read by JS to tell that this stylesheet has loaded.
     --dv-stylesheet: 1;
     box-sizing: border-box;
     padding: var(--dv-root-padding, 0px);
@@ -258,10 +250,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     pointer-events: none;
-    background-color: var(
-        --dv-context-menu-background-color,
-        #{dv.ref('group-view-background-color')}
-    );
+    background-color: #{dv.ref('group-view-background-color')};
     color: #{dv.ref('activegroup-visiblepanel-tab-color')};
     border: 1px solid #{dv.ref('tab-divider-color')};
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);

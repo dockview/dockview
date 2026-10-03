@@ -15,7 +15,23 @@
 
 $defaults: ();
 
+// Fallbacks for the base tokens where their registrations don't apply
+// (`@property` is ignored inside a shadow root). Spacing is left unregistered
+// so its default can stay relative to the root font size.
+$base-fallbacks: (
+    'background-color': #1e1e1e,
+    'foreground-color': #cccccc,
+    'accent-color': #1e90ff,
+    'spacing': 0.25rem,
+    'border-radius': 0px,
+);
+
 @function ref($name) {
+    @if map.has-key($base-fallbacks, $name) {
+        @return string.unquote(
+            'var(--dv-#{$name}, #{map.get($base-fallbacks, $name)})'
+        );
+    }
     @if map.has-key($defaults, $name) {
         @return string.unquote(
             'var(--dv-#{$name}, #{map.get($defaults, $name)})'
@@ -150,6 +166,19 @@ $defaults: -set(
 $defaults: -set($defaults, 'tabs-and-actions-container-height', 35px);
 $defaults: -set($defaults, 'tabs-and-actions-container-font-size', 13px);
 $defaults: -set($defaults, 'tab-margin', 0);
+
+// ── Structure ──────────────────────────────────────────────────────────────
+// Set by some themes; declared at every theme root so a dock nested in another
+// theme's panel does not inherit them. Each matches the fallback where used.
+$defaults: -set($defaults, 'tab-gap', 0px);
+$defaults: -set($defaults, 'tabs-container-padding', 0px);
+$defaults: -set($defaults, 'header-border-radius', 0px);
+$defaults: -set($defaults, 'header-padding', 0px);
+$defaults: -set($defaults, 'content-background-color', transparent);
+$defaults: -set($defaults, 'content-border-radius', 0px);
+$defaults: -set($defaults, 'content-overflow', visible);
+$defaults: -set($defaults, 'dnd-compass-color', #1f9cf0);
+$defaults: -set($defaults, 'dnd-compass-cell-color', rgba(31, 156, 240, 0.25));
 $defaults: -set($defaults, 'tab-close-icon-size', 11px);
 $defaults: -set($defaults, 'tab-marker-size', 2px);
 $defaults: -set($defaults, 'focus-ring-width', 2px);

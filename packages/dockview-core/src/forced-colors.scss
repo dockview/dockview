@@ -24,6 +24,14 @@
         color: HighlightText !important;
     }
 
+    // Active states outside the group's tab strip.
+    .dv-pinned-tab--active,
+    .dv-tabs-overflow-container .dv-active-tab {
+        forced-color-adjust: none;
+        background-color: Highlight !important;
+        color: HighlightText !important;
+    }
+
     // Forced to CanvasText, the focus ring would merge with the tab outline.
     .dv-tab:focus-visible,
     .dv-tab:has(:focus-visible),

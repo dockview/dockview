@@ -26,7 +26,7 @@ export const cssVariableGroups: CssVariableGroup[] = [
         },
         {
             key: '--dv-spacing',
-            text: 'Spacing unit. Tab padding is one unit block and two inline. Default `4px`.',
+            text: 'Spacing unit. Tab padding is one unit block and two inline. Default `0.25rem`.',
         },
         {
             key: '--dv-border-radius',
