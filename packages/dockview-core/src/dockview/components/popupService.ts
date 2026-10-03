@@ -3,7 +3,6 @@ import { createDismissableLayer } from '../../dismissableLayer';
 import {
     CompositeDisposable,
     Disposable,
-    IDisposable,
     MutableDisposable,
 } from '../../lifecycle';
 
@@ -47,13 +46,10 @@ export class PopupService extends CompositeDisposable {
         this._root = newRoot;
     }
 
-    /**
-     * @param owned disposed when this popover closes or is replaced
-     */
     openPopover(
         element: HTMLElement,
         position: { x: number; y: number; zIndex?: string },
-        owned?: IDisposable
+        options?: { onClose?: () => void }
     ): void {
         this.close();
 
@@ -92,7 +88,9 @@ export class PopupService extends CompositeDisposable {
                 pointerDownGraceMs: POINTERDOWN_GRACE_MS,
                 resize: true,
             }),
-            owned ?? Disposable.NONE
+            options?.onClose
+                ? Disposable.from(options.onClose)
+                : Disposable.NONE
         );
 
         this._window.requestAnimationFrame(() => {

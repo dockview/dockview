@@ -2091,12 +2091,12 @@ describe('tabsContainer', () => {
         });
 
         test('overflow rows built after the popover closes are disposed', () => {
-            let owned: { dispose(): void } | undefined;
+            let onClose: (() => void) | undefined;
             const mockPopupService = {
-                openPopover: jest.fn((_el, _pos, disposable) => {
-                    owned = disposable;
+                openPopover: jest.fn((_el, _pos, options) => {
+                    onClose = options?.onClose;
                 }),
-                close: jest.fn(() => owned?.dispose()),
+                close: jest.fn(() => onClose?.()),
             };
 
             let capturedContext: any;

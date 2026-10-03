@@ -256,7 +256,7 @@ export class ContextMenuController implements IContextMenuService {
             | Pick<IChipContextMenuItemComponentProps, 'tabGroup'>,
         group: DockviewGroupPanel,
         close: () => void,
-        owned: CompositeDisposable
+        renderers: CompositeDisposable
     ): void {
         const renderer = this.accessor.options.createContextMenuItemComponent?.(
             {
@@ -267,7 +267,7 @@ export class ContextMenuController implements IContextMenuService {
         if (!renderer) {
             return;
         }
-        owned.addDisposables(renderer);
+        renderers.addDisposables(renderer);
         renderer.init({
             ...identity,
             group,
@@ -375,7 +375,7 @@ export class ContextMenuController implements IContextMenuService {
             | Pick<IChipContextMenuItemComponentProps, 'tabGroup'>,
         group: DockviewGroupPanel,
         close: () => void,
-        owned: CompositeDisposable
+        renderers: CompositeDisposable
     ): void {
         if (item.element) {
             menuEl.appendChild(item.element);
@@ -386,7 +386,7 @@ export class ContextMenuController implements IContextMenuService {
                 identity,
                 group,
                 close,
-                owned
+                renderers
             );
         } else if (item.label) {
             menuEl.appendChild(
@@ -419,7 +419,7 @@ export class ContextMenuController implements IContextMenuService {
 
         const popupService = this.accessor.getPopupServiceForGroup(group);
         const close = () => popupService.close();
-        const owned = new CompositeDisposable();
+        const renderers = new CompositeDisposable();
         const menuEl = document.createElement('div');
         menuEl.className = 'dv-context-menu';
         menuEl.setAttribute('role', 'menu');
@@ -432,7 +432,7 @@ export class ContextMenuController implements IContextMenuService {
                     { panel },
                     group,
                     close,
-                    owned
+                    renderers
                 );
                 continue;
             }
@@ -449,7 +449,7 @@ export class ContextMenuController implements IContextMenuService {
                 y: event.clientY,
                 zIndex: popoverZIndexFor(event.target, group),
             },
-            owned
+            { onClose: () => renderers.dispose() }
         );
     }
 
@@ -477,7 +477,7 @@ export class ContextMenuController implements IContextMenuService {
 
         const popupService = this.accessor.getPopupServiceForGroup(group);
         const close = () => popupService.close();
-        const owned = new CompositeDisposable();
+        const renderers = new CompositeDisposable();
         const menuEl = document.createElement('div');
         menuEl.className = 'dv-context-menu';
         menuEl.setAttribute('role', 'menu');
@@ -511,7 +511,7 @@ export class ContextMenuController implements IContextMenuService {
                     { tabGroup },
                     group,
                     close,
-                    owned
+                    renderers
                 );
             }
         }
@@ -523,7 +523,7 @@ export class ContextMenuController implements IContextMenuService {
                 y: event.clientY,
                 zIndex: popoverZIndexFor(event.target, group),
             },
-            owned
+            { onClose: () => renderers.dispose() }
         );
     }
 }

@@ -729,7 +729,9 @@ export class TabsContainer
                 };
             },
             open: (body) => {
-                popup().openPopover(body, anchor, rowRenderers);
+                popup().openPopover(body, anchor, {
+                    onClose: () => rowRenderers.dispose(),
+                });
             },
             close: () => popup().close(),
             focusTrigger: () => {
