@@ -206,8 +206,12 @@ describe('renderer lifecycle', () => {
         }
 
         function expectNextPanelLandsInALiveGroup() {
-            expect(dockview.activeGroup?.model.isDisposed ?? false).toBe(false);
+            // falls back to the first remaining group, as removeGroup does
+            const fallback = dockview.groups[0];
+            expect(dockview.activeGroup?.id).toBe(fallback.id);
+            expect(fallback.model.isDisposed).toBe(false);
             const c = dockview.addPanel({ id: 'c', component: 'default' });
+            expect(c.group.id).toBe(fallback.id);
             expect(c.group.model.isDisposed).toBe(false);
             expect(dockview.panels.map((p) => p.id)).toContain('c');
             expect(groupIds()).toContain(c.group.id);

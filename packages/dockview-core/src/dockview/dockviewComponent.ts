@@ -5123,12 +5123,12 @@ export class DockviewComponent
     }
 
     /**
-     * Clears the active group if it was disposed by a removal that skipped
-     * re-activation (`skipActive`).
+     * Activates the first remaining group if the active group was disposed by
+     * a removal that skipped re-activation (`skipActive`).
      */
     private releaseDisposedActiveGroup(): void {
         if (!this.isDisposed && this._activeGroup?.model.isDisposed) {
-            this.doSetGroupAndPanelActive(undefined);
+            this.activateFallbackGroupIfRemoved(this._activeGroup);
         }
     }
 
