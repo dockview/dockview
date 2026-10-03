@@ -122,12 +122,12 @@ The quickest start is `themeBase`. It derives every colour, radius and padding f
 | `--dv-foreground-color` | tab text (at 100/75/65/50%), separators and tab dividers (18%), icon hover (15%), scrollbars     |
 | `--dv-accent-color`     | focus ring, drop line and fill, active sash, edge indicator                                     |
 | `--dv-spacing`          | tab padding                                                                                     |
-| `--dv-border-radius`    | group, floating, peek and drop-target radii; tab and dropdown (⅔), sash (⅓), drop indicator (¼) |
+| `--dv-border-radius`    | group, floating and peek radii; tab and dropdown (⅔), sash (⅓), drop preview (¼) |
 
 Add your class next to the base theme's. Layout styles are classes too: `dockview-spaced` lays groups out as rounded cards with `--dv-spacing-padding` between them, and `dockview-tabs-connected` gives folder tabs. Load your stylesheet after dockview's so your values win.
 
 ```ts
-import { themeBase } from 'dockview';
+import { DockviewTheme, themeBase } from 'dockview';
 
 const myTheme: DockviewTheme = {
     ...themeBase,
@@ -140,6 +140,8 @@ const myTheme: DockviewTheme = {
 To recolour an existing theme while keeping its layout, add `dockview-base-colors` next to it: its colours then derive from the base tokens, and its spacing, radii and tab shapes stay as they are.
 
 ```ts
+import { DockviewTheme, themeSlateDark } from 'dockview';
+
 const myTheme: DockviewTheme = {
     ...themeSlateDark,
     className: `${themeSlateDark.className} dockview-base-colors my-theme`,
@@ -221,7 +223,7 @@ const theme = { ...themeAbyss, tabAnimation: 'smooth' as const };
 Controls how the indicator under a tab group's tabs is rendered.
 
 - `'wrap'` (default): a continuous coloured bar wraps the group's tabs.
-- `'none'`: no indicator is drawn.
+- `'none'`: a flat bar under the group's tabs, without the outline around the active tab.
 
 ### `dndOverlayBorder`
 
@@ -240,7 +242,7 @@ The pixel size of an [edge group](/docs/core/groups/edgeGroups) when it is colla
 
 ### `colorScheme`
 
-Hint passed to the browser via the `color-scheme` CSS property, either `'light'` or `'dark'`. Native form controls and scrollbars adapt accordingly.
+Whether the theme is `'light'` or `'dark'`, so an app can match its panel content. dockview does not apply it: the theme class sets the CSS `color-scheme` itself, which native form controls and scrollbars follow.
 
 ## Interactive theme builder
 

@@ -166,7 +166,7 @@ export const TOKENS: TokenDef[] = [
         '--dv-tab-divider-color',
         'Tab dividers',
         'Lines and details',
-        'Short lines between unselected tabs, and menu borders.'
+        'Short lines between unselected tabs, and between overflow list items.'
     ),
     color(
         '--dv-icon-hover-background-color',

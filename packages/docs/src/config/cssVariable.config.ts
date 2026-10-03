@@ -30,7 +30,7 @@ export const cssVariableGroups: CssVariableGroup[] = [
         },
         {
             key: '--dv-border-radius',
-            text: 'Base corner radius: groups, floating groups, peeks and drop targets use it; tabs and dropdowns ⅔ of it, sashes ⅓, drop indicators ¼. Default `0px`.',
+            text: 'Base corner radius: groups, floating groups and peeks use it; tabs and dropdowns ⅔ of it, sashes ⅓, drop previews ¼. Default `0px`.',
         },
         ],
     },
@@ -138,11 +138,11 @@ export const cssVariableGroups: CssVariableGroup[] = [
         },
         {
             key: '--dv-tab-padding-block',
-            text: 'Tab padding across the strip. Default `0.25rem`.',
+            text: 'Tab padding across the strip. Default `--dv-spacing`.',
         },
         {
             key: '--dv-tab-padding-inline',
-            text: 'Tab padding along the strip, either side of the label. Default `0.5rem`.',
+            text: 'Tab padding along the strip, either side of the label. Default twice `--dv-spacing`.',
         },
         {
             key: '--dv-tab-gap',
@@ -251,7 +251,7 @@ export const cssVariableGroups: CssVariableGroup[] = [
         },
         {
             key: '--dv-tab-divider-color',
-            text: 'Hairline between adjacent tabs; also the border of the tab overflow list and context menu.',
+            text: 'Hairline between adjacent tabs; also between the items of the tab overflow list.',
         },
         {
             key: '--dv-separator-border',

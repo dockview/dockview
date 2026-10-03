@@ -123,10 +123,10 @@ export function exportTs(state: BuilderState): string {
         lines.push(`    className: \`${classes}\`,`);
     }
     const scheme = state.vars['color-scheme'];
-    if (scheme && scheme !== theme.colorScheme) {
+    if ((scheme === 'light' || scheme === 'dark') && scheme !== theme.colorScheme) {
         lines.push(`    colorScheme: '${scheme}',`);
     }
-    for (const [key, value] of Object.entries(state.settings)) {
+    for (const [key, value] of Object.entries(validSettings(state.settings))) {
         if (value !== undefined) {
             lines.push(`    ${key}: ${JSON.stringify(value)},`);
         }
@@ -148,7 +148,11 @@ export function cssRule(selector: string, vars: Record<string, string>) {
     const body = Object.entries(vars)
         .filter(
             ([k, v]) =>
-                /^(--[\w-]+|color-scheme)$/.test(k) && v && !/[;{}<>\\]/.test(v)
+                /^(--[\w-]+|color-scheme)$/.test(k) &&
+                typeof v === 'string' &&
+                v !== '' &&
+                // No escaping the rule, and no fetching from a shared link.
+                !/[;{}<>\\]|url\(|image-set\(/i.test(v)
         )
         .map(([k, v]) => `    ${k}: ${v};`)
         .join('\n');
@@ -165,17 +169,64 @@ export function encodeState(state: BuilderState): string {
         .replace(/=+$/, '');
 }
 
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+    typeof v === 'object' && v !== null && !Array.isArray(v);
+
+const SETTING_VALUES: Record<
+    Exclude<keyof SettingOverrides, 'gap'>,
+    readonly string[]
+> = {
+    tabAnimation: ['default', 'smooth'],
+    tabGroupIndicator: ['wrap', 'none'],
+    dndOverlayMounting: ['absolute', 'relative'],
+    dndPanelOverlay: ['content', 'group'],
+    dndTabIndicator: ['line', 'fill'],
+};
+
+/** Only the known settings, with values of the right type. */
+function validSettings(raw: Record<string, unknown>): SettingOverrides {
+    const settings: Record<string, unknown> = {};
+    if (typeof raw.gap === 'number' && Number.isFinite(raw.gap)) {
+        settings.gap = raw.gap;
+    }
+    for (const [key, allowed] of Object.entries(SETTING_VALUES)) {
+        const value = raw[key];
+        if (typeof value === 'string' && allowed.includes(value)) {
+            settings[key] = value;
+        }
+    }
+    return settings as SettingOverrides;
+}
+
 export function decodeState(value: string): BuilderState | undefined {
     try {
         const b64 = value.replace(/-/g, '+').replace(/_/g, '/');
         const json = decodeURIComponent(escape(atob(b64)));
-        const parsed = JSON.parse(json) as Partial<BuilderState>;
-        if (typeof parsed.base !== 'string') return undefined;
+        const parsed: unknown = JSON.parse(json);
+        if (!isRecord(parsed) || typeof parsed.base !== 'string') {
+            return undefined;
+        }
+        const vars: Record<string, string> = {};
+        if (isRecord(parsed.vars)) {
+            for (const [key, v] of Object.entries(parsed.vars)) {
+                if (/^--[\w-]+$/.test(key) && typeof v === 'string') {
+                    vars[key] = v;
+                }
+            }
+            const scheme = parsed.vars['color-scheme'];
+            if (scheme === 'light' || scheme === 'dark') {
+                vars['color-scheme'] = scheme;
+            }
+        }
         return {
-            ...initialState(parsed.base),
-            ...parsed,
-            vars: { ...(parsed.vars ?? {}) },
-            settings: { ...(parsed.settings ?? {}) },
+            ...initialState(themeByName(parsed.base).name),
+            derived: parsed.derived === true,
+            cards: parsed.cards === true,
+            connectedTabs: parsed.connectedTabs === true,
+            vars,
+            settings: isRecord(parsed.settings)
+                ? validSettings(parsed.settings)
+                : {},
         };
     } catch {
         return undefined;

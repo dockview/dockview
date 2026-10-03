@@ -174,6 +174,16 @@ function readSharedState(): BuilderState | undefined {
     return value ? decodeState(value) : undefined;
 }
 
+type SettingKey = Exclude<keyof SettingOverrides, 'gap'>;
+
+const SETTING_PROPERTIES: Record<SettingKey, string> = {
+    tabAnimation: '--dv-tab-animation',
+    tabGroupIndicator: '--dv-tab-group-indicator',
+    dndOverlayMounting: '--dv-dnd-overlay-mounting',
+    dndPanelOverlay: '--dv-dnd-panel-overlay',
+    dndTabIndicator: '--dv-dnd-tab-indicator',
+};
+
 export const ThemeBuilder = (props: { initialTheme?: string }) => {
     const [state, setState] = React.useState<BuilderState>(
         () => readSharedState() ?? initialState(props.initialTheme)
@@ -228,23 +238,28 @@ export const ThemeBuilder = (props: { initialTheme?: string }) => {
      * Apply a change. Continuous edits to the same control within a short
      * window share one undo step; everything else gets its own.
      */
+    const stateRef = React.useRef(state);
+    stateRef.current = state;
     const commit = React.useCallback(
         (next: BuilderState, coalesceKey?: string) => {
-            setState((prev) => {
-                const now = Date.now();
-                const last = lastCoalesce.current;
-                const coalesce =
-                    coalesceKey !== undefined &&
-                    last?.key === coalesceKey &&
-                    now - last.at < 1000;
-                lastCoalesce.current = coalesceKey
-                    ? { key: coalesceKey, at: now }
-                    : null;
-                if (!coalesce) {
-                    setHistory((h) => [...h.slice(-49), prev]);
-                }
-                return next;
-            });
+            const now = Date.now();
+            const last = lastCoalesce.current;
+            const coalesce =
+                coalesceKey !== undefined &&
+                last?.key === coalesceKey &&
+                now - last.at < 1000;
+            lastCoalesce.current = coalesceKey
+                ? { key: coalesceKey, at: now }
+                : null;
+            if (!coalesce) {
+                const prev = stateRef.current;
+                setHistory((h) => [...h.slice(-49), prev]);
+                // A notice describes the step its Undo reverts; a new step
+                // makes it stale. Callers set their own notice after this.
+                setNotice(null);
+            }
+            stateRef.current = next;
+            setState(next);
         },
         []
     );
@@ -259,16 +274,16 @@ export const ThemeBuilder = (props: { initialTheme?: string }) => {
         setNotice(null);
     };
 
+    const shareUrl = (s: BuilderState) => {
+        const hash = new URLSearchParams();
+        hash.set(SHARE_KEY, encodeState(s));
+        return `${window.location.pathname}${window.location.search}#${hash}`;
+    };
+
     // Keep the URL shareable.
     React.useEffect(() => {
         const id = window.setTimeout(() => {
-            const hash = new URLSearchParams();
-            hash.set(SHARE_KEY, encodeState(state));
-            window.history.replaceState(
-                null,
-                '',
-                `${window.location.pathname}${window.location.search}#${hash}`
-            );
+            window.history.replaceState(null, '', shareUrl(state));
         }, 300);
         return () => window.clearTimeout(id);
     }, [state]);
@@ -286,6 +301,12 @@ export const ThemeBuilder = (props: { initialTheme?: string }) => {
             values[t.name] = effectiveValue(root, t.name, t.kind);
         }
         values['--dv-group-gap'] = effectiveValue(root, '--dv-group-gap', 'length');
+        // The theme's own behaviour settings (they don't inherit: read the root).
+        const style = getComputedStyle(root);
+        for (const key of Object.keys(SETTING_PROPERTIES)) {
+            const property = SETTING_PROPERTIES[key as SettingKey];
+            values[property] = style.getPropertyValue(property).trim();
+        }
         // What deriving would start from, shown while the theme keeps its own
         // colours.
         for (const [name, value] of Object.entries(seedColors(root))) {
@@ -313,11 +334,15 @@ export const ThemeBuilder = (props: { initialTheme?: string }) => {
             return;
         }
         const seed = rootRef.current ? seedColors(rootRef.current) : {};
-        commit({
-            ...state,
-            derived: true,
-            vars: { ...state.vars, ...seed, [name]: value },
-        });
+        // Same undo step as the edits that follow on this control.
+        commit(
+            {
+                ...state,
+                derived: true,
+                vars: { ...state.vars, ...seed, [name]: value },
+            },
+            name
+        );
         setNotice(
             `${labelOf(state.base)} now derives its colours from Background, Foreground and Accent.`
         );
@@ -339,6 +364,28 @@ export const ThemeBuilder = (props: { initialTheme?: string }) => {
         key: K,
         value: SettingOverrides[K]
     ) => commit({ ...state, settings: { ...state.settings, [key]: value } }, key);
+
+    /** A setting's value: the override, else the theme's CSS, else the default. */
+    const settingOf = <K extends SettingKey>(
+        key: K,
+        fallback: NonNullable<SettingOverrides[K]>
+    ) =>
+        (state.settings[key] ??
+            (effective[SETTING_PROPERTIES[key]] ||
+                fallback)) as NonNullable<SettingOverrides[K]>;
+
+    /** Choosing what the theme already does removes the override. */
+    const chooseSetting = <K extends SettingKey>(
+        key: K,
+        value: SettingOverrides[K],
+        fallback: string
+    ) =>
+        setSetting(
+            key,
+            value === (effective[SETTING_PROPERTIES[key]] || fallback)
+                ? undefined
+                : value
+        );
 
     const startFrom = (name: string) => {
         if (name === state.base) return;
@@ -381,7 +428,9 @@ export const ThemeBuilder = (props: { initialTheme?: string }) => {
     const derives = colorsDerive(state);
     const statusOf = (t: TokenDef): 'set' | 'derived' | 'theme' => {
         if (state.vars[t.name]) return 'set';
-        if (t.derived && (t.kind !== 'color' || derives)) return 'derived';
+        // Only colours re-derive on a built-in theme; its lengths are its own.
+        if (t.derived && (t.kind === 'color' ? derives : isBase(state)))
+            return 'derived';
         return 'theme';
     };
 
@@ -614,30 +663,30 @@ export const ThemeBuilder = (props: { initialTheme?: string }) => {
                         </div>
                         <Segmented
                             label="Tab animation"
-                            value={state.settings.tabAnimation ?? 'default'}
+                            value={settingOf('tabAnimation', 'default')}
                             options={[
                                 { value: 'default', label: 'Default' },
                                 { value: 'smooth', label: 'Smooth' },
                             ]}
-                            onChange={(v) => setSetting('tabAnimation', v)}
+                            onChange={(v) => chooseSetting('tabAnimation', v, 'default')}
                         />
                         <Segmented
                             label="Drop target"
-                            value={state.settings.dndPanelOverlay ?? 'content'}
+                            value={settingOf('dndPanelOverlay', 'content')}
                             options={[
                                 { value: 'content', label: 'Content' },
                                 { value: 'group', label: 'Group' },
                             ]}
-                            onChange={(v) => setSetting('dndPanelOverlay', v)}
+                            onChange={(v) => chooseSetting('dndPanelOverlay', v, 'content')}
                         />
                         <Segmented
                             label="Tab drop"
-                            value={state.settings.dndTabIndicator ?? 'fill'}
+                            value={settingOf('dndTabIndicator', 'fill')}
                             options={[
                                 { value: 'fill', label: 'Fill' },
                                 { value: 'line', label: 'Line' },
                             ]}
-                            onChange={(v) => setSetting('dndTabIndicator', v)}
+                            onChange={(v) => chooseSetting('dndTabIndicator', v, 'fill')}
                         />
                     </Section>
 
@@ -742,7 +791,12 @@ export const ThemeBuilder = (props: { initialTheme?: string }) => {
                         <button
                             type="button"
                             className={styles.button}
-                            onClick={() => copy(window.location.href, 'link')}
+                            onClick={() =>
+                                copy(
+                                    `${window.location.origin}${shareUrl(state)}`,
+                                    'link'
+                                )
+                            }
                         >
                             {copied === 'link' ? 'Copied' : 'Share link'}
                         </button>
