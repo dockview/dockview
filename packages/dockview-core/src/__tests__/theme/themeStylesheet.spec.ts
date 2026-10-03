@@ -122,7 +122,9 @@ describe('theme stylesheet', () => {
         expect(d.get('--dv-activegroup-visiblepanel-tab-color')).toBe(
             'var(--dv-foreground-color, #cccccc)'
         );
-        expect(d.get('--dv-active-sash-color')).toBe('var(--dv-accent-color, #1e90ff)');
+        expect(d.get('--dv-active-sash-color')).toBe(
+            'var(--dv-accent-color, #1e90ff)'
+        );
         expect(d.get('--dv-tab-padding-inline')).toBe(
             'calc(var(--dv-spacing, 0.25rem) * 2)'
         );
@@ -131,7 +133,7 @@ describe('theme stylesheet', () => {
         );
     });
 
-    test('dockview\'s own root elements keep their frame against resets', () => {
+    test("dockview's own root elements keep their frame against resets", () => {
         // One class, so `div { padding: 0 }` or a later `*` reset loses.
         const component = parseRules(
             compile(
