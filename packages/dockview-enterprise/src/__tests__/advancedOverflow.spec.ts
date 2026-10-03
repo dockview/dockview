@@ -34,6 +34,7 @@ interface FakePanel {
 }
 
 function makeFakeContext(activateSpy?: (id: string) => void) {
+    const liveRows = new Set<HTMLElement>();
     const opened: { body?: HTMLElement } = {};
     const closed = { count: 0 };
     const focused = { count: 0 };
@@ -43,10 +44,12 @@ function makeFakeContext(activateSpy?: (id: string) => void) {
             element.className = 'dv-tab';
             element.dataset.panelId = panelId;
             element.textContent = panelId;
+            liveRows.add(element);
             return {
                 element,
                 panel: { id: panelId } as any,
                 activate: () => activateSpy?.(panelId),
+                dispose: () => liveRows.delete(element),
             };
         },
         buildGroupHeader: () => undefined,
@@ -70,7 +73,7 @@ function makeFakeContext(activateSpy?: (id: string) => void) {
             focused.count++;
         },
     };
-    return { context, opened, closed, focused };
+    return { context, opened, closed, focused, liveRows };
 }
 
 function makeParams(
@@ -364,6 +367,18 @@ describe('OverflowListView: search filtering + keyboard', () => {
         jest.advanceTimersByTime(80);
 
         expect(optionRows(opened.body)).toEqual(['a']); // only "alpha"
+        view.dispose();
+    });
+
+    test('re-rendering disposes the previous rows', () => {
+        const { view, input, liveRows } = setup();
+        expect(liveRows.size).toBe(3);
+
+        input.value = 'lph';
+        fireEvent.input(input);
+        jest.advanceTimersByTime(80);
+
+        expect(liveRows.size).toBe(1);
         view.dispose();
     });
 

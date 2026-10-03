@@ -673,13 +673,18 @@ export class TabsContainer
 
                 const tabComponent =
                     panel.view.createTabRenderer('headerOverflow');
+                let rowDisposed = false;
+                const disposeRow = Disposable.from(() => {
+                    if (!rowDisposed) {
+                        rowDisposed = true;
+                        tabComponent.dispose?.();
+                    }
+                });
                 if (rowRenderers.isDisposed) {
                     // built after the popover closed
-                    tabComponent.dispose?.();
+                    disposeRow.dispose();
                 } else {
-                    rowRenderers.addDisposables(
-                        Disposable.from(() => tabComponent.dispose?.())
-                    );
+                    rowRenderers.addDisposables(disposeRow);
                 }
                 const child = tabComponent.element;
 
@@ -725,6 +730,10 @@ export class TabsContainer
                     activate: () => {
                         popup().close();
                         doActivate();
+                    },
+                    dispose: () => {
+                        rowRenderers.removeDisposable(disposeRow);
+                        disposeRow.dispose();
                     },
                 };
             },
