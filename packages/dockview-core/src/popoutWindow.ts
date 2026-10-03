@@ -237,7 +237,10 @@ export class PopoutWindow extends CompositeDisposable {
         const container = this.createPopoutWindowContainer();
 
         if (this.className) {
-            container.classList.add(this.className);
+            // A theme's className can combine several classes.
+            container.classList.add(
+                ...this.className.split(/\s+/).filter(Boolean)
+            );
         }
 
         this.options.onDidOpen?.({

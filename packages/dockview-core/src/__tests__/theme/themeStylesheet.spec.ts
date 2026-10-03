@@ -93,8 +93,12 @@ describe('theme stylesheet', () => {
                 if (!THEME_CLASS.test(selector)) {
                     continue;
                 }
-                // A class, or two together (a theme with a part).
-                if (!/^(\.dockview-[\w-]+){1,2}$/.test(selector)) {
+                // A class, or a theme with the base-colours part.
+                if (
+                    !/^\.dockview-[\w-]+(:where\(\.dockview-base-colors\))?$/.test(
+                        selector
+                    )
+                ) {
                     offending.push(`selector ${selector}`);
                 }
                 for (const [property] of rule.declarations) {
@@ -140,9 +144,9 @@ describe('theme stylesheet', () => {
     });
 
     test.each([
-        '.dockview-spaced.dockview-base-colors',
-        '.dockview-theme-nord-spaced.dockview-base-colors',
-        '.dockview-theme-slate-dark.dockview-base-colors',
+        '.dockview-spaced:where(.dockview-base-colors)',
+        '.dockview-theme-nord-spaced:where(.dockview-base-colors)',
+        '.dockview-theme-slate-dark:where(.dockview-base-colors)',
     ])('%s keeps its lines hidden', (selector) => {
         expect(declarationsOf(selector).get('--dv-separator-border')).toBe(
             'transparent'

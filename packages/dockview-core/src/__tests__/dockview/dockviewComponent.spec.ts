@@ -14414,6 +14414,32 @@ describe('theme settings from CSS', () => {
         dv.dispose();
     });
 
+    test('refreshTheme notifies the parts that read theme values', () => {
+        const dv = createDockview();
+        const listener = jest.fn();
+        const disposable = dv.onDidOptionsChange(listener);
+
+        dv.refreshTheme();
+
+        expect(listener).toHaveBeenCalledTimes(1);
+        disposable.dispose();
+        dv.dispose();
+    });
+
+    test('detects the stylesheet by its registered property, despite a box-sizing reset', () => {
+        const dv = createDockview();
+        const applied = () =>
+            (dv as unknown as { isStylesheetApplied: boolean })
+                .isStylesheetApplied;
+        dv.element.style.setProperty('box-sizing', 'content-box');
+        expect(applied()).toBe(false);
+
+        // dockview's stylesheet registers --dv-spacing with an initial value.
+        dv.element.style.setProperty('--dv-spacing', '4px');
+        expect(applied()).toBe(true);
+        dv.dispose();
+    });
+
     test('a value on the theme object wins over the CSS property', () => {
         const dv = createDockview({ name: 't', className: 't', gap: 4 });
         dv.element.style.setProperty('--dv-group-gap', '12px');

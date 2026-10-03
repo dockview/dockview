@@ -296,6 +296,29 @@ describe('PopoutWindow', () => {
         });
     });
 
+    test('a theme className of several classes reaches the popout container', async () => {
+        const { externalWindow, fireLoad } = makeFakeExternalWindow();
+        const openSpy = jest
+            .spyOn(window, 'open')
+            .mockReturnValue(externalWindow as Window);
+        const popout = new PopoutWindow(
+            'target-id',
+            'dockview-spaced  dockview-theme-slate my-theme',
+            { url: '/popout.html', top: 0, left: 0, width: 100, height: 100 }
+        );
+        try {
+            const opened = popout.open();
+            fireLoad();
+            const container = await opened;
+            expect(container?.classList).toContain('dockview-spaced');
+            expect(container?.classList).toContain('dockview-theme-slate');
+            expect(container?.classList).toContain('my-theme');
+        } finally {
+            openSpy.mockRestore();
+            popout.dispose();
+        }
+    });
+
     function withParentStyleSheet<T>(cssText: string, fn: () => T): T {
         const styleEl = document.createElement('style');
         styleEl.appendChild(document.createTextNode(cssText));

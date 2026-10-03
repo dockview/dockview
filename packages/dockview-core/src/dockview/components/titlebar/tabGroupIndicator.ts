@@ -53,10 +53,6 @@ export interface ITabGroupIndicator {
     dispose(): void;
 }
 
-/**
- * Shared positioning logic for tab group indicators.
- * Subclasses implement `applyShape` to control the visual output.
- */
 function readLineThickness(element: HTMLElement): number {
     const value = Number.parseFloat(
         getComputedStyle(element).getPropertyValue?.(
@@ -66,6 +62,10 @@ function readLineThickness(element: HTMLElement): number {
     return Number.isFinite(value) && value >= 0 ? value : 2;
 }
 
+/**
+ * Shared positioning logic for tab group indicators.
+ * Subclasses implement `applyShape` to control the visual output.
+ */
 abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
     protected readonly _underlines = new Map<string, HTMLElement>();
     /**
@@ -75,7 +75,10 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
      */
     private readonly _continuationMarkers = new Map<string, HTMLElement[]>();
     private _rafId: number | null = null;
-    /** `--dv-tab-group-line-height`, read once per positioning pass. */
+    /**
+     * `--dv-tab-group-line-height`, read once per positioning request or
+     * tracking animation rather than every frame.
+     */
     protected _lineThickness = 2;
 
     get underlines(): ReadonlyMap<string, HTMLElement> {
@@ -86,6 +89,7 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
 
     positionUnderlines(): void {
         requestAnimationFrame(() => {
+            this._lineThickness = readLineThickness(this._ctx.tabsList);
             this._positionUnderlinesSync();
         });
     }
@@ -101,6 +105,7 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
 
         const start = performance.now();
         const duration = 250; // slightly longer than transition to ensure we catch the end
+        this._lineThickness = readLineThickness(this._ctx.tabsList);
 
         const tick = () => {
             this._positionUnderlinesSync();
@@ -219,7 +224,6 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
 
     private _positionUnderlinesSync(): void {
         const containerRect = this._ctx.tabsList.getBoundingClientRect();
-        this._lineThickness = readLineThickness(this._ctx.tabsList);
         const tabGroups = this._ctx.getTabGroups();
         const isVertical = this._ctx.getDirection() === 'vertical';
         // Multi-line wrap (`MultiRowTabsModule`): a group's tabs can span

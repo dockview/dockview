@@ -580,6 +580,18 @@ const NO_EVENT: Event<any> = () => ({
  *  returns when the LayoutHistory module is absent. */
 const NO_LAYOUT_HISTORY_CHANGES: Event<LayoutHistoryChangeEvent> = NO_EVENT;
 
+/**
+ * Whether dockview's stylesheet applies to an element: its registered
+ * `--dv-spacing` resolves (immune to page CSS resets), or, where `@property`
+ * is unsupported, its root rule's `box-sizing` shows.
+ */
+function stylesheetApplied(style: CSSStyleDeclaration): boolean {
+    return (
+        readStyleProperty(style, '--dv-spacing') !== '' ||
+        readStyleProperty(style, 'box-sizing') === 'border-box'
+    );
+}
+
 export class DockviewComponent
     extends BaseGrid<DockviewGroupPanel>
     implements
@@ -853,8 +865,7 @@ export class DockviewComponent
         return (
             this.element.isConnected &&
             typeof getComputedStyle === 'function' &&
-            readStyleProperty(getComputedStyle(this.element), 'box-sizing') ===
-                'border-box'
+            stylesheetApplied(getComputedStyle(this.element))
         );
     }
 
@@ -877,6 +888,8 @@ export class DockviewComponent
     private retryThemeCss(): void {
         if (this._themeCssRead === false && this.isStylesheetApplied) {
             this.updateTheme();
+            // Parts that read theme values listen for option changes.
+            this._onDidOptionsChange.fire();
         }
     }
 
@@ -2036,7 +2049,11 @@ export class DockviewComponent
             return this.addPopoutGroup(itemToPopout.group, options);
         }
 
-        const theme = getDockviewTheme(this.gridview.element);
+        // Every class of the theme (its parts and custom classes too), or the
+        // theme class found on an ancestor when no theme object is set.
+        const theme =
+            this._options.theme?.className ??
+            getDockviewTheme(this.gridview.element);
         const element = this.element;
 
         // Always returns absolute *screen* coordinates. A caller-supplied /
@@ -6360,6 +6377,8 @@ export class DockviewComponent
 
     refreshTheme(): void {
         this.updateTheme();
+        // Parts that read theme values listen for option changes.
+        this._onDidOptionsChange.fire();
     }
 
     private applyDropPreviewStyle(
@@ -6369,20 +6388,17 @@ export class DockviewComponent
         const shellStyle = this._shellManager?.element.style;
         const classNameApplied =
             style !== undefined && !!this._options.className?.trim();
+        // updateTheme has already cleared these; only set values here.
         for (const property of SHELL_DROP_PREVIEW_PROPERTIES) {
             const value = classNameApplied
                 ? readStyleProperty(style, property)
                 : '';
             if (value) {
                 shellStyle?.setProperty(property, value);
-            } else {
-                shellStyle?.removeProperty(property);
             }
         }
 
-        if (theme.dndOverlayBorder === undefined) {
-            this.element.style.removeProperty('--dv-drag-over-border');
-        } else {
+        if (theme.dndOverlayBorder !== undefined) {
             this.element.style.setProperty(
                 '--dv-drag-over-border',
                 theme.dndOverlayBorder
@@ -6408,6 +6424,7 @@ export class DockviewComponent
             shell?.style.removeProperty(property);
         }
         this.element.style.removeProperty('--dv-drag-over-border');
+        shell?.style.removeProperty('--dv-drag-over-border');
 
         const style =
             typeof getComputedStyle === 'function' && this.element.isConnected

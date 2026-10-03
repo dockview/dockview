@@ -1281,21 +1281,22 @@
 }
 
 // Layouts that separate groups by space rather than lines keep them hidden
-// when their colours are re-derived.
-.dockview-spaced.dockview-base-colors,
-.dockview-theme-nord-spaced.dockview-base-colors,
-.dockview-theme-catppuccin-mocha-spaced.dockview-base-colors,
-.dockview-theme-solarized-light-spaced.dockview-base-colors,
-.dockview-theme-github-dark-spaced.dockview-base-colors,
-.dockview-theme-github-light-spaced.dockview-base-colors,
-.dockview-theme-abyss-spaced.dockview-base-colors,
-.dockview-theme-light-spaced.dockview-base-colors {
+// when their colours are re-derived. `:where()` keeps these at one class of
+// specificity, so a user's own class loaded after dockview's still wins.
+.dockview-spaced:where(.dockview-base-colors),
+.dockview-theme-nord-spaced:where(.dockview-base-colors),
+.dockview-theme-catppuccin-mocha-spaced:where(.dockview-base-colors),
+.dockview-theme-solarized-light-spaced:where(.dockview-base-colors),
+.dockview-theme-github-dark-spaced:where(.dockview-base-colors),
+.dockview-theme-github-light-spaced:where(.dockview-base-colors),
+.dockview-theme-abyss-spaced:where(.dockview-base-colors),
+.dockview-theme-light-spaced:where(.dockview-base-colors) {
     --dv-separator-border: transparent;
     --dv-tab-divider-color: transparent;
 }
 
-.dockview-theme-slate.dockview-base-colors,
-.dockview-theme-slate-dark.dockview-base-colors {
+.dockview-theme-slate:where(.dockview-base-colors),
+.dockview-theme-slate-dark:where(.dockview-base-colors) {
     --dv-separator-border: transparent;
     // The sheets (selected tab and content) are the background colour; the
     // canvas around them is a tint of it.
@@ -1318,8 +1319,8 @@
 }
 
 // These spaced themes show drops as a border only.
-.dockview-theme-abyss-spaced.dockview-base-colors,
-.dockview-theme-light-spaced.dockview-base-colors {
+.dockview-theme-abyss-spaced:where(.dockview-base-colors),
+.dockview-theme-light-spaced:where(.dockview-base-colors) {
     --dv-drag-over-background-color: transparent;
 }
 

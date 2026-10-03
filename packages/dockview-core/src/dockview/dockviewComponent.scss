@@ -79,11 +79,15 @@
     inherits: false;
 }
 
-.dv-shell,
-.dv-component-root,
-.dv-popout-window,
-.dockview-spaced,
-[class*='dockview-theme-'] {
+// Zero specificity, so a page's own styles on an element that carries a theme
+// class (a wrapper, say) still win.
+:where(
+        .dv-shell,
+        .dv-component-root,
+        .dv-popout-window,
+        .dockview-spaced,
+        [class*='dockview-theme-']
+    ) {
     box-sizing: border-box;
     padding: var(--dv-root-padding, 0px);
     background-color: var(--dv-root-background-color, transparent);
