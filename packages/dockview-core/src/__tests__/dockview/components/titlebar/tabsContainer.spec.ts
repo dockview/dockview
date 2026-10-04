@@ -2081,6 +2081,7 @@ describe('tabsContainer', () => {
             capturedContext.open(body);
             expect(mockPopupService.openPopover).toHaveBeenCalledWith(
                 body,
+                expect.anything(),
                 expect.anything()
             );
             mockPopupService.close.mockClear();
@@ -2089,6 +2090,203 @@ describe('tabsContainer', () => {
             expect(() => capturedContext.focusTrigger()).not.toThrow();
         });
 
+        test('overflow rows built after the popover closes are disposed', () => {
+            let onClose: (() => void) | undefined;
+            const mockPopupService = {
+                openPopover: jest.fn((_el, _pos, options) => {
+                    onClose = options?.onClose;
+                }),
+                close: jest.fn(() => onClose?.()),
+            };
+
+            let capturedContext: any;
+            const accessor = makeAccessor({
+                getPopupServiceForGroup: () => mockPopupService as any,
+                advancedOverflowService: {
+                    renderOverflow: (args: any) => {
+                        capturedContext = args.context;
+                    },
+                } as any,
+            });
+
+            const renderers: { dispose: jest.Mock }[] = [];
+            const mockPanel = fromPartial<IDockviewPanel>({
+                id: 'panel-a',
+                api: { isActive: false, setActive: jest.fn() },
+                view: {
+                    createTabRenderer: jest.fn(() => {
+                        const renderer = {
+                            element: document.createElement('div'),
+                            dispose: jest.fn(),
+                        };
+                        renderers.push(renderer);
+                        return renderer;
+                    }),
+                },
+            });
+
+            const group = makeGroup({
+                panels: [mockPanel],
+                model: fromPartial<DockviewGroupPanelModel>({
+                    getTabGroups: () => [],
+                }),
+            });
+
+            const cut = new TabsContainer(accessor, group);
+            (cut as any).tabs = makeOverflowMockTabs([
+                {
+                    panel: mockPanel,
+                    element: { scrollIntoView: jest.fn() },
+                },
+            ]);
+            (cut as any).toggleDropdown({
+                tabs: ['panel-a'],
+                tabGroups: [],
+                pinnedTabs: [],
+                reset: false,
+            });
+            fireEvent.click(
+                cut.element.querySelector('.dv-tabs-overflow-dropdown-root')!
+            );
+
+            capturedContext.buildRow('panel-a');
+            capturedContext.open(document.createElement('div'));
+            expect(renderers[0].dispose).not.toHaveBeenCalled();
+
+            capturedContext.close();
+            expect(renderers[0].dispose).toHaveBeenCalledTimes(1);
+
+            // e.g. a debounced search re-rendering after the popover closed
+            capturedContext.buildRow('panel-a');
+            expect(renderers[1].dispose).toHaveBeenCalledTimes(1);
+        });
+
+        test('overflow rows are disposed when rendering the dropdown throws', () => {
+            const consoleError = jest
+                .spyOn(console, 'error')
+                .mockImplementation(() => {
+                    /* jsdom reports the listener error */
+                });
+            // the rethrown error is expected; a listener stops jest failing on it
+            const onError = (event: ErrorEvent) => event.preventDefault();
+            window.addEventListener('error', onError);
+            const accessor = makeAccessor({
+                getPopupServiceForGroup: () =>
+                    ({ openPopover: jest.fn(), close: jest.fn() }) as any,
+                advancedOverflowService: {
+                    renderOverflow: (args: any) => {
+                        args.context.buildRow('panel-a');
+                        throw new Error('render failed');
+                    },
+                } as any,
+            });
+
+            const dispose = jest.fn();
+            const mockPanel = fromPartial<IDockviewPanel>({
+                id: 'panel-a',
+                api: { isActive: false, setActive: jest.fn() },
+                view: {
+                    createTabRenderer: jest.fn(() => ({
+                        element: document.createElement('div'),
+                        dispose,
+                    })),
+                },
+            });
+            const group = makeGroup({
+                panels: [mockPanel],
+                model: fromPartial<DockviewGroupPanelModel>({
+                    getTabGroups: () => [],
+                }),
+            });
+
+            const cut = new TabsContainer(accessor, group);
+            (cut as any).tabs = makeOverflowMockTabs([
+                {
+                    panel: mockPanel,
+                    element: { scrollIntoView: jest.fn() },
+                },
+            ]);
+            (cut as any).toggleDropdown({
+                tabs: ['panel-a'],
+                tabGroups: [],
+                pinnedTabs: [],
+                reset: false,
+            });
+
+            fireEvent.click(
+                cut.element.querySelector('.dv-tabs-overflow-dropdown-root')!
+            );
+
+            expect(dispose).toHaveBeenCalledTimes(1);
+            window.removeEventListener('error', onError);
+            consoleError.mockRestore();
+        });
+
+        test('overflow rows can be disposed before the popover closes', () => {
+            let onClose: (() => void) | undefined;
+            const mockPopupService = {
+                openPopover: jest.fn((_el, _pos, options) => {
+                    onClose = options?.onClose;
+                }),
+                close: jest.fn(() => onClose?.()),
+            };
+
+            let capturedContext: any;
+            const accessor = makeAccessor({
+                getPopupServiceForGroup: () => mockPopupService as any,
+                advancedOverflowService: {
+                    renderOverflow: (args: any) => {
+                        capturedContext = args.context;
+                    },
+                } as any,
+            });
+
+            const dispose = jest.fn();
+            const mockPanel = fromPartial<IDockviewPanel>({
+                id: 'panel-a',
+                api: { isActive: false, setActive: jest.fn() },
+                view: {
+                    createTabRenderer: jest.fn(() => ({
+                        element: document.createElement('div'),
+                        dispose,
+                    })),
+                },
+            });
+
+            const group = makeGroup({
+                panels: [mockPanel],
+                model: fromPartial<DockviewGroupPanelModel>({
+                    getTabGroups: () => [],
+                }),
+            });
+
+            const cut = new TabsContainer(accessor, group);
+            (cut as any).tabs = makeOverflowMockTabs([
+                {
+                    panel: mockPanel,
+                    element: { scrollIntoView: jest.fn() },
+                },
+            ]);
+            (cut as any).toggleDropdown({
+                tabs: ['panel-a'],
+                tabGroups: [],
+                pinnedTabs: [],
+                reset: false,
+            });
+            fireEvent.click(
+                cut.element.querySelector('.dv-tabs-overflow-dropdown-root')!
+            );
+
+            const row = capturedContext.buildRow('panel-a');
+            capturedContext.open(document.createElement('div'));
+
+            row.dispose();
+            row.dispose();
+            expect(dispose).toHaveBeenCalledTimes(1);
+
+            capturedContext.close();
+            expect(dispose).toHaveBeenCalledTimes(1);
+        });
         test('free overflow list renders pinned section and group headers', () => {
             const mockPopupService = {
                 openPopover: jest.fn(),

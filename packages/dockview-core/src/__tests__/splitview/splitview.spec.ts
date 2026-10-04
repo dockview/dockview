@@ -457,6 +457,41 @@ describe('splitview', () => {
         splitview.dispose();
     });
 
+    test('setting proportionalLayout to its current value keeps the saved proportions', () => {
+        const splitview = new Splitview(container, {
+            orientation: Orientation.HORIZONTAL,
+        });
+
+        splitview.layout(200, 500);
+
+        const view1 = new Testview(20, Number.POSITIVE_INFINITY);
+        const view2 = new Testview(20, Number.POSITIVE_INFINITY);
+
+        splitview.addView(view1);
+        splitview.addView(view2);
+        splitview.resizeView(0, 150);
+
+        const proportions = splitview.proportions;
+        expect(proportions).toEqual([0.75, 0.25]);
+
+        // shrinking clamps view2 to its minimum, so the sizes no longer
+        // match the saved proportions
+        splitview.layout(50, 500);
+        expect([view1.size, view2.size]).toEqual([30, 20]);
+        expect(splitview.proportions).toEqual(proportions);
+
+        // a no-op assignment must not re-capture proportions from the
+        // current (clamped) sizes
+        splitview.proportionalLayout = true;
+        expect(splitview.proportionalLayout).toBe(true);
+        expect(splitview.proportions).toEqual(proportions);
+
+        splitview.layout(200, 500);
+        expect([view1.size, view2.size]).toEqual([150, 50]);
+
+        splitview.dispose();
+    });
+
     test('high priority', () => {
         const splitview = new Splitview(container, {
             orientation: Orientation.HORIZONTAL,

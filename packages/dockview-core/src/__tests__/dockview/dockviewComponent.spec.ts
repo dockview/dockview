@@ -5710,6 +5710,46 @@ describe('dockviewComponent', () => {
         ).toHaveLength(0);
     });
 
+    test('removing the last panel of the active group does not leak a watermark', () => {
+        // https://github.com/dockview/dockview/issues/1661
+        const container = document.createElement('div');
+
+        let created = 0;
+        const alive = new Set<number>();
+
+        const dockview = new DockviewComponent(container, {
+            createComponent(options) {
+                return new PanelContentPartTest(options.id, options.name);
+            },
+            createWatermarkComponent: () => {
+                const id = ++created;
+                alive.add(id);
+                return {
+                    element: document.createElement('div'),
+                    init: () => {
+                        /* noop */
+                    },
+                    dispose: () => {
+                        alive.delete(id);
+                    },
+                };
+            },
+        });
+        dockview.layout(800, 600);
+
+        for (let i = 1; i <= 3; i++) {
+            const panel = dockview.addPanel({
+                id: `panel${i}`,
+                component: 'default',
+            });
+            dockview.removePanel(panel);
+
+            // Only the dockview-level watermark should be alive.
+            expect(dockview.groups).toHaveLength(0);
+            expect(alive.size).toBe(1);
+        }
+    });
+
     test('that deserializing an empty layout has zero groups and a watermark', () => {
         const container = document.createElement('div');
 
@@ -14319,5 +14359,59 @@ describe('group header direction change signal (DV-14 unblocker)', () => {
 
             dockview.dispose();
         });
+    });
+});
+
+describe('popout styles from a shadow-root mount', () => {
+    test('copies the stylesheets of the shadow root dockview is mounted in', async () => {
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        const shadowRoot = host.attachShadow({ mode: 'open' });
+        const container = document.createElement('div');
+        shadowRoot.appendChild(container);
+        // jsdom has no styleSheets / adoptedStyleSheets on shadow roots.
+        Object.assign(shadowRoot, {
+            styleSheets: [
+                {
+                    href: null,
+                    cssRules: [{ cssText: '.from-shadow { color: red; }' }],
+                },
+            ],
+            adoptedStyleSheets: [],
+        });
+
+        const popoutDocument =
+            document.implementation.createHTMLDocument('popout');
+        const mockWindow = setupMockWindow();
+        Object.defineProperty(mockWindow, 'document', {
+            value: popoutDocument,
+        });
+        const originalOpen = window.open;
+        window.open = () => mockWindow;
+
+        try {
+            const dockview = new DockviewComponent(container, {
+                createComponent(options) {
+                    return new PanelContentPartTest(options.id, options.name);
+                },
+            });
+            dockview.layout(1000, 500);
+            const panel = dockview.addPanel({
+                id: 'panel_1',
+                component: 'default',
+            });
+
+            expect(await dockview.addPopoutGroup(panel.api.group)).toBeTruthy();
+
+            const texts = Array.from(
+                popoutDocument.head.querySelectorAll('style')
+            ).map((style) => style.textContent);
+            expect(texts).toContain('.from-shadow { color: red; }');
+
+            dockview.dispose();
+        } finally {
+            window.open = originalOpen;
+            host.remove();
+        }
     });
 });

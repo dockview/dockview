@@ -391,15 +391,15 @@ describe('tabs', () => {
                 sourceTabId: 'panel-a',
                 sourceIndex: 0,
                 tabPositions: (tabs as any).snapshotTabPositions(),
-                chipPositions: new Map(),
+                chipSizes: new Map(),
                 currentInsertionIndex: null,
                 targetTabGroupId: null,
                 sourceTabGroupId: null,
                 sourceGroupPanelIds: null,
-                sourceChipWidth: 0,
-                cursorOffsetFromDragLeft: 0,
-                sourceGapWidth: 0,
-                containerLeft: 0,
+                sourceChipSize: 0,
+                cursorOffsetFromDragStart: 0,
+                sourceGapSize: 0,
+                containerStart: 0,
             };
 
             const tabsList = (tabs as any)._tabsList as HTMLElement;

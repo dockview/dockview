@@ -48,8 +48,32 @@
                     '[KeyId:TEST]_[Company:Tests]_[Plan:team]_[AppName:Tests]_[Email:test@test]_[ValidFrom:01_Jan_2020]_[ValidUntil:01_Jan_2999]__8d12a26c8376cc3b'
                 );
 
-                const el = document.getElementById('app');
                 const params = new URLSearchParams(location.search);
+                // `?shadow=1` mounts the dock inside an open shadow root, the
+                // web-component case (a Lit host, say). The stylesheet is
+                // linked in <head>, which shadow DOM does not inherit, so copy
+                // it into the root as a real host would.
+                let el = document.getElementById('app');
+                if (params.get('shadow') === '1') {
+                    const shadowHost = document.createElement('div');
+                    shadowHost.id = 'shadow-host';
+                    // The `#app` rule in <head> styles the original mount;
+                    // the host needs the size inline to fill the page.
+                    shadowHost.style.cssText = 'height:100%;width:100%;';
+                    el.replaceWith(shadowHost);
+                    const shadowRoot = shadowHost.attachShadow({
+                        mode: 'open',
+                    });
+                    const link = document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.href =
+                        '/packages/dockview-core/dist/styles/dockview.css';
+                    const mount = document.createElement('div');
+                    mount.id = 'app';
+                    mount.style.cssText = 'height:100%;width:100%;';
+                    shadowRoot.append(link, mount);
+                    el = mount;
+                }
                 // Opt-in multi-row (wrapping) tabs via `?overflow=wrap` so the
                 // wrap behaviour is exercised without affecting other specs.
                 // `?maxRows=N` caps the header at N rows (surplus spills to the

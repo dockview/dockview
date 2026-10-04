@@ -353,6 +353,19 @@ export interface DockviewOptions {
      * Call `.layout(width, height)` to manually resize the container.
      */
     disableAutoResizing?: boolean;
+    /**
+     * Distribute the available space proportionally between groups when the
+     * container is resized, preserving each group's share of the layout.
+     *
+     * When `false` the extra (or missing) space is absorbed by the last group
+     * in each row/column instead, leaving the other splitters where they are -
+     * the behaviour found in VS Code. If the last group reaches its minimum or
+     * maximum size, the remainder moves on to the group before it.
+     *
+     * Applies to floating and popout windows too, and can be changed at runtime
+     * with `updateOptions`; `undefined` restores the default. Default: `true`.
+     */
+    proportionalLayout?: boolean;
     hideBorders?: boolean;
     singleTabMode?: 'fullwidth' | 'default';
     disableFloatingGroups?: boolean;
@@ -776,6 +789,7 @@ export const PROPERTY_KEYS_DOCKVIEW: (keyof DockviewOptions)[] = (() => {
      */
     const properties: Record<keyof DockviewOptions, undefined> = {
         disableAutoResizing: undefined,
+        proportionalLayout: undefined,
         hideBorders: undefined,
         singleTabMode: undefined,
         disableFloatingGroups: undefined,

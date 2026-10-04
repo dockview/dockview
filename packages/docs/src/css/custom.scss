@@ -175,6 +175,21 @@
         backdrop-filter: saturate(180%) blur(12px);
         -webkit-backdrop-filter: saturate(180%) blur(12px);
     }
+
+    // A backdrop-filter makes the navbar the containing block for its
+    // position: fixed descendants, which clips the mobile slide-out menu
+    // (.navbar-sidebar) to the height of the bar. Drop the filter while the
+    // menu is open.
+    .navbar.navbar-sidebar--show {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+
+    // The navbar background is translucent (it relies on the blur above), so
+    // give the slide-out menu a solid surface of its own.
+    .navbar-sidebar {
+        background-color: var(--ifm-background-color);
+    }
 }
 
 // Coloured "ink" header, light theme only, so dark mode keeps its own dark

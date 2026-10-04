@@ -30,6 +30,53 @@ describe('PopupService', () => {
         });
     });
 
+    describe('onClose', () => {
+        test('runs once when the popover closes', () => {
+            const onClose = jest.fn();
+            service.openPopover(
+                document.createElement('div'),
+                { x: 0, y: 0 },
+                { onClose }
+            );
+
+            service.close();
+            service.close();
+
+            expect(onClose).toHaveBeenCalledTimes(1);
+        });
+
+        test('runs for the replaced popover only', () => {
+            const first = jest.fn();
+            const second = jest.fn();
+            service.openPopover(
+                document.createElement('div'),
+                { x: 0, y: 0 },
+                { onClose: first }
+            );
+            service.openPopover(
+                document.createElement('div'),
+                { x: 0, y: 0 },
+                { onClose: second }
+            );
+
+            expect(first).toHaveBeenCalledTimes(1);
+            expect(second).not.toHaveBeenCalled();
+        });
+
+        test('runs when the service is disposed', () => {
+            const onClose = jest.fn();
+            service.openPopover(
+                document.createElement('div'),
+                { x: 0, y: 0 },
+                { onClose }
+            );
+
+            service.dispose();
+
+            expect(onClose).toHaveBeenCalledTimes(1);
+        });
+    });
+
     describe('openPopover', () => {
         test('appends wrapper containing the element into the anchor', () => {
             const el = document.createElement('div');
