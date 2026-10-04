@@ -40,7 +40,8 @@
     }
 
     .dv-tab.dv-active-tab:focus-visible,
-    .dv-tab.dv-active-tab:has(:focus-visible) {
+    .dv-tab.dv-active-tab:has(:focus-visible),
+    .dv-tab.dv-active-tab.dv-tabs-overflow-option--focused {
         outline-color: HighlightText !important;
     }
 

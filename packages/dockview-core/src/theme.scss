@@ -93,12 +93,19 @@
     --dv-tab-group-line-opacity: 0.6;
 }
 
-// Every theme root re-declares the derived tokens, at zero specificity so the
-// theme's own values win. Values are then resolved per theme (a dock nested in
-// another's panel does not inherit its host's), and app code reading
-// var(--dv-*) sees them. Hover falls back per group where it is used.
+// Every theme root re-declares the registry tokens, at zero specificity so the
+// theme's own values win. They resolve per theme, so a dock nested in another
+// theme's panel doesn't inherit the host's colours, radii or padding (other
+// theme-specific tokens, such as the tab gap, do inherit), and app code
+// reading var(--dv-*) sees them. Hover and the context menu background fall
+// back where they are used (the keyboard-docking hint tells unset apart).
 :where([class*='dockview-theme-']) {
-    @include dv.declare-all($except: ('tab-inactive-hover-background-color'));
+    @include dv.declare-all(
+        $except: (
+            'tab-inactive-hover-background-color',
+            'context-menu-background-color',
+        )
+    );
 }
 
 // Every token declared from the base tokens, so a theme only has to set

@@ -46,7 +46,7 @@ export const colorsDerive = (state: BuilderState) =>
     isBase(state) || state.derived;
 
 export const initialState = (base = themeBase.name): BuilderState => ({
-    base,
+    base: themeByName(base).name,
     derived: false,
     cards: false,
     connectedTabs: false,
@@ -86,7 +86,7 @@ const importNameOf = (theme: DockviewTheme) =>
     `theme${theme.name.charAt(0).toUpperCase()}${theme.name.slice(1)}`;
 
 const overrideEntries = (state: BuilderState) =>
-    Object.entries(state.vars).filter(([, v]) => v !== '');
+    Object.entries(state.vars).filter(([k, v]) => isSafeVar(k, v));
 
 /** The exported CSS: a `.my-theme` rule with the builder's custom properties. */
 export function exportCss(state: BuilderState): string {
@@ -144,16 +144,20 @@ export const PREVIEW_CLASS = 'dv-theme-builder-preview';
  * A rule declaring `vars`. Values come from the page and from share links, so
  * anything that could end the declaration or the rule is dropped.
  */
+function isSafeVar(key: string, value: unknown): value is string {
+    return (
+        /^(--[\w-]+|color-scheme)$/.test(key) &&
+        typeof value === 'string' &&
+        value !== '' &&
+        // Nothing that ends the declaration, the rule or the stylesheet
+        // (comments, strings), and no fetching from a shared link.
+        !/[;{}<>\\"']|\/\*|\*\/|url\(|image-set\(/i.test(value)
+    );
+}
+
 export function cssRule(selector: string, vars: Record<string, string>) {
     const body = Object.entries(vars)
-        .filter(
-            ([k, v]) =>
-                /^(--[\w-]+|color-scheme)$/.test(k) &&
-                typeof v === 'string' &&
-                v !== '' &&
-                // No escaping the rule, and no fetching from a shared link.
-                !/[;{}<>\\]|url\(|image-set\(/i.test(v)
-        )
+        .filter(([k, v]) => isSafeVar(k, v))
         .map(([k, v]) => `    ${k}: ${v};`)
         .join('\n');
     return `${selector} {\n${body}\n}\n`;
@@ -172,13 +176,11 @@ export function encodeState(state: BuilderState): string {
 const isRecord = (v: unknown): v is Record<string, unknown> =>
     typeof v === 'object' && v !== null && !Array.isArray(v);
 
-const SETTING_VALUES: Record<
-    Exclude<keyof SettingOverrides, 'gap'>,
-    readonly string[]
+// Only the settings the builder has controls for.
+const SETTING_VALUES: Partial<
+    Record<Exclude<keyof SettingOverrides, 'gap'>, readonly string[]>
 > = {
     tabAnimation: ['default', 'smooth'],
-    tabGroupIndicator: ['wrap', 'none'],
-    dndOverlayMounting: ['absolute', 'relative'],
     dndPanelOverlay: ['content', 'group'],
     dndTabIndicator: ['line', 'fill'],
 };
@@ -186,12 +188,12 @@ const SETTING_VALUES: Record<
 /** Only the known settings, with values of the right type. */
 function validSettings(raw: Record<string, unknown>): SettingOverrides {
     const settings: Record<string, unknown> = {};
-    if (typeof raw.gap === 'number' && Number.isFinite(raw.gap)) {
+    if (typeof raw.gap === 'number' && raw.gap >= 0 && raw.gap <= 100) {
         settings.gap = raw.gap;
     }
     for (const [key, allowed] of Object.entries(SETTING_VALUES)) {
         const value = raw[key];
-        if (typeof value === 'string' && allowed.includes(value)) {
+        if (typeof value === 'string' && allowed?.includes(value)) {
             settings[key] = value;
         }
     }
@@ -213,8 +215,12 @@ export function decodeState(value: string): BuilderState | undefined {
                     vars[key] = v;
                 }
             }
+            // The Scheme control only exists on the base theme.
             const scheme = parsed.vars['color-scheme'];
-            if (scheme === 'light' || scheme === 'dark') {
+            if (
+                parsed.base === themeBase.name &&
+                (scheme === 'light' || scheme === 'dark')
+            ) {
                 vars['color-scheme'] = scheme;
             }
         }

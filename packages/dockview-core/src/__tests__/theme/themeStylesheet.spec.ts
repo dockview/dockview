@@ -146,6 +146,14 @@ describe('theme stylesheet', () => {
                 )
             ).css
         );
+        // Inside a shadow root (no @property), nested frames reset.
+        const reset = component.find((r) =>
+            r.selectors.some((s) => s.includes('.dv-shell .dv-component-root'))
+        );
+        expect(reset?.declarations).toContainEqual([
+            '--dv-root-padding',
+            '0px',
+        ]);
         const root = component.find((r) => r.selectors.includes('.dv-shell'));
         expect(root?.declarations).toContainEqual([
             'padding',

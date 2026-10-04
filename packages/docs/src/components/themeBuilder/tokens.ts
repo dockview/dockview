@@ -11,6 +11,10 @@ export interface TokenDef {
     group: TokenGroup;
     description: string;
     derived?: boolean;
+    /** A radius that defaults to this fraction of Border radius. */
+    scale?: number;
+    /** The token whose value applies while this one is unset. */
+    fallback?: string;
     min?: number;
     max?: number;
     step?: number;
@@ -49,14 +53,15 @@ const length = (
     group: TokenGroup,
     description: string,
     max = 20,
-    derived = false
+    scale?: number
 ): TokenDef => ({
     name,
     label,
     kind: 'length',
     group,
     description,
-    derived,
+    derived: scale !== undefined,
+    scale,
     min: 0,
     max,
 });
@@ -200,7 +205,7 @@ export const TOKENS: TokenDef[] = [
         'Shape',
         "Corners of a tab. Defaults to ⅔ of Border radius.",
         20,
-        true
+        2 / 3
     ),
     length(
         '--dv-tab-shoulder-size',
@@ -209,19 +214,22 @@ export const TOKENS: TokenDef[] = [
         'The curve where the selected tab meets the content. 0 turns it off; the connected tabs layout sets it.',
         16
     ),
-    length(
-        '--dv-vertical-tab-border-radius',
-        'Tab radius on rails',
-        'Shape',
-        'Tabs on collapsed edge groups. Defaults to the tab radius.'
-    ),
+    {
+        ...length(
+            '--dv-vertical-tab-border-radius',
+            'Tab radius on rails',
+            'Shape',
+            'Tabs on collapsed edge groups. Defaults to the tab radius.'
+        ),
+        fallback: '--dv-tab-border-radius',
+    },
     length(
         '--dv-floating-border-radius',
         'Floating group radius',
         'Shape',
         'Defaults to Border radius.',
         20,
-        true
+        1
     ),
     length(
         '--dv-dropdown-border-radius',
@@ -229,7 +237,7 @@ export const TOKENS: TokenDef[] = [
         'Shape',
         'Tab overflow list and context menu. Defaults to ⅔ of Border radius.',
         20,
-        true
+        2 / 3
     ),
     length(
         '--dv-sash-border-radius',
@@ -237,7 +245,7 @@ export const TOKENS: TokenDef[] = [
         'Shape',
         'Defaults to ⅓ of Border radius.',
         20,
-        true
+        1 / 3
     ),
 
     // Floating groups

@@ -174,12 +174,11 @@ function readSharedState(): BuilderState | undefined {
     return value ? decodeState(value) : undefined;
 }
 
-type SettingKey = Exclude<keyof SettingOverrides, 'gap'>;
+// The settings with a control, and the CSS property a theme sets them with.
+type SettingKey = 'tabAnimation' | 'dndPanelOverlay' | 'dndTabIndicator';
 
 const SETTING_PROPERTIES: Record<SettingKey, string> = {
     tabAnimation: '--dv-tab-animation',
-    tabGroupIndicator: '--dv-tab-group-indicator',
-    dndOverlayMounting: '--dv-dnd-overlay-mounting',
     dndPanelOverlay: '--dv-dnd-panel-overlay',
     dndTabIndicator: '--dv-dnd-tab-indicator',
 };
@@ -428,10 +427,16 @@ export const ThemeBuilder = (props: { initialTheme?: string }) => {
     const derives = colorsDerive(state);
     const statusOf = (t: TokenDef): 'set' | 'derived' | 'theme' => {
         if (state.vars[t.name]) return 'set';
-        // Only colours re-derive on a built-in theme; its lengths are its own.
-        if (t.derived && (t.kind === 'color' ? derives : isBase(state)))
-            return 'derived';
-        return 'theme';
+        if (t.kind === 'color') return t.derived && derives ? 'derived' : 'theme';
+        // Radii follow Border radius on every theme unless the theme sets them.
+        if (t.scale !== undefined) {
+            const expected = px(effective['--dv-border-radius'], 0) * t.scale;
+            return Math.abs(px(effective[t.name], 0) - expected) < 0.5
+                ? 'derived'
+                : 'theme';
+        }
+        if (t.fallback && !effective[t.name]) return 'derived';
+        return t.derived && isBase(state) ? 'derived' : 'theme';
     };
 
     const q = query.trim().toLowerCase();
@@ -459,7 +464,12 @@ export const ThemeBuilder = (props: { initialTheme?: string }) => {
                 return (
                     <Slider
                         label={t.label}
-                        value={px(value || eff, 0)}
+                        value={px(
+                            value ||
+                                eff ||
+                                (t.fallback ? effective[t.fallback] : ''),
+                            0
+                        )}
                         min={t.min ?? 0}
                         max={t.max ?? 20}
                         unit="px"

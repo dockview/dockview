@@ -87,6 +87,13 @@
     background-color: var(--dv-root-background-color, transparent);
 }
 
+// Inside a shadow root `@property` is ignored, so the frame values would
+// inherit and pad a dock twice. Zero specificity: a class on the element wins.
+:where(.dv-shell .dv-component-root, .dv-dockview .dv-shell) {
+    --dv-root-padding: 0px;
+    --dv-root-background-color: transparent;
+}
+
 .dv-dockview {
     position: relative;
     background-color: #{dv.ref('group-view-background-color')};
@@ -250,7 +257,10 @@
     overflow: hidden;
     text-overflow: ellipsis;
     pointer-events: none;
-    background-color: #{dv.ref('group-view-background-color')};
+    background-color: var(
+        --dv-context-menu-background-color,
+        #{dv.ref('group-view-background-color')}
+    );
     color: #{dv.ref('activegroup-visiblepanel-tab-color')};
     border: 1px solid #{dv.ref('tab-divider-color')};
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
