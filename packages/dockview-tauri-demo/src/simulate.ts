@@ -15,6 +15,7 @@ import {
     createDockview,
     themeAbyss,
 } from 'dockview';
+import { closeNativePopout } from './bridge';
 
 /** A popout target on the origin a macOS / Linux release build would use. */
 export const RELEASE_ORIGIN_URL = 'tauri://localhost/popout.html';
@@ -60,6 +61,11 @@ export async function simulateReleaseOriginRestore(): Promise<SimulationResult> 
         api = createDockview(host, {
             theme: themeAbyss,
             createComponent: () => new StubPanel(),
+        });
+        // The close listener in main.ts is per instance, and on macOS this
+        // instance's popout is only destroyed if the shell is asked to.
+        api.onWillClosePopoutWindow(({ window }) => {
+            void closeNativePopout(window);
         });
         api.layout(host.clientWidth, host.clientHeight);
         api.addPanel({ id: 'a', component: 'stub', title: 'A' });

@@ -21,6 +21,7 @@ import { RELEASE_ORIGIN_URL, simulateReleaseOriginRestore } from './simulate';
 abstract class DemoPanel implements IContentRenderer {
     protected readonly root = el('div', { class: 'demo-panel' });
     private readonly teardown: (() => void)[] = [];
+    private disposed = false;
 
     get element(): HTMLElement {
         return this.root;
@@ -28,11 +29,17 @@ abstract class DemoPanel implements IContentRenderer {
 
     abstract init(parameters: GroupPanelPartInitParameters): void;
 
+    /** Runs `fn` on dispose, or straight away if the panel is already gone. */
     protected onDispose(fn: () => void): void {
+        if (this.disposed) {
+            fn();
+            return;
+        }
         this.teardown.push(fn);
     }
 
     dispose(): void {
+        this.disposed = true;
         for (const fn of this.teardown.splice(0)) {
             fn();
         }
@@ -123,10 +130,12 @@ export class HostPanel extends DemoPanel {
 
         // Capture phase, so it runs before the shield's own handler and can
         // tell whether the event arrived at all separately from whether
-        // anything cancelled it.
+        // anything cancelled it. The verdict is read in a task: for an event
+        // the browser dispatches, microtasks run between listeners, so a
+        // microtask would read `defaultPrevented` before the shield has run.
         const onSelectStart = (event: Event) => {
             selectStarts += 1;
-            queueMicrotask(() => {
+            setTimeout(() => {
                 if (event.defaultPrevented) {
                     selectStartsPrevented += 1;
                 }

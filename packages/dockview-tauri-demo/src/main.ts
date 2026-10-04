@@ -42,7 +42,8 @@ const api = createDockview(container, {
 /**
  * wry's macOS UI delegate has no `webViewDidClose:`, so the `close()` dockview
  * calls on a popout window does nothing there and the shell has to destroy it.
- * One listener covers every popout, whatever opened it.
+ * One listener covers every popout this instance opens; the simulation's
+ * throwaway instance registers its own.
  */
 api.onWillClosePopoutWindow(({ window }) => {
     void closeNativePopout(window);
