@@ -149,6 +149,150 @@ describe('tabs', () => {
         });
     });
 
+    describe('active tab reveal', () => {
+        function createTabs(
+            options: Partial<DockviewComponent['options']> = {}
+        ): Tabs {
+            const accessor = fromPartial<DockviewComponent>({
+                options,
+                onDidOptionsChange: jest
+                    .fn()
+                    .mockReturnValue({ dispose: jest.fn() }),
+            });
+            const group = fromPartial<DockviewGroupPanel>({});
+
+            return new Tabs(group, accessor, {
+                showTabsOverflowControl: false,
+            });
+        }
+
+        test('reveals active tab using its offset in the tab strip', () => {
+            const panel1 = createMockPanel('panel1');
+            const panel2 = createMockPanel('panel2');
+            const cut = createTabs();
+
+            cut.openPanel(panel1);
+            cut.openPanel(panel2);
+
+            const tabsList = cut.element.querySelector(
+                '.dv-tabs-container'
+            ) as HTMLElement;
+            const [tab1Element, tab2Element] = getTabElements(cut);
+            const chipElement = document.createElement('div');
+            chipElement.className = 'dv-tab-group-chip';
+            tabsList.insertBefore(chipElement, tab2Element);
+
+            // These tab widths make the previous tab-width accumulation miss the clipped tab.
+            jest.spyOn(tabsList, 'clientWidth', 'get').mockReturnValue(100);
+            jest.spyOn(tab1Element, 'clientWidth', 'get').mockReturnValue(50);
+            jest.spyOn(tab2Element, 'clientWidth', 'get').mockReturnValue(50);
+            jest.spyOn(tab2Element, 'offsetLeft', 'get').mockReturnValue(120);
+            jest.spyOn(tab2Element, 'offsetWidth', 'get').mockReturnValue(50);
+
+            cut.setActivePanel(panel2);
+
+            expect(tabsList.scrollLeft).toBe(120);
+        });
+
+        test('reveals active tab using its offset in a vertical tab strip', () => {
+            const panel1 = createMockPanel('panel1');
+            const panel2 = createMockPanel('panel2');
+            const cut = createTabs();
+            cut.direction = 'vertical';
+
+            cut.openPanel(panel1);
+            cut.openPanel(panel2);
+
+            const tabsList = cut.element.querySelector(
+                '.dv-tabs-container'
+            ) as HTMLElement;
+            const [tab1Element, tab2Element] = getTabElements(cut);
+            const chipElement = document.createElement('div');
+            chipElement.className = 'dv-tab-group-chip';
+            tabsList.insertBefore(chipElement, tab2Element);
+
+            // These tab heights make the previous tab-height accumulation miss the clipped tab.
+            jest.spyOn(tabsList, 'clientHeight', 'get').mockReturnValue(100);
+            jest.spyOn(tab1Element, 'clientHeight', 'get').mockReturnValue(50);
+            jest.spyOn(tab2Element, 'clientHeight', 'get').mockReturnValue(50);
+            jest.spyOn(tab2Element, 'offsetTop', 'get').mockReturnValue(120);
+            jest.spyOn(tab2Element, 'offsetHeight', 'get').mockReturnValue(50);
+
+            cut.setActivePanel(panel2);
+
+            expect(tabsList.scrollTop).toBe(120);
+        });
+
+        test('does not reveal partially visible tab on pointerdown when revealActiveTab is false', () => {
+            const panel1 = createMockPanel('panel1');
+            const panel2 = createMockPanel('panel2');
+            let activePanel = panel1;
+            let openPanelHandler = (_panel: IDockviewPanel): void => {
+                void _panel;
+            };
+            const openPanelMock = jest.fn((panel: IDockviewPanel) => {
+                openPanelHandler(panel);
+            });
+
+            const accessor = fromPartial<DockviewComponent>({
+                options: { revealActiveTab: false, dndStrategy: 'pointer' },
+                doSetGroupActive: jest.fn(),
+                onDidOptionsChange: jest
+                    .fn()
+                    .mockReturnValue({ dispose: jest.fn() }),
+            });
+            const group = fromPartial<DockviewGroupPanel>({
+                get activePanel() {
+                    return activePanel;
+                },
+                api: {
+                    location: { type: 'grid' },
+                },
+                model: {
+                    openPanel: openPanelMock,
+                },
+            });
+            const cut = new Tabs(group, accessor, {
+                showTabsOverflowControl: false,
+            });
+            // Simulate the group model activation path used by tab pointerdown:
+            // Tabs -> group.model.openPanel(panel) -> Tabs.setActivePanel(panel).
+            openPanelHandler = (panel: IDockviewPanel): void => {
+                activePanel = panel;
+                cut.setActivePanel(panel);
+            };
+
+            cut.openPanel(panel1);
+            cut.openPanel(panel2);
+            cut.setActivePanel(panel1);
+
+            const tabsList = cut.element.querySelector(
+                '.dv-tabs-container'
+            ) as HTMLElement;
+            const [tab1Element, tab2Element] = getTabElements(cut);
+
+            // The tab strip viewport is [0, 100]. The second tab sits at
+            // [80, 130], so only its left 20px is visible and the right 30px
+            // is clipped by the viewport edge.
+            jest.spyOn(tabsList, 'clientWidth', 'get').mockReturnValue(100);
+            jest.spyOn(tab1Element, 'clientWidth', 'get').mockReturnValue(80);
+            jest.spyOn(tab2Element, 'clientWidth', 'get').mockReturnValue(50);
+            jest.spyOn(tab2Element, 'offsetLeft', 'get').mockReturnValue(80);
+            jest.spyOn(tab2Element, 'offsetWidth', 'get').mockReturnValue(50);
+
+            tab2Element.dispatchEvent(
+                new MouseEvent('pointerdown', {
+                    bubbles: true,
+                    cancelable: true,
+                    button: 0,
+                })
+            );
+
+            expect(openPanelMock).toHaveBeenCalledWith(panel2);
+            expect(tabsList.scrollLeft).toBe(0);
+        });
+    });
+
     describe('updateDragAndDropState', () => {
         test('that updateDragAndDropState calls updateDragAndDropState on all tabs', () => {
             const cut = new Tabs(

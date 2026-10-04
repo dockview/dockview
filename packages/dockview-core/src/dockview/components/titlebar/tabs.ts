@@ -863,7 +863,10 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
             const isActivePanel = panel.id === tab.value.panel.id;
             tab.value.setActive(isActivePanel);
 
-            if (isActivePanel) {
+            if (
+                isActivePanel &&
+                this.accessor.options.revealActiveTab !== false
+            ) {
                 this._scrollTabIntoView(tab.value.element, isVertical);
             }
         }
