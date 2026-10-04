@@ -14549,7 +14549,9 @@ describe('theme settings from CSS', () => {
     test('the shell keeps its own drop-preview values when className leaves them unchanged', () => {
         const style = document.createElement('style');
         style.textContent =
-            '.dv-shell { --dv-drop-target-border-radius: 6px; } .layout-class { --dv-group-gap: 3px; }';
+            // Declared on both, as inheritance would give in a browser (jsdom
+            // doesn't inherit custom properties).
+            '.dv-shell, .dv-component-root { --dv-drop-target-border-radius: 6px; } .layout-class { --dv-group-gap: 3px; }';
         document.head.appendChild(style);
         try {
             const dv = createDockview();

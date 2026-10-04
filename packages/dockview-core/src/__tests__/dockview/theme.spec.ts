@@ -269,11 +269,29 @@ describe('theme', () => {
             expect(
                 readThemeSettingsFromStyle(
                     style({
-                        '--dv-group-gap': 'calc(1px + 2px)',
+                        '--dv-group-gap': 'wide',
                         '--dv-dnd-tab-indicator': 'dashed',
                     })
                 )
             ).toEqual({});
+        });
+
+        test('resolves non-px lengths through the browser', () => {
+            // jsdom doesn't compute lengths, so stand in for the browser.
+            const spy = jest
+                .spyOn(window, 'getComputedStyle')
+                .mockReturnValue({ width: '12px' } as CSSStyleDeclaration);
+            try {
+                expect(
+                    readThemeSettingsFromStyle(
+                        style({ '--dv-group-gap': '0.75rem' })
+                    )
+                ).toEqual({ gap: 12 });
+                // The probe is removed again.
+                expect(document.body.children).toHaveLength(0);
+            } finally {
+                spy.mockRestore();
+            }
         });
 
         test('the theme object wins over CSS, CSS over the defaults', () => {
