@@ -863,10 +863,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
             const isActivePanel = panel.id === tab.value.panel.id;
             tab.value.setActive(isActivePanel);
 
-            if (
-                isActivePanel &&
-                this.accessor.options.revealActiveTab !== false
-            ) {
+            if (isActivePanel) {
                 this._scrollTabIntoView(tab.value.element, isVertical);
             }
         }
@@ -887,8 +884,9 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         element: HTMLElement,
         isVertical: boolean
     ): void {
+        const reveal = this.accessor.options.revealActiveTab ?? 'start';
         const parentElement = element.parentElement;
-        if (!parentElement) {
+        if (reveal === 'none' || !parentElement) {
             return;
         }
 
@@ -901,12 +899,22 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
             ? parentElement.clientHeight
             : parentElement.clientWidth;
 
-        if (start < scrollStart || start + size > scrollStart + clientSize) {
-            if (isVertical) {
-                parentElement.scrollTop = start;
-            } else {
-                parentElement.scrollLeft = start;
-            }
+        const end = start + size;
+        if (start >= scrollStart && end <= scrollStart + clientSize) {
+            return;
+        }
+
+        // `nearest` aligns whichever edge is clipped; a tab larger than the
+        // strip aligns to the start, as does `start`.
+        const target =
+            reveal === 'nearest' && start > scrollStart && size <= clientSize
+                ? end - clientSize
+                : start;
+
+        if (isVertical) {
+            parentElement.scrollTop = target;
+        } else {
+            parentElement.scrollLeft = target;
         }
     }
 

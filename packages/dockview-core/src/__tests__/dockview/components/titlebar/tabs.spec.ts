@@ -223,7 +223,94 @@ describe('tabs', () => {
             expect(tabsList.scrollTop).toBe(120);
         });
 
-        test('does not reveal partially visible tab on pointerdown when revealActiveTab is false', () => {
+        function setupNearest(direction: 'horizontal' | 'vertical') {
+            const panel1 = createMockPanel('panel1');
+            const panel2 = createMockPanel('panel2');
+            const cut = createTabs({ revealActiveTab: 'nearest' });
+            cut.direction = direction;
+
+            cut.openPanel(panel1);
+            cut.openPanel(panel2);
+
+            const tabsList = cut.element.querySelector(
+                '.dv-tabs-container'
+            ) as HTMLElement;
+            const [, tab2Element] = getTabElements(cut);
+            const isVertical = direction === 'vertical';
+
+            const mockTab = (start: number, size: number): void => {
+                jest.spyOn(
+                    tab2Element,
+                    isVertical ? 'offsetTop' : 'offsetLeft',
+                    'get'
+                ).mockReturnValue(start);
+                jest.spyOn(
+                    tab2Element,
+                    isVertical ? 'offsetHeight' : 'offsetWidth',
+                    'get'
+                ).mockReturnValue(size);
+            };
+            jest.spyOn(
+                tabsList,
+                isVertical ? 'clientHeight' : 'clientWidth',
+                'get'
+            ).mockReturnValue(100);
+
+            return { cut, panel2, tabsList, mockTab };
+        }
+
+        test('nearest aligns a tab clipped at the end with the end of the strip', () => {
+            const { cut, panel2, tabsList, mockTab } =
+                setupNearest('horizontal');
+            mockTab(80, 50);
+
+            cut.setActivePanel(panel2);
+
+            expect(tabsList.scrollLeft).toBe(30);
+        });
+
+        test('nearest aligns a tab clipped at the start with the start of the strip', () => {
+            const { cut, panel2, tabsList, mockTab } =
+                setupNearest('horizontal');
+            tabsList.scrollLeft = 100;
+            mockTab(80, 50);
+
+            cut.setActivePanel(panel2);
+
+            expect(tabsList.scrollLeft).toBe(80);
+        });
+
+        test('nearest aligns a tab larger than the strip with the start', () => {
+            const { cut, panel2, tabsList, mockTab } =
+                setupNearest('horizontal');
+            mockTab(80, 150);
+
+            cut.setActivePanel(panel2);
+
+            expect(tabsList.scrollLeft).toBe(80);
+        });
+
+        test('nearest leaves a fully visible tab alone', () => {
+            const { cut, panel2, tabsList, mockTab } =
+                setupNearest('horizontal');
+            tabsList.scrollLeft = 10;
+            mockTab(20, 50);
+
+            cut.setActivePanel(panel2);
+
+            expect(tabsList.scrollLeft).toBe(10);
+        });
+
+        test('nearest aligns a clipped tab with the end of a vertical strip', () => {
+            const { cut, panel2, tabsList, mockTab } = setupNearest('vertical');
+            mockTab(80, 50);
+
+            cut.setActivePanel(panel2);
+
+            expect(tabsList.scrollTop).toBe(30);
+        });
+
+        test('does not reveal partially visible tab on pointerdown when revealActiveTab is none', () => {
             const panel1 = createMockPanel('panel1');
             const panel2 = createMockPanel('panel2');
             let activePanel = panel1;
@@ -235,7 +322,7 @@ describe('tabs', () => {
             });
 
             const accessor = fromPartial<DockviewComponent>({
-                options: { revealActiveTab: false, dndStrategy: 'pointer' },
+                options: { revealActiveTab: 'none', dndStrategy: 'pointer' },
                 doSetGroupActive: jest.fn(),
                 onDidOptionsChange: jest
                     .fn()

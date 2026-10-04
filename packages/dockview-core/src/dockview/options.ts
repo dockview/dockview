@@ -476,11 +476,15 @@ export interface DockviewOptions {
      */
     scrollbars?: 'native' | 'custom';
     /**
-     * Scroll the tab header to the active tab when selection changes.
-     * When enabled, a clipped active tab is aligned to the start of the
-     * tab strip. Defaults to `true`.
+     * How the tab header scrolls to reveal a clipped tab when it becomes active.
+     *
+     * - `start` aligns the tab with the start of the tab strip.
+     * - `nearest` scrolls only as far as needed to bring the tab fully into view.
+     * - `none` leaves the scroll position unchanged.
+     *
+     * Choosing a tab from the overflow dropdown always reveals it. Defaults to `start`.
      */
-    revealActiveTab?: boolean;
+    revealActiveTab?: 'start' | 'nearest' | 'none';
     /**
      * Return the items to display in the tab context menu on right-click.
      *
