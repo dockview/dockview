@@ -57,4 +57,54 @@ describe('ghost', () => {
 
         expect(element.parentElement).toBeNull();
     });
+
+    test('that the ghost is appended to the owner’s shadow root when it lives in one', () => {
+        const dataTransfer = <DataTransfer>(<unknown>{
+            setDragImage: jest.fn(),
+        });
+
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        const shadowRoot = host.attachShadow({ mode: 'open' });
+        const owner = document.createElement('div');
+        shadowRoot.appendChild(owner);
+
+        const element = document.createElement('div');
+        addGhostImage(dataTransfer, element, {
+            ownerDocument: owner.ownerDocument,
+            owner,
+        });
+
+        expect(element.parentNode).toBe(shadowRoot);
+
+        jest.runAllTimers();
+        expect(element.parentNode).toBeNull();
+        host.remove();
+    });
+    test('positions the ghost out of flow so it cannot shift the dock', () => {
+        const dataTransfer = <DataTransfer>(<unknown>{
+            setDragImage: jest.fn(),
+        });
+
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        const shadowRoot = host.attachShadow({ mode: 'open' });
+        const owner = document.createElement('div');
+        shadowRoot.appendChild(owner);
+
+        // Appended inside the dock's own subtree, an in-flow ghost would take
+        // up space for the frame before the timeout removes it; `top` only
+        // bites once it is positioned.
+        const element = document.createElement('div');
+        addGhostImage(dataTransfer, element, {
+            ownerDocument: owner.ownerDocument,
+            owner,
+        });
+
+        expect(element.style.position).toBe('absolute');
+        expect(element.style.top).toBe('-9999px');
+
+        jest.runAllTimers();
+        host.remove();
+    });
 });

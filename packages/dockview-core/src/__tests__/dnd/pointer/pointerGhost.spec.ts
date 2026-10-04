@@ -77,6 +77,103 @@ describe('PointerGhost', () => {
         ghost.dispose();
     });
 
+    test('attaches into the owner’s shadow root when the owner lives in one', () => {
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        const shadowRoot = host.attachShadow({ mode: 'open' });
+        const owner = document.createElement('div');
+        shadowRoot.appendChild(owner);
+
+        const ghostEl = document.createElement('div');
+        const ghost = new PointerGhost({
+            element: ghostEl,
+            initialX: 0,
+            initialY: 0,
+            owner,
+        });
+
+        expect(ghostEl.parentNode).toBe(shadowRoot);
+
+        ghost.dispose();
+        host.remove();
+    });
+
+    test('lifts a shadow-root ghost into the top layer so host ancestors cannot offset or clip it', () => {
+        // jsdom has no Popover API; browsers do.
+        const showPopover = jest.fn();
+        HTMLElement.prototype.showPopover = showPopover;
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        const shadowRoot = host.attachShadow({ mode: 'open' });
+        const owner = document.createElement('div');
+        shadowRoot.appendChild(owner);
+
+        try {
+            const ghostEl = document.createElement('div');
+            const ghost = new PointerGhost({
+                element: ghostEl,
+                initialX: 10,
+                initialY: 20,
+                owner,
+            });
+
+            const wrapper = ghostEl.parentElement as HTMLElement;
+            expect(wrapper.parentNode).toBe(shadowRoot);
+            expect(wrapper.popover).toBe('manual');
+            expect(showPopover).toHaveBeenCalledTimes(1);
+            expect(wrapper.style.position).toBe('fixed');
+            expect(wrapper.style.transform).toBe('translate3d(10px, 20px, 0)');
+            // The ghost itself keeps its own styles.
+            expect(ghostEl.style.position).toBe('');
+
+            ghost.update(30, 40);
+            expect(wrapper.style.transform).toBe('translate3d(30px, 40px, 0)');
+
+            ghost.dispose();
+            expect(ghostEl.isConnected).toBe(false);
+            expect(wrapper.isConnected).toBe(false);
+        } finally {
+            delete (HTMLElement.prototype as Partial<HTMLElement>).showPopover;
+            host.remove();
+        }
+    });
+
+    test('neutralises the clone\u2019s own pointer-events and transform when wrapped', () => {
+        const showPopover = jest.fn();
+        HTMLElement.prototype.showPopover = showPopover;
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        const shadowRoot = host.attachShadow({ mode: 'open' });
+        const owner = document.createElement('div');
+        shadowRoot.appendChild(owner);
+
+        try {
+            // Dockview's ghosts are clones with every computed property copied
+            // inline, so the element's own declarations beat the wrapper's.
+            const ghostEl = document.createElement('div');
+            ghostEl.style.pointerEvents = 'auto';
+            ghostEl.style.transform = 'translateX(40px)';
+
+            const ghost = new PointerGhost({
+                element: ghostEl,
+                initialX: 10,
+                initialY: 20,
+                owner,
+            });
+
+            const wrapper = ghostEl.parentElement as HTMLElement;
+            expect(wrapper.style.transform).toBe('translate3d(10px, 20px, 0)');
+            // Otherwise the ghost is hit-testable and sits 40px off the pointer.
+            expect(ghostEl.style.pointerEvents).toBe('none');
+            expect(ghostEl.style.transform).toBe('none');
+
+            ghost.dispose();
+        } finally {
+            delete (HTMLElement.prototype as Partial<HTMLElement>).showPopover;
+            host.remove();
+        }
+    });
+
     test('dispose() removes the element and is idempotent', () => {
         const ghostEl = document.createElement('div');
         const ghost = new PointerGhost({

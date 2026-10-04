@@ -1,7 +1,11 @@
 import { fireEvent } from '@testing-library/dom';
 import { DockviewComponent } from 'dockview-core';
 import { registerModules } from 'dockview-core';
-import { IContentRenderer } from 'dockview-core';
+import {
+    DockviewGroupPanel,
+    IContentRenderer,
+    IDockviewPanel,
+} from 'dockview-core';
 import { KeyboardDockingModule } from '../keyboardDockingService';
 
 // Keyboard docking (spatial focus + Ctrl+M move mode) ships in the default
@@ -1183,5 +1187,184 @@ describe('accessibility: move-mode takes precedence over navigation', () => {
         fireEvent.keyDown(dockview.element, { key: 'Escape' });
         fireEvent.keyDown(dockview.element, { key: ']', ctrlKey: true });
         expect(dockview.activePanel?.id).toBe('p1');
+    });
+});
+
+/**
+ * A dock mounted inside an open shadow root: document-level listeners see its
+ * events retargeted to the shadow host, and `document.activeElement` is the
+ * host, so the services must resolve the originating node and the shadow
+ * root's `activeElement` instead.
+ */
+describe('accessibility: dock inside a shadow root', () => {
+    let shadowHost: HTMLElement;
+    let shadow: ShadowRoot;
+    let container: HTMLElement;
+    let dockview: DockviewComponent;
+
+    const make = (): void => {
+        shadowHost = document.createElement('div');
+        document.body.appendChild(shadowHost);
+        shadow = shadowHost.attachShadow({ mode: 'open' });
+        container = document.createElement('div');
+        shadow.appendChild(container);
+        dockview = new DockviewComponent(container, {
+            createComponent: () => new ButtonPanel(),
+            keyboardNavigation: true,
+        });
+        dockview.layout(1000, 1000);
+    };
+
+    const withFloat = (): HTMLElement => {
+        dockview.addPanel({ id: 'main', component: 'default', title: 'Main' });
+        dockview.addPanel({
+            id: 'float',
+            component: 'default',
+            title: 'Float',
+            floating: true,
+        });
+        return container.querySelector('[role="dialog"]') as HTMLElement;
+    };
+
+    // composed, so it crosses the shadow boundary to the document listeners
+    const key = (el: Element, init: KeyboardEventInit): void => {
+        el.dispatchEvent(
+            new KeyboardEvent('keydown', {
+                bubbles: true,
+                cancelable: true,
+                composed: true,
+                ...init,
+            })
+        );
+    };
+
+    const activeTab = (): HTMLElement =>
+        container.querySelector('.dv-tab[aria-selected="true"]') as HTMLElement;
+
+    afterEach(() => {
+        dockview.dispose();
+        shadowHost.remove();
+    });
+
+    test('Ctrl+] switches tabs from a key pressed inside the shadow root', () => {
+        make();
+        dockview.addPanel({ id: 'p1', component: 'default', title: 'P1' });
+        dockview.addPanel({ id: 'p2', component: 'default', title: 'P2' });
+        expect(dockview.activePanel?.id).toBe('p2');
+
+        key(activeTab(), { key: ']', ctrlKey: true });
+        expect(dockview.activePanel?.id).toBe('p1');
+    });
+
+    test('Ctrl+M enters move mode from a key pressed inside the shadow root', () => {
+        make();
+        dockview.addPanel({ id: 'p1', component: 'default', title: 'P1' });
+
+        key(activeTab(), { key: 'm', ctrlKey: true });
+        expect(
+            container.querySelector('.dv-live-region')?.textContent
+        ).toContain('Moving P1');
+    });
+
+    test('closing the focused panel restores focus into the dock', () => {
+        make();
+        dockview.addPanel({ id: 'p1', component: 'default', title: 'P1' });
+        dockview.addPanel({ id: 'p2', component: 'default', title: 'P2' });
+        activeTab().focus();
+        expect(document.activeElement).toBe(shadowHost);
+        expect(shadow.activeElement).toBe(activeTab());
+
+        const group = dockview.activeGroup as DockviewGroupPanel;
+        const spy = jest.spyOn(group.model, 'focusContent');
+        dockview.removePanel(group.activePanel as IDockviewPanel); // p2
+
+        expect(spy).toHaveBeenCalled();
+    });
+
+    test('Esc inside a float returns focus to the invoking control', () => {
+        make();
+        const float = withFloat();
+        const invoker = Array.from(
+            container.querySelectorAll<HTMLElement>('.dv-tab')
+        ).find((t) => !float.contains(t)) as HTMLElement;
+        const floatTab = float.querySelector('.dv-tab') as HTMLElement;
+
+        invoker.focus();
+        floatTab.focus();
+        key(floatTab, { key: 'Escape' });
+
+        expect(shadow.activeElement).toBe(invoker);
+    });
+
+    test('Esc returns to the last control after focus moved within the shadow root', () => {
+        // A focus move between two controls inside the same shadow root never
+        // reaches a document-level focusin listener, so it must be tracked on
+        // the shadow root itself.
+        make();
+        const float = withFloat();
+        const tab = Array.from(
+            container.querySelectorAll<HTMLElement>('.dv-tab')
+        ).find((t) => !float.contains(t)) as HTMLElement;
+        const button = Array.from(
+            container.querySelectorAll<HTMLElement>('button')
+        ).find((b) => !float.contains(b)) as HTMLElement;
+        const floatTab = float.querySelector('.dv-tab') as HTMLElement;
+
+        tab.focus(); // enters the shadow root from outside
+        button.focus(); // intra-root move
+        floatTab.focus();
+        key(floatTab, { key: 'Escape' });
+
+        expect(shadow.activeElement).toBe(button);
+    });
+
+    test('tracks intra-root focus when the dock is moved into a shadow root later', () => {
+        shadowHost = document.createElement('div');
+        document.body.appendChild(shadowHost);
+        shadow = shadowHost.attachShadow({ mode: 'open' });
+        container = document.createElement('div');
+        document.body.appendChild(container); // light DOM at construction
+        dockview = new DockviewComponent(container, {
+            createComponent: () => new ButtonPanel(),
+            keyboardNavigation: true,
+        });
+        dockview.layout(1000, 1000);
+        const float = withFloat();
+        shadow.appendChild(container);
+
+        const tab = Array.from(
+            container.querySelectorAll<HTMLElement>('.dv-tab')
+        ).find((t) => !float.contains(t)) as HTMLElement;
+        const button = Array.from(
+            container.querySelectorAll<HTMLElement>('button')
+        ).find((b) => !float.contains(b)) as HTMLElement;
+        const floatTab = float.querySelector('.dv-tab') as HTMLElement;
+
+        tab.focus();
+        button.focus();
+        floatTab.focus();
+        key(floatTab, { key: 'Escape' });
+
+        expect(shadow.activeElement).toBe(button);
+    });
+
+    test('Tab wraps within a float and Shift+Tab steps back from the focused control', () => {
+        make();
+        const float = withFloat();
+        const tabbables = Array.from(
+            float.querySelectorAll<HTMLElement>('button, [tabindex]')
+        ).filter((el) => el.tabIndex >= 0);
+        expect(tabbables.length).toBeGreaterThan(2);
+        const last = tabbables[tabbables.length - 1];
+
+        last.focus();
+        key(last, { key: 'Tab' });
+        expect(shadow.activeElement).toBe(tabbables[0]);
+
+        // Stepping back needs the float's real focused control, not the host
+        // (which would read as "no index" and jump to the last tabbable).
+        last.focus();
+        key(last, { key: 'Tab', shiftKey: true });
+        expect(shadow.activeElement).toBe(tabbables[tabbables.length - 2]);
     });
 });

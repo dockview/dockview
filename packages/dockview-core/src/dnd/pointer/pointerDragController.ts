@@ -1,4 +1,8 @@
-import { disableIframePointEvents, disableTextSelection } from '../../dom';
+import {
+    disableIframePointEvents,
+    disableTextSelection,
+    getHitTestRoot,
+} from '../../dom';
 import { addDisposableListener, Emitter, Event } from '../../events';
 import { CompositeDisposable, IDisposable } from '../../lifecycle';
 import { PointerGhost } from './pointerGhost';
@@ -215,9 +219,12 @@ export class PointerDragController extends CompositeDisposable {
     ): IPointerDropTargetHandle | undefined {
         // `elementsFromPoint` is topmost-first; walk up to find the closest
         // registered ancestor (so a tab beats the layout-root that contains it).
-        // Use the source's owning document so popout drags hit their own targets.
-        const sourceDoc = this._active?.source.ownerDocument ?? document;
-        const elements = sourceDoc.elementsFromPoint(x, y);
+        // Use the source's root so popout drags hit their own targets and a
+        // shadow-root mount reaches past the shadow host.
+        const root = this._active
+            ? getHitTestRoot(this._active.source)
+            : document;
+        const elements = root.elementsFromPoint(x, y);
         for (const el of elements) {
             let current: Element | null = el;
             while (current) {

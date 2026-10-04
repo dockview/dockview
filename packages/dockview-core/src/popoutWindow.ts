@@ -1,4 +1,4 @@
-import { addStyles, CspNonceProvider } from './dom';
+import { addStyles, CspNonceProvider, isShadowRoot } from './dom';
 import { Emitter, addDisposableListener } from './events';
 import { CompositeDisposable, Disposable, IDisposable } from './lifecycle';
 import { Box } from './types';
@@ -40,6 +40,11 @@ export type PopoutWindowOptions = {
     onDidOpen?: (event: PopoutWindowEvent) => void;
     onWillClose?: (event: PopoutWindowEvent) => void;
     nonce?: CspNonceProvider;
+    /** The root node dockview is mounted in, read when the popout loads.
+     *  When it is a shadow root its stylesheets are copied too, since they are
+     *  not in `document.styleSheets`. Rules that target the shadow host
+     *  (`:host`, `::slotted`) match nothing in the popout. */
+    styleRoot?: () => Node;
 } & Box;
 
 /**
@@ -296,13 +301,39 @@ export class PopoutWindow extends CompositeDisposable {
 
                     externalDocument.body.appendChild(container);
 
+                    // Constructed sheets (`adoptedStyleSheets`) are not in
+                    // `styleSheets`, and a build that ships its CSS that way
+                    // would otherwise pop out unstyled.
                     addStyles(
                         externalDocument,
-                        globalThis.document.styleSheets,
+                        [
+                            ...Array.from(globalThis.document.styleSheets),
+                            ...(globalThis.document.adoptedStyleSheets ?? []),
+                        ],
                         {
                             nonce: this.options.nonce,
                         }
                     );
+
+                    // Walk out through every host: a dock inside a component
+                    // nested in another component is styled by each root it
+                    // sits under, not just the innermost.
+                    const sheets: CSSStyleSheet[] = [];
+                    for (
+                        let root = this.options.styleRoot?.();
+                        isShadowRoot(root);
+                        root = root.host.getRootNode()
+                    ) {
+                        sheets.push(
+                            ...Array.from(root.styleSheets ?? []),
+                            ...(root.adoptedStyleSheets ?? [])
+                        );
+                    }
+                    if (sheets.length > 0) {
+                        addStyles(externalDocument, sheets, {
+                            nonce: this.options.nonce,
+                        });
+                    }
 
                     /**
                      * beforeunload must be registered after load for reasons I could not determine

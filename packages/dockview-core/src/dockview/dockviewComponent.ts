@@ -614,10 +614,14 @@ export class DockviewComponent
     // Compound operations (e.g. a drag that relocates a panel) nest via the
     // depth counter and bracket as a single transaction. See `mutation()`.
     private _mutationDepth = 0;
+    // depth of synchronous `mutation()` calls only
+    private _syncMutationDepth = 0;
     // Panel location events awaiting the end of the current transaction, keyed
     // by the panel api that owns them so a panel reports at most once per
     // transaction. See `deferLocationChange()`.
     private readonly _pendingLocationChanges = new Map<object, () => void>();
+    // popout windows still opening, closed on dispose
+    private readonly _openingPopoutWindows = new Set<IDisposable>();
     // Current operation origin. Defaults to `'user'`; the DockviewApi boundary
     // flips it to `'api'` for the duration of a programmatic call via
     // `withOrigin`. Nested operations inherit the outermost origin (tracked by
@@ -1566,7 +1570,7 @@ export class DockviewComponent
 
     constructor(container: HTMLElement, options: DockviewComponentOptions) {
         super(container, {
-            proportionalLayout: true,
+            proportionalLayout: options.proportionalLayout ?? true,
             orientation: Orientation.HORIZONTAL,
             styles: options.hideBorders
                 ? { separatorBorder: 'transparent' }
@@ -1615,6 +1619,15 @@ export class DockviewComponent
         }
 
         this.popupService = new PopupService(this.element);
+        this.addDisposables(
+            this.popupService,
+            Disposable.from(() => {
+                for (const opening of this._openingPopoutWindows) {
+                    opening.dispose();
+                }
+                this._openingPopoutWindows.clear();
+            })
+        );
         this._api = new DockviewApi(this);
 
         // The shell always wraps the dockview element so edge groups can be
@@ -2016,6 +2029,7 @@ export class DockviewComponent
                     this._onWillClosePopoutWindow.fire(event);
                 },
                 nonce: this.options?.nonce,
+                styleRoot: () => this.element.getRootNode(),
             }
         );
 
@@ -2025,6 +2039,7 @@ export class DockviewComponent
                 popoutWindowDisposable.dispose();
             })
         );
+        this._openingPopoutWindows.add(popoutWindowDisposable);
 
         // A URL the guard refuses - a packaged desktop shell serving the app
         // from a custom protocol, say - is settled here rather than by catching
@@ -2036,6 +2051,13 @@ export class DockviewComponent
 
         return (openError ? Promise.resolve(null) : _window.open())
             .then((popoutContainer) => {
+                this._openingPopoutWindows.delete(popoutWindowDisposable);
+
+                if (this.isDisposed) {
+                    popoutWindowDisposable.dispose();
+                    return false;
+                }
+
                 if (_window.isDisposed) {
                     // Gone while opening, so nothing has left the grid and there
                     // is no group to return - but the caller is owed the reason,
@@ -2386,6 +2408,7 @@ export class DockviewComponent
                 return true;
             })
             .catch((err) => {
+                this._openingPopoutWindows.delete(popoutWindowDisposable);
                 console.error('dockview: failed to create popout.', err);
                 return false;
             });
@@ -2860,14 +2883,15 @@ export class DockviewComponent
     }
 
     /**
-     * Build an empty gridview configured to match the main grid's styling, for
-     * hosting a nested layout inside a floating or popout window.
+     * Build an empty gridview configured to match the main grid's styling and
+     * resize behaviour, for hosting a nested layout inside a floating or popout
+     * window.
      */
     private createNestedGridview(
         orientation: Orientation = Orientation.HORIZONTAL
     ): Gridview {
         return new Gridview(
-            true,
+            this.gridview.proportionalLayout,
             this.options.hideBorders
                 ? { separatorBorder: 'transparent' }
                 : undefined,
@@ -3072,6 +3096,18 @@ export class DockviewComponent
             oldDndStrategy !== newDndStrategy
         ) {
             this.updateDragAndDropState();
+        }
+
+        if ('proportionalLayout' in options) {
+            // super.updateOptions has already updated the main grid; floating
+            // and popout windows host their own nested gridviews
+            const proportionalLayout = this.gridview.proportionalLayout;
+            for (const floating of this.floatingGroups) {
+                floating.gridview.proportionalLayout = proportionalLayout;
+            }
+            for (const entry of this._popoutWindowService?.entries ?? []) {
+                entry.gridview.proportionalLayout = proportionalLayout;
+            }
         }
 
         if ('theme' in options) {
@@ -3445,6 +3481,8 @@ export class DockviewComponent
             group.dispose();
             this._groups.delete(group.id);
             this._onDidRemoveGroup.fire(group);
+
+            this.activateFallbackGroupIfRemoved(group);
         });
     }
 
@@ -3798,6 +3836,7 @@ export class DockviewComponent
                             }
                         });
                         record?.disposable.dispose();
+                        this.headerActionsService?.disposeGroup(temporaryGroup);
                         temporaryGroup.dispose();
                     })
                 );
@@ -5025,9 +5064,15 @@ export class DockviewComponent
      */
     mutation<T>(kind: DockviewLayoutMutationKind, func: () => T): T {
         const close = this.openMutation(kind);
+        this._syncMutationDepth++;
         try {
             return func();
         } finally {
+            this._syncMutationDepth--;
+            // an async popout can hold the transaction open past this point
+            if (this._syncMutationDepth === 0) {
+                this.releaseDisposedActiveGroup();
+            }
             close();
         }
     }
@@ -5078,10 +5123,18 @@ export class DockviewComponent
         return () => {
             this._mutationDepth--;
             if (this._mutationDepth === 0) {
+                this.releaseDisposedActiveGroup();
                 this.flushLocationChanges();
                 this._onDidMutateLayout.fire({ kind, origin });
             }
         };
+    }
+
+    /** Covers removals with `skipActive` that disposed the active group. */
+    private releaseDisposedActiveGroup(): void {
+        if (!this.isDisposed && this._activeGroup?.model.isDisposed) {
+            this.activateFallbackGroupIfRemoved(this._activeGroup);
+        }
     }
 
     /**
@@ -5254,7 +5307,12 @@ export class DockviewComponent
                 throw new Error(`dockview: No panel with id ${sourceItemId}`);
             }
 
-            if (!options.keepEmptyGroups && sourceGroup.model.size === 0) {
+            // keep the source group when moving within it
+            if (
+                !options.keepEmptyGroups &&
+                sourceGroup.model.size === 0 &&
+                sourceGroup !== destinationGroup
+            ) {
                 // remove the group and do not set a new group as active
                 this.doRemoveGroup(sourceGroup, { skipActive: true });
             }
@@ -5651,6 +5709,10 @@ export class DockviewComponent
         const from = options.from.group;
         const to = options.to.group;
         const target = options.to.position;
+
+        if (target === 'center' && from === to) {
+            return;
+        }
 
         // The group whose panels end up at the target. For non-edge moves
         // we relocate `from` itself; for edge moves we move panels into a

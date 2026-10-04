@@ -255,6 +255,7 @@ export {
 export { resolveMessages } from './dockview/accessibilityMessages';
 export {
     findRelativeZIndexParent,
+    getActiveElement,
     prefersReducedMotion,
     resolveOpaqueBackground,
 } from './dom';

@@ -107,6 +107,49 @@ describe('PointerDragController', () => {
         document.body.removeChild(targetEl);
     });
 
+    test('hit-tests through the shadow root when the source is inside one', () => {
+        const controller = PointerDragController.getInstance();
+
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        const shadowRoot = host.attachShadow({ mode: 'open' });
+        const source = document.createElement('div');
+        const targetEl = document.createElement('div');
+        shadowRoot.append(source, targetEl);
+
+        // Hit-testing on the document stops at the shadow host; only the
+        // shadow root sees the target. (jsdom lacks the method on shadow
+        // roots, so define it.)
+        const documentSpy = jest
+            .spyOn(document, 'elementsFromPoint')
+            .mockReturnValue([host, document.body]);
+        Object.assign(shadowRoot, {
+            elementsFromPoint: jest
+                .fn()
+                .mockReturnValue([targetEl, host, document.body]),
+        });
+
+        const { target, handleDragOver } = makeTarget(targetEl);
+        const reg = controller.registerTarget(target);
+
+        controller.beginDrag({
+            pointerEvent: makePointerEvent('pointermove'),
+            source,
+            getData: () => ({ dispose: jest.fn() }),
+        });
+
+        window.dispatchEvent(
+            makePointerEvent('pointermove', { clientX: 50, clientY: 50 })
+        );
+
+        expect(handleDragOver).toHaveBeenCalledTimes(1);
+
+        controller.cancel();
+        reg.dispose();
+        documentSpy.mockRestore();
+        host.remove();
+    });
+
     test('drag-leave fires when the pointer moves off the target', () => {
         const controller = PointerDragController.getInstance();
 

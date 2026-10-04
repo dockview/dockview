@@ -4,6 +4,7 @@ import { Droptarget, Position } from '../dnd/droptarget';
 import { DockviewComponent, DockviewOrigin } from './dockviewComponent';
 import {
     addClasses,
+    getActiveElement,
     isAncestor,
     removeClasses,
     toggleClass,
@@ -474,13 +475,12 @@ export class DockviewGroupPanelModel
     }
 
     get isContentFocused(): boolean {
-        if (!document.activeElement) {
+        const element = this.contentContainer.element;
+        const activeElement = getActiveElement(element);
+        if (!activeElement) {
             return false;
         }
-        return isAncestor(
-            document.activeElement,
-            this.contentContainer.element
-        );
+        return isAncestor(activeElement, element);
     }
 
     get headerPosition(): DockviewHeaderPosition {
@@ -1597,6 +1597,9 @@ export class DockviewGroupPanelModel
     }
 
     public setActive(isGroupActive: boolean, force = false): void {
+        if (this.isDisposed) {
+            return;
+        }
         if (!force && this.isActive === isGroupActive) {
             return;
         }

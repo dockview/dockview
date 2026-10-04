@@ -82,6 +82,7 @@ export class OverflowListView extends CompositeDisposable {
         id: string;
         element: HTMLElement;
         activate: () => void;
+        dispose: () => void;
     }[] = [];
     private _activeIndex = -1;
     private _debounce: { win: Window; handle: number } | undefined;
@@ -240,6 +241,7 @@ export class OverflowListView extends CompositeDisposable {
             id,
             element: row.element,
             activate: row.activate,
+            dispose: row.dispose,
         });
     }
 
@@ -248,6 +250,9 @@ export class OverflowListView extends CompositeDisposable {
 
         while (this._list.firstChild) {
             this._list.firstChild.remove();
+        }
+        for (const row of this._rows) {
+            row.dispose();
         }
         this._rows = [];
 
