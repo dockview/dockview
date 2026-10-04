@@ -18,6 +18,7 @@ import {
     quasiPreventDefault,
     resolveOpaqueBackground,
     trackFocus,
+    watchElementResize,
 } from '../dom';
 
 function stubRect(
@@ -828,5 +829,54 @@ describe('shadow-DOM-aware event targeting', () => {
         expect(isEventWithin(event, [document.createElement('div')])).toBe(
             false
         );
+    });
+});
+
+describe('watchElementResize', () => {
+    test('a resize pending when disposed never reaches the callback', () => {
+        const originalResizeObserver = window.ResizeObserver;
+        let notify: ((entries: ResizeObserverEntry[]) => void) | undefined;
+        window.ResizeObserver = class {
+            constructor(cb: (entries: ResizeObserverEntry[]) => void) {
+                notify = cb;
+            }
+            observe() {
+                /* noop */
+            }
+            unobserve() {
+                /* noop */
+            }
+            disconnect() {
+                /* noop */
+            }
+        } as unknown as typeof ResizeObserver;
+
+        const frames: FrameRequestCallback[] = [];
+        const raf = jest
+            .spyOn(window, 'requestAnimationFrame')
+            .mockImplementation((cb) => frames.push(cb));
+        const caf = jest
+            .spyOn(window, 'cancelAnimationFrame')
+            .mockImplementation((id) => {
+                frames[id - 1] = () => {
+                    /* cancelled */
+                };
+            });
+
+        try {
+            const cb = jest.fn();
+            const element = document.createElement('div');
+            const disposable = watchElementResize(element, cb);
+
+            notify!([{ target: element } as unknown as ResizeObserverEntry]);
+            disposable.dispose();
+            frames.forEach((frame) => frame(0));
+
+            expect(cb).not.toHaveBeenCalled();
+        } finally {
+            raf.mockRestore();
+            caf.mockRestore();
+            window.ResizeObserver = originalResizeObserver;
+        }
     });
 });
