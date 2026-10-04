@@ -346,7 +346,8 @@ export class ContextMenuController implements IContextMenuService {
                     'Open in New Window',
                     close,
                     () => {
-                        this.accessor.api.addPopoutGroup(panel);
+                        // errors are caught and logged inside addPopoutGroup
+                        void this.accessor.api.addPopoutGroup(panel);
                     },
                     panel.api.location.type === 'popout'
                 );
