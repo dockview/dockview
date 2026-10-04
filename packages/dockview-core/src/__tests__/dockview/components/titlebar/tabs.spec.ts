@@ -223,10 +223,15 @@ describe('tabs', () => {
             expect(tabsList.scrollTop).toBe(120);
         });
 
-        function setupNearest(direction: 'horizontal' | 'vertical') {
+        function setupReveal(
+            direction: 'horizontal' | 'vertical',
+            options: Partial<DockviewComponent['options']> = {
+                revealActiveTab: 'nearest',
+            }
+        ) {
             const panel1 = createMockPanel('panel1');
             const panel2 = createMockPanel('panel2');
-            const cut = createTabs({ revealActiveTab: 'nearest' });
+            const cut = createTabs(options);
             cut.direction = direction;
 
             cut.openPanel(panel1);
@@ -259,9 +264,33 @@ describe('tabs', () => {
             return { cut, panel2, tabsList, mockTab };
         }
 
+        test('defaults to aligning a clipped tab with the start of the strip', () => {
+            const { cut, panel2, tabsList, mockTab } = setupReveal(
+                'horizontal',
+                {}
+            );
+            mockTab(80, 50);
+
+            cut.setActivePanel(panel2);
+
+            expect(tabsList.scrollLeft).toBe(80);
+        });
+
+        test('start aligns a clipped tab with the start of the strip', () => {
+            const { cut, panel2, tabsList, mockTab } = setupReveal(
+                'horizontal',
+                { revealActiveTab: 'start' }
+            );
+            mockTab(80, 50);
+
+            cut.setActivePanel(panel2);
+
+            expect(tabsList.scrollLeft).toBe(80);
+        });
+
         test('nearest aligns a tab clipped at the end with the end of the strip', () => {
             const { cut, panel2, tabsList, mockTab } =
-                setupNearest('horizontal');
+                setupReveal('horizontal');
             mockTab(80, 50);
 
             cut.setActivePanel(panel2);
@@ -271,7 +300,7 @@ describe('tabs', () => {
 
         test('nearest aligns a tab clipped at the start with the start of the strip', () => {
             const { cut, panel2, tabsList, mockTab } =
-                setupNearest('horizontal');
+                setupReveal('horizontal');
             tabsList.scrollLeft = 100;
             mockTab(80, 50);
 
@@ -282,7 +311,7 @@ describe('tabs', () => {
 
         test('nearest aligns a tab larger than the strip with the start', () => {
             const { cut, panel2, tabsList, mockTab } =
-                setupNearest('horizontal');
+                setupReveal('horizontal');
             mockTab(80, 150);
 
             cut.setActivePanel(panel2);
@@ -292,7 +321,7 @@ describe('tabs', () => {
 
         test('nearest leaves a fully visible tab alone', () => {
             const { cut, panel2, tabsList, mockTab } =
-                setupNearest('horizontal');
+                setupReveal('horizontal');
             tabsList.scrollLeft = 10;
             mockTab(20, 50);
 
@@ -302,7 +331,7 @@ describe('tabs', () => {
         });
 
         test('nearest aligns a clipped tab with the end of a vertical strip', () => {
-            const { cut, panel2, tabsList, mockTab } = setupNearest('vertical');
+            const { cut, panel2, tabsList, mockTab } = setupReveal('vertical');
             mockTab(80, 50);
 
             cut.setActivePanel(panel2);
