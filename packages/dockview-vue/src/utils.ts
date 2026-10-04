@@ -29,7 +29,10 @@ import {
 } from 'dockview';
 import {
     createVNode,
+    inject,
     type ComponentOptionsBase,
+    type InjectionKey,
+    type Slots,
     render,
     cloneVNode,
     markRaw,
@@ -52,6 +55,73 @@ export type ComponentInterface = ComponentOptionsBase<
 >;
 
 export type VueComponent<T = any> = DefineComponent<T>;
+
+const SLOT_REFERENCE = Symbol('dockview-vue.slot');
+
+/**
+ * Points a renderer at a named slot of the host component instead of a
+ * component. Created via {@link createSlotReference}.
+ */
+export interface VueSlotReference {
+    readonly [SLOT_REFERENCE]: true;
+    readonly name: string;
+}
+
+/** What a renderer mounts: a component, or a named slot of the host. */
+export type VueRenderable = VueComponent | VueSlotReference;
+
+export function createSlotReference(name: string): VueSlotReference {
+    return markRaw({ [SLOT_REFERENCE]: true as const, name });
+}
+
+export function isSlotReference(value: unknown): value is VueSlotReference {
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        (value as any)[SLOT_REFERENCE] === true
+    );
+}
+
+/**
+ * Provided by a host (`dockview.vue`) so that {@link VueSlotOutlet} can look
+ * up the host's slots. `version` is bumped whenever the host re-renders, which
+ * re-runs every outlet so that slot functions replaced by the parent (dynamic
+ * slots, render-function slots) are picked up.
+ */
+export interface VueSlotContext {
+    readonly slots: Slots;
+    readonly version: ShallowRef<number>;
+}
+
+export const VUE_SLOT_CONTEXT: InjectionKey<VueSlotContext> = Symbol(
+    'dockview-vue.slotContext'
+);
+
+/**
+ * Renders the host slot `slotName`, passing the renderer's `params` as the
+ * slot props. Mounted through the same {@link VueRendererRegistry} teleport
+ * path as components, so it lives inside the host's component tree and the
+ * slot content keeps the parent's reactivity, event handlers and injections.
+ */
+export const VueSlotOutlet = {
+    name: 'DockviewSlotOutlet',
+    props: {
+        slotName: { type: String, required: true },
+        params: { type: Object, default: undefined },
+    },
+    setup(props: { slotName: string; params?: Record<string, any> }) {
+        const context = inject(VUE_SLOT_CONTEXT, null);
+        return () => {
+            if (!context) {
+                return null;
+            }
+            // Track the version so a host re-render re-runs this outlet.
+            void context.version.value;
+            const slot = context.slots[props.slotName];
+            return slot ? slot(props.params ?? {}) : null;
+        };
+    },
+} as unknown as VueComponent;
 
 export function findComponent(
     parent: ComponentInternalInstance,
@@ -211,7 +281,7 @@ abstract class AbstractVueRenderer {
     }
 
     constructor(
-        protected readonly component: VueComponent,
+        protected readonly component: VueRenderable,
         protected readonly parent: ComponentInternalInstance,
         protected readonly registry?: VueRendererRegistry
     ) {
@@ -226,17 +296,23 @@ abstract class AbstractVueRenderer {
      * is provided the component is teleported by the host (keeping it in the
      * Vue component tree); otherwise it falls back to the detached
      * {@link mountVueComponent} render root.
+     *
+     * A {@link VueSlotReference} is mounted as a {@link VueSlotOutlet}, which
+     * renders the host's slot with `props.params` as the slot props.
      */
     protected mount(props: Record<string, any>): void {
+        let component: VueComponent;
+        if (isSlotReference(this.component)) {
+            component = VueSlotOutlet;
+            props = { ...props, slotName: this.component.name };
+        } else {
+            component = this.component;
+        }
+
         this._renderDisposable?.dispose();
         this._renderDisposable = this.registry
-            ? this.registry.mount(this.component, this.element, props)
-            : mountVueComponent(
-                  this.component,
-                  this.parent,
-                  props,
-                  this.element
-              );
+            ? this.registry.mount(component, this.element, props)
+            : mountVueComponent(component, this.parent, props, this.element);
     }
 }
 
@@ -246,10 +322,12 @@ export class VueRenderer
 {
     private _api: DockviewPanelApi | undefined;
     private _containerApi: DockviewApi | undefined;
+    private _tabLocation: TabPartInitParameters['tabLocation'] | undefined;
 
     init(parameters: TabPartInitParameters): void {
         this._api = parameters.api;
         this._containerApi = parameters.containerApi;
+        this._tabLocation = parameters.tabLocation;
 
         const props: IDockviewPanelHeaderProps = {
             params: parameters.params,
@@ -272,6 +350,7 @@ export class VueRenderer
                 params: params,
                 api: this._api,
                 containerApi: this._containerApi,
+                tabLocation: this._tabLocation,
             },
         });
     }
@@ -319,7 +398,7 @@ export class VueHeaderActionsRenderer
     }
 
     constructor(
-        component: VueComponent,
+        component: VueRenderable,
         parent: ComponentInternalInstance,
         private readonly group: DockviewGroupPanel,
         registry?: VueRendererRegistry
