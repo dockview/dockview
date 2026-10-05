@@ -210,3 +210,132 @@ export function isReactComponent(component: any): boolean {
             ?.$$typeof /** React.memo(...) Components */
     );
 }
+
+/**
+ * Calls `onRemoved` once `element` leaves the document. A removal anywhere
+ * above `element` is a child-list change on one of its ancestors, so only
+ * the ancestors are observed rather than the whole document.
+ */
+function watchForRemoval(
+    element: HTMLElement,
+    onRemoved: () => void
+): DockviewIDisposable {
+    const parentOf = (node: Node): Node | null =>
+        node instanceof ShadowRoot ? node.host : node.parentNode;
+
+    const observer = new MutationObserver(() => {
+        if (element.isConnected) {
+            // an ancestor may have moved, so follow the current chain
+            observeAncestors();
+            return;
+        }
+        observer.disconnect();
+        onRemoved();
+    });
+
+    const observeAncestors = () => {
+        observer.disconnect();
+        for (let node = parentOf(element); node; node = parentOf(node)) {
+            observer.observe(node, { childList: true });
+        }
+    };
+
+    observeAncestors();
+
+    return DockviewDisposable.from(() => observer.disconnect());
+}
+
+/**
+ * Creates the instance on mount and keeps it until the host element leaves
+ * the document.
+ *
+ * `<Activity mode="hidden">` and StrictMode both run effect cleanups while
+ * the component, its state and its host element stay alive, then run the
+ * effects again. A real unmount removes the host before the cleanup runs, so
+ * a host that is still connected at cleanup is only hidden and the instance
+ * is reused when the effect runs again. A subtree deleted while hidden gets
+ * no second cleanup, so the instance is disposed once its host is removed.
+ */
+export function useKeptInstance<T extends DockviewIDisposable>(
+    domRef: React.RefObject<HTMLElement | null>,
+    instanceRef: React.MutableRefObject<T | undefined>,
+    create: (element: HTMLElement) => T
+): void {
+    const removalWatcher = React.useRef<DockviewIDisposable | undefined>(
+        undefined
+    );
+
+    // biome-ignore lint/correctness/useExhaustiveDependencies: the instance is created once, from the props of the first render
+    React.useEffect(() => {
+        const element = domRef.current;
+        if (!element) {
+            return;
+        }
+
+        removalWatcher.current?.dispose();
+        removalWatcher.current = undefined;
+
+        const instance = instanceRef.current ?? create(element);
+        instanceRef.current = instance;
+
+        return () => {
+            const dispose = () => {
+                removalWatcher.current = undefined;
+                instanceRef.current = undefined;
+                instance.dispose();
+            };
+
+            if (
+                element.isConnected &&
+                typeof MutationObserver !== 'undefined'
+            ) {
+                removalWatcher.current = watchForRemoval(element, dispose);
+            } else {
+                dispose();
+            }
+        };
+    }, []);
+}
+
+/**
+ * Returns a check for option effects: whether the instance already holds the
+ * given values, recording them either way.
+ *
+ * Every option effect runs in the commit that creates the instance, and the
+ * instance was built from those same props, so the first values seen for an
+ * instance count as applied. Effect re-runs from `<Activity>` or StrictMode
+ * then skip `updateOptions`, which would otherwise relayout and recreate
+ * renderers for values that did not change.
+ */
+export function useAppliedOptions(
+    instanceRef: React.RefObject<unknown>
+): (values: Record<string, unknown>) => boolean {
+    const applied = React.useRef<{
+        instance: unknown;
+        values: Map<string, unknown>;
+    }>({ instance: undefined, values: new Map() });
+
+    return React.useCallback(
+        (values: Record<string, unknown>) => {
+            if (applied.current.instance !== instanceRef.current) {
+                applied.current = {
+                    instance: instanceRef.current,
+                    values: new Map(),
+                };
+            }
+
+            const known = applied.current.values;
+            let unchanged = true;
+
+            for (const [key, value] of Object.entries(values)) {
+                if (known.has(key) && known.get(key) !== value) {
+                    unchanged = false;
+                }
+                known.set(key, value);
+            }
+
+            return unchanged;
+        },
+        [instanceRef]
+    );
+}
