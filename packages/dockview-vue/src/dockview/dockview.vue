@@ -29,13 +29,12 @@ import {
     VueRenderer,
     VueRendererRegistry,
     VueWatermarkRenderer,
-    VUE_SLOT_CONTEXT,
-    createSlotReference,
     findComponent,
     resolveComponent,
     type VueComponent,
     type VueRenderable,
 } from '../utils';
+import { VUE_SLOT_CONTEXT, createSlotReference } from '../slots';
 import DockviewPortals from '../dockviewPortals.vue';
 import type { DockviewVueSlots, IDockviewVueProps, VueEvents } from './types';
 

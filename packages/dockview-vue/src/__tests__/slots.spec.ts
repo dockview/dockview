@@ -13,12 +13,9 @@ import {
 } from 'vue';
 import type { DockviewApi } from 'dockview';
 import DockviewVue from '../dockview/dockview.vue';
-import {
-    VueRenderer,
-    VueSlotOutlet,
-    createSlotReference,
-    isSlotReference,
-} from '../utils';
+import { VueRenderer } from '../utils';
+import { VueSlotOutlet, createSlotReference, isSlotReference } from '../slots';
+import * as publicApi from '../index';
 
 /**
  * Scoped-slot support for `<DockviewVue>` (#908): panels, tabs, header
@@ -77,6 +74,17 @@ async function mountHost(
 }
 
 describe('slot helpers', () => {
+    test('slot internals are not part of the public API', () => {
+        for (const name of [
+            'VueSlotOutlet',
+            'createSlotReference',
+            'isSlotReference',
+            'VUE_SLOT_CONTEXT',
+        ]) {
+            expect(publicApi).not.toHaveProperty(name);
+        }
+    });
+
     test('createSlotReference / isSlotReference', () => {
         const reference = createSlotReference('panel-a');
         expect(isSlotReference(reference)).toBe(true);
