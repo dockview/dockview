@@ -346,7 +346,6 @@ orthogonal
 positionToDirection
 prefersReducedMotion
 registerModules
-resolveDockviewThemeSettings
 resolveMessages
 resolveOpaqueBackground
 resolveTabGroupAccent
