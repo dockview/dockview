@@ -8,7 +8,11 @@ import {
     SplitviewFrameworkOptions,
     SplitviewComponentOptions,
 } from 'dockview';
-import { usePortalsLifecycle } from '../react';
+import {
+    useAppliedOptions,
+    useKeptInstance,
+    usePortalsLifecycle,
+} from '../react';
 import { PanelParameters } from '../types';
 import { ReactPanelView } from './view';
 
@@ -46,6 +50,7 @@ export const SplitviewReact = React.forwardRef(
         const domRef = React.useRef<HTMLDivElement>(null);
         const splitviewRef = React.useRef<SplitviewApi | undefined>(undefined);
         const [portals, addPortal] = usePortalsLifecycle();
+        const isApplied = useAppliedOptions(splitviewRef);
 
         React.useImperativeHandle(ref, () => domRef.current!, []);
 
@@ -64,10 +69,8 @@ export const SplitviewReact = React.forwardRef(
                     }
                 });
 
-                if (splitviewRef.current) {
+                if (splitviewRef.current && Object.keys(changes).length > 0) {
                     splitviewRef.current.updateOptions(changes);
-                } else {
-                    // not yet fully initialized
                 }
 
                 prevProps.current = props;
@@ -75,13 +78,7 @@ export const SplitviewReact = React.forwardRef(
             PROPERTY_KEYS_SPLITVIEW.map((key) => props[key])
         );
 
-        React.useEffect(() => {
-            if (!domRef.current) {
-                return () => {
-                    // noop
-                };
-            }
-
+        useKeptInstance(domRef, splitviewRef, (element) => {
             const frameworkOptions: SplitviewFrameworkOptions = {
                 createComponent: (options) => {
                     return new ReactPanelView(
@@ -93,28 +90,26 @@ export const SplitviewReact = React.forwardRef(
                 },
             };
 
-            const api = createSplitview(domRef.current, {
+            const api = createSplitview(element, {
                 ...extractCoreOptions(props),
                 ...frameworkOptions,
             });
 
-            const { clientWidth, clientHeight } = domRef.current;
+            const { clientWidth, clientHeight } = element;
             api.layout(clientWidth, clientHeight);
 
             if (props.onReady) {
                 props.onReady({ api });
             }
 
-            splitviewRef.current = api;
-
-            return () => {
-                splitviewRef.current = undefined;
-                api.dispose();
-            };
-        }, []);
+            return api;
+        });
 
         React.useEffect(() => {
-            if (!splitviewRef.current) {
+            if (
+                !splitviewRef.current ||
+                isApplied({ components: props.components })
+            ) {
                 return;
             }
             splitviewRef.current.updateOptions({
