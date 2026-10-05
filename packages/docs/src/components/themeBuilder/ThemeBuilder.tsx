@@ -11,6 +11,7 @@ import {
     encodeState,
     exportCss,
     exportTs,
+    inheritedSettings,
     initialState,
     isBase,
     isHexColor,
@@ -174,14 +175,8 @@ function readSharedState(): BuilderState | undefined {
     return value ? decodeState(value) : undefined;
 }
 
-// The settings with a control, and the CSS property a theme sets them with.
-type SettingKey = 'tabAnimation' | 'dndPanelOverlay' | 'dndTabIndicator';
-
-const SETTING_PROPERTIES: Record<SettingKey, string> = {
-    tabAnimation: '--dv-tab-animation',
-    dndPanelOverlay: '--dv-dnd-panel-overlay',
-    dndTabIndicator: '--dv-dnd-tab-indicator',
-};
+// The settings with a control.
+type SettingKey = 'gap' | 'tabAnimation' | 'dndPanelOverlay' | 'dndTabIndicator';
 
 export const ThemeBuilder = (props: { initialTheme?: string }) => {
     const [state, setState] = React.useState<BuilderState>(
@@ -299,13 +294,6 @@ export const ThemeBuilder = (props: { initialTheme?: string }) => {
         for (const t of TOKENS) {
             values[t.name] = effectiveValue(root, t.name, t.kind);
         }
-        values['--dv-group-gap'] = effectiveValue(root, '--dv-group-gap', 'length');
-        // The theme's own behaviour settings (they don't inherit: read the root).
-        const style = getComputedStyle(root);
-        for (const key of Object.keys(SETTING_PROPERTIES)) {
-            const property = SETTING_PROPERTIES[key as SettingKey];
-            values[property] = style.getPropertyValue(property).trim();
-        }
         // What deriving would start from, shown while the theme keeps its own
         // colours.
         for (const [name, value] of Object.entries(seedColors(root))) {
@@ -364,26 +352,26 @@ export const ThemeBuilder = (props: { initialTheme?: string }) => {
         value: SettingOverrides[K]
     ) => commit({ ...state, settings: { ...state.settings, [key]: value } }, key);
 
-    /** A setting's value: the override, else the theme's CSS, else the default. */
+    const inherited = inheritedSettings(state);
+
+    /** A setting's value: the edit, else the theme's own, else the default. */
     const settingOf = <K extends SettingKey>(
         key: K,
         fallback: NonNullable<SettingOverrides[K]>
     ) =>
-        (state.settings[key] ??
-            (effective[SETTING_PROPERTIES[key]] ||
-                fallback)) as NonNullable<SettingOverrides[K]>;
+        (state.settings[key] ?? inherited[key] ?? fallback) as NonNullable<
+            SettingOverrides[K]
+        >;
 
-    /** Choosing what the theme already does removes the override. */
+    /** Choosing what the theme already does removes the edit. */
     const chooseSetting = <K extends SettingKey>(
         key: K,
         value: SettingOverrides[K],
-        fallback: string
+        fallback: NonNullable<SettingOverrides[K]>
     ) =>
         setSetting(
             key,
-            value === (effective[SETTING_PROPERTIES[key]] || fallback)
-                ? undefined
-                : value
+            value === (inherited[key] ?? fallback) ? undefined : value
         );
 
     const startFrom = (name: string) => {
@@ -661,14 +649,11 @@ export const ThemeBuilder = (props: { initialTheme?: string }) => {
                             <span className={styles.rowLabel}>Group gap</span>
                             <Slider
                                 label="Group gap"
-                                value={state.settings.gap ?? (px(
-                                    effective['--dv-group-gap'],
-                                    0
-                                ))}
+                                value={settingOf('gap', 0)}
                                 min={0}
                                 max={24}
                                 unit="px"
-                                onChange={(v) => setSetting('gap', v)}
+                                onChange={(v) => chooseSetting('gap', v, 0)}
                             />
                         </div>
                         <Segmented

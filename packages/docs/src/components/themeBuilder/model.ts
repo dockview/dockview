@@ -66,15 +66,47 @@ export function classNameOf(state: BuilderState): string {
         .join(' ');
 }
 
+/** The settings the card layout pairs with, as the spaced themes set them. */
+export const CARD_SETTINGS: SettingOverrides = {
+    gap: 10,
+    dndOverlayMounting: 'absolute',
+    dndPanelOverlay: 'group',
+    dndTabIndicator: 'line',
+};
+
+/** The settings before any edit: the theme's own, plus the card layout's. */
+export function inheritedSettings(state: BuilderState): SettingOverrides {
+    const theme = themeByName(state.base);
+    const own: SettingOverrides = {
+        gap: theme.gap,
+        tabAnimation: theme.tabAnimation,
+        tabGroupIndicator: theme.tabGroupIndicator,
+        dndOverlayMounting: theme.dndOverlayMounting,
+        dndPanelOverlay: theme.dndPanelOverlay,
+        dndTabIndicator: theme.dndTabIndicator,
+    };
+    return state.cards ? { ...own, ...CARD_SETTINGS } : own;
+}
+
+/** Every setting the builder's theme object carries beyond the base theme's. */
+function addedSettings(state: BuilderState): SettingOverrides {
+    const theme = themeByName(state.base);
+    const merged = { ...inheritedSettings(state), ...validSettings(state.settings) };
+    return Object.fromEntries(
+        Object.entries(merged).filter(
+            ([key, value]) =>
+                value !== undefined &&
+                value !== theme[key as keyof SettingOverrides]
+        )
+    ) as SettingOverrides;
+}
+
 export function effectiveTheme(state: BuilderState): DockviewTheme {
     const theme = themeByName(state.base);
-    const settings = Object.fromEntries(
-        Object.entries(state.settings).filter(([, v]) => v !== undefined)
-    );
     const scheme = state.vars['color-scheme'];
     return {
         ...theme,
-        ...settings,
+        ...addedSettings(state),
         name: `${theme.name}-builder`,
         className: classNameOf(state),
         colorScheme:
@@ -126,10 +158,8 @@ export function exportTs(state: BuilderState): string {
     if ((scheme === 'light' || scheme === 'dark') && scheme !== theme.colorScheme) {
         lines.push(`    colorScheme: '${scheme}',`);
     }
-    for (const [key, value] of Object.entries(validSettings(state.settings))) {
-        if (value !== undefined) {
-            lines.push(`    ${key}: ${JSON.stringify(value)},`);
-        }
+    for (const [key, value] of Object.entries(addedSettings(state))) {
+        lines.push(`    ${key}: ${JSON.stringify(value)},`);
     }
     lines.push('};', '');
     return lines.join('\n');

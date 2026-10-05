@@ -35,38 +35,6 @@ export const cssVariableGroups: CssVariableGroup[] = [
         ],
     },
     {
-        title: 'Theme settings',
-        variables: [        {
-            key: '--dv-group-gap',
-            text: 'Gap between groups, in px (the `gap` theme setting). Default `0`.',
-        },
-        {
-            key: '--dv-edge-group-collapsed-size',
-            text: 'Collapsed size of an edge group, in px (`edgeGroupCollapsedSize`). Defaults to the tab strip height.',
-        },
-        {
-            key: '--dv-dnd-overlay-mounting',
-            text: '`relative` (default) mounts the drop preview in the group; `absolute` at the layout root (`dndOverlayMounting`).',
-        },
-        {
-            key: '--dv-dnd-panel-overlay',
-            text: '`content` (default) previews a drop over the content; `group` over the whole group (`dndPanelOverlay`).',
-        },
-        {
-            key: '--dv-dnd-tab-indicator',
-            text: '`fill` (default) or `line`: the preview when dropping onto a tab (`dndTabIndicator`).',
-        },
-        {
-            key: '--dv-tab-group-indicator',
-            text: '`wrap` (default) or `none`: how tab groups are marked in the strip (`tabGroupIndicator`).',
-        },
-        {
-            key: '--dv-tab-animation',
-            text: '`default` or `smooth` tab reorder animation (`tabAnimation`).',
-        },
-        ],
-    },
-    {
         title: 'Layout frame',
         variables: [        {
             key: '--dv-root-padding',

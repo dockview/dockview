@@ -120,7 +120,16 @@ groupApi?.expand();
 const isCollapsed = groupApi?.isCollapsed(); // boolean
 ```
 
-The `collapsedSize` (the pixel height/width of the header when collapsed) defaults to the theme's tab strip height (`--dv-tabs-and-actions-container-height`), so a collapsed rail matches the strip: 35px for most themes, 32px for the spaced and slate themes and 22px for `themeVisualStudio`. It can be configured per-group via `EdgeGroupOptions.collapsedSize`, or per-theme via `DockviewTheme.edgeGroupCollapsedSize` or the `--dv-edge-group-collapsed-size` CSS property.
+The `collapsedSize` (the pixel height/width of the header when collapsed) defaults to 35px and can be configured per-group via `EdgeGroupOptions.collapsedSize`, or per-theme via `DockviewTheme.edgeGroupCollapsedSize`.
+
+Themes that set a custom `edgeGroupCollapsedSize`:
+
+| Theme                                  | `edgeGroupCollapsedSize` |
+| -------------------------------------- | ------------------------ |
+| `themeVisualStudio`                    | `22`                     |
+| `themeSlate`, `themeSlateDark`         | `32`                     |
+| The spaced themes (`themeAbyssSpaced` etc.) | `44`                |
+| All other themes                       | `35` (default)           |
 
 :::tip
 When an edge group loses all of its panels it is automatically collapsed. Adding a new panel to it will expand it again.

@@ -124,7 +124,7 @@ The quickest start is `themeBase`. It derives every colour, radius and padding f
 | `--dv-spacing`          | tab padding                                                                                     |
 | `--dv-border-radius`    | group, floating and peek radii; tab and dropdown (⅔), sash (⅓), drop preview (¼) |
 
-Add your class next to the base theme's. Layout styles are classes too: `dockview-spaced` lays groups out as rounded cards with `--dv-spacing-padding` between them, and `dockview-tabs-connected` gives folder tabs. Load your stylesheet after dockview's so your values win.
+Add your class next to the base theme's. Layout styles are classes too: `dockview-spaced` lays groups out as rounded cards, and `dockview-tabs-connected` gives folder tabs. `dockview-spaced` pairs with the [theme settings](#theme-settings) the spaced themes use, so set those on the object too. Load your stylesheet after dockview's so your values win.
 
 ```ts
 import { DockviewTheme, themeBase } from 'dockview';
@@ -134,6 +134,10 @@ const myTheme: DockviewTheme = {
     name: 'mine',
     colorScheme: 'light',
     className: `dockview-spaced ${themeBase.className} my-theme`,
+    gap: 10,
+    dndOverlayMounting: 'absolute',
+    dndPanelOverlay: 'group',
+    dndTabIndicator: 'line',
 };
 ```
 
@@ -171,12 +175,12 @@ A fully hand-specified theme, like the built-in ones, sets the derived propertie
     --dv-border-radius: 6px;
     --dv-content-border-radius: 6px;
     --dv-content-background-color: #ffffff;
-    --dv-group-gap: 8px;
+    --dv-root-padding: 8px;
 }
 ```
 
 ```ts
-const myTheme: DockviewTheme = { name: 'mine', className: 'my-theme' };
+const myTheme: DockviewTheme = { name: 'mine', className: 'my-theme', gap: 8 };
 ```
 
 The built-in themes are also available as SCSS mixins (for example `dockview-connected-tabs-mixin` and `dockview-design-space-mixin`) and utility classes (`.dockview-tabs-connected`, `.dockview-spaced`) that each set a related group of these properties.
@@ -185,21 +189,21 @@ The built-in themes are also available as SCSS mixins (for example `dockview-con
 
 ## Theme settings
 
-A theme's layout and drag-and-drop settings can be given on the `DockviewTheme` object or as CSS custom properties on the theme class. A value on the object wins; otherwise the CSS property is used, then the default. The built-in themes declare them in CSS, so a stylesheet can override any of them.
+Layout and drag-and-drop settings are read by JavaScript, so they go on the `DockviewTheme` object rather than in CSS. Change them at runtime with `api.updateOptions({ theme })`. `api.themeSettings` returns them with the defaults filled in.
 
-| Theme object             | CSS custom property              | Default                          |
-| ------------------------ | -------------------------------- | -------------------------------- |
-| `gap`                    | `--dv-group-gap`                 | `0`                              |
-| `edgeGroupCollapsedSize` | `--dv-edge-group-collapsed-size` | the tab strip height, else `35`  |
-| `dndOverlayMounting`     | `--dv-dnd-overlay-mounting`      | `'relative'`                     |
-| `dndPanelOverlay`        | `--dv-dnd-panel-overlay`         | `'content'`                      |
-| `dndTabIndicator`        | `--dv-dnd-tab-indicator`         | `'fill'`                         |
-| `tabGroupIndicator`      | `--dv-tab-group-indicator`       | `'wrap'`                         |
-| `tabAnimation`           | `--dv-tab-animation`             | `'default'`                      |
+| Setting                  | Default      |
+| ------------------------ | ------------ |
+| `gap`                    | `0`          |
+| `edgeGroupCollapsedSize` | `35`         |
+| `dndOverlayMounting`     | `'relative'` |
+| `dndPanelOverlay`        | `'content'`  |
+| `dndTabIndicator`        | `'fill'`     |
+| `tabGroupIndicator`      | `'wrap'`     |
+| `tabAnimation`           | `'default'`  |
 
-The CSS values are read when the theme is applied (on creation and on `updateOptions`). After changing them at runtime, call `api.refreshTheme()`. `api.themeSettings` returns the resolved values, and `resolveDockviewThemeSettings(theme)` resolves a theme's settings without a dockview instance.
+`gap` sets the space between groups. The padding around the layout is CSS (`--dv-root-padding`), so keep the two in step.
 
-`dndOverlayBorder` sets `--dv-drag-over-border`, so it can also be set in CSS.
+`dndOverlayBorder` sets `--dv-drag-over-border`, which a theme can also set in CSS.
 
 ## Theme properties
 
@@ -236,7 +240,7 @@ Controls how the drop position indicator within a tab strip is drawn while dragg
 
 ### `edgeGroupCollapsedSize`
 
-The pixel size of a collapsed [edge group](/docs/core/groups/edgeGroups). It defaults to the theme's tab strip height (`--dv-tabs-and-actions-container-height`) so a collapsed rail matches the strip. Set it, or `--dv-edge-group-collapsed-size`, for a different size.
+The pixel size of a collapsed [edge group](/docs/core/groups/edgeGroups). Defaults to `35`; set it to the theme's tab strip height so a collapsed rail matches the strip.
 
 ### `colorScheme`
 

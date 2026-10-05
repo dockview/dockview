@@ -19,7 +19,6 @@ export const ThemeObjectReference = () => (
         <thead>
             <tr>
                 <th>Property</th>
-                <th>CSS variable</th>
                 <th>Default</th>
                 <th>Description</th>
             </tr>
@@ -33,7 +32,6 @@ export const ThemeObjectReference = () => (
                             {p.type}
                         </div>
                     </td>
-                    <td>{p.css ? <code>{p.css}</code> : 'none'}</td>
                     <td>
                         <Markdown text={p.default} />
                     </td>
