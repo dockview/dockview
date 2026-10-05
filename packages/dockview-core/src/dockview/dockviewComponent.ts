@@ -139,16 +139,10 @@ import { IDragGhostSpec } from '../dnd/backend';
 import { DropTargetAnchorContainer } from '../dnd/dropTargetAnchorContainer';
 import {
     DockviewTheme,
-    DockviewThemeSettings,
     ResolvedDockviewThemeSettings,
     themeAbyss,
 } from './theme';
-import {
-    declaredThemeSettings,
-    mergeThemeSettings,
-    readStyleProperty,
-    readThemeSettingsFromStyle,
-} from './themeSettings';
+import { readStyleProperty, resolveThemeSettings } from './themeSettings';
 import {
     EdgeGroupPosition,
     AddEdgeGroupOptions,
@@ -440,13 +434,8 @@ const SHELL_DROP_PREVIEW_PROPERTIES = [
 ] as const;
 
 export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
-    /** The active theme's settings (theme object, then CSS, then defaults). */
+    /** The active theme's settings, with defaults for those it leaves unset. */
     readonly themeSettings: ResolvedDockviewThemeSettings;
-    /** Internal: the theme's declared settings without defaults, so an unset
-     *  value can be told apart from an explicit default. */
-    readonly declaredThemeSettings: DockviewThemeSettings;
-    /** Re-read the theme's CSS settings (after changing them at runtime). */
-    refreshTheme(): void;
     readonly activePanel: IDockviewPanel | undefined;
     readonly totalPanels: number;
     readonly panels: IDockviewPanel[];
@@ -579,14 +568,6 @@ const NO_EVENT: Event<any> = () => ({
 /** A never-firing history-change event, the fallback `onDidChangeHistory`
  *  returns when the LayoutHistory module is absent. */
 const NO_LAYOUT_HISTORY_CHANGES: Event<LayoutHistoryChangeEvent> = NO_EVENT;
-
-/**
- * Whether dockview's stylesheet applies to an element: its root rule declares
- * the private `--dv-stylesheet` marker, which no page CSS reset or theme sets.
- */
-function stylesheetApplied(style: CSSStyleDeclaration): boolean {
-    return readStyleProperty(style, '--dv-stylesheet') !== '';
-}
 
 export class DockviewComponent
     extends BaseGrid<DockviewGroupPanel>
@@ -837,55 +818,8 @@ export class DockviewComponent
     private readonly _onDidOptionsChange = new Emitter<void>();
     readonly onDidOptionsChange: Event<void> = this._onDidOptionsChange.event;
 
-    private _themeSettings: ResolvedDockviewThemeSettings = mergeThemeSettings(
-        undefined,
-        undefined
-    );
-
     get themeSettings(): ResolvedDockviewThemeSettings {
-        return this._themeSettings;
-    }
-
-    private _declaredThemeSettings: DockviewThemeSettings = {};
-
-    get declaredThemeSettings(): DockviewThemeSettings {
-        return this._declaredThemeSettings;
-    }
-
-    // `false` means the theme CSS was read before dockview's stylesheet
-    // applied, so a later layout or stylesheet load re-reads it.
-    private _themeCssRead: boolean | undefined = undefined;
-
-    private get isStylesheetApplied(): boolean {
-        return (
-            this.element.isConnected &&
-            typeof getComputedStyle === 'function' &&
-            stylesheetApplied(getComputedStyle(this.element))
-        );
-    }
-
-    private listenForStylesheetLoads(): IDisposable {
-        if (typeof document === 'undefined') {
-            return Disposable.NONE;
-        }
-        const onLoad = (event: globalThis.Event): void => {
-            if (event.target instanceof HTMLLinkElement) {
-                this.retryThemeCss();
-            }
-        };
-        // Capture on the document: an element's `load` never reaches window.
-        document.addEventListener('load', onLoad, true);
-        return Disposable.from(() =>
-            document.removeEventListener('load', onLoad, true)
-        );
-    }
-
-    private retryThemeCss(): void {
-        if (this._themeCssRead === false && this.isStylesheetApplied) {
-            this.updateTheme();
-            // Parts that read theme values listen for option changes.
-            this._onDidOptionsChange.fire();
-        }
+        return resolveThemeSettings(this._options.theme);
     }
 
     private readonly _onDidActiveGroupChange = new Emitter<
@@ -1785,7 +1719,6 @@ export class DockviewComponent
                 },
                 true
             ),
-            this.listenForStylesheetLoads(),
             this.overlayRenderContainer,
             this._onWillDragPanel,
             this._onWillDragGroup,
@@ -3188,7 +3121,7 @@ export class DockviewComponent
             }
         }
 
-        // `className` can apply or remove a theme, so re-read its CSS settings.
+        // `className` can apply or remove a theme's drop-preview styling.
         if ('theme' in options || 'className' in options) {
             this.updateTheme();
         }
@@ -3249,8 +3182,6 @@ export class DockviewComponent
         }
 
         this._syncFloatingOverlayHost();
-
-        this.retryThemeCss();
 
         // floatingGroupService may be undefined during super() (BaseGrid calls
         // layout(0, 0) before subclass field initialisers run).
@@ -6378,12 +6309,6 @@ export class DockviewComponent
             : orthogonal(rootOrientation);
     }
 
-    refreshTheme(): void {
-        this.updateTheme();
-        // Parts that read theme values listen for option changes.
-        this._onDidOptionsChange.fire();
-    }
-
     private applyDropPreviewStyle(
         theme: DockviewTheme,
         style: CSSStyleDeclaration | undefined
@@ -6441,17 +6366,7 @@ export class DockviewComponent
             typeof getComputedStyle === 'function' && this.element.isConnected
                 ? getComputedStyle(this.element)
                 : undefined;
-        this._themeCssRead = this.isStylesheetApplied;
-        // The settings' properties don't inherit, so read the component root
-        // (`className` themes) and then the shell (the theme class).
-        let fromCss: DockviewThemeSettings | undefined;
-        if (style) {
-            const fallbacks = shell ? [getComputedStyle(shell)] : [];
-            fromCss = readThemeSettingsFromStyle(style, ...fallbacks);
-        }
-        this._declaredThemeSettings = declaredThemeSettings(theme, fromCss);
-        this._themeSettings = mergeThemeSettings(theme, fromCss);
-        const settings = this._themeSettings;
+        const settings = resolveThemeSettings(theme);
 
         const gap = settings.gap;
         this.gridview.margin = gap;

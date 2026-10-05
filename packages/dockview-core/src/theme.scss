@@ -236,10 +236,6 @@
 
     @include dockview-palette-abyss();
 
-    // Tab groups show as a flat bar under their tabs rather than the wrapping
-    // underline.
-    --dv-tab-group-indicator: none;
-
     //
     --dv-group-view-background-color: var(--dv-color-abyss-dark);
     //
@@ -998,13 +994,9 @@
     --dv-tabs-and-actions-container-height: 32px;
     --dv-tab-margin: 3px 0 0 0;
     --dv-separator-border: transparent;
-    // One spacing between sheets, around the layout and beside the edge rails
-    // (the shell separates them by the group gap).
+    // Around the layout; match the theme object's `gap` between sheets.
     --dv-spacing-padding: 8px;
-    --dv-group-gap: var(--dv-spacing-padding);
     --dv-root-padding: var(--dv-spacing-padding);
-    // An insertion line reads better than a fill on tabs merged into the sheet.
-    --dv-dnd-tab-indicator: line;
 
     // Nothing else paints the band between the edge rails and the centre, so
     // paint the root in the canvas colour or the page shows through.
@@ -1222,9 +1214,7 @@
     // top corner read as one curve.
     --dv-tab-shoulder-size: 4px;
 
-    // A fill can't show on a tab merged into the panel, so use an insertion
-    // line with an accent border.
-    --dv-dnd-tab-indicator: line;
+    // Paired with the theme object's `dndTabIndicator: 'line'`.
     --dv-drag-over-border: 2px solid #{dv.ref('active-sash-color')};
 
     --dv-group-view-background-color: var(--dv-color-dark-rounded-editor);

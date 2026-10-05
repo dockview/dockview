@@ -1313,19 +1313,11 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
     }
 
     /**
-     * The active theme's resolved {@link DockviewThemeSettings}: the theme
-     * object, then its CSS custom properties, then the defaults.
+     * The active theme's {@link DockviewThemeSettings}, with defaults for
+     * those it leaves unset.
      */
     get themeSettings(): ResolvedDockviewThemeSettings {
         return this.component.themeSettings;
-    }
-
-    /**
-     * Re-read the theme's CSS settings (see {@link DockviewThemeSettings})
-     * after changing them at runtime.
-     */
-    refreshTheme(): void {
-        this.component.refreshTheme();
     }
 
     // === Tab Group API ===

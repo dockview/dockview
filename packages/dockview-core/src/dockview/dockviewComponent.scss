@@ -26,43 +26,8 @@
     initial-value: 0px;
 }
 
-// Non-inheriting, so each applies only where declared: a dockview nested in
-// another's panel never picks up its host's settings, padding or background.
-@property --dv-group-gap {
-    syntax: '*';
-    inherits: false;
-}
-
-@property --dv-edge-group-collapsed-size {
-    syntax: '*';
-    inherits: false;
-}
-
-@property --dv-dnd-overlay-mounting {
-    syntax: '*';
-    inherits: false;
-}
-
-@property --dv-dnd-panel-overlay {
-    syntax: '*';
-    inherits: false;
-}
-
-@property --dv-dnd-tab-indicator {
-    syntax: '*';
-    inherits: false;
-}
-
-@property --dv-tab-group-indicator {
-    syntax: '*';
-    inherits: false;
-}
-
-@property --dv-tab-animation {
-    syntax: '*';
-    inherits: false;
-}
-
+// Non-inheriting, so a dockview nested in another's panel never picks up its
+// host's padding or background.
 @property --dv-root-padding {
     syntax: '*';
     inherits: false;
@@ -80,8 +45,6 @@
 .dv-component-root,
 .dv-popout-window,
 :where(.dockview-spaced, [class*='dockview-theme-']) {
-    // Read by JS to tell that this stylesheet has loaded.
-    --dv-stylesheet: 1;
     box-sizing: border-box;
     padding: var(--dv-root-padding, 0px);
     background-color: var(--dv-root-background-color, transparent);

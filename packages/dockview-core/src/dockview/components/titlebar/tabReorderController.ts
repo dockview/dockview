@@ -11,7 +11,6 @@ import { Tab } from '../tab/tab';
 import { TabDropIndexEvent } from './tabsContainer';
 import { TabGroupManager } from './tabGroups';
 import { ITabGroup } from '../../tabGroup';
-import { themeSetting } from '../../themeSettings';
 
 export interface TabAnimationState {
     sourceTabId: string;
@@ -430,7 +429,7 @@ export class TabReorderController extends CompositeDisposable {
         // Droptargets; only chip drags need tabs-list-level handling so drops on
         // void space still work.
         if (
-            themeSetting(this.accessor, 'tabAnimation') === 'default' &&
+            this.accessor.options.theme?.tabAnimation === 'default' &&
             !data?.tabGroupId
         ) {
             return false;
@@ -628,7 +627,7 @@ export class TabReorderController extends CompositeDisposable {
         this._animState.currentInsertionIndex = insertionIndex;
         this._animState.targetTabGroupId = targetTabGroupId;
 
-        if (themeSetting(this.accessor, 'tabAnimation') === 'smooth') {
+        if (this.accessor.options.theme?.tabAnimation === 'smooth') {
             this.applyDragOverTransforms();
         }
     }
@@ -1424,7 +1423,7 @@ export class TabReorderController extends CompositeDisposable {
             .some((tg) => tg.id === sourceTabGroupId);
 
         if (isLocal) {
-            if (themeSetting(this.accessor, 'tabAnimation') === 'smooth') {
+            if (this.accessor.options.theme?.tabAnimation === 'smooth') {
                 this._clearGroupDragClasses(sourceTabGroupId);
                 const firstPositions = this.snapshotTabPositions();
                 this.resetTabTransforms();

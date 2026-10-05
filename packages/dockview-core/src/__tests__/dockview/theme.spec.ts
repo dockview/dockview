@@ -1,6 +1,5 @@
 import {
     type DockviewTheme,
-    resolveDockviewThemeSettings,
     themeAbyss,
     themeAbyssSpaced,
     themeCatppuccinMocha,
@@ -23,12 +22,7 @@ import {
     themeSolarizedLightSpaced,
     themeVisualStudio,
 } from '../../dockview/theme';
-import {
-    declaredThemeSettings,
-    mergeThemeSettings,
-    readThemeSettingsFromStyle,
-    themeSetting,
-} from '../../dockview/themeSettings';
+import { resolveThemeSettings } from '../../dockview/themeSettings';
 
 describe('theme', () => {
     const allThemes: {
@@ -203,161 +197,107 @@ describe('theme', () => {
         });
     });
 
-    describe('settings', () => {
-        test('built-in presets leave every setting to their CSS', () => {
-            // Gap, collapsed size and the drag-and-drop modes are declared by
-            // each theme's stylesheet (see themeStylesheet.spec.ts), so CSS
-            // alone can restyle or override a built-in theme.
-            for (const { theme } of allThemes) {
-                expect(Object.keys(theme).sort()).toEqual(
-                    ['className', 'colorScheme', 'name'].sort()
+    describe('non-spaced themes', () => {
+        test('do not declare spacing / gap related overrides', () => {
+            const nonSpaced = [
+                themeDark,
+                themeLight,
+                themeAbyss,
+                themeDracula,
+                themeNord,
+                themeCatppuccinMocha,
+                themeMonokai,
+                themeSolarizedLight,
+                themeGithubDark,
+                themeGithubLight,
+            ];
+            for (const theme of nonSpaced) {
+                expect(theme.gap).toBeUndefined();
+                expect(theme.dndOverlayMounting).toBeUndefined();
+                expect(theme.dndPanelOverlay).toBeUndefined();
+                expect(theme.dndTabIndicator).toBeUndefined();
+                expect(theme.dndOverlayBorder).toBeUndefined();
+            }
+        });
+    });
+
+    describe('spaced themes', () => {
+        const spacedThemes = [
+            themeAbyssSpaced,
+            themeLightSpaced,
+            themeNordSpaced,
+            themeCatppuccinMochaSpaced,
+            themeSolarizedLightSpaced,
+            themeGithubDarkSpaced,
+            themeGithubLightSpaced,
+        ];
+
+        test('share the common spaced configuration', () => {
+            for (const theme of spacedThemes) {
+                expect(theme.gap).toBe(10);
+                expect(theme.edgeGroupCollapsedSize).toBe(44);
+                expect(theme.dndOverlayMounting).toBe('absolute');
+                expect(theme.dndPanelOverlay).toBe('group');
+                expect(theme.dndTabIndicator).toBe('line');
+                expect(theme.dndOverlayBorder).toBe(
+                    '2px solid var(--dv-active-sash-color)'
                 );
             }
         });
+    });
 
-        const style = (values: Record<string, string>) => ({
-            getPropertyValue: (name: string) => values[name] ?? '',
+    describe('specific overrides', () => {
+        test('visualStudio overrides the edge group collapsed size to 22', () => {
+            expect(themeVisualStudio.edgeGroupCollapsedSize).toBe(22);
         });
 
-        test('reads each setting from its custom property', () => {
-            expect(
-                readThemeSettingsFromStyle(
-                    style({
-                        '--dv-group-gap': '10px',
-                        '--dv-edge-group-collapsed-size': ' 28px',
-                        '--dv-dnd-overlay-mounting': 'absolute',
-                        '--dv-dnd-panel-overlay': 'group',
-                        '--dv-dnd-tab-indicator': ' line',
-                        '--dv-tab-group-indicator': 'none',
-                        '--dv-tab-animation': 'smooth',
-                    })
-                )
-            ).toEqual({
-                gap: 10,
-                edgeGroupCollapsedSize: 28,
-                dndOverlayMounting: 'absolute',
-                dndPanelOverlay: 'group',
-                dndTabIndicator: 'line',
-                tabGroupIndicator: 'none',
-                tabAnimation: 'smooth',
-            });
+        test('abyss disables the tab group indicator', () => {
+            expect(themeAbyss.tabGroupIndicator).toBe('none');
         });
 
-        test('the collapsed size falls back to the tab strip height', () => {
-            expect(
-                readThemeSettingsFromStyle(
-                    style({ '--dv-tabs-and-actions-container-height': '22px' })
-                )
-            ).toEqual({ edgeGroupCollapsedSize: 22 });
+        test('themes without an explicit tabGroupIndicator leave it undefined', () => {
+            expect(themeDark.tabGroupIndicator).toBeUndefined();
+            expect(themeLight.tabGroupIndicator).toBeUndefined();
+            expect(themeAbyssSpaced.tabGroupIndicator).toBeUndefined();
         });
+    });
 
-        test('takes each setting from the first style that declares it', () => {
-            const root = style({ '--dv-group-gap': '4px' });
-            const shell = style({
-                '--dv-group-gap': '10px',
-                '--dv-dnd-tab-indicator': 'line',
-                '--dv-edge-group-collapsed-size': '30px',
-            });
-            expect(readThemeSettingsFromStyle(root, shell)).toEqual({
-                gap: 4,
-                dndTabIndicator: 'line',
-                edgeGroupCollapsedSize: 30,
-            });
-        });
-
-        test('ignores unset and unrecognised values', () => {
-            expect(
-                readThemeSettingsFromStyle(
-                    style({
-                        '--dv-group-gap': 'wide',
-                        '--dv-dnd-tab-indicator': 'dashed',
-                    })
-                )
-            ).toEqual({});
-        });
-
-        test('resolves non-px lengths through the browser', () => {
-            // jsdom doesn't compute lengths, so stand in for the browser.
-            const spy = jest
-                .spyOn(window, 'getComputedStyle')
-                .mockReturnValue({ width: '12px' } as CSSStyleDeclaration);
-            try {
-                expect(
-                    readThemeSettingsFromStyle(
-                        style({ '--dv-group-gap': '0.75rem' })
-                    )
-                ).toEqual({ gap: 12 });
-                // The probe is removed again.
-                expect(document.body.children).toHaveLength(0);
-            } finally {
-                spy.mockRestore();
+    describe('newer themes', () => {
+        test('slate themes lay sheets out with an 8px gap and line drops', () => {
+            for (const theme of [themeSlate, themeSlateDark]) {
+                expect(theme.gap).toBe(8);
+                expect(theme.edgeGroupCollapsedSize).toBe(32);
+                expect(theme.dndTabIndicator).toBe('line');
             }
         });
 
-        test('the theme object wins over CSS, CSS over the defaults', () => {
-            expect(
-                mergeThemeSettings(
-                    { name: 'x', className: 'x', gap: 4 },
-                    { gap: 10, dndTabIndicator: 'line' }
-                )
-            ).toEqual({
-                gap: 4,
+        test('dark rounded uses line drops', () => {
+            expect(themeDarkRounded.dndTabIndicator).toBe('line');
+        });
+    });
+
+    describe('resolveThemeSettings', () => {
+        test('fills in the defaults for unset settings', () => {
+            expect(resolveThemeSettings(undefined)).toEqual({
+                gap: 0,
                 edgeGroupCollapsedSize: 35,
                 dndOverlayMounting: 'relative',
                 dndPanelOverlay: 'content',
-                dndTabIndicator: 'line',
+                dndTabIndicator: 'fill',
                 tabGroupIndicator: 'wrap',
                 tabAnimation: 'default',
             });
         });
 
-        test('resolveDockviewThemeSettings reads a theme class without a dockview', () => {
-            const style = document.createElement('style');
-            style.textContent =
-                '.probe-theme { --dv-group-gap: 6px; --dv-dnd-tab-indicator: line; }';
-            document.head.appendChild(style);
-            try {
-                const settings = resolveDockviewThemeSettings({
-                    name: 'probe',
-                    className: 'probe-theme',
-                    tabAnimation: 'smooth',
-                });
-                expect(settings.gap).toBe(6);
-                expect(settings.dndTabIndicator).toBe('line');
-                expect(settings.tabAnimation).toBe('smooth');
-                expect(document.body.querySelector('.probe-theme')).toBeNull();
-            } finally {
-                style.remove();
-            }
-        });
-
-        test('a partial style object reads as unset', () => {
-            expect(
-                readThemeSettingsFromStyle({} as CSSStyleDeclaration)
-            ).toEqual({});
-        });
-
-        test("themeSetting reads a host's declared settings, unset stays unset", () => {
-            const theme: DockviewTheme = {
-                name: 'x',
-                className: 'x',
-                tabAnimation: 'default',
-            };
-            // Without declared settings (e.g. a test double), reads the object.
-            expect(themeSetting({ options: { theme } }, 'tabAnimation')).toBe(
-                'default'
-            );
-            // CSS declarations count; defaults are not filled in, so an
-            // unset `tabAnimation` is distinguishable from 'default'.
-            const host = {
-                options: { theme: { name: 'y', className: 'y' } },
-                declaredThemeSettings: declaredThemeSettings(
-                    { name: 'y', className: 'y' },
-                    { dndTabIndicator: 'line' }
-                ),
-            };
-            expect(themeSetting(host, 'dndTabIndicator')).toBe('line');
-            expect(themeSetting(host, 'tabAnimation')).toBeUndefined();
+        test('takes each setting the theme sets', () => {
+            expect(resolveThemeSettings(themeAbyssSpaced)).toMatchObject({
+                gap: 10,
+                edgeGroupCollapsedSize: 44,
+                dndOverlayMounting: 'absolute',
+                dndPanelOverlay: 'group',
+                dndTabIndicator: 'line',
+                tabGroupIndicator: 'wrap',
+            });
         });
     });
 });

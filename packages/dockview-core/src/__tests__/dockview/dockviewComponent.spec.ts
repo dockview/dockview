@@ -154,13 +154,13 @@ describe('dockviewComponent', () => {
             className: 'test-a test-b',
         });
         expect(dockview.element.className).toBe(
-            'dv-component-root test-a test-b'
+            'dv-component-root test-a test-b dv-tab-group-indicator-none'
         );
 
         dockview.updateOptions({ className: 'test-b test-c' });
 
         expect(dockview.element.className).toBe(
-            'dv-component-root test-b test-c'
+            'dv-component-root dv-tab-group-indicator-none test-b test-c'
         );
     });
 
@@ -14377,7 +14377,7 @@ describe('popout styles from a shadow-root mount', () => {
     });
 });
 
-describe('theme settings from CSS', () => {
+describe('theme settings and className themes', () => {
     function createDockview(theme?: DockviewTheme): DockviewComponent {
         const container = document.createElement('div');
         document.body.appendChild(container);
@@ -14393,128 +14393,17 @@ describe('theme settings from CSS', () => {
         document.body.innerHTML = '';
     });
 
-    test('reads the settings a theme declares as custom properties', () => {
-        const dv = createDockview();
-        dv.element.style.setProperty('--dv-group-gap', '12px');
-        dv.element.style.setProperty('--dv-dnd-overlay-mounting', 'absolute');
-        dv.element.style.setProperty('--dv-tab-group-indicator', 'none');
-
-        dv.refreshTheme();
-
-        expect(dv.themeSettings.gap).toBe(12);
-        expect(dv.themeSettings.dndOverlayMounting).toBe('absolute');
-        expect(dv.element.classList).toContain('dv-tab-group-indicator-none');
+    test('themeSettings resolves the theme object with defaults', () => {
+        const dv = createDockview({ name: 't', className: 't', gap: 4 });
+        expect(dv.themeSettings.gap).toBe(4);
+        expect(dv.themeSettings.dndTabIndicator).toBe('fill');
 
         const api = new DockviewApi(dv);
-        expect(api.themeSettings).toBe(dv.themeSettings);
-        dv.element.style.setProperty('--dv-group-gap', '3px');
-        api.refreshTheme();
-        expect(api.themeSettings.gap).toBe(3);
-
-        dv.dispose();
-    });
-
-    test('refreshTheme notifies the parts that read theme values', () => {
-        const dv = createDockview();
-        const listener = jest.fn();
-        const disposable = dv.onDidOptionsChange(listener);
-
-        dv.refreshTheme();
-
-        expect(listener).toHaveBeenCalledTimes(1);
-        disposable.dispose();
-        dv.dispose();
-    });
-
-    test('detects the stylesheet by its marker, not by page resets or base tokens', () => {
-        const dv = createDockview();
-        const applied = () =>
-            (dv as unknown as { isStylesheetApplied: boolean })
-                .isStylesheetApplied;
-        // A CSS reset (e.g. Tailwind preflight) or a user's base token.
-        dv.element.style.setProperty('box-sizing', 'border-box');
-        dv.element.style.setProperty('--dv-spacing', '4px');
-        expect(applied()).toBe(false);
-
-        dv.element.style.setProperty('--dv-stylesheet', '1');
-        expect(applied()).toBe(true);
-        dv.dispose();
-    });
-
-    test('a value on the theme object wins over the CSS property', () => {
-        const dv = createDockview({ name: 't', className: 't', gap: 4 });
-        dv.element.style.setProperty('--dv-group-gap', '12px');
-
-        dv.refreshTheme();
-
-        expect(dv.themeSettings.gap).toBe(4);
-        dv.dispose();
-    });
-
-    test('re-reads the CSS settings when className changes', () => {
-        const style = document.createElement('style');
-        style.textContent = '.gap-class { --dv-group-gap: 9px; }';
-        document.head.appendChild(style);
-        try {
-            const dv = createDockview();
-            expect(dv.themeSettings.gap).toBe(0);
-
-            dv.updateOptions({ className: 'gap-class' });
-            expect(dv.themeSettings.gap).toBe(9);
-
-            dv.updateOptions({ className: '' });
-            expect(dv.themeSettings.gap).toBe(0);
-            dv.dispose();
-        } finally {
-            style.remove();
-        }
-    });
-
-    test('a dockview created detached reads its CSS once attached and laid out', () => {
-        const style = document.createElement('style');
-        style.textContent = '.dv-component-root { --dv-stylesheet: 1; }';
-        document.head.appendChild(style);
-        const container = document.createElement('div');
-        const dv = new DockviewComponent(container, {
-            createComponent(options) {
-                return new PanelContentPartTest(options.id, options.name);
-            },
+        dv.updateOptions({
+            theme: { name: 't', className: 't', tabGroupIndicator: 'none' },
         });
-        dv.element.style.setProperty('--dv-group-gap', '7px');
-        expect(dv.themeSettings.gap).toBe(0);
-
-        document.body.appendChild(container);
-        dv.layout(500, 500);
-        expect(dv.themeSettings.gap).toBe(7);
-        dv.dispose();
-        style.remove();
-    });
-
-    test('re-reads the theme CSS when a stylesheet loads after the theme was applied', () => {
-        const dv = createDockview();
-        dv.element.style.setProperty('--dv-group-gap', '5px');
-        dv.refreshTheme();
-        // dockview's stylesheet is not applied yet: the read is retried.
-        expect(dv.themeSettings.gap).toBe(5);
-        dv.element.style.setProperty('--dv-group-gap', '11px');
-
-        const style = document.createElement('style');
-        style.textContent = '.dv-component-root { --dv-stylesheet: 1; }';
-        document.head.appendChild(style);
-        const link = document.createElement('link');
-        document.head.appendChild(link);
-        link.dispatchEvent(new Event('load'));
-
-        expect(dv.themeSettings.gap).toBe(11);
-        dv.dispose();
-        style.remove();
-        link.remove();
-    });
-
-    test('an unset tabAnimation is told apart from an explicit default', () => {
-        const dv = createDockview();
-        expect(dv.themeSettings.tabAnimation).toBe('default');
-        expect(dv.declaredThemeSettings.tabAnimation).toBeUndefined();
+        expect(api.themeSettings.gap).toBe(0);
+        expect(dv.element.classList).toContain('dv-tab-group-indicator-none');
         dv.dispose();
     });
 

@@ -1,8 +1,4 @@
 import { TabAnimation } from './options';
-import {
-    mergeThemeSettings,
-    readThemeSettingsFromStyle,
-} from './themeSettings';
 
 export type DockviewTabGroupIndicator = 'wrap' | 'none';
 
@@ -73,23 +69,7 @@ export interface DockviewTheme {
     tabAnimation?: TabAnimation;
 }
 
-/**
- * Theme settings for layout and drag-and-drop behaviour. Each can be set on
- * the theme object or as a CSS custom property on the theme class:
- *
- * | setting                  | CSS custom property              | default |
- * | ------------------------ | -------------------------------- | ------- |
- * | `gap`                    | `--dv-group-gap`                 | `0`     |
- * | `edgeGroupCollapsedSize` | `--dv-edge-group-collapsed-size` | the tab strip height (`--dv-tabs-and-actions-container-height`), else `35` |
- * | `dndOverlayMounting`     | `--dv-dnd-overlay-mounting`      | `'relative'` |
- * | `dndPanelOverlay`        | `--dv-dnd-panel-overlay`         | `'content'` |
- * | `dndTabIndicator`        | `--dv-dnd-tab-indicator`         | `'fill'` |
- * | `tabGroupIndicator`      | `--dv-tab-group-indicator`       | `'wrap'` |
- * | `tabAnimation`           | `--dv-tab-animation`             | `'default'` |
- *
- * The theme object wins over CSS. Call `api.refreshTheme()` after changing
- * the CSS properties at runtime.
- */
+/** The theme's layout and drag-and-drop settings. */
 export type DockviewThemeSettings = Pick<
     DockviewTheme,
     | 'gap'
@@ -101,32 +81,8 @@ export type DockviewThemeSettings = Pick<
     | 'tabAnimation'
 >;
 
+/** {@link DockviewThemeSettings} with the defaults filled in. */
 export type ResolvedDockviewThemeSettings = Required<DockviewThemeSettings>;
-
-/**
- * Resolve a theme's settings outside a live dockview by reading the CSS of a
- * hidden element with `theme.className`. Without a document, uses the theme
- * object and defaults only.
- */
-export function resolveDockviewThemeSettings(
-    theme: DockviewTheme
-): ResolvedDockviewThemeSettings {
-    if (typeof document === 'undefined' || !document.body) {
-        return mergeThemeSettings(theme, undefined);
-    }
-    const probe = document.createElement('div');
-    probe.className = theme.className;
-    probe.style.display = 'none';
-    document.body.appendChild(probe);
-    try {
-        return mergeThemeSettings(
-            theme,
-            readThemeSettingsFromStyle(getComputedStyle(probe))
-        );
-    } finally {
-        probe.remove();
-    }
-}
 
 /**
  * Derives every colour, radius and padding from five base tokens:
@@ -156,12 +112,16 @@ export const themeVisualStudio: DockviewTheme = {
     name: 'visualStudio',
     className: 'dockview-theme-vs',
     colorScheme: 'dark',
+    // --dv-tabs-and-actions-container-height is 20px, but the VS theme applies
+    // box-sizing: content-box + border-bottom: 2px, so the rendered strip is 22px.
+    edgeGroupCollapsedSize: 22,
 };
 
 export const themeAbyss: DockviewTheme = {
     name: 'abyss',
     className: 'dockview-theme-abyss',
     colorScheme: 'dark',
+    tabGroupIndicator: 'none',
 };
 
 export const themeDracula: DockviewTheme = {
@@ -174,12 +134,24 @@ export const themeAbyssSpaced: DockviewTheme = {
     name: 'abyssSpaced',
     className: 'dockview-theme-abyss-spaced',
     colorScheme: 'dark',
+    gap: 10,
+    edgeGroupCollapsedSize: 44,
+    dndOverlayMounting: 'absolute',
+    dndPanelOverlay: 'group',
+    dndTabIndicator: 'line',
+    dndOverlayBorder: '2px solid var(--dv-active-sash-color)',
 };
 
 export const themeLightSpaced: DockviewTheme = {
     name: 'lightSpaced',
     className: 'dockview-theme-light-spaced',
     colorScheme: 'light',
+    gap: 10,
+    edgeGroupCollapsedSize: 44,
+    dndOverlayMounting: 'absolute',
+    dndPanelOverlay: 'group',
+    dndTabIndicator: 'line',
+    dndOverlayBorder: '2px solid var(--dv-active-sash-color)',
 };
 
 export const themeNord: DockviewTheme = {
@@ -192,6 +164,12 @@ export const themeNordSpaced: DockviewTheme = {
     name: 'nordSpaced',
     className: 'dockview-theme-nord-spaced',
     colorScheme: 'dark',
+    gap: 10,
+    edgeGroupCollapsedSize: 44,
+    dndOverlayMounting: 'absolute',
+    dndPanelOverlay: 'group',
+    dndTabIndicator: 'line',
+    dndOverlayBorder: '2px solid var(--dv-active-sash-color)',
 };
 
 export const themeCatppuccinMocha: DockviewTheme = {
@@ -204,6 +182,12 @@ export const themeCatppuccinMochaSpaced: DockviewTheme = {
     name: 'catppuccinMochaSpaced',
     className: 'dockview-theme-catppuccin-mocha-spaced',
     colorScheme: 'dark',
+    gap: 10,
+    edgeGroupCollapsedSize: 44,
+    dndOverlayMounting: 'absolute',
+    dndPanelOverlay: 'group',
+    dndTabIndicator: 'line',
+    dndOverlayBorder: '2px solid var(--dv-active-sash-color)',
 };
 
 export const themeMonokai: DockviewTheme = {
@@ -222,6 +206,12 @@ export const themeSolarizedLightSpaced: DockviewTheme = {
     name: 'solarizedLightSpaced',
     className: 'dockview-theme-solarized-light-spaced',
     colorScheme: 'light',
+    gap: 10,
+    edgeGroupCollapsedSize: 44,
+    dndOverlayMounting: 'absolute',
+    dndPanelOverlay: 'group',
+    dndTabIndicator: 'line',
+    dndOverlayBorder: '2px solid var(--dv-active-sash-color)',
 };
 
 export const themeGithubDark: DockviewTheme = {
@@ -234,6 +224,12 @@ export const themeGithubDarkSpaced: DockviewTheme = {
     name: 'githubDarkSpaced',
     className: 'dockview-theme-github-dark-spaced',
     colorScheme: 'dark',
+    gap: 10,
+    edgeGroupCollapsedSize: 44,
+    dndOverlayMounting: 'absolute',
+    dndPanelOverlay: 'group',
+    dndTabIndicator: 'line',
+    dndOverlayBorder: '2px solid var(--dv-active-sash-color)',
 };
 
 export const themeGithubLight: DockviewTheme = {
@@ -246,22 +242,35 @@ export const themeGithubLightSpaced: DockviewTheme = {
     name: 'githubLightSpaced',
     className: 'dockview-theme-github-light-spaced',
     colorScheme: 'light',
+    gap: 10,
+    edgeGroupCollapsedSize: 44,
+    dndOverlayMounting: 'absolute',
+    dndPanelOverlay: 'group',
+    dndTabIndicator: 'line',
+    dndOverlayBorder: '2px solid var(--dv-active-sash-color)',
 };
 
 export const themeSlate: DockviewTheme = {
     name: 'slate',
     className: 'dockview-theme-slate',
     colorScheme: 'light',
+    gap: 8,
+    edgeGroupCollapsedSize: 32,
+    dndTabIndicator: 'line',
 };
 
 export const themeSlateDark: DockviewTheme = {
     name: 'slateDark',
     className: 'dockview-theme-slate-dark',
     colorScheme: 'dark',
+    gap: 8,
+    edgeGroupCollapsedSize: 32,
+    dndTabIndicator: 'line',
 };
 
 export const themeDarkRounded: DockviewTheme = {
     name: 'darkRounded',
     className: 'dockview-theme-dark-rounded',
     colorScheme: 'dark',
+    dndTabIndicator: 'line',
 };

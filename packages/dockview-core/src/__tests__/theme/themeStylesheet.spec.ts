@@ -194,14 +194,12 @@ describe('theme stylesheet', () => {
         '.dockview-theme-github-light-spaced',
     ];
 
-    test.each(spaced)('%s declares the spaced settings', (className) => {
+    test.each(spaced)('%s declares the spaced layout', (className) => {
         const d = declarationsOf(className);
         expect(d.get('--dv-spacing-padding')).toBe('10px');
-        expect(d.get('--dv-group-gap')).toBe('var(--dv-spacing-padding)');
         expect(d.get('--dv-tabs-and-actions-container-height')).toBe('32px');
-        expect(d.get('--dv-dnd-overlay-mounting')).toBe('absolute');
-        expect(d.get('--dv-dnd-panel-overlay')).toBe('group');
-        expect(d.get('--dv-dnd-tab-indicator')).toBe('line');
+        // Gap and drag-and-drop settings live on the theme object.
+        expect(d.has('--dv-group-gap')).toBe(false);
         expect(d.get('--dv-drag-over-border')).toMatch(
             /^2px solid var\(--dv-active-sash-color\b/
         );
@@ -210,19 +208,16 @@ describe('theme stylesheet', () => {
     test.each([
         '.dockview-theme-slate',
         '.dockview-theme-slate-dark',
-    ])('%s declares the sheet settings', (className) => {
+    ])('%s declares the sheet layout', (className) => {
         const d = declarationsOf(className);
         expect(d.get('--dv-spacing-padding')).toBe('8px');
-        expect(d.get('--dv-group-gap')).toBe('var(--dv-spacing-padding)');
         expect(d.get('--dv-root-padding')).toBe('var(--dv-spacing-padding)');
         expect(d.get('--dv-tabs-and-actions-container-height')).toBe('32px');
-        expect(d.get('--dv-dnd-tab-indicator')).toBe('line');
         expect(d.get('--dv-tab-shoulder-size')).toBe('10px');
     });
 
-    test('dark rounded declares its drop settings', () => {
+    test('dark rounded declares its drop border', () => {
         const d = declarationsOf('.dockview-theme-dark-rounded');
-        expect(d.get('--dv-dnd-tab-indicator')).toBe('line');
         expect(d.get('--dv-drag-over-border')).toMatch(
             /^2px solid var\(--dv-active-sash-color\b/
         );
@@ -234,13 +229,5 @@ describe('theme stylesheet', () => {
                 '--dv-tabs-and-actions-container-height'
             )
         ).toBe('22px');
-    });
-
-    test('abyss uses the flat tab group indicator', () => {
-        expect(
-            declarationsOf('.dockview-theme-abyss').get(
-                '--dv-tab-group-indicator'
-            )
-        ).toBe('none');
     });
 });

@@ -27,7 +27,6 @@ import { LongPressDetector } from '../../../dnd/pointer/longPress';
 import { IDockviewPanel } from '../../dockviewPanel';
 import { DockviewHeaderDirection } from '../../options';
 import { resolveDndCapabilities } from '../../dndCapabilities';
-import { themeSetting } from '../../themeSettings';
 
 let _tabId = 0;
 /** Stable DOM id referenced by the tabpanel's `aria-labelledby`. */
@@ -129,7 +128,7 @@ export class Tab extends CompositeDisposable {
             if (this.accessor.id === data?.viewId) {
                 // Smooth-reorder takes over the in-flight visual when active,
                 // so individual tab overlays are suppressed for internal drags.
-                if (themeSetting(this.accessor, 'tabAnimation') === 'smooth') {
+                if (this.accessor.options.theme?.tabAnimation === 'smooth') {
                     return false;
                 }
 
@@ -205,7 +204,7 @@ export class Tab extends CompositeDisposable {
                 this._onDragStart.fire(event);
                 if (
                     !(event instanceof PointerEvent) &&
-                    themeSetting(this.accessor, 'tabAnimation') === 'smooth'
+                    this.accessor.options.theme?.tabAnimation === 'smooth'
                 ) {
                     // Delay collapse to next frame so the browser
                     // captures the full drag image first.
@@ -370,7 +369,7 @@ export class Tab extends CompositeDisposable {
         // half-width highlighted area, so we disable the small-boundary path
         // entirely (boundary = 0 ⟹ isSmall always false).
         const smallBoundary =
-            themeSetting(this.accessor, 'dndTabIndicator') === 'line'
+            this.accessor.options.theme?.dndTabIndicator === 'line'
                 ? Number.POSITIVE_INFINITY
                 : 0;
         return {

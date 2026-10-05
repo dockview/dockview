@@ -36,11 +36,7 @@
     --dv-separator-border: transparent;
     --dv-tab-divider-color: transparent;
 
-    // ── Behaviour ───────────────────────────────────────────────────────────
-    --dv-group-gap: var(--dv-spacing-padding);
-    --dv-dnd-overlay-mounting: absolute;
-    --dv-dnd-panel-overlay: group;
-    --dv-dnd-tab-indicator: line;
+    // The gap and drag-and-drop settings are on the theme object.
     --dv-drag-over-border: 2px solid #{dv.ref('active-sash-color')};
 
     // ── Layout frame ────────────────────────────────────────────────────────

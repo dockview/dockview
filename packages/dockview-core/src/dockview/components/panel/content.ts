@@ -11,7 +11,6 @@ import { DockviewComponent } from '../../dockviewComponent';
 import { Droptarget, IDropTarget, Position } from '../../../dnd/droptarget';
 import { pointerBackend } from '../../../dnd/backend';
 import { DockviewGroupPanelModel } from '../../dockviewGroupPanelModel';
-import { themeSetting } from '../../themeSettings';
 
 let _contentId = 0;
 /** Stable DOM id so each tab's `aria-controls` can reference its tabpanel. */
@@ -90,7 +89,7 @@ export class ContentContainer
         // through `dropTarget.dnd`, and that field is not part of `IDropTarget`.
         this.dropTarget = new Droptarget(this.element, {
             getOverlayOutline: () => {
-                return themeSetting(accessor, 'dndPanelOverlay') === 'group'
+                return accessor.options.theme?.dndPanelOverlay === 'group'
                     ? this.element.parentElement
                     : null;
             },
@@ -106,7 +105,7 @@ export class ContentContainer
             acceptedTargetZones: ['top', 'bottom', 'left', 'right', 'center'],
             canDisplayOverlay,
             getOverlayOutline: () => {
-                return themeSetting(accessor, 'dndPanelOverlay') === 'group'
+                return accessor.options.theme?.dndPanelOverlay === 'group'
                     ? this.element.parentElement
                     : null;
             },
