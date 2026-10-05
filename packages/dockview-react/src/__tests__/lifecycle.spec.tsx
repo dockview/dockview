@@ -1,6 +1,7 @@
 import React from 'react';
-import { fireEvent, render, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, waitFor } from '@testing-library/react';
 import {
+    type DockviewApi,
     type DockviewReadyEvent,
     type IDockviewPanelProps,
     Orientation,
@@ -173,6 +174,55 @@ describe('DockviewReact under Activity', () => {
         view.rerender(<Host mode="visible">{element}</Host>);
 
         expect(view.getByText('count=1')).toBeTruthy();
+    });
+
+    test('applies panel changes made while hidden on reveal', () => {
+        const Label = (props: IDockviewPanelProps<{ label: string }>) => (
+            <div>{`label=${props.params.label}`}</div>
+        );
+        const panelComponents = { label: Label };
+        let api: DockviewApi | undefined;
+
+        const element = (
+            <DockviewReact
+                components={panelComponents}
+                onReady={(event) => {
+                    api = event.api;
+                    api.addPanel({
+                        id: 'a',
+                        component: 'label',
+                        params: { label: 'one' },
+                    });
+                }}
+            />
+        );
+
+        const view = render(<Host mode="visible">{element}</Host>);
+        view.rerender(<Host mode="hidden">{element}</Host>);
+
+        act(() => {
+            api!.getPanel('a')!.api.updateParameters({ label: 'two' });
+            api!.addPanel({
+                id: 'b',
+                component: 'label',
+                params: { label: 'bee' },
+            });
+            api!.getPanel('b')!.api.close();
+            api!.addPanel({
+                id: 'c',
+                component: 'label',
+                params: { label: 'sea' },
+            });
+        });
+
+        view.rerender(<Host mode="visible">{element}</Host>);
+
+        expect(view.getByText('label=sea')).toBeTruthy();
+        expect(view.queryByText(/bee/)).toBeNull();
+
+        act(() => api!.getPanel('a')!.api.setActive());
+
+        expect(view.getByText('label=two')).toBeTruthy();
     });
 
     test('does not call updateOptions on reveal when no prop changed', () => {

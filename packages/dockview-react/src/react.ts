@@ -223,7 +223,7 @@ function watchForRemoval(
     const parentOf = (node: Node): Node | null =>
         node instanceof ShadowRoot ? node.host : node.parentNode;
 
-    let ancestors = new Set<Node>();
+    const ancestors = new Set<Node>();
 
     const observer = new MutationObserver((records) => {
         if (!element.isConnected) {
@@ -233,17 +233,20 @@ function watchForRemoval(
         }
 
         // only re-walk when an ancestor was moved, not on unrelated sibling changes
-        const moved = records.some((record) =>
-            Array.from(record.removedNodes).some((node) => ancestors.has(node))
-        );
-        if (moved) {
-            observeAncestors();
+        for (const record of records) {
+            const removed = record.removedNodes;
+            for (let i = 0; i < removed.length; i++) {
+                if (ancestors.has(removed[i])) {
+                    observeAncestors();
+                    return;
+                }
+            }
         }
     });
 
     const observeAncestors = () => {
         observer.disconnect();
-        ancestors = new Set<Node>();
+        ancestors.clear();
         for (let node = parentOf(element); node; node = parentOf(node)) {
             ancestors.add(node);
             observer.observe(node, { childList: true });
