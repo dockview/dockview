@@ -888,6 +888,90 @@ describe('watermark slot', () => {
     });
 });
 
+describe('slot rendering efficiency', () => {
+    test('host re-renders with unchanged slots do not re-render slot content', async () => {
+        const panelRenders = vi.fn();
+        const headerRenders = vi.fn();
+        const cls = ref('a');
+        const { api } = await mountHost(
+            `<DockviewVue @ready="onReady" :class="cls">
+                <template #panel-editor>{{ panelRendered() }}<div class="editor" /></template>
+                <template #rightHeaderActions>{{ headerRendered() }}<span /></template>
+            </DockviewVue>`,
+            () => ({
+                cls,
+                panelRendered: () => {
+                    panelRenders();
+                    return '';
+                },
+                headerRendered: () => {
+                    headerRenders();
+                    return '';
+                },
+            })
+        );
+
+        api.addPanel({ id: 'p1', component: 'editor' });
+        api.addPanel({
+            id: 'p2',
+            component: 'editor',
+            position: { referencePanel: 'p1', direction: 'right' },
+        });
+        await settle();
+        panelRenders.mockClear();
+        headerRenders.mockClear();
+
+        // re-renders the host (attrs change) without touching its slots
+        cls.value = 'b';
+        await settle();
+        cls.value = 'c';
+        await settle();
+
+        expect(document.querySelector('.c')).not.toBeNull();
+        expect(panelRenders).not.toHaveBeenCalled();
+        expect(headerRenders).not.toHaveBeenCalled();
+    });
+
+    test('a parent state change re-renders only the slot content that reads it', async () => {
+        const count = ref(0);
+        const editorRenders = vi.fn();
+        const otherRenders = vi.fn();
+        const { api } = await mountHost(
+            `<DockviewVue @ready="onReady">
+                <template #panel-editor>{{ editorRendered() }}<div class="editor">{{ count }}</div></template>
+                <template #panel-other>{{ otherRendered() }}<div class="other" /></template>
+            </DockviewVue>`,
+            () => ({
+                count,
+                editorRendered: () => {
+                    editorRenders();
+                    return '';
+                },
+                otherRendered: () => {
+                    otherRenders();
+                    return '';
+                },
+            })
+        );
+
+        api.addPanel({ id: 'p1', component: 'editor' });
+        api.addPanel({
+            id: 'p2',
+            component: 'other',
+            position: { referencePanel: 'p1', direction: 'right' },
+        });
+        await settle();
+        editorRenders.mockClear();
+        otherRenders.mockClear();
+
+        count.value++;
+        await settle();
+        expect(text('.editor')).toBe('1');
+        expect(editorRenders).toHaveBeenCalledTimes(1);
+        expect(otherRenders).not.toHaveBeenCalled();
+    });
+});
+
 describe('backwards compatibility', () => {
     test('component-only usage renders no slot outlets', async () => {
         const Panel = defineComponent({

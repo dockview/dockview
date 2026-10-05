@@ -18,7 +18,6 @@ import {
     markRaw,
     getCurrentInstance,
     provide,
-    shallowRef,
     type Slots,
 } from 'vue';
 import {
@@ -34,7 +33,11 @@ import {
     type VueComponent,
     type VueRenderable,
 } from '../utils';
-import { VUE_SLOT_CONTEXT, createSlotReference } from '../slots';
+import {
+    VUE_SLOT_CONTEXT,
+    createSlotFunctions,
+    createSlotReference,
+} from '../slots';
 import DockviewPortals from '../dockviewPortals.vue';
 import type { DockviewVueSlots, IDockviewVueProps, VueEvents } from './types';
 
@@ -93,13 +96,13 @@ const registry = new VueRendererRegistry();
 
 /**
  * Scoped slots (see {@link DockviewVueSlots}) are rendered by
- * {@link VueSlotOutlet}s mounted through the registry. Bumping `slotsVersion`
- * whenever this component re-renders makes the outlets pick up slot functions
- * the parent replaced (dynamic `v-if` slots, render-function slots).
+ * {@link VueSlotOutlet}s mounted through the registry. `slotFunctions` is
+ * re-synced before each re-render so outlets pick up slot functions the
+ * parent replaced; outlets whose slot is unchanged are not re-rendered.
  */
 const slots = defineSlots<DockviewVueSlots>();
-const slotsVersion = shallowRef(0);
-provide(VUE_SLOT_CONTEXT, { slots: slots as Slots, version: slotsVersion });
+const slotFunctions = createSlotFunctions(slots as Slots);
+provide(VUE_SLOT_CONTEXT, { slots: slotFunctions.functions });
 
 const PANEL_SLOT_PREFIX = 'panel-';
 const TAB_SLOT_PREFIX = 'tab-';
@@ -337,7 +340,7 @@ watch(
 let fixedSlotsPresence = snapshotFixedSlots();
 
 onBeforeUpdate(() => {
-    slotsVersion.value++;
+    slotFunctions.sync();
 });
 
 onUpdated(() => {

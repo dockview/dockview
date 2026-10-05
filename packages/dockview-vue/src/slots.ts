@@ -5,8 +5,10 @@
 import {
     inject,
     markRaw,
+    renderSlot,
+    shallowReactive,
     type InjectionKey,
-    type ShallowRef,
+    type Slot,
     type Slots,
 } from 'vue';
 import type { VueComponent } from './utils';
@@ -35,14 +37,18 @@ export function isSlotReference(value: unknown): value is VueSlotReference {
 }
 
 /**
+ * The host's slot functions, keyed by slot name, held in a
+ * `shallowReactive` record so that each {@link VueSlotOutlet} only tracks
+ * the one slot it renders.
+ */
+export type VueSlotFunctions = Record<string, Slot | undefined>;
+
+/**
  * Provided by a host (`dockview.vue`) so that {@link VueSlotOutlet} can look
- * up the host's slots. `version` is bumped whenever the host re-renders, which
- * re-runs every outlet so that slot functions replaced by the parent (dynamic
- * slots, render-function slots) are picked up.
+ * up the host's slots.
  */
 export interface VueSlotContext {
-    readonly slots: Slots;
-    readonly version: ShallowRef<number>;
+    readonly slots: VueSlotFunctions;
 }
 
 export const VUE_SLOT_CONTEXT: InjectionKey<VueSlotContext> = Symbol(
@@ -50,10 +56,43 @@ export const VUE_SLOT_CONTEXT: InjectionKey<VueSlotContext> = Symbol(
 );
 
 /**
+ * Create the reactive slot record for a host, plus a `sync` to call from the
+ * host's `onBeforeUpdate`. `sync` only writes entries whose function actually
+ * changed, so outlets re-render only when their own slot is replaced (dynamic
+ * `v-if` slots, render-function slots), not on every host re-render.
+ */
+export function createSlotFunctions(slots: Slots): {
+    functions: VueSlotFunctions;
+    sync: () => void;
+} {
+    const functions = shallowReactive<VueSlotFunctions>({});
+
+    const sync = () => {
+        for (const name of Object.keys(functions)) {
+            if (typeof slots[name] !== 'function') {
+                delete functions[name];
+            }
+        }
+        for (const name of Object.keys(slots)) {
+            const slot = slots[name];
+            if (typeof slot === 'function' && functions[name] !== slot) {
+                functions[name] = slot;
+            }
+        }
+    };
+
+    sync();
+    return { functions, sync };
+}
+
+/**
  * Renders the host slot `slotName`, passing the renderer's `params` as the
  * slot props. Mounted through the same {@link VueRendererRegistry} teleport
  * path as components, so it lives inside the host's component tree and the
  * slot content keeps the parent's reactivity, event handlers and injections.
+ *
+ * `renderSlot` is what compiled `<slot>` elements use; it renders the content
+ * as a block so updates take Vue's optimised patch path.
  */
 export const VueSlotOutlet = {
     name: 'DockviewSlotOutlet',
@@ -67,10 +106,11 @@ export const VueSlotOutlet = {
             if (!context) {
                 return null;
             }
-            // Track the version so a host re-render re-runs this outlet.
-            void context.version.value;
-            const slot = context.slots[props.slotName];
-            return slot ? slot(props.params ?? {}) : null;
+            return renderSlot(
+                context.slots as Slots,
+                props.slotName,
+                props.params ?? {}
+            );
         };
     },
 } as unknown as VueComponent;
