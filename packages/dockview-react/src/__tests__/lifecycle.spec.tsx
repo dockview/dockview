@@ -112,6 +112,31 @@ describe.each(components)('%s lifecycle', (_name, renderComponent) => {
             expect(instances[0].dispose).toHaveBeenCalledTimes(1);
         });
     });
+
+    test('follows an ancestor that moves while hidden', async () => {
+        const { instances, element } = setup();
+
+        const view = render(<Host mode="visible">{element}</Host>);
+        view.rerender(<Host mode="hidden">{element}</Host>);
+
+        const sibling = document.createElement('div');
+        document.body.appendChild(sibling);
+        document.body.removeChild(sibling);
+
+        const target = document.createElement('div');
+        document.body.appendChild(target);
+        target.appendChild(view.container);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(instances[0].dispose).not.toHaveBeenCalled();
+
+        target.removeChild(view.container);
+
+        await waitFor(() => {
+            expect(instances[0].dispose).toHaveBeenCalledTimes(1);
+        });
+        target.remove();
+    });
 });
 
 describe('DockviewReact under Activity', () => {

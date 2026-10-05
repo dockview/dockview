@@ -223,19 +223,29 @@ function watchForRemoval(
     const parentOf = (node: Node): Node | null =>
         node instanceof ShadowRoot ? node.host : node.parentNode;
 
-    const observer = new MutationObserver(() => {
-        if (element.isConnected) {
-            // an ancestor may have moved, so follow the current chain
-            observeAncestors();
+    let ancestors = new Set<Node>();
+
+    const observer = new MutationObserver((records) => {
+        if (!element.isConnected) {
+            observer.disconnect();
+            onRemoved();
             return;
         }
-        observer.disconnect();
-        onRemoved();
+
+        // only re-walk when an ancestor was moved, not on unrelated sibling changes
+        const moved = records.some((record) =>
+            Array.from(record.removedNodes).some((node) => ancestors.has(node))
+        );
+        if (moved) {
+            observeAncestors();
+        }
     });
 
     const observeAncestors = () => {
         observer.disconnect();
+        ancestors = new Set<Node>();
         for (let node = parentOf(element); node; node = parentOf(node)) {
+            ancestors.add(node);
             observer.observe(node, { childList: true });
         }
     };
@@ -244,6 +254,9 @@ function watchForRemoval(
 
     return DockviewDisposable.from(() => observer.disconnect());
 }
+
+// Activity and StrictMode effect replays, the only cleanups that are not unmounts, need React 18+
+const canHideWithoutUnmount = Number.parseInt(React.version, 10) >= 18;
 
 /**
  * Creates the instance on mount and keeps it until the host element leaves
@@ -255,6 +268,10 @@ function watchForRemoval(
  * a host that is still connected at cleanup is only hidden and the instance
  * is reused when the effect runs again. A subtree deleted while hidden gets
  * no second cleanup, so the instance is disposed once its host is removed.
+ *
+ * Before React 18 neither feature exists, so every cleanup is an unmount and
+ * the instance is disposed synchronously. React 16 runs cleanups before it
+ * removes the host, which would otherwise look like a hide.
  */
 export function useKeptInstance<T extends DockviewIDisposable>(
     domRef: React.RefObject<HTMLElement | null>,
@@ -286,6 +303,7 @@ export function useKeptInstance<T extends DockviewIDisposable>(
             };
 
             if (
+                canHideWithoutUnmount &&
                 element.isConnected &&
                 typeof MutationObserver !== 'undefined'
             ) {
