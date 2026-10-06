@@ -106,13 +106,18 @@ const PANEL_SLOT_PREFIX = 'panel-';
 const TAB_SLOT_PREFIX = 'tab-';
 
 /**
- * Dockview never re-creates existing tabs when tab options change, so a tab
- * slot that is removed keeps rendering in the tabs already using it, the same
- * way changing `defaultTabComponent` only affects tabs created afterwards.
+ * Dockview never re-creates existing panels or tabs when options change, so a
+ * panel or tab slot that is removed keeps rendering where it is already used,
+ * the same way removing a `components` entry or changing `defaultTabComponent`
+ * only affects panels and tabs created afterwards. Header-action and watermark
+ * slots are not retained: dockview re-creates those when the slot is removed.
  */
 const slotFunctions = createSlotFunctions(
     slots as Slots,
-    (name) => name === 'defaultTab' || name.startsWith(TAB_SLOT_PREFIX)
+    (name) =>
+        name === 'defaultTab' ||
+        name.startsWith(PANEL_SLOT_PREFIX) ||
+        name.startsWith(TAB_SLOT_PREFIX)
 );
 provide(VUE_SLOT_CONTEXT, {
     functions: slotFunctions.functions,

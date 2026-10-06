@@ -115,7 +115,7 @@ describe('slot helpers', () => {
         expect(() =>
             renderer.init({
                 params: {},
-                api: {} as any,
+                api: { onDidTitleChange: () => ({ dispose: () => {} }) } as any,
                 containerApi: {} as any,
                 tabLocation: 'header',
             })
@@ -412,26 +412,29 @@ describe('panel slots', () => {
         ).toEqual(['1', '2']);
     });
 
-    test('a panel whose slot is removed after mount renders nothing without throwing', async () => {
+    test('existing panels keep rendering when their slot is removed', async () => {
         const show = ref(true);
+        const label = ref('first');
         const { api } = await mountHost(
             `<DockviewVue @ready="onReady">
-                <template v-if="show" #panel-editor><div class="editor" /></template>
+                <template v-if="show" #panel-editor><div class="editor">{{ label }}</div></template>
             </DockviewVue>`,
-            () => ({ show })
+            () => ({ show, label })
         );
 
         api.addPanel({ id: 'p1', component: 'editor' });
         await settle();
-        expect(all('.editor')).toHaveLength(1);
+        expect(text('.editor')).toBe('first');
 
+        // like removing an entry from the components prop
         show.value = false;
         await settle();
-        expect(all('.editor')).toHaveLength(0);
+        expect(text('.editor')).toBe('first');
 
+        label.value = 'second';
         show.value = true;
         await settle();
-        expect(all('.editor')).toHaveLength(1);
+        expect(text('.editor')).toBe('second');
     });
 
     test('render-function slots replaced on every parent render are picked up', async () => {
@@ -630,6 +633,89 @@ describe('tab slots', () => {
         api.addPanel({ id: 'p2', component: 'editor' });
         await settle();
         expect(all('.default-tab')).toHaveLength(1);
+    });
+});
+
+describe('panel title changes', () => {
+    test('a defaultTab slot reading api.title updates on setTitle', async () => {
+        const { api } = await mountHost(
+            `<DockviewVue @ready="onReady">
+                <template #panel-editor><div /></template>
+                <template #defaultTab="{ api }"><span class="tab-title">{{ api.title }}</span></template>
+            </DockviewVue>`
+        );
+
+        api.addPanel({ id: 'p1', component: 'editor', title: 'A' });
+        await settle();
+        expect(text('.tab-title')).toBe('A');
+
+        api.getPanel('p1')!.api.setTitle('B');
+        await settle();
+        expect(text('.tab-title')).toBe('B');
+    });
+
+    test('a tab-<name> slot reading api.title updates on setTitle', async () => {
+        const { api } = await mountHost(
+            `<DockviewVue @ready="onReady">
+                <template #panel-editor><div /></template>
+                <template #tab-fancy="{ api }"><span class="tab-title">{{ api.title }}</span></template>
+            </DockviewVue>`
+        );
+
+        api.addPanel({
+            id: 'p1',
+            component: 'editor',
+            tabComponent: 'fancy',
+            title: 'A',
+        });
+        await settle();
+
+        api.getPanel('p1')!.api.setTitle('B');
+        await settle();
+        expect(text('.tab-title')).toBe('B');
+    });
+
+    test('a panel slot reading api.title updates on setTitle', async () => {
+        const { api } = await mountHost(
+            `<DockviewVue @ready="onReady">
+                <template #panel-editor="{ api }"><h1 class="panel-title">{{ api.title }}</h1></template>
+            </DockviewVue>`
+        );
+
+        api.addPanel({ id: 'p1', component: 'editor', title: 'A' });
+        await settle();
+
+        api.getPanel('p1')!.api.setTitle('B');
+        await settle();
+        expect(text('.panel-title')).toBe('B');
+    });
+
+    test('component tabs are not re-rendered on setTitle', async () => {
+        const renders = vi.fn();
+        const Tab = defineComponent({
+            props: ['params'],
+            setup: (props) => () => {
+                renders(props.params);
+                return h('span', { class: 'component-tab' });
+            },
+        });
+        const Panel = defineComponent({
+            props: ['params'],
+            render: () => h('div'),
+        });
+        wrapper = mount(DockviewVue, {
+            props: { components: { Panel }, tabComponents: { Tab } },
+            attachTo: document.body,
+        });
+        await settle();
+        const api = (wrapper.emitted('ready')![0][0] as any).api as DockviewApi;
+        api.addPanel({ id: 'p1', component: 'Panel', tabComponent: 'Tab' });
+        await settle();
+        renders.mockClear();
+
+        api.getPanel('p1')!.api.setTitle('B');
+        await settle();
+        expect(renders).not.toHaveBeenCalled();
     });
 });
 

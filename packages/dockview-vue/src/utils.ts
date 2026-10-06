@@ -258,6 +258,7 @@ export class VueRenderer
     implements ITabRenderer, IContentRenderer
 {
     private _props: IDockviewPanelHeaderProps | undefined;
+    private readonly _titleDisposable = new DockviewMutableDisposable();
 
     init(parameters: TabPartInitParameters): void {
         this._props = {
@@ -268,6 +269,23 @@ export class VueRenderer
         };
 
         this.mount({ params: this._props });
+
+        /**
+         * Slot content cannot subscribe to the panel api the way a component's
+         * setup can, so re-render it when the title changes, keeping
+         * `api.title` in a slot current. Components are left to subscribe
+         * themselves.
+         */
+        if (isSlotReference(this.component)) {
+            this._titleDisposable.value = parameters.api.onDidTitleChange(
+                () => {
+                    if (this._props) {
+                        this._props = { ...this._props };
+                        this._renderDisposable?.update({ params: this._props });
+                    }
+                }
+            );
+        }
     }
 
     update(event: PanelUpdateEvent<Parameters>): void {
@@ -280,6 +298,7 @@ export class VueRenderer
     }
 
     dispose(): void {
+        this._titleDisposable.dispose();
         this._renderDisposable?.dispose();
     }
 }
