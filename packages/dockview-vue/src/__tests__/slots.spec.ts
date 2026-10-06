@@ -13,7 +13,7 @@ import {
 } from 'vue';
 import type { DockviewApi } from 'dockview';
 import DockviewVue from '../dockview/dockview.vue';
-import { VueRenderer } from '../utils';
+import { VueRenderer, VueRendererRegistry } from '../utils';
 import { VueSlotOutlet, createSlotReference, isSlotReference } from '../slots';
 import * as publicApi from '../index';
 
@@ -633,6 +633,78 @@ describe('tab slots', () => {
     });
 });
 
+describe('removing tab slots after mount', () => {
+    test('existing tabs keep rendering when the defaultTab slot is removed', async () => {
+        const show = ref(true);
+        const { api } = await mountHost(
+            `<DockviewVue @ready="onReady">
+                <template #panel-editor><div /></template>
+                <template v-if="show" #defaultTab="{ api }"><span class="default-tab">{{ api.id }}</span></template>
+            </DockviewVue>`,
+            () => ({ show })
+        );
+
+        api.addPanel({ id: 'p1', component: 'editor' });
+        await settle();
+        expect(text('.default-tab')).toBe('p1');
+
+        show.value = false;
+        await settle();
+        // like changing the defaultTabComponent prop, only new tabs change
+        expect(text('.default-tab')).toBe('p1');
+
+        api.addPanel({
+            id: 'p2',
+            component: 'editor',
+            position: { referencePanel: 'p1', direction: 'right' },
+        });
+        await settle();
+        expect(all('.default-tab')).toHaveLength(1);
+        expect(all('.dv-default-tab')).toHaveLength(1);
+    });
+
+    test('existing tabs keep rendering when a tab-<name> slot is removed', async () => {
+        const show = ref(true);
+        const { api } = await mountHost(
+            `<DockviewVue @ready="onReady">
+                <template #panel-editor><div /></template>
+                <template v-if="show" #tab-fancy="{ api }"><span class="fancy-tab">{{ api.id }}</span></template>
+            </DockviewVue>`,
+            () => ({ show })
+        );
+
+        api.addPanel({ id: 'p1', component: 'editor', tabComponent: 'fancy' });
+        await settle();
+        expect(text('.fancy-tab')).toBe('p1');
+
+        show.value = false;
+        await settle();
+        expect(text('.fancy-tab')).toBe('p1');
+    });
+
+    test('a removed tab slot that is added back renders its new content', async () => {
+        const label = ref('first');
+        const show = ref(true);
+        const { api } = await mountHost(
+            `<DockviewVue @ready="onReady">
+                <template #panel-editor><div /></template>
+                <template v-if="show" #defaultTab><span class="default-tab">{{ label }}</span></template>
+            </DockviewVue>`,
+            () => ({ show, label })
+        );
+
+        api.addPanel({ id: 'p1', component: 'editor' });
+        await settle();
+
+        show.value = false;
+        await settle();
+        label.value = 'second';
+        show.value = true;
+        await settle();
+        expect(text('.default-tab')).toBe('second');
+    });
+});
+
 describe('header action slots', () => {
     test('rightHeaderActions slot renders per group with header props', async () => {
         const { api } = await mountHost(
@@ -972,6 +1044,42 @@ describe('slot rendering efficiency', () => {
     });
 });
 
+describe('slot patch path', () => {
+    // PatchFlags.STABLE_FRAGMENT / PatchFlags.BAIL from @vue/shared
+    const STABLE_FRAGMENT = 64;
+    const BAIL = -2;
+
+    async function outletPatchFlags(template: string, setup?: () => any) {
+        const { api, wrapper } = await mountHost(template, setup);
+        api.addPanel({ id: 'p1', component: 'editor' });
+        await settle();
+        return wrapper
+            .findAllComponents({ name: 'DockviewSlotOutlet' })
+            .map((outlet) => (outlet.vm.$ as any).subTree.patchFlag);
+    }
+
+    test('stable compiled slots render as stable fragments', async () => {
+        const flags = await outletPatchFlags(
+            `<DockviewVue @ready="onReady">
+                <template #panel-editor><div class="editor" /></template>
+                <template #rightHeaderActions><span /></template>
+            </DockviewVue>`
+        );
+        expect(flags).toHaveLength(2);
+        expect(flags.every((flag) => flag === STABLE_FRAGMENT)).toBe(true);
+    });
+
+    test('dynamic slots fall back to a full diff', async () => {
+        const flags = await outletPatchFlags(
+            `<DockviewVue @ready="onReady">
+                <template v-if="show" #panel-editor><div class="editor" /></template>
+            </DockviewVue>`,
+            () => ({ show: true })
+        );
+        expect(flags).toEqual([BAIL]);
+    });
+});
+
 describe('backwards compatibility', () => {
     test('component-only usage renders no slot outlets', async () => {
         const Panel = defineComponent({
@@ -1028,6 +1136,39 @@ describe('backwards compatibility', () => {
         expect(params.params).toEqual({ a: 1 });
         expect(params.api).toBe(api.getPanel('p1')!.api);
         expect(params.containerApi).toBe(api);
+    });
+
+    test('VueRenderer.update keeps the props mounted by init, replacing only params', () => {
+        const parent = mount(defineComponent({ render: () => h('div') }));
+        const registry = new VueRendererRegistry();
+        const renderer = new VueRenderer(
+            defineComponent({ props: ['params'], render: () => h('div') }),
+            parent.vm.$ as any,
+            registry
+        );
+        renderer.init({
+            params: { n: 1 },
+            api: { id: 'p1' } as any,
+            containerApi: {} as any,
+            tabLocation: 'headerOverflow',
+            title: 'ignored',
+        });
+        const mounted = registry.entries[0].props.value.params;
+        expect(Object.keys(mounted).sort()).toEqual([
+            'api',
+            'containerApi',
+            'params',
+            'tabLocation',
+        ]);
+
+        renderer.update({ params: { n: 2 } });
+        expect(registry.entries[0].props.value.params).toEqual({
+            ...mounted,
+            params: { n: 2 },
+        });
+
+        renderer.dispose();
+        parent.unmount();
     });
 
     test('tab components keep tabLocation after updateParameters', async () => {

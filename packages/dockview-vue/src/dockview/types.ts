@@ -30,7 +30,7 @@ export type VueEvents = {
 
 /**
  * Scoped slots accepted by `<DockviewVue>`. A slot takes precedence over the
- * equivalent component prop; when a slot is absent the prop is used as before.
+ * equivalent component prop; when a slot is absent the prop is used.
  *
  * - `panel-<name>` renders panels added with `component: '<name>'`.
  * - `tab-<name>` renders tabs added with `tabComponent: '<name>'`.

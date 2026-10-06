@@ -2,7 +2,6 @@ import type {
     DockviewApi,
     DockviewGroupLocation,
     DockviewGroupPanel,
-    DockviewPanelApi,
     IContentRenderer,
     IDockviewGroupPanel,
     IDockviewHeaderActionsProps,
@@ -54,7 +53,11 @@ export type ComponentInterface = ComponentOptionsBase<
 
 export type VueComponent<T = any> = DefineComponent<T>;
 
-/** What a renderer mounts: a component, or a named slot of the host. */
+/**
+ * What a renderer mounts: a component, or a named slot of the host.
+ *
+ * @internal
+ */
 export type VueRenderable = VueComponent | VueSlotReference;
 
 export function findComponent(
@@ -254,39 +257,26 @@ export class VueRenderer
     extends AbstractVueRenderer
     implements ITabRenderer, IContentRenderer
 {
-    private _api: DockviewPanelApi | undefined;
-    private _containerApi: DockviewApi | undefined;
-    private _tabLocation: TabPartInitParameters['tabLocation'] | undefined;
+    private _props: IDockviewPanelHeaderProps | undefined;
 
     init(parameters: TabPartInitParameters): void {
-        this._api = parameters.api;
-        this._containerApi = parameters.containerApi;
-        this._tabLocation = parameters.tabLocation;
-
-        const props: IDockviewPanelHeaderProps = {
+        this._props = {
             params: parameters.params,
             api: parameters.api,
             containerApi: parameters.containerApi,
             tabLocation: parameters.tabLocation,
         };
 
-        this.mount({ params: props });
+        this.mount({ params: this._props });
     }
 
     update(event: PanelUpdateEvent<Parameters>): void {
-        if (!this._api || !this._containerApi) {
+        if (!this._props) {
             return;
         }
 
-        const params = event.params;
-        this._renderDisposable?.update({
-            params: {
-                params: params,
-                api: this._api,
-                containerApi: this._containerApi,
-                tabLocation: this._tabLocation,
-            },
-        });
+        this._props = { ...this._props, params: event.params };
+        this._renderDisposable?.update({ params: this._props });
     }
 
     dispose(): void {

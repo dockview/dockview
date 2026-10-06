@@ -192,10 +192,12 @@ slots. Slot content is part of your template, so it can use your component's
 state and event handlers directly. A slot takes precedence over the matching
 component prop.
 
-Slot props are the same objects a component receives as its `params` prop.
-They are not reactive: to react to changes such as a new panel title, listen
-to the panel api (for example `api.onDidTitleChange`), just as a component
-would.
+Slot props are the same objects a component receives as its `params` prop,
+and the slot re-renders when they change (for example after
+`api.updateParameters(...)`, or when a group's panels or active panel change).
+Values read from the `api` objects themselves, such as `api.title`, are not
+tracked: listen to the api (for example `api.onDidTitleChange`) for those,
+just as a component would.
 
 | Slot | Renders | Slot props |
 | --- | --- | --- |

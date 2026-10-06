@@ -101,11 +101,23 @@ const registry = new VueRendererRegistry();
  * parent replaced; outlets whose slot is unchanged are not re-rendered.
  */
 const slots = defineSlots<DockviewVueSlots>();
-const slotFunctions = createSlotFunctions(slots as Slots);
-provide(VUE_SLOT_CONTEXT, { slots: slotFunctions.functions });
 
 const PANEL_SLOT_PREFIX = 'panel-';
 const TAB_SLOT_PREFIX = 'tab-';
+
+/**
+ * Dockview never re-creates existing tabs when tab options change, so a tab
+ * slot that is removed keeps rendering in the tabs already using it, the same
+ * way changing `defaultTabComponent` only affects tabs created afterwards.
+ */
+const slotFunctions = createSlotFunctions(
+    slots as Slots,
+    (name) => name === 'defaultTab' || name.startsWith(TAB_SLOT_PREFIX)
+);
+provide(VUE_SLOT_CONTEXT, {
+    functions: slotFunctions.functions,
+    slots: slots as Slots,
+});
 
 type FixedSlotName =
     | 'defaultTab'
@@ -137,8 +149,8 @@ function snapshotFixedSlots(): Record<FixedSlotName, boolean> {
 }
 
 /**
- * Prefer the slot `slotName` when present, otherwise resolve `value` exactly
- * as the component props always have.
+ * Resolve to the slot `slotName` when present, otherwise to the component
+ * given by `value` (a component or a registered component name).
  */
 function resolveRenderable(
     slotName: string,
@@ -337,7 +349,7 @@ watch(
  * default tab) that are configured once through options, so adding or
  * removing one of them after mount has to be pushed to dockview explicitly.
  */
-let fixedSlotsPresence = snapshotFixedSlots();
+let fixedSlotsPresence: Record<FixedSlotName, boolean>;
 
 onBeforeUpdate(() => {
     slotFunctions.sync();

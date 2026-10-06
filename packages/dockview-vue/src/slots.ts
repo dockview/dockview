@@ -18,6 +18,8 @@ const SLOT_REFERENCE = Symbol('dockview-vue.slot');
 /**
  * Points a renderer at a named slot of the host component instead of a
  * component. Created via {@link createSlotReference}.
+ *
+ * @internal
  */
 export interface VueSlotReference {
     readonly [SLOT_REFERENCE]: true;
@@ -45,10 +47,12 @@ export type VueSlotFunctions = Record<string, Slot | undefined>;
 
 /**
  * Provided by a host (`dockview.vue`) so that {@link VueSlotOutlet} can look
- * up the host's slots.
+ * up the host's slots. `functions` is what outlets track; `slots` is the
+ * host's own slots object, read for Vue's compiled-slot flag.
  */
 export interface VueSlotContext {
-    readonly slots: VueSlotFunctions;
+    readonly functions: VueSlotFunctions;
+    readonly slots: Slots;
 }
 
 export const VUE_SLOT_CONTEXT: InjectionKey<VueSlotContext> = Symbol(
@@ -60,8 +64,14 @@ export const VUE_SLOT_CONTEXT: InjectionKey<VueSlotContext> = Symbol(
  * host's `onBeforeUpdate`. `sync` only writes entries whose function actually
  * changed, so outlets re-render only when their own slot is replaced (dynamic
  * `v-if` slots, render-function slots), not on every host re-render.
+ *
+ * Entries for which `retain(name)` is true are kept when their slot is
+ * removed, so outlets already showing them keep their last content.
  */
-export function createSlotFunctions(slots: Slots): {
+export function createSlotFunctions(
+    slots: Slots,
+    retain: (name: string) => boolean = () => false
+): {
     functions: VueSlotFunctions;
     sync: () => void;
 } {
@@ -69,7 +79,7 @@ export function createSlotFunctions(slots: Slots): {
 
     const sync = () => {
         for (const name of Object.keys(functions)) {
-            if (typeof slots[name] !== 'function') {
+            if (typeof slots[name] !== 'function' && !retain(name)) {
                 delete functions[name];
             }
         }
@@ -91,8 +101,10 @@ export function createSlotFunctions(slots: Slots): {
  * path as components, so it lives inside the host's component tree and the
  * slot content keeps the parent's reactivity, event handlers and injections.
  *
- * `renderSlot` is what compiled `<slot>` elements use; it renders the content
- * as a block so updates take Vue's optimised patch path.
+ * Rendering goes through `renderSlot`, as a compiled `<slot>` does. It reads
+ * the slot and the compiled-slot flag (`_`) from the object it is given, and
+ * renders stable compiled slots as stable fragments that patch without a
+ * full diff, so the host's flag is passed alongside the tracked function.
  */
 export const VueSlotOutlet = {
     name: 'DockviewSlotOutlet',
@@ -103,14 +115,15 @@ export const VueSlotOutlet = {
     setup(props: { slotName: string; params?: Record<string, any> }) {
         const context = inject(VUE_SLOT_CONTEXT, null);
         return () => {
-            if (!context) {
+            const slot = context?.functions[props.slotName];
+            if (!context || !slot) {
                 return null;
             }
-            return renderSlot(
-                context.slots as Slots,
-                props.slotName,
-                props.params ?? {}
-            );
+            const source = {
+                [props.slotName]: slot,
+                _: (context.slots as { _?: unknown })._,
+            } as unknown as Slots;
+            return renderSlot(source, props.slotName, props.params ?? {});
         };
     },
 } as unknown as VueComponent;
