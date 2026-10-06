@@ -212,9 +212,8 @@ export function isReactComponent(component: any): boolean {
 }
 
 /**
- * Calls `onRemoved` once `element` leaves the document. A removal anywhere
- * above `element` is a child-list change on one of its ancestors, so only
- * the ancestors are observed rather than the whole document.
+ * Calls `onRemoved` once `element` leaves the document. Only its ancestors are
+ * observed, since any removal above it is a child-list change on one of them.
  */
 function watchForRemoval(
     element: HTMLElement,
@@ -232,11 +231,10 @@ function watchForRemoval(
             return;
         }
 
-        // only re-walk when an ancestor was moved, not on unrelated sibling changes
+        // re-walk only if an ancestor moved
         for (const record of records) {
-            const removed = record.removedNodes;
-            for (let i = 0; i < removed.length; i++) {
-                if (ancestors.has(removed[i])) {
+            for (const node of record.removedNodes) {
+                if (ancestors.has(node)) {
                     observeAncestors();
                     return;
                 }
@@ -258,23 +256,14 @@ function watchForRemoval(
     return DockviewDisposable.from(() => observer.disconnect());
 }
 
-// Activity and StrictMode effect replays, the only cleanups that are not unmounts, need React 18+
+// only React 18+ runs effect cleanups without unmounting (Activity, StrictMode)
 const canHideWithoutUnmount = Number.parseInt(React.version, 10) >= 18;
 
 /**
- * Creates the instance on mount and keeps it until the host element leaves
- * the document.
- *
- * `<Activity mode="hidden">` and StrictMode both run effect cleanups while
- * the component, its state and its host element stay alive, then run the
- * effects again. A real unmount removes the host before the cleanup runs, so
- * a host that is still connected at cleanup is only hidden and the instance
- * is reused when the effect runs again. A subtree deleted while hidden gets
- * no second cleanup, so the instance is disposed once its host is removed.
- *
- * Before React 18 neither feature exists, so every cleanup is an unmount and
- * the instance is disposed synchronously. React 16 runs cleanups before it
- * removes the host, which would otherwise look like a hide.
+ * Creates the instance once and keeps it across effect cleanups that are not
+ * unmounts (`<Activity mode="hidden">`, StrictMode). A real unmount removes the
+ * host before cleanup, so a still-connected host means hidden; the instance is
+ * then disposed only if the host later leaves the document.
  */
 export function useKeptInstance<T extends DockviewIDisposable>(
     domRef: React.RefObject<HTMLElement | null>,
@@ -319,14 +308,9 @@ export function useKeptInstance<T extends DockviewIDisposable>(
 }
 
 /**
- * Returns a check for option effects: whether the instance already holds the
- * given values, recording them either way.
- *
- * Every option effect runs in the commit that creates the instance, and the
- * instance was built from those same props, so the first values seen for an
- * instance count as applied. Effect re-runs from `<Activity>` or StrictMode
- * then skip `updateOptions`, which would otherwise relayout and recreate
- * renderers for values that did not change.
+ * Returns a check for option effects: true when the instance already holds the
+ * given values. The first values seen count as applied, since the instance was
+ * created from them, so effect replays skip redundant `updateOptions` calls.
  */
 export function useAppliedOptions(
     instanceRef: React.RefObject<unknown>
