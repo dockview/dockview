@@ -146,7 +146,24 @@ const autoHides = groupApi?.isAutoHide(); // boolean
 The peek overlay shares the same stacking context as floating and popout groups, so it layers correctly above them without any manual `z-index` handling. Auto-hide is only available for edge groups; it has no effect on grid, floating, or popout groups.
 :::
 
+## Stacked edges
+
+With [stacked edge groups](/docs/core/groups/stackedEdgeGroups) an edge can hold more than one group, and auto-hide is defined per edge. A tab click peeks its group only while the **whole edge** is collapsed; the peek then shows only the clicked group, spanning the length of the edge. A collapsed group on an edge that is still expanded (because another group on it is open) expands in place instead.
+
+`peekEdgeGroup`, `pinEdgeGroup` and `autoHideEdgeGroup` address the first group on the edge unless a group id is given:
+
+```ts
+// auto-hide both groups on the left edge: the edge collapses to a strip
+api.autoHideEdgeGroup('left', 'explorer');
+api.autoHideEdgeGroup('left', 'outline');
+
+// peek the second group, then pin it back
+api.peekEdgeGroup('left', true, 'outline');
+api.pinEdgeGroup('left', 'outline');
+```
+
 ## See also
 
 - [Edge groups](/docs/core/groups/edgeGroups): creating, sizing, collapsing, and serializing edge groups
+- [Stacked edge groups](/docs/core/groups/stackedEdgeGroups): hold more than one group on an edge
 - [Group controls](/docs/core/groups/controls): render controls specific to edge groups via the `location` prop

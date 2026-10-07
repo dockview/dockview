@@ -61,7 +61,7 @@ dockview.addEdgeGroup('bottom', {
 />
 ```
 
-Calling `addEdgeGroup` for a position that is already registered throws an error.
+Calling `addEdgeGroup` for a position that is already registered throws an error, unless [stacked edge groups](/docs/core/groups/stackedEdgeGroups) are enabled for that edge, in which case the new group joins the edge.
 
 ## Edge group options
 
@@ -93,6 +93,7 @@ api.addPanel({
         'addEdgeGroup',
         'revealEdgeGroupWithData',
         'getEdgeGroup',
+        'getEdgeGroups',
         'setEdgeGroupVisible',
         'isEdgeGroupVisible',
         'removeEdgeGroup',
@@ -273,4 +274,5 @@ api.fromJSON(state); // auto-creates and restores edge groups
 ## See also
 
 - [Auto-hide edge groups](/docs/core/groups/autoHideEdgeGroups): turn a collapsed edge group into a pinnable tool window
+- [Stacked edge groups](/docs/core/groups/stackedEdgeGroups): hold more than one group on an edge
 - [Group controls](/docs/core/groups/controls): render controls specific to edge groups via the `location` prop

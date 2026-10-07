@@ -156,6 +156,11 @@ const COMPONENTS: ComponentGroup[] = [
                 frameworks: ['react', 'vue', 'angular', 'typescript'],
             },
             {
+                name: 'stacked-edge-groups',
+                frameworks: ['react', 'vue', 'angular', 'typescript'],
+                enterprise: true,
+            },
+            {
                 name: 'smart-guides',
                 frameworks: ['react', 'vue', 'angular', 'typescript'],
                 enterprise: true,

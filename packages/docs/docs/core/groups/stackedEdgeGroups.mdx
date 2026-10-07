@@ -1,0 +1,175 @@
+---
+title: Stacked edge groups
+description: Stack more than one edge group on the same edge of the layout, laid out along it with a sash between them, and split an edge group by dropping a panel onto it.
+sidebar_position: 8
+enterprise: true
+sidebar_custom_props:
+    enterprise: true
+---
+
+import { DocRef } from '@site/src/components/ui/reference/docRef';
+
+import { CodeRunner } from '@site/src/components/ui/codeRunner';
+
+An edge normally holds one group. With stacked edge groups an edge holds an **ordered stack** of groups laid out along it: top to bottom on the left and right edges, left to right on the top and bottom edges, with a sash between neighbours. Each group keeps its own tabs and its own collapsed state; the edge keeps a single width (or height), visibility and set of size constraints.
+
+For the basics of creating, sizing, collapsing and serializing edge groups, see [Edge groups](/docs/core/groups/edgeGroups).
+
+<CodeRunner id="dockview/stacked-edge-groups" height={500} />
+
+## Enabling stacked edges
+
+Enable it with the `stackedEdgeGroups` option. Pass `true` for all four edges, or an object to opt edges in individually:
+
+<FrameworkSpecific framework="React">
+    ```tsx
+    <DockviewReact
+        stackedEdgeGroups={true}
+        onReady={onReady}
+        components={components}
+    />
+    ```
+</FrameworkSpecific>
+
+<FrameworkSpecific framework="Vue">
+```vue
+<dockview-vue :stacked-edge-groups="true" @ready="onReady" />
+```
+</FrameworkSpecific>
+
+<FrameworkSpecific framework="Angular">
+```html
+<dockview-angular [stackedEdgeGroups]="true" (ready)="onReady($event)"></dockview-angular>
+```
+</FrameworkSpecific>
+
+<FrameworkSpecific framework="JavaScript">
+```ts
+const api = createDockview(element, {
+    stackedEdgeGroups: true,
+    createComponent,
+});
+```
+</FrameworkSpecific>
+
+To stack on only some edges, name them individually; `true`/`false` (or an omitted edge) toggles each of `top`, `bottom`, `left`, `right`:
+
+```ts
+const api = createDockview(element, {
+    // only the left edge holds more than one group
+    stackedEdgeGroups: { left: true },
+    createComponent,
+});
+```
+
+Stacking is **off by default**. Without it, calling `addEdgeGroup` for an edge that already has a group throws, as it always has.
+
+## Adding a second group
+
+Call `addEdgeGroup` again for the same edge. The `stack` option says where the new group joins the edge and how it is sized along it; without it the group is appended to the end of the stack and the edge's length is shared out evenly.
+
+<DocRef declaration="EdgeStackPlacement" />
+
+```ts
+const explorer = api.addEdgeGroup('left', {
+    id: 'explorer',
+    initialSize: 240,
+});
+
+// joins the left edge below the explorer, taking half of its height
+api.addEdgeGroup('left', {
+    id: 'outline',
+    stack: { relativeTo: explorer.id, placement: 'after' },
+});
+
+// joins at the top of the stack with a fixed height
+api.addEdgeGroup('left', {
+    id: 'search',
+    stack: { index: 0, size: 160, minimumSize: 100 },
+});
+```
+
+The thickness options of `addEdgeGroup` (`initialSize`, `minimumSize`, `maximumSize` and `collapsedSize`) describe the whole edge. For a group that joins an occupied edge they are folded into the edge's constraints, and `initialSize` is ignored.
+
+The same placement is available from `addPanel`: a `direction` along the edge (`above`/`below` for the left and right edges, `left`/`right` for the top and bottom edges) opens the panel in a new group stacked next to the reference group. A direction across the edge, or `within`, opens it in the reference group itself.
+
+```ts
+api.addPanel({
+    id: 'outline',
+    component: 'Outline',
+    position: { referenceGroup: 'explorer', direction: 'below' },
+});
+```
+
+## Splitting and merging by drag and drop
+
+Once an edge can stack, dragging a tab, a group or a tab group over one of its groups offers three drop zones: the **centre merges** the dragged panels into that group, and the **two halves along the edge** open them in a new group stacked before or after it. Positions across the edge are never offered.
+
+Dropping a group's only panel onto its own split half still creates the sibling; the emptied group is then removed, because an emptied group is only kept, collapsed to its strip, while it is the last group on its edge.
+
+## Collapsing
+
+Each stacked group collapses on its own. A collapsed group on an otherwise expanded edge keeps the full width of the edge but shrinks along it to the length of its tab strip, and its neighbours take the room it gives up. The edge itself collapses to a strip only once **every** group on it is collapsed, and expands again as soon as one of them does.
+
+<DocRef
+    declaration="DockviewApi"
+    methods={['isEdgeCollapsed']}
+/>
+
+```ts
+api.getEdgeGroup('left', 'outline')?.collapse(); // one group
+api.isEdgeCollapsed('left'); // false while the explorer is still expanded
+```
+
+With [auto-hide](/docs/core/groups/autoHideEdgeGroups) on, a tab click peeks a group only while the whole edge is collapsed; a collapsed group on an expanded edge expands in place instead.
+
+## Sizing
+
+`setSize` on a stacked group sizes both axes: the edge's own axis (`width` for the left and right edges, `height` for the top and bottom) sizes the whole edge, as it always has, and the other axis sizes that group along the edge, with its neighbours giving or taking the room.
+
+```ts
+const outline = api.getEdgeGroup('left', 'outline');
+outline?.setSize({ width: 300 }); // the whole left edge
+outline?.setSize({ height: 200 }); // this group's share of the edge
+```
+
+Constraints follow the same split: `minimumSize`, `maximumSize` and `collapsedSize` from `addEdgeGroup` bound the edge, while `stack.minimumSize` and `stack.maximumSize` bound the group along it. A group's default minimum along the edge is the length of its tab strip plus 50px.
+
+## Reordering and removing
+
+<DocRef
+    declaration="DockviewApi"
+    methods={['getEdgeGroups', 'getEdgeGroup', 'moveEdgeGroup', 'removeEdgeGroup']}
+/>
+
+```ts
+// every group on the edge, in order
+api.getEdgeGroups('left').map((group) => group.id);
+
+// a specific group on the edge
+api.getEdgeGroup('left', 'outline');
+
+// reorder within the edge
+api.moveEdgeGroup('outline', { index: 0 });
+api.moveEdgeGroup('outline', { relativeTo: 'explorer', placement: 'before' });
+
+// remove one group; the edge stays while others remain
+api.removeEdgeGroup('left', 'outline');
+
+// remove the edge and every group on it
+api.removeEdgeGroup('left');
+```
+
+`getEdgeGroup(position)` without an id returns the first group on the edge, so code written for a single edge group keeps working.
+
+## Serialization
+
+A stacked edge serializes as a superset of the single-group shape: the fields of a single edge group describe the edge and its first group, and a `groups` array carries every group in order with its size along the edge, collapsed state and panels. An edge holding one group serializes exactly as before.
+
+A layout saved with a stacked edge restores in full where stacked edge groups are available; elsewhere the first group is restored and the panels of the others are dropped.
+
+## See also
+
+- [Edge groups](/docs/core/groups/edgeGroups): creating, sizing, collapsing and serializing edge groups
+- [Auto-hide edge groups](/docs/core/groups/autoHideEdgeGroups): peek a collapsed edge open on click
+- [Dock to edge groups](/docs/core/groups/autoEdgeGroups): reveal an edge group by dragging a panel to the layout edge
