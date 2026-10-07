@@ -1316,25 +1316,32 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
     }
 
     /**
-     * Pin (expand) the collapsed edge group at `position`. Requires the
-     * auto-hide edge groups module; no-op when it is absent.
+     * Pin (expand) the collapsed edge group at `position`: the first group
+     * stacked there, or the one with `groupId`. Requires the auto-hide edge
+     * groups feature; no-op when it is absent.
      */
-    pinEdgeGroup(position: EdgeGroupPosition): void {
-        this.component.pinEdgeGroup(position);
+    pinEdgeGroup(position: EdgeGroupPosition, groupId?: string): void {
+        this.component.pinEdgeGroup(position, groupId);
     }
 
-    /** Auto-hide (collapse to a strip) the edge group at `position`. */
-    autoHideEdgeGroup(position: EdgeGroupPosition): void {
-        this.component.autoHideEdgeGroup(position);
+    /** Auto-hide (collapse to a strip) the edge group at `position`: the
+     *  first group stacked there, or the one with `groupId`. */
+    autoHideEdgeGroup(position: EdgeGroupPosition, groupId?: string): void {
+        this.component.autoHideEdgeGroup(position, groupId);
     }
 
     /**
      * Peek (slide out as an overlay, without reflowing the grid) or close the
-     * collapsed edge group at `position`. No-op when the auto-hide module is
-     * absent or the group is not collapsed.
+     * collapsed edge group at `position`: the first group stacked there, or
+     * the one with `groupId`. No-op when the auto-hide feature is absent or
+     * the edge is not collapsed.
      */
-    peekEdgeGroup(position: EdgeGroupPosition, peek: boolean): void {
-        this.component.peekEdgeGroup(position, peek);
+    peekEdgeGroup(
+        position: EdgeGroupPosition,
+        peek: boolean,
+        groupId?: string
+    ): void {
+        this.component.peekEdgeGroup(position, peek, groupId);
     }
 
     updateOptions(options: Partial<DockviewComponentOptions>) {

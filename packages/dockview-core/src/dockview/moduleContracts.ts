@@ -430,13 +430,23 @@ export interface IAutoHideEdgeGroupHost {
     /** Fires when any group is added; the service filters for `location.type === 'edge'`. */
     readonly onDidAddGroup: Event<DockviewGroupPanel>;
     readonly onDidRemoveGroup: Event<DockviewGroupPanel>;
-    /** The edge group at a position, or undefined. */
+    /** The first edge group at a position, or undefined. */
     getEdgeGroupPanel(
         position: EdgeGroupPosition
     ): DockviewGroupPanel | undefined;
+    /** Every group stacked on an edge, in order. */
+    getEdgeGroupPanels(
+        position: EdgeGroupPosition
+    ): readonly DockviewGroupPanel[];
     /** Collapse/expand an edge group: the single mutate path (fires
      *  `onDidCollapsedChange`, no-op guarded). */
     setEdgeGroupCollapsed(group: DockviewGroupPanel, collapsed: boolean): void;
+    /** Whether the whole edge is collapsed to a strip (every group stacked
+     *  on it is), which is when its groups peek rather than expand in place. */
+    isEdgeCollapsed(position: EdgeGroupPosition): boolean;
+    /** The element wrapping every group stacked on an edge: the rail a peek
+     *  spans. */
+    getEdgeStackElement(position: EdgeGroupPosition): HTMLElement | undefined;
     /** Whether this edge group should behave as an auto-hide (pinnable) tool
      *  window: the per-group flag resolved against the global
      *  `autoHideEdgeGroups` option. Lets static and auto-hiding edge groups
@@ -473,12 +483,13 @@ export interface IAutoHideEdgeGroupHost {
 }
 
 export interface IAutoHideEdgeGroupService extends IDisposable {
-    /** Peek (true) / close (false) the collapsed edge group at `position`. */
-    peek(position: EdgeGroupPosition, peek: boolean): void;
+    /** Peek (true) / close (false) the collapsed edge group at `position`:
+     *  the first group stacked there, or the one with `groupId`. */
+    peek(position: EdgeGroupPosition, peek: boolean, groupId?: string): void;
     /** Pin (re-dock / expand) the edge group at `position`. */
-    pin(position: EdgeGroupPosition): void;
+    pin(position: EdgeGroupPosition, groupId?: string): void;
     /** Auto-hide (collapse to strip) the edge group at `position`. */
-    autoHide(position: EdgeGroupPosition): void;
+    autoHide(position: EdgeGroupPosition, groupId?: string): void;
 }
 
 // --- AutoEdgeGroup (drag-revealed two-band affordance) ---

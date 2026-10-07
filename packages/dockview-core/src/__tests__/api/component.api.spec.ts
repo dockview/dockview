@@ -829,13 +829,31 @@ describe('component.api', () => {
             );
 
             cut.pinEdgeGroup('left');
-            expect(component.pinEdgeGroup).toHaveBeenCalledWith('left');
+            expect(component.pinEdgeGroup).toHaveBeenCalledWith(
+                'left',
+                undefined
+            );
+            cut.pinEdgeGroup('left', 'edge');
+            expect(component.pinEdgeGroup).toHaveBeenCalledWith('left', 'edge');
 
             cut.autoHideEdgeGroup('left');
-            expect(component.autoHideEdgeGroup).toHaveBeenCalledWith('left');
+            expect(component.autoHideEdgeGroup).toHaveBeenCalledWith(
+                'left',
+                undefined
+            );
 
             cut.peekEdgeGroup('left', true);
-            expect(component.peekEdgeGroup).toHaveBeenCalledWith('left', true);
+            expect(component.peekEdgeGroup).toHaveBeenCalledWith(
+                'left',
+                true,
+                undefined
+            );
+            cut.peekEdgeGroup('left', true, 'edge');
+            expect(component.peekEdgeGroup).toHaveBeenCalledWith(
+                'left',
+                true,
+                'edge'
+            );
         });
 
         test('dispose delegates to the component', () => {

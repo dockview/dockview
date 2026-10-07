@@ -1,5 +1,5 @@
 import { fireEvent } from '@testing-library/dom';
-import { DockviewComponent } from 'dockview-core';
+import { DockviewComponent, DockviewGroupPanel } from 'dockview-core';
 import { IContentRenderer } from 'dockview-core';
 
 class TestPanel implements IContentRenderer {
@@ -272,6 +272,89 @@ describe('auto-hide edge groups', () => {
         expect(peek()!.style.backgroundColor).toBe('rgb(11, 6, 17)'); // frame
 
         d.dispose();
+    });
+
+    describe('stacked edges', () => {
+        /** Two groups stacked on the left edge, each with one panel. */
+        const stackedEdge = (d: DockviewComponent): void => {
+            d.addEdgeGroup('left', { id: 'edge-a', initialSize: 200 });
+            d.addPanel({
+                id: 'pa',
+                component: 'default',
+                title: 'Alpha',
+                position: { referenceGroup: 'edge-a', direction: 'within' },
+            });
+            d.addEdgeGroup('left', { id: 'edge-b' });
+            d.addPanel({
+                id: 'pb',
+                component: 'default',
+                title: 'Bravo',
+                position: { referenceGroup: 'edge-b', direction: 'within' },
+            });
+        };
+        const stripOf = (d: DockviewComponent, id: string): HTMLElement =>
+            d.getEdgeGroup('left', id)!.id === id
+                ? (d.getPanel(id) as DockviewGroupPanel).element
+                : document.createElement('div');
+
+        test('on a collapsed rail, a tab click peeks only its own group', () => {
+            const d = make(true, { stackedEdgeGroups: true });
+            stackedEdge(d);
+            d.autoHideEdgeGroup('left', 'edge-a');
+            d.autoHideEdgeGroup('left', 'edge-b');
+            expect(d.isEdgeCollapsed('left')).toBe(true);
+
+            fireEvent.click(stripOf(d, 'edge-b').querySelector('.dv-tab')!);
+
+            expect(container.querySelectorAll('.dv-edge-peek')).toHaveLength(1);
+            expect(
+                container.querySelector('.dv-edge-peek-title')!.textContent
+            ).toBe('Bravo');
+            expect(d.getEdgeGroup('left', 'edge-b')!.isPeeking()).toBe(true);
+            expect(d.getEdgeGroup('left', 'edge-a')!.isPeeking()).toBe(false);
+            expect(d.isEdgeCollapsed('left')).toBe(true);
+
+            d.dispose();
+        });
+
+        test('a collapsed group on an expanded edge expands in place', () => {
+            const d = make(true, { stackedEdgeGroups: true });
+            stackedEdge(d);
+            d.autoHideEdgeGroup('left', 'edge-b');
+            expect(d.isEdgeCollapsed('left')).toBe(false);
+
+            fireEvent.click(stripOf(d, 'edge-b').querySelector('.dv-tab')!);
+
+            expect(peek()).toBeNull();
+            expect(d.getEdgeGroup('left', 'edge-b')!.isCollapsed()).toBe(false);
+
+            d.dispose();
+        });
+
+        test('pin, auto-hide and peek address a group by id, defaulting to the first', () => {
+            const d = make(true, { stackedEdgeGroups: true });
+            stackedEdge(d);
+
+            d.autoHideEdgeGroup('left');
+            expect(d.getEdgeGroup('left', 'edge-a')!.isCollapsed()).toBe(true);
+            expect(d.getEdgeGroup('left', 'edge-b')!.isCollapsed()).toBe(false);
+
+            d.autoHideEdgeGroup('left', 'edge-b');
+            expect(d.isEdgeCollapsed('left')).toBe(true);
+
+            d.peekEdgeGroup('left', true, 'edge-b');
+            expect(
+                container.querySelector('.dv-edge-peek-title')!.textContent
+            ).toBe('Bravo');
+            d.peekEdgeGroup('left', false, 'edge-b');
+            expect(peek()).toBeNull();
+
+            d.pinEdgeGroup('left', 'edge-b');
+            expect(d.getEdgeGroup('left', 'edge-b')!.isCollapsed()).toBe(false);
+            expect(d.getEdgeGroup('left', 'edge-a')!.isCollapsed()).toBe(true);
+
+            d.dispose();
+        });
     });
 
     test('off (default): peeking is a no-op', () => {

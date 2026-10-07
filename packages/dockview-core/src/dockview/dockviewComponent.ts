@@ -584,9 +584,13 @@ export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
         position: EdgeGroupPosition
     ): readonly DockviewGroupPanel[];
     getEdgeGroupDropZones(position: EdgeGroupPosition): Position[];
-    pinEdgeGroup(position: EdgeGroupPosition): void;
-    autoHideEdgeGroup(position: EdgeGroupPosition): void;
-    peekEdgeGroup(position: EdgeGroupPosition, peek: boolean): void;
+    pinEdgeGroup(position: EdgeGroupPosition, groupId?: string): void;
+    autoHideEdgeGroup(position: EdgeGroupPosition, groupId?: string): void;
+    peekEdgeGroup(
+        position: EdgeGroupPosition,
+        peek: boolean,
+        groupId?: string
+    ): void;
     isEdgeGroupAutoHide(group: DockviewGroupPanel): boolean;
     setEdgeGroupAutoHide(
         group: DockviewGroupPanel,
@@ -3586,30 +3590,34 @@ export class DockviewComponent
     /** Pin (expand) the edge group at a position. Reports the missing module if
      *  AutoHideEdgeGroup is absent, since this command is reachable without the
      *  `autoHideEdgeGroups` option that would otherwise have named it. */
-    pinEdgeGroup(position: EdgeGroupPosition): void {
+    pinEdgeGroup(position: EdgeGroupPosition, groupId?: string): void {
         assertModule(
             this._moduleRegistry.services.autoHideEdgeGroupService,
             'AutoHideEdgeGroup',
             'api.pinEdgeGroup'
-        )?.pin(position);
+        )?.pin(position, groupId);
     }
 
     /** Auto-hide (collapse to strip) the edge group at a position. */
-    autoHideEdgeGroup(position: EdgeGroupPosition): void {
+    autoHideEdgeGroup(position: EdgeGroupPosition, groupId?: string): void {
         assertModule(
             this._moduleRegistry.services.autoHideEdgeGroupService,
             'AutoHideEdgeGroup',
             'api.autoHideEdgeGroup'
-        )?.autoHide(position);
+        )?.autoHide(position, groupId);
     }
 
     /** Peek (slide out) / close the collapsed edge group at a position. */
-    peekEdgeGroup(position: EdgeGroupPosition, peek: boolean): void {
+    peekEdgeGroup(
+        position: EdgeGroupPosition,
+        peek: boolean,
+        groupId?: string
+    ): void {
         assertModule(
             this._moduleRegistry.services.autoHideEdgeGroupService,
             'AutoHideEdgeGroup',
             'api.peekEdgeGroup'
-        )?.peek(position, peek);
+        )?.peek(position, peek, groupId);
     }
 
     /** The auto-hide peek mounts on the shell, the same element the

@@ -171,9 +171,16 @@ class EdgeGroupController extends CompositeDisposable {
         return this.host.isEdgeGroupAutoHide(this.group);
     }
 
-    /** Enabled and collapsed, the precondition for peeking. */
+    /** Enabled and on a collapsed edge, the precondition for peeking. A
+     *  collapsed group whose edge is still expanded (a sibling stacked on
+     *  it is open) expands in place instead. */
     private _gate(): boolean {
-        return this._enabled() && this.group.api.isCollapsed();
+        const position = this._position;
+        return (
+            this._enabled() &&
+            position !== undefined &&
+            this.host.isEdgeCollapsed(position)
+        );
     }
 
     private get _position(): EdgeGroupPosition | undefined {
@@ -501,7 +508,10 @@ class EdgeGroupController extends CompositeDisposable {
         if (!position || !this._peek) {
             return;
         }
-        const strip = this.group.element.getBoundingClientRect();
+        // The peek spans the whole rail: every group stacked on the edge.
+        const strip = (
+            this.host.getEdgeStackElement(position) ?? this.group.element
+        ).getBoundingClientRect();
         const host = this.host.overlayRoot.getBoundingClientRect();
         const size = this.host.getEdgeGroupExpandedSize(position);
         const left = strip.left - host.left;
@@ -734,8 +744,21 @@ export class AutoHideEdgeGroupService
         }
     }
 
-    pin(position: EdgeGroupPosition): void {
-        const group = this.host.getEdgeGroupPanel(position);
+    /** The group a command addresses: the first on the edge, or by id. */
+    private _resolve(
+        position: EdgeGroupPosition,
+        groupId: string | undefined
+    ): DockviewGroupPanel | undefined {
+        if (groupId === undefined) {
+            return this.host.getEdgeGroupPanel(position);
+        }
+        return this.host
+            .getEdgeGroupPanels(position)
+            .find((group) => group.id === groupId);
+    }
+
+    pin(position: EdgeGroupPosition, groupId?: string): void {
+        const group = this._resolve(position, groupId);
         if (!group) {
             return;
         }
@@ -747,15 +770,15 @@ export class AutoHideEdgeGroupService
         }
     }
 
-    autoHide(position: EdgeGroupPosition): void {
-        const group = this.host.getEdgeGroupPanel(position);
+    autoHide(position: EdgeGroupPosition, groupId?: string): void {
+        const group = this._resolve(position, groupId);
         if (group) {
             this.host.setEdgeGroupCollapsed(group, true);
         }
     }
 
-    peek(position: EdgeGroupPosition, peek: boolean): void {
-        const group = this.host.getEdgeGroupPanel(position);
+    peek(position: EdgeGroupPosition, peek: boolean, groupId?: string): void {
+        const group = this._resolve(position, groupId);
         const controller = group && this._controllers.get(group);
         if (peek) {
             controller?.openPeek();
