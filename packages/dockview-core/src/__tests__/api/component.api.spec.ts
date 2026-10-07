@@ -761,16 +761,22 @@ describe('component.api', () => {
             const addEdgeGroup = jest.fn().mockReturnValue(api);
             const getEdgeGroup = jest.fn().mockReturnValue(api);
             const isEdgeGroupVisible = jest.fn().mockReturnValue(true);
+            const getEdgeGroups = jest.fn().mockReturnValue([api]);
+            const isEdgeCollapsed = jest.fn().mockReturnValue(true);
             const component = createComponent({
                 addEdgeGroup,
                 revealEdgeGroupWithData: jest.fn(),
                 getEdgeGroup,
+                getEdgeGroups,
+                moveEdgeGroup: jest.fn(),
                 setEdgeGroupVisible: jest.fn(),
                 isEdgeGroupVisible,
+                isEdgeCollapsed,
                 removeEdgeGroup: jest.fn(),
                 pinEdgeGroup: jest.fn(),
                 autoHideEdgeGroup: jest.fn(),
                 peekEdgeGroup: jest.fn(),
+                withOrigin: jest.fn((_origin, fn) => fn()),
             });
             const cut = new DockviewApi(<DockviewComponent>component);
 
@@ -787,7 +793,20 @@ describe('component.api', () => {
             );
 
             expect(cut.getEdgeGroup('top')).toBe(api);
-            expect(getEdgeGroup).toHaveBeenCalledWith('top');
+            expect(getEdgeGroup).toHaveBeenCalledWith('top', undefined);
+            expect(cut.getEdgeGroup('top', 'edge')).toBe(api);
+            expect(getEdgeGroup).toHaveBeenCalledWith('top', 'edge');
+
+            expect(cut.getEdgeGroups('top')).toEqual([api]);
+            expect(getEdgeGroups).toHaveBeenCalledWith('top');
+
+            cut.moveEdgeGroup('edge', { index: 1 });
+            expect(component.moveEdgeGroup).toHaveBeenCalledWith('edge', {
+                index: 1,
+            });
+
+            expect(cut.isEdgeCollapsed('top')).toBe(true);
+            expect(isEdgeCollapsed).toHaveBeenCalledWith('top');
 
             cut.setEdgeGroupVisible('bottom', false);
             expect(component.setEdgeGroupVisible).toHaveBeenCalledWith(
@@ -799,7 +818,15 @@ describe('component.api', () => {
             expect(isEdgeGroupVisible).toHaveBeenCalledWith('left');
 
             cut.removeEdgeGroup('left');
-            expect(component.removeEdgeGroup).toHaveBeenCalledWith('left');
+            expect(component.removeEdgeGroup).toHaveBeenCalledWith(
+                'left',
+                undefined
+            );
+            cut.removeEdgeGroup('left', 'edge');
+            expect(component.removeEdgeGroup).toHaveBeenCalledWith(
+                'left',
+                'edge'
+            );
 
             cut.pinEdgeGroup('left');
             expect(component.pinEdgeGroup).toHaveBeenCalledWith('left');

@@ -509,7 +509,12 @@ export class EdgeStackView implements IView {
      *  yet takes it on its first layout. */
     resizeMember(member: EdgeGroupView, size: number): void {
         const target = Math.round(size);
-        if (!Number.isFinite(target) || target <= 0) {
+        if (
+            !Number.isFinite(target) ||
+            target <= 0 ||
+            this._members.length < 2
+        ) {
+            // a lone member always fills its edge
             return;
         }
         member.restoreExpandedSize(target);

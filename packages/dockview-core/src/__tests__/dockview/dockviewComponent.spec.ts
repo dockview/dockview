@@ -12455,9 +12455,31 @@ describe('dockviewComponent', () => {
                 },
             });
             dv.addEdgeGroup('left', { id: 'left-group' });
+            // a second group on an edge is the stacked edge groups feature
             expect(() =>
                 dv.addEdgeGroup('left', { id: 'left-group-2' })
-            ).toThrow();
+            ).toThrow(/"StackedEdgeGroup" module/);
+            expect(dv.getEdgeGroups('left').map((g) => g.id)).toEqual([
+                'left-group',
+            ]);
+            dv.dispose();
+        });
+
+        test('getEdgeGroups lists the one group on a single edge', () => {
+            const c = document.createElement('div');
+            const dv = new DockviewComponent(c, {
+                createComponent(options) {
+                    return new PanelContentPartTest(options.id, options.name);
+                },
+            });
+            expect(dv.getEdgeGroups('left')).toEqual([]);
+            const api = dv.addEdgeGroup('left', { id: 'left-group' });
+            expect(dv.getEdgeGroups('left')).toEqual([api]);
+            expect(dv.getEdgeGroup('left')).toBe(api);
+            expect(dv.getEdgeGroup('left', 'left-group')).toBe(api);
+            expect(dv.getEdgeGroup('left', 'other')).toBeUndefined();
+            dv.removeEdgeGroup('left');
+            expect(dv.getEdgeGroups('left')).toEqual([]);
             dv.dispose();
         });
 

@@ -87,6 +87,7 @@ import {
     EdgeGroupPosition,
     AddEdgeGroupOptions,
 } from '../dockview/dockviewShell';
+import { EdgeGroupMoveTarget } from '../dockview/dockviewComponent';
 import { DockviewGroupPanelApi } from './dockviewGroupPanelApi';
 
 export interface CommonApi<T = any> {
@@ -1227,7 +1228,9 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
 
     /**
      * Add an edge group at the given position. Returns the group panel API
-     * for the newly created group. Throws if a group already exists there.
+     * for the newly created group. Throws if a group already exists there,
+     * unless stacked edge groups are enabled for that edge, in which case the
+     * new group joins the edge at `options.stack`'s placement.
      */
     addEdgeGroup(
         position: EdgeGroupPosition,
@@ -1251,13 +1254,41 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
     }
 
     /**
-     * Get the group panel API for an edge group at the given position.
-     * Returns `undefined` if no edge group is configured at that position.
+     * Get the group panel API for the edge group at the given position: the
+     * first group on that edge, or the group with `id` when given. Returns
+     * `undefined` if no such edge group exists.
      */
     getEdgeGroup(
-        position: EdgeGroupPosition
+        position: EdgeGroupPosition,
+        id?: string
     ): DockviewGroupPanelApi | undefined {
-        return this.component.getEdgeGroup(position);
+        return this.component.getEdgeGroup(position, id);
+    }
+
+    /**
+     * Every group on an edge in stack order (top/left first). Empty when the
+     * edge has none.
+     */
+    getEdgeGroups(position: EdgeGroupPosition): DockviewGroupPanelApi[] {
+        return this.component.getEdgeGroups(position);
+    }
+
+    /**
+     * Reorder a group within its edge: to an index, or next to a sibling.
+     * Requires stacked edge groups; no-op otherwise.
+     */
+    moveEdgeGroup(groupId: string, to: EdgeGroupMoveTarget): void {
+        this.component.withOrigin('api', () =>
+            this.component.moveEdgeGroup(groupId, to)
+        );
+    }
+
+    /**
+     * Whether the edge at `position` is collapsed to its strip, which it is
+     * only once every group stacked on it is collapsed.
+     */
+    isEdgeCollapsed(position: EdgeGroupPosition): boolean {
+        return this.component.isEdgeCollapsed(position);
     }
 
     /**
@@ -1275,11 +1306,13 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
     }
 
     /**
-     * Remove an edge group and reclaim its slot in the layout.
-     * All panels inside the group are disposed. Throws if no group exists at position.
+     * Remove the edge at `position`, with every group stacked on it, and
+     * reclaim its slot in the layout; with `groupId`, remove only that group
+     * and keep the edge while siblings remain. All panels inside the removed
+     * groups are disposed. Throws if no matching group exists.
      */
-    removeEdgeGroup(position: EdgeGroupPosition): void {
-        this.component.removeEdgeGroup(position);
+    removeEdgeGroup(position: EdgeGroupPosition, groupId?: string): void {
+        this.component.removeEdgeGroup(position, groupId);
     }
 
     /**

@@ -88,6 +88,7 @@ import {
     assertModule,
     DockviewModule,
     getRegisteredModules,
+    logMissingModule,
     missingModuleMessage,
     ModuleRegistry,
 } from './modules';
@@ -96,11 +97,12 @@ import { AllModules } from './allModules';
 import { IFloatingGroupHost } from './floatingGroupService';
 import { IPopoutWindowHost, PopoutGroupEntry } from './popoutWindowService';
 import { IWatermarkHost } from './watermarkService';
-import { IEdgeGroupServiceHost } from './edgeGroupService';
+import { IEdgeGroupService, IEdgeGroupServiceHost } from './edgeGroupService';
 import {
     IKeyboardNavigationHost,
     IAdvancedDnDHost,
     IAutoHideEdgeGroupHost,
+    IStackedEdgeGroupHost,
     IContextMenuHost,
     IContextMenuService,
     IDndCompassHost,
@@ -142,8 +144,10 @@ import {
     EdgeGroupPosition,
     AddEdgeGroupOptions,
     SerializedEdgeGroups,
+    SerializedEdgeStackGroup,
     ShellManager,
     IEdgeGroupHost,
+    isSerializedEdgeStack,
 } from './dockviewShell';
 import { DockviewGroupPanelApi } from '../api/dockviewGroupPanelApi';
 import {
@@ -294,6 +298,11 @@ export interface MovePanelEvent {
  * and fired once it has settled.
  */
 type MovedPanel = { panel: IDockviewPanel; from: DockviewGroupPanel };
+
+/** Where `moveEdgeGroup` places a group within its edge's stack. */
+export type EdgeGroupMoveTarget =
+    | { index: number }
+    | { relativeTo: string; placement: 'before' | 'after' };
 
 type MoveGroupOptions = {
     from: { group: DockviewGroupPanel };
@@ -505,14 +514,21 @@ export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
         options?: { autoHide?: boolean }
     ): void;
     getEdgeGroup(
-        position: EdgeGroupPosition
+        position: EdgeGroupPosition,
+        id?: string
     ): DockviewGroupPanelApi | undefined;
+    getEdgeGroups(position: EdgeGroupPosition): DockviewGroupPanelApi[];
+    moveEdgeGroup(groupId: string, to: EdgeGroupMoveTarget): void;
     setEdgeGroupVisible(position: EdgeGroupPosition, visible: boolean): void;
     isEdgeGroupVisible(position: EdgeGroupPosition): boolean;
-    removeEdgeGroup(position: EdgeGroupPosition): void;
+    isEdgeCollapsed(position: EdgeGroupPosition): boolean;
+    removeEdgeGroup(position: EdgeGroupPosition, groupId?: string): void;
     getEdgeGroupPanel(
         position: EdgeGroupPosition
     ): DockviewGroupPanel | undefined;
+    getEdgeGroupPanels(
+        position: EdgeGroupPosition
+    ): readonly DockviewGroupPanel[];
     pinEdgeGroup(position: EdgeGroupPosition): void;
     autoHideEdgeGroup(position: EdgeGroupPosition): void;
     peekEdgeGroup(position: EdgeGroupPosition, peek: boolean): void;
@@ -571,6 +587,7 @@ export class DockviewComponent
         IDndCompassHost,
         ISmartGuidesHost,
         IAutoHideEdgeGroupHost,
+        IStackedEdgeGroupHost,
         IMultiRowTabsHost
 {
     private readonly nextGroupId = sequentialNumberGenerator();
@@ -3218,11 +3235,37 @@ export class DockviewComponent
             );
         }
         if (service.has(position)) {
-            throw new Error(
-                `dockview: edge group already exists at position '${position}'`
-            );
+            // A second group on an edge is the stacked edge groups feature.
+            const stacked =
+                this._moduleRegistry.services.stackedEdgeGroupService;
+            if (!stacked) {
+                throw new Error(
+                    missingModuleMessage(
+                        'StackedEdgeGroup',
+                        'api.addEdgeGroup on an edge that already has a group'
+                    )
+                );
+            }
+            if (!stacked.canStack(position)) {
+                throw new Error(
+                    `dockview: edge group already exists at position '${position}' (set stackedEdgeGroups to stack)`
+                );
+            }
         }
 
+        return this._doAddEdgeGroup(service, position, options);
+    }
+
+    /**
+     * Create the edge group, past the gate in `addEdgeGroup`: the restore path
+     * also comes here, so a saved stack loads regardless of the current
+     * `stackedEdgeGroups` setting for its edge.
+     */
+    private _doAddEdgeGroup(
+        service: IEdgeGroupService,
+        position: EdgeGroupPosition,
+        options: AddEdgeGroupOptions
+    ): DockviewGroupPanelApi {
         return this.mutation('add', () => {
             const group = this.createGroup({ id: options.id });
             group.model.location = { type: 'edge', position };
@@ -3230,40 +3273,46 @@ export class DockviewComponent
 
             // `setSize` surfaces as the group's `onDidChange` — consumed by a
             // gridview LeafNode for a grid group, the overlay for a floating
-            // one, and the shell splitview for an edge group.
+            // one, and the shell for an edge group: the edge's own axis sizes
+            // the whole edge, the other axis sizes this group along it.
             const resizeDisposable = group.onDidChange((event) => {
                 if (!event) {
                     // constraint change, not a size request
                     return;
                 }
-                const size =
-                    position === 'left' || position === 'right'
-                        ? event.width
-                        : event.height;
-                if (typeof size !== 'number') {
-                    // cross axis, which the shell splitview does not own
-                    return;
+                const thicknessIsWidth =
+                    position === 'left' || position === 'right';
+                const thickness = thicknessIsWidth ? event.width : event.height;
+                const length = thicknessIsWidth ? event.height : event.width;
+                if (typeof thickness === 'number') {
+                    this._shellManager?.resizeEdgeGroup(position, thickness);
                 }
-                this._shellManager?.resizeEdgeGroup(position, size);
+                if (typeof length === 'number') {
+                    this._shellManager?.resizeStackMember(group, length);
+                }
             });
 
-            // When the group becomes empty: an auto-reveal edge tears down to
-            // zero footprint; every other edge group collapses to its strip.
+            // When the group becomes empty: a group with siblings on its edge,
+            // or an auto-reveal edge, is torn down; every other edge group
+            // collapses to its strip.
             const autoCollapseDisposable = group.model.onDidRemovePanel(() => {
                 if (!group.model.isEmpty) {
                     return;
                 }
-                if (service.isAutoReveal(group)) {
+                if (
+                    service.isAutoReveal(group) ||
+                    service.getAll(position).length > 1
+                ) {
                     // Defer the teardown: disposing the group (and its
                     // onDidRemovePanel emitter) from inside that emitter's own
                     // dispatch corrupts the emitter / mutation depth. The
-                    // re-check no-ops if a concurrent move re-filled the edge.
+                    // re-check no-ops if a concurrent move re-filled the group.
                     queueMicrotask(() => {
                         if (
                             group.model.isEmpty &&
                             this._edgeGroupService?.includes(group)
                         ) {
-                            this.removeEdgeGroup(position);
+                            this._removeEdgeGroupPanel(group);
                         }
                     });
                 } else {
@@ -3271,13 +3320,19 @@ export class DockviewComponent
                 }
             });
 
+            const placement = this._resolveStackPlacement(
+                service,
+                position,
+                options.stack
+            );
             service.add(
                 position,
                 group,
                 new CompositeDisposable(
                     autoCollapseDisposable,
                     resizeDisposable
-                )
+                ),
+                placement.index
             );
             if (options.autoHide !== undefined) {
                 service.setAutoHide(group, options.autoHide);
@@ -3290,11 +3345,44 @@ export class DockviewComponent
             this._shellManager!.addEdgeView(
                 position,
                 options,
-                group as IEdgeGroupHost
+                group as IEdgeGroupHost,
+                {
+                    index: placement.index,
+                    relativeTo: placement.relativeTo as
+                        | IEdgeGroupHost
+                        | undefined,
+                    placement: options.stack?.placement,
+                    size: options.stack?.size,
+                    minimumSize: options.stack?.minimumSize,
+                    maximumSize: options.stack?.maximumSize,
+                }
             );
 
             return group.api;
         });
+    }
+
+    /** Where a new group lands in its edge's stack: next to `relativeTo` when
+     *  it names a sibling, else at `index`, else at the end. */
+    private _resolveStackPlacement(
+        service: IEdgeGroupService,
+        position: EdgeGroupPosition,
+        stack: AddEdgeGroupOptions['stack']
+    ): { index: number; relativeTo?: DockviewGroupPanel } {
+        const siblings = service.getAll(position);
+        const anchor =
+            stack?.relativeTo === undefined
+                ? undefined
+                : siblings.find((g) => g.id === stack.relativeTo);
+        if (anchor) {
+            const offset = stack?.placement === 'before' ? 0 : 1;
+            return {
+                index: siblings.indexOf(anchor) + offset,
+                relativeTo: anchor,
+            };
+        }
+        const index = stack?.index ?? siblings.length;
+        return { index: Math.max(0, Math.min(index, siblings.length)) };
     }
 
     /**
@@ -3357,17 +3445,80 @@ export class DockviewComponent
         });
     }
 
+    /** The first group on an edge, or the group with `id` on it. */
     getEdgeGroup(
-        position: EdgeGroupPosition
+        position: EdgeGroupPosition,
+        id?: string
     ): DockviewGroupPanelApi | undefined {
-        return this._edgeGroupService?.get(position)?.api;
+        if (id === undefined) {
+            return this._edgeGroupService?.get(position)?.api;
+        }
+        return this._edgeGroupService
+            ?.getAll(position)
+            .find((group) => group.id === id)?.api;
     }
 
-    /** The edge group panel at a position (the model, not the api). */
+    /** Every group on an edge in stack order; empty when none. */
+    getEdgeGroups(position: EdgeGroupPosition): DockviewGroupPanelApi[] {
+        return this.getEdgeGroupPanels(position).map((group) => group.api);
+    }
+
+    /** The first edge group panel at a position (the model, not the api). */
     getEdgeGroupPanel(
         position: EdgeGroupPosition
     ): DockviewGroupPanel | undefined {
         return this._edgeGroupService?.get(position);
+    }
+
+    /** Every edge group panel at a position, in stack order. */
+    getEdgeGroupPanels(
+        position: EdgeGroupPosition
+    ): readonly DockviewGroupPanel[] {
+        return this._edgeGroupService?.getAll(position) ?? [];
+    }
+
+    /**
+     * Reorder a group within its edge's stack. Requires the stacked edge
+     * groups feature; a group that is not an edge group is ignored.
+     */
+    moveEdgeGroup(groupId: string, to: EdgeGroupMoveTarget): void {
+        if (
+            !assertModule(
+                this._moduleRegistry.services.stackedEdgeGroupService,
+                'StackedEdgeGroup',
+                'api.moveEdgeGroup'
+            )
+        ) {
+            return;
+        }
+        const service = this._edgeGroupService;
+        const group = this._groups.get(groupId)?.value;
+        const position = group && service?.findPositionOf(group);
+        if (!group || !position) {
+            return;
+        }
+        const siblings = service!.getAll(position);
+        let index: number;
+        if ('relativeTo' in to) {
+            const anchor = siblings.find((g) => g.id === to.relativeTo);
+            if (!anchor || anchor === group) {
+                return;
+            }
+            // the index the anchor has once the moved group is taken out
+            const anchorIndex = siblings
+                .filter((g) => g !== group)
+                .indexOf(anchor);
+            index = to.placement === 'before' ? anchorIndex : anchorIndex + 1;
+        } else {
+            index = Math.max(0, Math.min(to.index, siblings.length - 1));
+        }
+        if (index === siblings.indexOf(group)) {
+            return;
+        }
+        this.mutation('move', () => {
+            service!.move(group, index);
+            this._shellManager!.moveEdgeView(group, index);
+        });
     }
 
     /** Pin (expand) the edge group at a position. Reports the missing module if
@@ -3445,7 +3596,11 @@ export class DockviewComponent
         return this._shellManager!.isEdgeGroupVisible(position);
     }
 
-    removeEdgeGroup(position: EdgeGroupPosition): void {
+    /**
+     * Remove the edge at `position` with every group stacked on it, or, with
+     * `groupId`, only that group: the edge stays while siblings remain.
+     */
+    removeEdgeGroup(position: EdgeGroupPosition, groupId?: string): void {
         const service = assertModule(
             this._edgeGroupService,
             'EdgeGroup',
@@ -3454,15 +3609,30 @@ export class DockviewComponent
         if (!service) {
             return;
         }
-        const group = service.get(position);
-        if (!group) {
+        const groups =
+            groupId === undefined
+                ? [...service.getAll(position)]
+                : service.getAll(position).filter((g) => g.id === groupId);
+        if (groups.length === 0) {
             throw new Error(
-                `dockview: no edge group exists at position '${position}'`
+                groupId === undefined
+                    ? `dockview: no edge group exists at position '${position}'`
+                    : `dockview: no edge group '${groupId}' exists at position '${position}'`
             );
         }
 
         // One transaction; the per-panel removals below nest via the depth
         // counter, so consumers see a single edge-group removal.
+        this.mutation('remove', () => {
+            for (const group of groups) {
+                this._removeEdgeGroupPanel(group);
+            }
+        });
+    }
+
+    /** Tear down one edge group: its panels, its slot in the shell and its
+     *  registration. */
+    private _removeEdgeGroupPanel(group: DockviewGroupPanel): void {
         this.mutation('remove', () => {
             // Remove panels inside the group first. Iterate a copy: removePanel
             // mutates group.panels (the live array) as it goes.
@@ -3477,13 +3647,24 @@ export class DockviewComponent
             this._shellManager!.removeEdgeView(group);
 
             // Clean up service-tracked state + group itself
-            service.remove(group);
+            this._edgeGroupService!.remove(group);
             group.dispose();
             this._groups.delete(group.id);
             this._onDidRemoveGroup.fire(group);
 
             this.activateFallbackGroupIfRemoved(group);
         });
+    }
+
+    /** Whether the edge at `position` is collapsed to a strip, which it is
+     *  only once every group stacked on it is. */
+    isEdgeCollapsed(position: EdgeGroupPosition): boolean {
+        return this._shellManager?.isEdgeCollapsed(position) ?? false;
+    }
+
+    /** The element wrapping every group stacked on an edge. */
+    getEdgeStackElement(position: EdgeGroupPosition): HTMLElement | undefined {
+        return this._shellManager?.getEdgeStackElement(position);
     }
 
     setEdgeGroupCollapsed(group: DockviewGroupPanel, collapsed: boolean): void {
@@ -3681,36 +3862,54 @@ export class DockviewComponent
         if (!this._edgeGroupService?.hasAny()) {
             return undefined;
         }
+        const service = this._edgeGroupService;
         const shellSerialized = this._shellManager!.toJSON();
 
-        for (const [position, group] of this._edgeGroupService.entries()) {
-            const entry = shellSerialized[position];
-            if (!entry) {
-                continue;
-            }
-            // Don't persist a transient empty auto-reveal edge (it's
-            // mid-teardown to zero footprint, and the deferred removeEdgeGroup
-            // microtask hasn't run yet). Restoring it would recreate an edge
+        for (const position of Object.keys(
+            shellSerialized
+        ) as EdgeGroupPosition[]) {
+            const entry = shellSerialized[position]!;
+            const members = service.getAll(position);
+            // Don't persist a transient empty auto-reveal group (it's
+            // mid-teardown to zero footprint, and the deferred removal
+            // microtask hasn't run yet). Restoring it would recreate a group
             // that can never tear itself down, since nothing is ever removed
             // from it to fire onDidRemovePanel.
-            if (
-                this._edgeGroupService.isAutoReveal(group) &&
-                group.model.isEmpty
-            ) {
+            const live = members.filter(
+                (group) => !(service.isAutoReveal(group) && group.model.isEmpty)
+            );
+            if (live.length === 0) {
                 delete shellSerialized[position];
                 continue;
             }
-            entry.group = group.toJSON();
-            if (this._edgeGroupService.isAutoReveal(group)) {
-                entry.autoReveal = true;
-            }
-            const autoHide = this._edgeGroupService.isAutoHide(group);
-            if (autoHide !== undefined) {
-                entry.autoHide = autoHide;
+            this._decorateSerializedEdgeGroup(entry, live[0]);
+            if (isSerializedEdgeStack(entry)) {
+                entry.groups = entry.groups.filter((_, index) =>
+                    live.includes(members[index])
+                );
+                entry.groups.forEach((groupEntry, index) =>
+                    this._decorateSerializedEdgeGroup(groupEntry, live[index])
+                );
             }
         }
 
         return shellSerialized;
+    }
+
+    /** Add the group's own state and presentation flags to its shell entry. */
+    private _decorateSerializedEdgeGroup(
+        entry: SerializedEdgeStackGroup,
+        group: DockviewGroupPanel
+    ): void {
+        const service = this._edgeGroupService!;
+        entry.group = group.toJSON();
+        if (service.isAutoReveal(group)) {
+            entry.autoReveal = true;
+        }
+        const autoHide = service.isAutoHide(group);
+        if (autoHide !== undefined) {
+            entry.autoHide = autoHide;
+        }
     }
 
     fromJSON(
@@ -4140,120 +4339,168 @@ export class DockviewComponent
             return;
         }
 
-        // Auto-create edge groups for positions in the serialized state that
-        // don't already have a group registered (e.g. when fromJSON is called
-        // before the user has called addEdgeGroup).
-        for (const _position of [
+        for (const position of [
             'top',
             'bottom',
             'left',
             'right',
         ] as EdgeGroupPosition[]) {
-            const fixedData = edgeGroups[_position];
-            if (fixedData && !edgeService.has(_position)) {
-                const groupState = fixedData.group as
+            const edgeData = edgeGroups[position];
+            if (!edgeData) {
+                continue;
+            }
+            // The single-group shape is a one-member stack. Without the
+            // stacked edge groups feature only the first member is restored.
+            let states: SerializedEdgeStackGroup[] = isSerializedEdgeStack(
+                edgeData
+            )
+                ? edgeData.groups
+                : [edgeData];
+            if (
+                states.length > 1 &&
+                !this._moduleRegistry.services.stackedEdgeGroupService
+            ) {
+                logMissingModule(
+                    'StackedEdgeGroup',
+                    'fromJSON edge stack restoration'
+                );
+                states = states.slice(0, 1);
+            }
+
+            // Auto-create the groups the edge is missing (e.g. when fromJSON
+            // is called before the user has called addEdgeGroup); groups
+            // already there are reused in stack order.
+            const existing = edgeService.getAll(position).length;
+            states.slice(existing).forEach((state, offset) => {
+                const groupState = state.group as
                     | GroupPanelViewState
                     | undefined;
-                const id = groupState?.id ?? `${_position}-group`;
+                const index = existing + offset;
+                const id =
+                    groupState?.id ??
+                    `${position}-group${index > 0 ? `-${index}` : ''}`;
                 // Trust the serialized per-group flags. Absent → unset (a
                 // static edge collapses to a strip; auto-hide inherits the
                 // per-edge option). We deliberately don't fall back to the
                 // `dockToEdgeGroups` option here, so a static edge group in a
                 // saved layout is never silently turned into a self-tearing-
                 // down one just because the option is on this session.
-                this.addEdgeGroup(_position, {
+                this._doAddEdgeGroup(edgeService, position, {
                     id,
-                    autoReveal: fixedData.autoReveal,
-                    autoHide: fixedData.autoHide,
-                    // Restore the per-group geometry constraints; without these
+                    autoReveal: state.autoReveal,
+                    autoHide: state.autoHide,
+                    // Restore the edge's geometry constraints; without these
                     // the auto-created group reverts to defaults (maximumSize
                     // Infinity, minimumSize collapsedSize+50).
-                    minimumSize: fixedData.minimumSize,
-                    maximumSize: fixedData.maximumSize,
-                    collapsedSize: fixedData.collapsedSize,
+                    minimumSize: edgeData.minimumSize,
+                    maximumSize: edgeData.maximumSize,
+                    collapsedSize: edgeData.collapsedSize,
+                    stack:
+                        index > 0
+                            ? {
+                                  index,
+                                  minimumSize: state.minimumSize,
+                                  maximumSize: state.maximumSize,
+                              }
+                            : undefined,
+                });
+            });
+
+            // Restore panel contents of edge groups
+            const groups = edgeService.getAll(position);
+            states.forEach((state, index) => {
+                const groupState = state.group as
+                    | GroupPanelViewState
+                    | undefined;
+                if (groupState) {
+                    this._restoreEdgeGroupPanels(
+                        groups[index],
+                        groupState,
+                        panels,
+                        existingPanels,
+                        temporaryGroups
+                    );
+                }
+            });
+        }
+
+        this._shellManager!.fromJSON(edgeGroups);
+    }
+
+    private _restoreEdgeGroupPanels(
+        edgeGroup: DockviewGroupPanel,
+        groupState: GroupPanelViewState,
+        panels: Record<string, GroupviewPanelState>,
+        existingPanels: Map<string, IDockviewPanel>,
+        temporaryGroups: Map<string, DockviewGroupPanel>
+    ): void {
+        const { views, activeView } = groupState;
+        const createdPanels: IDockviewPanel[] = [];
+
+        for (const panelId of views) {
+            if (!panels[panelId]) {
+                continue;
+            }
+
+            /**
+             * Reclaim a staged panel rather than rebuilding it, the same way
+             * the grid path does. Deserializing here instead would honour
+             * `reuseExistingPanels` everywhere except edge groups: the live
+             * panel keeps sitting in its staging group while a second panel
+             * is built under the same id, so the consumer's renderer for the
+             * original is orphaned — never disposed, and its element left
+             * inside the id-keyed overlay entry the replacement now shares.
+             */
+            const existingPanel = existingPanels.get(panelId);
+            const temporaryGroup = temporaryGroups.get(panelId);
+
+            if (temporaryGroup && existingPanel) {
+                this.movingLock(() => {
+                    temporaryGroup.model.removePanel(existingPanel);
+                });
+
+                createdPanels.push(existingPanel);
+                existingPanel.updateFromStateModel(panels[panelId]);
+            } else {
+                const panel = this._deserializer.fromJSON(
+                    panels[panelId],
+                    edgeGroup
+                );
+                createdPanels.push(panel);
+            }
+        }
+
+        for (const panel of createdPanels) {
+            const isActive = activeView === panel.id;
+
+            // A reclaimed panel is being re-homed, not added, so keep its
+            // add/remove events internal — as the grid path does.
+            if (existingPanels.has(panel.api.id)) {
+                this.movingLock(() => {
+                    edgeGroup.model.openPanel(panel, {
+                        skipSetActive: !isActive,
+                        skipSetGroupActive: true,
+                    });
+                });
+            } else {
+                edgeGroup.model.openPanel(panel, {
+                    skipSetActive: !isActive,
+                    skipSetGroupActive: true,
                 });
             }
         }
 
-        // Restore panel contents of edge groups
-        for (const [position, edgeGroup] of edgeService.entries()) {
-            const edgeData = edgeGroups[position];
-            const groupState = edgeData?.group as
-                | GroupPanelViewState
-                | undefined;
-            if (groupState) {
-                const { views, activeView } = groupState;
-                const createdPanels: IDockviewPanel[] = [];
-
-                for (const panelId of views) {
-                    if (!panels[panelId]) {
-                        continue;
-                    }
-
-                    /**
-                     * Reclaim a staged panel rather than rebuilding it, the
-                     * same way the grid path does. Deserializing here instead
-                     * would honour `reuseExistingPanels` everywhere except edge
-                     * groups: the live panel keeps sitting in its staging group
-                     * while a second panel is built under the same id, so the
-                     * consumer's renderer for the original is orphaned — never
-                     * disposed, and its element left inside the id-keyed
-                     * overlay entry the replacement now shares.
-                     */
-                    const existingPanel = existingPanels.get(panelId);
-                    const temporaryGroup = temporaryGroups.get(panelId);
-
-                    if (temporaryGroup && existingPanel) {
-                        this.movingLock(() => {
-                            temporaryGroup.model.removePanel(existingPanel);
-                        });
-
-                        createdPanels.push(existingPanel);
-                        existingPanel.updateFromStateModel(panels[panelId]);
-                    } else {
-                        const panel = this._deserializer.fromJSON(
-                            panels[panelId],
-                            edgeGroup
-                        );
-                        createdPanels.push(panel);
-                    }
-                }
-
-                for (const panel of createdPanels) {
-                    const isActive = activeView === panel.id;
-
-                    // A reclaimed panel is being re-homed, not added, so keep
-                    // its add/remove events internal — as the grid path does.
-                    if (existingPanels.has(panel.api.id)) {
-                        this.movingLock(() => {
-                            edgeGroup.model.openPanel(panel, {
-                                skipSetActive: !isActive,
-                                skipSetGroupActive: true,
-                            });
-                        });
-                    } else {
-                        edgeGroup.model.openPanel(panel, {
-                            skipSetActive: !isActive,
-                            skipSetGroupActive: true,
-                        });
-                    }
-                }
-
-                // Restore tab groups before activating a fallback panel
-                if (groupState.tabGroups && groupState.tabGroups.length > 0) {
-                    edgeGroup.model.restoreTabGroups(groupState.tabGroups);
-                }
-
-                if (!edgeGroup.activePanel && edgeGroup.panels.length > 0) {
-                    edgeGroup.model.openPanel(
-                        edgeGroup.panels[edgeGroup.panels.length - 1],
-                        { skipSetGroupActive: true }
-                    );
-                }
-            }
+        // Restore tab groups before activating a fallback panel
+        if (groupState.tabGroups && groupState.tabGroups.length > 0) {
+            edgeGroup.model.restoreTabGroups(groupState.tabGroups);
         }
 
-        this._shellManager!.fromJSON(edgeGroups);
+        if (!edgeGroup.activePanel && edgeGroup.panels.length > 0) {
+            edgeGroup.model.openPanel(
+                edgeGroup.panels[edgeGroup.panels.length - 1],
+                { skipSetGroupActive: true }
+            );
+        }
     }
 
     private deserializeFloatingWindows(

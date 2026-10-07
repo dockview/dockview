@@ -131,6 +131,15 @@ export const OPTION_MODULE_RULES: OptionModuleRule[] = [
         when: (o) => isAnyEdgeGroupEnabled(o.dockToEdgeGroups),
     },
 
+    {
+        optionKey: 'stackedEdgeGroups',
+        reason: 'stackedEdgeGroups',
+        moduleName: 'StackedEdgeGroup',
+        // Without the module a second group on an occupied edge still throws,
+        // so the option changes nothing and this is the only thing saying so.
+        when: (o) => isAnyEdgeGroupEnabled(o.stackedEdgeGroups),
+    },
+
     // No rule for `edgeGroupPeek`: it only tunes `autoHideEdgeGroups`, and is
     // read solely by AutoHideEdgeGroupService. Alone it is inert even *with*
     // the module, so it can't justify a message of its own; alongside

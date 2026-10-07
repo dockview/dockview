@@ -1,6 +1,7 @@
 import {
     EdgeGroupOptions,
     IEdgeGroupHost,
+    SerializedEdgeStack,
     ShellManager,
 } from '../../dockview/dockviewShell';
 import { EdgeStackView } from '../../dockview/edgeStack';
@@ -493,6 +494,147 @@ describe('ShellManager', () => {
             shell.resizeEdgeGroup('left', Number.NaN);
 
             expect(sizeOf(shell, 'left')).toBe(before);
+            shell.dispose();
+        });
+    });
+
+    describe('stacks', () => {
+        test('a second group keeps the edge when its sibling is removed', () => {
+            const shell = makeShell({ left: { id: 'a', initialSize: 260 } });
+            const b = makeGroup();
+            shell.addEdgeView('left', { id: 'b' }, b);
+            shell.layout(1000, 800);
+
+            shell.removeEdgeView(groups.left!);
+
+            expect(shell.hasEdgeGroup('left')).toBe(true);
+            expect(
+                stackOf(shell, 'left').members.map((m) => m.element)
+            ).toEqual([b.element]);
+            expect(shell.getStackMemberSize(b)).toBe(800);
+            expect(shell.toJSON().left!.size).toBe(260);
+
+            shell.removeEdgeView(b);
+            expect(shell.hasEdgeGroup('left')).toBe(false);
+            expect(shell.toJSON().left).toBeUndefined();
+            shell.dispose();
+        });
+
+        test('toJSON keeps the single-group shape for one group and adds groups[] for more', () => {
+            const shell = makeShell({ left: { id: 'a', initialSize: 260 } });
+            shell.layout(1000, 800);
+            const single = shell.toJSON().left!;
+            expect(single).toEqual({
+                size: 260,
+                visible: true,
+                collapsed: undefined,
+                minimumSize: undefined,
+                maximumSize: undefined,
+                collapsedSize: 35,
+            });
+            expect('groups' in single).toBe(false);
+
+            const b = makeGroup();
+            shell.addEdgeView('left', { id: 'b' }, b, {
+                relativeTo: groups.left,
+                minimumSize: 120,
+                maximumSize: 600,
+            });
+            shell.setEdgeGroupCollapsed(b, true);
+            const stacked = shell.toJSON().left as SerializedEdgeStack;
+            expect(stacked).toEqual({
+                ...single,
+                groups: [
+                    {
+                        size: 765,
+                        collapsed: undefined,
+                        minimumSize: undefined,
+                        maximumSize: undefined,
+                    },
+                    {
+                        size: 35,
+                        collapsed: true,
+                        minimumSize: 120,
+                        maximumSize: 600,
+                    },
+                ],
+            });
+            shell.dispose();
+        });
+
+        test('fromJSON restores each member of a stack and the edge collapses only when every member is', () => {
+            const shell = makeShell({ left: { id: 'a' } });
+            const b = makeGroup();
+            shell.addEdgeView('left', { id: 'b' }, b);
+            shell.layout(1000, 800);
+
+            shell.fromJSON({
+                left: {
+                    size: 300,
+                    visible: true,
+                    collapsed: true,
+                    groups: [
+                        { size: 500, collapsed: true },
+                        { size: 300, collapsed: true },
+                    ],
+                },
+            });
+            expect(shell.isEdgeCollapsed('left')).toBe(true);
+            expect(shell.isEdgeGroupCollapsed(groups.left!)).toBe(true);
+            expect(shell.isEdgeGroupCollapsed(b)).toBe(true);
+            expect(shell.getEdgeGroupExpandedSize('left')).toBe(300);
+
+            shell.fromJSON({
+                left: {
+                    size: 300,
+                    visible: true,
+                    groups: [{ size: 500 }, { size: 300, collapsed: true }],
+                },
+            });
+            expect(shell.isEdgeCollapsed('left')).toBe(false);
+            expect(shell.isEdgeGroupCollapsed(b)).toBe(true);
+            expect(shell.getStackMemberSize(groups.left!)).toBe(765);
+            expect(shell.getStackMemberSize(b)).toBe(35);
+            shell.dispose();
+        });
+
+        test('a member size restored before layout lands on the first layout', () => {
+            const shell = makeShell({ left: { id: 'a' } });
+            const b = makeGroup();
+            shell.addEdgeView('left', { id: 'b' }, b);
+
+            shell.fromJSON({
+                left: {
+                    size: 300,
+                    visible: true,
+                    groups: [{ size: 500 }, { size: 300 }],
+                },
+            });
+            expect(shell.getStackMemberSize(b)).toBe(300);
+
+            shell.layout(1000, 800);
+            expect(shell.getStackMemberSize(groups.left!)).toBe(500);
+            expect(shell.getStackMemberSize(b)).toBe(300);
+            shell.dispose();
+        });
+
+        test('updateTheme propagates the gap to every stack', () => {
+            const shell = makeShell({ left: { id: 'a' }, top: { id: 't' } });
+            shell.updateTheme(10, 35);
+            for (const position of ['left', 'top'] as const) {
+                const inner = stackOf(shell, position).element.querySelector(
+                    '.dv-split-view-container'
+                )!;
+                expect(
+                    inner.classList.contains('dv-splitview-has-margin')
+                ).toBe(true);
+            }
+            shell.updateTheme(0, 35);
+            expect(
+                stackOf(shell, 'left')
+                    .element.querySelector('.dv-split-view-container')!
+                    .classList.contains('dv-splitview-has-margin')
+            ).toBe(false);
             shell.dispose();
         });
     });

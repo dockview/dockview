@@ -19,6 +19,8 @@ calls `registerModules(Modules)` at import (a side effect — hence
 - `SmartGuidesModule` (`smartGuidesService.ts`) — `dependsOn` `FloatingGroupModule` (core)
 - `AutoHideEdgeGroupModule` (`autoHideEdgeGroupService.ts`) — `dependsOn` `EdgeGroupModule` (core)
 - `AutoEdgeGroupModule` (`autoEdgeGroupService.ts`) — `dependsOn` `EdgeGroupModule` (core)
+- `StackedEdgeGroupModule` (`stackedEdgeGroupService.ts`) — several groups
+  stacked on one edge, split by drop; `dependsOn` `EdgeGroupModule` (core)
 - `MultiRowTabsModule` (`multiRowTabsService.ts`)
 - `PinnedTabsModule` (`pinnedTabsService.ts`)
 - `AdvancedOverflowModule` (`advancedOverflowService.ts`)

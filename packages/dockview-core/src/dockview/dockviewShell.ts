@@ -41,6 +41,35 @@ export interface AddEdgeGroupOptions extends EdgeGroupOptions {
      * by drag-revealed edges.
      */
     autoReveal?: boolean;
+    /**
+     * Where this group joins the groups already stacked on its edge. Only
+     * read when the edge is occupied; requires the stacked edge groups
+     * feature with `stackedEdgeGroups` enabled for that edge. The thickness
+     * options above (`initialSize`, `minimumSize`, `maximumSize`,
+     * `collapsedSize`) describe the whole edge, so for a stacked group they
+     * are folded into the edge's constraints and `initialSize` is ignored.
+     */
+    stack?: EdgeStackPlacement;
+}
+
+/**
+ * Where a group joins the stack on its edge, and how it is sized along it:
+ * height for `left`/`right`, width for `top`/`bottom`.
+ */
+export interface EdgeStackPlacement {
+    /** Insert index in the edge's stack. Default: the end. */
+    index?: number;
+    /** Id of a group on the same edge to insert next to; wins over `index`. */
+    relativeTo?: string;
+    /** Which side of `relativeTo` to insert on. Default `'after'`. */
+    placement?: 'before' | 'after';
+    /** Size along the edge, in px. Default: half of `relativeTo`'s size,
+     *  otherwise an even share of the edge. */
+    size?: number;
+    /** Minimum size along the edge. Default: the tab strip's length + 50. */
+    minimumSize?: number;
+    /** Maximum size along the edge. Default: unbounded. */
+    maximumSize?: number;
 }
 
 export interface SerializedEdgeGroup {
@@ -60,11 +89,41 @@ export interface SerializedEdgeGroup {
     collapsedSize?: number;
 }
 
+/** One group of a stacked edge. */
+export interface SerializedEdgeStackGroup {
+    /** Size along the edge. */
+    size: number;
+    collapsed?: boolean;
+    group?: unknown;
+    autoHide?: boolean;
+    autoReveal?: boolean;
+    /** Constraints along the edge, as passed in `stack`. */
+    minimumSize?: number;
+    maximumSize?: number;
+}
+
+/**
+ * An edge holding more than one group. A superset of {@link SerializedEdgeGroup}:
+ * the inherited fields describe the edge (thickness, visibility, whether every
+ * group is collapsed) and its first group, so a reader of the single-group
+ * shape still restores that group; `groups` carries the whole stack in order.
+ */
+export interface SerializedEdgeStack extends SerializedEdgeGroup {
+    groups: SerializedEdgeStackGroup[];
+}
+
 export interface SerializedEdgeGroups {
-    top?: SerializedEdgeGroup;
-    bottom?: SerializedEdgeGroup;
-    left?: SerializedEdgeGroup;
-    right?: SerializedEdgeGroup;
+    top?: SerializedEdgeGroup | SerializedEdgeStack;
+    bottom?: SerializedEdgeGroup | SerializedEdgeStack;
+    left?: SerializedEdgeGroup | SerializedEdgeStack;
+    right?: SerializedEdgeGroup | SerializedEdgeStack;
+}
+
+/** Whether a serialized edge carries a stack of groups. */
+export function isSerializedEdgeStack(
+    entry: SerializedEdgeGroup | SerializedEdgeStack
+): entry is SerializedEdgeStack {
+    return Array.isArray((entry as SerializedEdgeStack).groups);
 }
 
 /**
@@ -935,7 +994,7 @@ export class ShellManager implements IDisposable {
             // unconfigured/Infinity values (Infinity isn't JSON-representable)
             // so they fall back to defaults on restore.
             const first = stack.members[0];
-            edgeGroups[position] = {
+            const entry: SerializedEdgeGroup = {
                 size: this._serializedSize(position, stack, visible),
                 visible,
                 collapsed: stack.isCollapsed || undefined,
@@ -945,9 +1004,40 @@ export class ShellManager implements IDisposable {
                     : undefined,
                 collapsedSize: first.configuredCollapsedSize,
             };
+            // A lone group keeps the single-group shape; a stack adds every
+            // member's along-axis state.
+            edgeGroups[position] =
+                stack.members.length > 1
+                    ? {
+                          ...entry,
+                          groups: stack.members.map((member) => ({
+                              size: stack.getMemberSize(member),
+                              collapsed: member.isCollapsed || undefined,
+                              minimumSize: member.alongMinimumSize,
+                              maximumSize: member.alongMaximumSize,
+                          })),
+                      }
+                    : entry;
         }
 
         return edgeGroups;
+    }
+
+    /** Restore each member's along-axis state; a member the stack does not
+     *  hold (a stack restored without the feature) is skipped. */
+    private _restoreMembers(
+        stack: EdgeStackView,
+        groups: SerializedEdgeStackGroup[]
+    ): void {
+        groups.forEach((state, index) => {
+            const member = stack.members[index];
+            if (!member) {
+                return;
+            }
+            member.restoreExpandedSize(state.size);
+            stack.setMemberCollapsed(member, state.collapsed ?? false);
+            stack.resizeMember(member, state.size);
+        });
     }
 
     fromJSON(data: SerializedEdgeGroups): void {
@@ -962,10 +1052,14 @@ export class ShellManager implements IDisposable {
             // expanded size (even when collapsed), so it must be applied before
             // the collapse locks min/max to collapsedSize.
             stack.restoreExpandedSize(state.size);
-            stack.setMemberCollapsed(
-                stack.members[0],
-                state.collapsed ?? false
-            );
+            if (isSerializedEdgeStack(state)) {
+                this._restoreMembers(stack, state.groups);
+            } else {
+                stack.setMemberCollapsed(
+                    stack.members[0],
+                    state.collapsed ?? false
+                );
+            }
 
             if (stack.isCollapsed) {
                 this._pendingSizes.delete(position);

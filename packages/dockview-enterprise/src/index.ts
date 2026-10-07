@@ -5,6 +5,7 @@ import { DndCompassModule } from './dndCompassService';
 import { SmartGuidesModule } from './smartGuidesService';
 import { AutoHideEdgeGroupModule } from './autoHideEdgeGroupService';
 import { AutoEdgeGroupModule } from './autoEdgeGroupService';
+import { StackedEdgeGroupModule } from './stackedEdgeGroupService';
 import { MultiRowTabsModule } from './multiRowTabsService';
 import { PinnedTabsModule } from './pinnedTabsService';
 import { AdvancedOverflowModule } from './advancedOverflowService';
@@ -36,6 +37,10 @@ export {
     AutoEdgeGroupService,
     AutoEdgeGroupModule,
 } from './autoEdgeGroupService';
+export {
+    StackedEdgeGroupService,
+    StackedEdgeGroupModule,
+} from './stackedEdgeGroupService';
 export { MultiRowTabsService, MultiRowTabsModule } from './multiRowTabsService';
 export {
     PinnedTabsService,
@@ -75,6 +80,7 @@ export const Modules: DockviewModule<any>[] = [
     SmartGuidesModule,
     AutoHideEdgeGroupModule,
     AutoEdgeGroupModule,
+    StackedEdgeGroupModule,
     MultiRowTabsModule,
     PinnedTabsModule,
     AdvancedOverflowModule,

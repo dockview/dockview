@@ -30,6 +30,7 @@ import {
     IMultiRowTabsService,
     IPinnedTabsService,
     ISmartGuidesService,
+    IStackedEdgeGroupService,
     ITabGroupChipsService,
 } from './moduleContracts';
 
@@ -51,6 +52,7 @@ export interface ServiceCollection {
     smartGuidesService?: ISmartGuidesService;
     autoHideEdgeGroupService?: IAutoHideEdgeGroupService;
     autoEdgeGroupService?: IAutoEdgeGroupService;
+    stackedEdgeGroupService?: IStackedEdgeGroupService;
     multiRowTabsService?: IMultiRowTabsService;
     pinnedTabsService?: IPinnedTabsService;
     advancedOverflowService?: IAdvancedOverflowService;
@@ -143,6 +145,7 @@ export const ENTERPRISE_MODULE_NAMES: ReadonlySet<string> = new Set([
     'MultiRowTabs',
     'PinnedTabs',
     'SmartGuides',
+    'StackedEdgeGroup',
 ]);
 
 const _warnedMissingModule = new Set<string>();

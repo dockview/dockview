@@ -118,7 +118,11 @@ export {
     type EdgeGroupOptions,
     type AddEdgeGroupOptions,
     type EdgeGroupPosition,
+    type EdgeStackPlacement,
+    type SerializedEdgeGroup,
     type SerializedEdgeGroups,
+    type SerializedEdgeStack,
+    type SerializedEdgeStackGroup,
 } from './dockview/dockviewShell';
 export * from './gridview/gridviewComponent';
 export * from './splitview/splitviewComponent';
@@ -226,6 +230,8 @@ export {
     type IAutoHideEdgeGroupService,
     type IAutoEdgeGroupHost,
     type IAutoEdgeGroupService,
+    type IStackedEdgeGroupHost,
+    type IStackedEdgeGroupService,
     type IContextMenuHost,
     type IContextMenuService,
     type IDndCompassHost,

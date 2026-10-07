@@ -530,6 +530,28 @@ export interface IAutoEdgeGroupService extends IDisposable {
     resolveEdge(args: PositionResolverArgs): PositionResolverResult | null;
 }
 
+// --- StackedEdgeGroup (several groups on one edge) ---
+
+/**
+ * The narrow surface the stacked edge groups service needs from the host
+ * (`DockviewComponent`). The stack layout itself is core infrastructure
+ * (every edge is a stack, of one group without this module); the module is
+ * the gate that lets a second group join, and announces drop splits.
+ */
+export interface IStackedEdgeGroupHost {
+    readonly options: DockviewComponentOptions;
+    /** Fires before a drop commits; a split onto an edge group is announced. */
+    readonly onWillDrop: Event<DockviewWillDropEvent>;
+    /** Announce a message to assistive technology via the shared live region
+     *  (no-op when no live-region service / `announcements: false`). */
+    announce(message: string): void;
+}
+
+export interface IStackedEdgeGroupService extends IDisposable {
+    /** Whether `position` accepts more than one group (`stackedEdgeGroups`). */
+    canStack(position: EdgeGroupPosition): boolean;
+}
+
 // --- MultiRowTabs ---
 
 /**

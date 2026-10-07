@@ -107,6 +107,17 @@ describe('validateOptionModules', () => {
         expect(consoleError.mock.calls[0][0]).toMatch(/AutoEdgeGroup/);
     });
 
+    test('stackedEdgeGroups requires StackedEdgeGroup', () => {
+        validateOptionModules(
+            options({ stackedEdgeGroups: { left: true } }),
+            nothingRegistered
+        );
+        expect(consoleError.mock.calls[0][0]).toMatch(/StackedEdgeGroup/);
+        expect(consoleError.mock.calls[0][0]).toMatch(
+            /npm install dockview-enterprise/
+        );
+    });
+
     test('edgeGroupPeek alone does not demand enterprise', () => {
         validateOptionModules(
             options({ edgeGroupPeek: { animate: false } }),
@@ -136,6 +147,7 @@ describe('validateOptionModules', () => {
                 layoutHistory: { enabled: false },
                 autoHideEdgeGroups: false,
                 dockToEdgeGroups: { left: false },
+                stackedEdgeGroups: { left: false },
                 dndCompass: false,
                 keyboardNavigation: false,
                 overflow: { search: false, mru: false },
@@ -154,6 +166,7 @@ describe('validateOptionModules', () => {
         ['keyboardNavigation'],
         ['autoHideEdgeGroups'],
         ['dockToEdgeGroups'],
+        ['stackedEdgeGroups'],
         ['smartGuides'],
     ])('`%s: false` is an opt-out, never a purchase prompt', (key) => {
         validateOptionModules(

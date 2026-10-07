@@ -637,6 +637,13 @@ export interface DockviewOptions {
      */
     edgeGroupPeek?: EdgeGroupPeekOptions;
     /**
+     * Allow more than one edge group per edge, stacked along the edge with a
+     * sash between them. A per-edge set like `autoHideEdgeGroups`. Off by
+     * default: a second `addEdgeGroup` on an occupied edge throws, as it
+     * always has. Requires the `StackedEdgeGroup` module.
+     */
+    stackedEdgeGroups?: EdgeGroupSet;
+    /**
      * Replace the built-in tab group color palette with a user-defined list.
      *
      * Each entry has an `id` (stored on `tabGroup.color` and serialized),
@@ -828,6 +835,7 @@ export const PROPERTY_KEYS_DOCKVIEW: (keyof DockviewOptions)[] = (() => {
         autoHideEdgeGroups: undefined,
         dockToEdgeGroups: undefined,
         edgeGroupPeek: undefined,
+        stackedEdgeGroups: undefined,
         tabGroupColors: undefined,
         tabGroupAccent: undefined,
         pinnedTabs: undefined,
