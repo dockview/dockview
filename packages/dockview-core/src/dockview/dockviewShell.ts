@@ -521,7 +521,6 @@ export class ShellManager implements IDisposable {
     ): EdgeStackView {
         const stack = new EdgeStackView(position, {
             initialSize,
-            defaultCollapsedSize: this._defaultCollapsedSize,
             gapAdd: 0,
             gap: this._gap,
             labelSash: this._labelSash,
@@ -717,6 +716,11 @@ export class ShellManager implements IDisposable {
 
         // Recalculate gap adjustments for remaining views.
         this.updateTheme(this._gap, this._defaultCollapsedSize);
+    }
+
+    /** Re-read the names of the groups stacked on `position` for its sashes. */
+    relabelEdgeSashes(position: EdgeGroupPosition): void {
+        this._stacks.get(position)?.relabelSashes();
     }
 
     /** Reorder a group within its edge's stack. */
@@ -994,29 +998,31 @@ export class ShellManager implements IDisposable {
                 continue;
             }
             const visible = this.isEdgeGroupVisible(position);
-            // The first group's user-configured constraints, so the
-            // auto-create fromJSON path restores them. Omit
+            // The user-configured constraints folded over the edge's groups,
+            // so the auto-create fromJSON path restores them. Omit
             // unconfigured/Infinity values (Infinity isn't JSON-representable)
             // so they fall back to defaults on restore.
-            const first = stack.members[0];
             const entry: SerializedEdgeGroup = {
                 size: this._serializedSize(position, stack, visible),
                 visible,
                 collapsed: stack.isCollapsed || undefined,
-                minimumSize: first.configuredMinimumSize,
-                maximumSize: Number.isFinite(first.configuredMaximumSize)
-                    ? first.configuredMaximumSize
+                minimumSize: stack.configuredMinimumSize,
+                maximumSize: Number.isFinite(stack.configuredMaximumSize)
+                    ? stack.configuredMaximumSize
                     : undefined,
-                collapsedSize: first.configuredCollapsedSize,
+                collapsedSize: stack.configuredCollapsedSize,
             };
             // A lone group keeps the single-group shape; a stack adds every
-            // member's along-axis state.
+            // member's along-axis state, recording the size a collapsed
+            // member expands back to rather than its pinned strip.
             edgeGroups[position] =
                 stack.members.length > 1
                     ? {
                           ...entry,
                           groups: stack.members.map((member) => ({
-                              size: stack.getMemberSize(member),
+                              size: member.isCollapsed
+                                  ? member.lastExpandedSize
+                                  : stack.getMemberSize(member),
                               collapsed: member.isCollapsed || undefined,
                               minimumSize: member.alongMinimumSize,
                               maximumSize: member.alongMaximumSize,

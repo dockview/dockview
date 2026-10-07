@@ -17,14 +17,12 @@ function makeStack(
     position: EdgeGroupPosition = 'left',
     options: Partial<{
         initialSize: number;
-        defaultCollapsedSize: number;
         gapAdd: number;
         gap: number;
     }> = {}
 ): EdgeStackView {
     return new EdgeStackView(position, {
         initialSize: 200,
-        defaultCollapsedSize: 35,
         gapAdd: 0,
         gap: 0,
         ...options,
@@ -368,7 +366,6 @@ describe('EdgeStackView', () => {
             stack.addMember(c, { relativeTo: a, placement: 'after' });
             stack.addMember(d, { index: 1 });
             expect(stack.members).toEqual([b, d, a, c]);
-            expect(stack.indexOf(c)).toBe(3);
             stack.dispose();
         });
 
@@ -530,11 +527,31 @@ describe('EdgeStackView', () => {
             stack.dispose();
         });
 
+        test('relabelSashes re-reads the labeller', () => {
+            let suffix = '';
+            const stack = new EdgeStackView('left', {
+                initialSize: 200,
+                gapAdd: 0,
+                gap: 0,
+                labelSash: () => `Resize${suffix}`,
+            });
+            stack.addMember(member({ id: 'a' }));
+            stack.addMember(member({ id: 'b' }));
+            expect(stack.sashElements[0].getAttribute('aria-label')).toBe(
+                'Resize'
+            );
+            suffix = ' A and B';
+            stack.relabelSashes();
+            expect(stack.sashElements[0].getAttribute('aria-label')).toBe(
+                'Resize A and B'
+            );
+            stack.dispose();
+        });
+
         test('sashes are labelled separators, relabelled after a reorder', () => {
             const names = new Map<IEdgeGroupHost, string>();
             const stack = new EdgeStackView('left', {
                 initialSize: 200,
-                defaultCollapsedSize: 35,
                 gapAdd: 0,
                 gap: 0,
                 labelSash: (before, after) =>

@@ -3349,56 +3349,6 @@ export class DockviewComponent
             group.model.location = { type: 'edge', position };
             group.model.headerPosition = position;
 
-            // `setSize` surfaces as the group's `onDidChange` — consumed by a
-            // gridview LeafNode for a grid group, the overlay for a floating
-            // one, and the shell for an edge group: the edge's own axis sizes
-            // the whole edge, the other axis sizes this group along it.
-            const resizeDisposable = group.onDidChange((event) => {
-                if (!event) {
-                    // constraint change, not a size request
-                    return;
-                }
-                const thicknessIsWidth =
-                    position === 'left' || position === 'right';
-                const thickness = thicknessIsWidth ? event.width : event.height;
-                const length = thicknessIsWidth ? event.height : event.width;
-                if (typeof thickness === 'number') {
-                    this._shellManager?.resizeEdgeGroup(position, thickness);
-                }
-                if (typeof length === 'number') {
-                    this._shellManager?.resizeStackMember(group, length);
-                }
-            });
-
-            // When the group becomes empty: a group with siblings on its edge,
-            // or an auto-reveal edge, is torn down; every other edge group
-            // collapses to its strip.
-            const tearsDown = (): boolean =>
-                service.isAutoReveal(group) ||
-                service.getAll(position).length > 1;
-            const autoCollapseDisposable = group.model.onDidRemovePanel(() => {
-                if (!group.model.isEmpty) {
-                    return;
-                }
-                if (!tearsDown()) {
-                    this.setEdgeGroupCollapsed(group, true);
-                }
-                // Defer the teardown: disposing the group (and its
-                // onDidRemovePanel emitter) from inside that emitter's own
-                // dispatch corrupts the emitter / mutation depth. The re-check
-                // no-ops if a concurrent move re-filled the group, and
-                // catches a sibling the same move went on to create.
-                queueMicrotask(() => {
-                    if (
-                        group.model.isEmpty &&
-                        service.includes(group) &&
-                        tearsDown()
-                    ) {
-                        this._removeEdgeGroupPanel(group);
-                    }
-                });
-            });
-
             const placement = this._resolveStackPlacement(
                 service,
                 position,
@@ -3408,8 +3358,9 @@ export class DockviewComponent
                 position,
                 group,
                 new CompositeDisposable(
-                    autoCollapseDisposable,
-                    resizeDisposable
+                    this._listenForEmptyEdgeGroup(service, group, position),
+                    this._routeEdgeGroupResize(group, position),
+                    this._relabelEdgeSashesWith(group, position)
                 ),
                 placement.index
             );
@@ -3437,6 +3388,83 @@ export class DockviewComponent
 
             return group.api;
         });
+    }
+
+    /**
+     * `setSize` surfaces as the group's `onDidChange` — consumed by a gridview
+     * LeafNode for a grid group, the overlay for a floating one, and the shell
+     * for an edge group: the edge's own axis sizes the whole edge, the other
+     * axis sizes this group along it.
+     */
+    private _routeEdgeGroupResize(
+        group: DockviewGroupPanel,
+        position: EdgeGroupPosition
+    ): IDisposable {
+        const thicknessIsWidth = position === 'left' || position === 'right';
+        return group.onDidChange((event) => {
+            if (!event) {
+                // constraint change, not a size request
+                return;
+            }
+            const thickness = thicknessIsWidth ? event.width : event.height;
+            const length = thicknessIsWidth ? event.height : event.width;
+            if (typeof thickness === 'number') {
+                this._shellManager?.resizeEdgeGroup(position, thickness);
+            }
+            if (typeof length === 'number') {
+                this._shellManager?.resizeStackMember(group, length);
+            }
+        });
+    }
+
+    /**
+     * When the group becomes empty: a group with siblings on its edge, or an
+     * auto-reveal edge, is torn down; every other edge group collapses to its
+     * strip. The teardown is deferred: disposing the group (and its
+     * onDidRemovePanel emitter) from inside that emitter's own dispatch
+     * corrupts the emitter / mutation depth. The deferred re-check no-ops if a
+     * concurrent move re-filled the group, and catches a sibling the same
+     * move went on to create, in which case the collapse is deferred too so
+     * the group never collapses on its way out.
+     */
+    private _listenForEmptyEdgeGroup(
+        service: IEdgeGroupService,
+        group: DockviewGroupPanel,
+        position: EdgeGroupPosition
+    ): IDisposable {
+        const tearsDown = (): boolean =>
+            service.isAutoReveal(group) || service.getAll(position).length > 1;
+        const settle = (): void => {
+            if (!group.model.isEmpty || !service.includes(group)) {
+                return;
+            }
+            if (tearsDown()) {
+                this._removeEdgeGroupPanel(group);
+            } else {
+                this.setEdgeGroupCollapsed(group, true);
+            }
+        };
+        return group.model.onDidRemovePanel(() => {
+            if (!group.model.isEmpty) {
+                return;
+            }
+            if (!this._edgeSplitPending && !tearsDown()) {
+                this.setEdgeGroupCollapsed(group, true);
+            }
+            queueMicrotask(settle);
+        });
+    }
+
+    /** The sash labels name the groups by their active panel, so they follow
+     *  the active panel and its title. */
+    private _relabelEdgeSashesWith(
+        group: DockviewGroupPanel,
+        position: EdgeGroupPosition
+    ): IDisposable {
+        return Event.any<unknown>(
+            group.api.onDidActivePanelChange,
+            group.model.onDidPanelTitleChange
+        )(() => this._shellManager?.relabelEdgeSashes(position));
     }
 
     /** Where a new group lands in its edge's stack: next to `relativeTo` when
@@ -3796,15 +3824,33 @@ export class DockviewComponent
         return edgeSplitPlacement(location.position, target);
     }
 
+    /** True while panels leave their group for a sibling about to be stacked
+     *  next to the drop target, so an emptied source waits for that sibling
+     *  before deciding whether to collapse or go. */
+    private _edgeSplitPending = false;
+
+    /** Take the panels a split moves out of their group. */
+    private _takePanelsForEdgeSplit<T>(take: () => T): T {
+        this._edgeSplitPending = true;
+        try {
+            return this.movingLock(take);
+        } finally {
+            this._edgeSplitPending = false;
+        }
+    }
+
     /** Create an empty sibling next to the edge group `target`. */
     private _splitEdgeGroup(
         target: DockviewGroupPanel,
         placement: 'before' | 'after',
         options: { autoReveal?: boolean; size?: number } = {}
     ): DockviewGroupPanel {
-        const location = target.api.location as {
-            position: EdgeGroupPosition;
-        };
+        const location = target.api.location;
+        if (location.type !== 'edge') {
+            throw new Error(
+                `dockview: group '${target.id}' is not an edge group`
+            );
+        }
         const id = this.getNextGroupId();
         this._doAddEdgeGroup(this._edgeGroupService!, location.position, {
             id,
@@ -3827,7 +3873,7 @@ export class DockviewComponent
     ): void {
         const activePanel = from.activePanel;
         const tabGroups = snapshotTabGroups(from);
-        const panels = this.movingLock(() =>
+        const panels = this._takePanelsForEdgeSplit(() =>
             [...from.panels].map((p) =>
                 from.model.removePanel(p.id, { skipSetActive: true })
             )
@@ -3866,7 +3912,7 @@ export class DockviewComponent
         placement: 'before' | 'after',
         options: { skipSetActive?: boolean; keepEmptyGroups?: boolean }
     ): void {
-        const removedPanel = this.movingLock(() =>
+        const removedPanel = this._takePanelsForEdgeSplit(() =>
             sourceGroup.model.removePanel(panelId, {
                 skipSetActive: false,
                 skipSetActiveGroup: true,
@@ -6123,7 +6169,10 @@ export class DockviewComponent
                 : undefined;
 
         // Remove panels from the source group
-        const removedPanels = this.movingLock(() =>
+        const take = edgePlacement
+            ? (fn: () => IDockviewPanel[]) => this._takePanelsForEdgeSplit(fn)
+            : (fn: () => IDockviewPanel[]) => this.movingLock(fn);
+        const removedPanels = take(() =>
             panelIds
                 .map((pid) =>
                     sourceGroup.model.removePanel(pid, {

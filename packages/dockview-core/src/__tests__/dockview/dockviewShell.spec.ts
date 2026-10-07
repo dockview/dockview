@@ -552,12 +552,35 @@ describe('ShellManager', () => {
                         maximumSize: undefined,
                     },
                     {
-                        size: 35,
+                        // the size it expands back to, not its pinned strip
+                        size: 400,
                         collapsed: true,
                         minimumSize: 120,
                         maximumSize: 600,
                     },
                 ],
+            });
+            shell.dispose();
+        });
+
+        test('toJSON folds every member into the edge constraints', () => {
+            const shell = makeShell({
+                left: { id: 'a', minimumSize: 100, maximumSize: 500 },
+            });
+            shell.addEdgeView(
+                'left',
+                {
+                    id: 'b',
+                    minimumSize: 160,
+                    maximumSize: 400,
+                    collapsedSize: 44,
+                },
+                makeGroup()
+            );
+            expect(shell.toJSON().left).toMatchObject({
+                minimumSize: 160,
+                maximumSize: 400,
+                collapsedSize: 44,
             });
             shell.dispose();
         });

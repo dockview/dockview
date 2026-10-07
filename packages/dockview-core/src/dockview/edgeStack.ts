@@ -122,10 +122,6 @@ export class EdgeGroupView implements IView {
         return this._options.collapsedSize ?? this._defaultCollapsedSize;
     }
 
-    get configuredInitialSize(): number | undefined {
-        return this._options.initialSize;
-    }
-
     /** The configured along-axis constraints, for serialization. */
     get alongMinimumSize(): number | undefined {
         return this._alongMinimumSize;
@@ -337,7 +333,6 @@ export class EdgeStackView implements IView {
 
     private _lastExpandedSize: number;
     private _gapAdd: number;
-    private _defaultCollapsedSize: number;
     // Along-axis sizes a member could not take when requested (no extent
     // yet), applied on the next layout.
     private readonly _pendingMemberSizes = new Map<EdgeGroupView, number>();
@@ -385,22 +380,34 @@ export class EdgeStackView implements IView {
         if (this.isCollapsed) {
             return this.collapsedSize;
         }
+        return this.configuredMaximumSize;
+    }
+
+    /** The user-configured (pre-gap) thickness constraints folded over every
+     *  member, for serialization: the tightest minimum and maximum, and the
+     *  widest collapsed size. Unconfigured values stay `undefined`. */
+    get configuredMinimumSize(): number | undefined {
+        return this._members.reduce<number | undefined>((max, member) => {
+            const min = member.configuredMinimumSize;
+            return min === undefined ? max : Math.max(max ?? min, min);
+        }, undefined);
+    }
+
+    get configuredMaximumSize(): number {
         return this._members.reduce(
             (min, member) => Math.min(min, member.configuredMaximumSize),
             Number.POSITIVE_INFINITY
         );
     }
 
-    /** The inner splitview's along-axis extent; zero until laid out. */
-    get axisSize(): number {
-        return this._splitview.size;
+    get configuredCollapsedSize(): number {
+        return this._maxOf((member) => member.configuredCollapsedSize);
     }
 
     constructor(
         position: EdgeGroupPosition,
         options: {
             initialSize: number;
-            defaultCollapsedSize: number;
             gapAdd: number;
             gap: number;
             /** Names the sash between two members for assistive technology. */
@@ -409,7 +416,6 @@ export class EdgeStackView implements IView {
     ) {
         this.position = position;
         this._lastExpandedSize = options.initialSize;
-        this._defaultCollapsedSize = options.defaultCollapsedSize;
         this._gapAdd = options.gapAdd;
         this._labelSash = options.labelSash;
 
@@ -433,10 +439,6 @@ export class EdgeStackView implements IView {
             (max, member) => Math.max(max, select(member)),
             0
         );
-    }
-
-    indexOf(member: EdgeGroupView): number {
-        return this._members.indexOf(member);
     }
 
     /**
@@ -584,7 +586,6 @@ export class EdgeStackView implements IView {
     /** Apply a new default collapsed size and gap contribution after a theme
      *  or gap change; the ShellManager owns the gap arithmetic. */
     updateSizing(defaultCollapsedSize: number, gapAdd: number): void {
-        this._defaultCollapsedSize = defaultCollapsedSize;
         this._gapAdd = gapAdd;
         for (const member of this._members) {
             member.updateDefaultCollapsedSize(defaultCollapsedSize);
@@ -626,12 +627,12 @@ export class EdgeStackView implements IView {
                 member.requestSize(member.stripLength);
             }
         }
-        this._decorateSashes();
+        this.relabelSashes();
     }
 
     /** Each sash is a separator between the two members it sits between,
-     *  named after them. */
-    private _decorateSashes(): void {
+     *  named after them; call again when a member's name changes. */
+    relabelSashes(): void {
         const vertical = isThicknessWidth(this.position);
         this.sashElements.forEach((sash, index) => {
             sash.setAttribute('role', 'separator');

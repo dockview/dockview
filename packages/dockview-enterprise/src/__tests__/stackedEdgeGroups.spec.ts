@@ -68,7 +68,13 @@ describe('stacked edge groups', () => {
     const ids = (position: EdgeGroupPosition): string[] =>
         dockview.getEdgeGroups(position).map((g) => g.id);
 
-    /** Each group's size along the edge, as serialized. */
+    /** Each group's live extent along the left edge. */
+    const liveHeights = (): number[] =>
+        dockview
+            .getEdgeGroups('left')
+            .map((g) => (dockview.getPanel(g.id) as DockviewGroupPanel).height);
+    /** Each group's size along the edge, as serialized: the size a collapsed
+     *  group expands back to. */
     const memberSizes = (position: EdgeGroupPosition): number[] =>
         (
             dockview.toJSON().edgeGroups![position] as SerializedEdgeStack
@@ -195,11 +201,12 @@ describe('stacked edge groups', () => {
         expect(dockview.isEdgeCollapsed('left')).toBe(false);
         expect(changes).toEqual([true]);
         // pinned to its (unmeasured, so default) strip; b takes the rest
-        expect(memberSizes('left')).toEqual([35, 765]);
+        expect(liveHeights()).toEqual([35, 765]);
+        expect(memberSizes('left')).toEqual([400, 765]);
         expect(dockview.getEdgeGroupPanel('left')!.width).toBe(200);
 
         a.expand();
-        expect(memberSizes('left')).toEqual([400, 400]);
+        expect(liveHeights()).toEqual([400, 400]);
     });
 
     test('collapsing every group collapses the edge to its strip', () => {
@@ -217,7 +224,7 @@ describe('stacked edge groups', () => {
         b.expand();
         expect(dockview.isEdgeCollapsed('left')).toBe(false);
         expect(dockview.getEdgeGroupPanel('left')!.width).toBe(200);
-        expect(memberSizes('left')).toEqual([35, 765]);
+        expect(liveHeights()).toEqual([35, 765]);
     });
 
     test('setSize sizes the edge on its own axis and the group along it', () => {
@@ -282,6 +289,71 @@ describe('stacked edge groups', () => {
         expect(
             JSON.parse(JSON.stringify(dockview.toJSON().edgeGroups))
         ).toEqual(json.edgeGroups);
+    });
+
+    test('a collapsed group keeps its expanded size across a round trip', () => {
+        make();
+        addEdge('left', 'a');
+        const b = addEdge('left', 'b');
+        b.setSize({ height: 200 });
+        b.collapse();
+        expect(liveHeights()).toEqual([765, 35]);
+        expect(memberSizes('left')).toEqual([765, 200]);
+
+        const json = JSON.parse(JSON.stringify(dockview.toJSON()));
+        dockview.clear();
+        dockview.fromJSON(json);
+
+        const restored = dockview.getEdgeGroup('left', 'b')!;
+        expect(restored.isCollapsed()).toBe(true);
+        restored.expand();
+        expect(liveHeights()).toEqual([600, 200]);
+    });
+
+    test('the thickness constraints of every stacked group survive a round trip', () => {
+        make();
+        addEdge('left', 'a', { minimumSize: 100, maximumSize: 500 });
+        addEdge('left', 'b', {
+            minimumSize: 160,
+            maximumSize: 400,
+            collapsedSize: 44,
+        });
+        const left = dockview.toJSON().edgeGroups!.left!;
+        expect(left.minimumSize).toBe(160);
+        expect(left.maximumSize).toBe(400);
+        expect(left.collapsedSize).toBe(44);
+
+        const json = JSON.parse(JSON.stringify(dockview.toJSON()));
+        dockview.clear();
+        dockview.fromJSON(json);
+
+        const edge = dockview.getEdgeGroup('left')!;
+        edge.setSize({ width: 900 });
+        expect(dockview.getEdgeGroupPanel('left')!.width).toBe(400);
+        edge.setSize({ width: 50 });
+        expect(dockview.getEdgeGroupPanel('left')!.width).toBe(160);
+        expect(dockview.toJSON().edgeGroups!.left!.collapsedSize).toBe(44);
+    });
+
+    test('sash labels follow the active panel and its title', () => {
+        make();
+        addEdge('left', 'a');
+        addEdge('left', 'b');
+        const sash = container.querySelector(
+            '[data-testid="dv-edge-stack-left"] .dv-sash'
+        )!;
+        expect(sash.getAttribute('aria-label')).toBe('Resize a and b');
+
+        dockview.getGroupPanel('b-panel')!.api.setTitle('Bravo');
+        expect(sash.getAttribute('aria-label')).toBe('Resize a and Bravo');
+
+        dockview.addPanel({
+            id: 'a-second',
+            component: 'default',
+            title: 'Alpha',
+            position: { referenceGroup: 'a' },
+        });
+        expect(sash.getAttribute('aria-label')).toBe('Resize Alpha and Bravo');
     });
 
     test('a saved stack restores onto a fresh component', () => {
@@ -511,11 +583,19 @@ describe('stacked edge groups: splitting and merging', () => {
     });
 
     test("dropping a group's only panel onto its own split half leaves it to the empty rule", async () => {
+        const collapses: boolean[] = [];
+        edge('a').api.onDidCollapsedChange((e) =>
+            collapses.push(e.isCollapsed)
+        );
+
         dockview.moveGroupOrPanel({
             from: { groupId: 'a', panelId: 'a-panel' },
             to: { group: edge('a'), position: 'bottom' },
         });
 
+        // the emptied source never collapses on its way out
+        expect(collapses).toEqual([]);
+        expect(dockview.isEdgeCollapsed('left')).toBe(false);
         expect(ids('left')).toHaveLength(2);
         expect(groupOf('a-panel')).toBe(ids('left')[1]);
         await flush();
