@@ -190,6 +190,30 @@ describe('validateOptionModules', () => {
         expect(consoleError.mock.calls[0][0]).toMatch(/AutoHideEdgeGroup/);
     });
 
+    test('panelChannels.enabled requires PanelChannels from dockview-enterprise', () => {
+        validateOptionModules(
+            options({ panelChannels: { enabled: true } }),
+            nothingRegistered
+        );
+        expect(consoleError).toHaveBeenCalledTimes(1);
+        const message = consoleError.mock.calls[0][0];
+        expect(message).toMatch(/panelChannels\.enabled: true/);
+        expect(message).toMatch(/PanelChannels/);
+        expect(message).toMatch(/npm install dockview-enterprise/);
+    });
+
+    test('a dormant or disabled panelChannels object is silent', () => {
+        validateOptionModules(
+            options({ panelChannels: {} }),
+            nothingRegistered
+        );
+        validateOptionModules(
+            options({ panelChannels: { enabled: false } }),
+            nothingRegistered
+        );
+        expect(consoleError).not.toHaveBeenCalled();
+    });
+
     test('logs once per module+reason across repeated validation', () => {
         for (let i = 0; i < 3; i++) {
             validateOptionModules(

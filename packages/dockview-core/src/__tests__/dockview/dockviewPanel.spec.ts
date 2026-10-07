@@ -6,6 +6,59 @@ import { DockviewGroupPanel } from '../../dockview/dockviewGroupPanel';
 import { fromPartial } from '@total-typescript/shoehorn';
 
 describe('dockviewPanel', () => {
+    test('setChannel fires onDidChannelChange once per change and is idempotent', () => {
+        const api = fromPartial<DockviewApi>({});
+        const red = { id: 'red', label: 'Red', color: 'red' };
+        const accessor = fromPartial<DockviewComponent>({
+            getPanelChannel: (id: string | undefined) =>
+                id === 'red' ? red : undefined,
+        });
+        const group = fromPartial<DockviewGroupPanel>({
+            api: {
+                onDidVisibilityChange: jest.fn(),
+                onDidLocationChange: jest.fn(),
+                onDidActiveChange: jest.fn(),
+            },
+        });
+        const model = fromPartial<IDockviewPanelModel>({
+            update: jest.fn(),
+            init: jest.fn(),
+            dispose: jest.fn(),
+            setTitle: jest.fn(),
+        });
+
+        const cut = new DockviewPanel(
+            'fake-id',
+            'fake-component',
+            undefined,
+            accessor,
+            api,
+            group,
+            model,
+            {}
+        );
+
+        const events: (string | undefined)[] = [];
+        const disposable = cut.api.onDidChannelChange((event) => {
+            events.push(event.channel?.id);
+        });
+
+        expect(cut.channel).toBeUndefined();
+        expect(cut.api.channel).toBeUndefined();
+
+        cut.setChannel('red');
+        cut.setChannel('red');
+        expect(cut.channel).toBe('red');
+        expect(events).toEqual(['red']);
+
+        cut.setChannel(undefined);
+        cut.setChannel(undefined);
+        expect(cut.channel).toBeUndefined();
+        expect(events).toEqual(['red', undefined]);
+
+        disposable.dispose();
+    });
+
     test('update title', () => {
         const api = fromPartial<DockviewApi>({});
         const accessor = fromPartial<DockviewComponent>({});

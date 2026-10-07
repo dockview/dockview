@@ -1737,6 +1737,246 @@ describe('ContextMenuController', () => {
         });
     });
 
+    describe("'channel' built-in item", () => {
+        const channels = [
+            { id: 'red', label: 'Red', color: 'var(--dv-channel-color-red)' },
+            {
+                id: 'blue',
+                label: 'Blue',
+                color: 'var(--dv-channel-color-blue)',
+            },
+        ];
+
+        const channelPanel = (
+            channel: string | undefined,
+            joinChannel = jest.fn(),
+            leaveChannel = jest.fn()
+        ) =>
+            fromPartial<IDockviewPanel>({
+                api: { channel, joinChannel, leaveChannel, close: jest.fn() },
+            });
+
+        function makeChannelAccessor(overrides: {
+            panelChannels?: any;
+            hasService?: boolean;
+            getTabContextMenuItems?: jest.Mock;
+            messages?: any;
+        }) {
+            const openPopover = jest.fn();
+            const close = jest.fn();
+            const popupService = fromPartial<PopupService>({
+                openPopover,
+                close,
+            });
+            const accessor = fromPartial<DockviewComponent>({
+                options: {
+                    panelChannels: overrides.panelChannels,
+                    getTabContextMenuItems: overrides.getTabContextMenuItems,
+                    messages: overrides.messages,
+                },
+                api: {} as any,
+                popupService,
+                getPopupServiceForGroup: () => popupService,
+                getPanelChannels: () => channels,
+                panelChannelsService:
+                    overrides.hasService === false ? undefined : ({} as any),
+            });
+            return { accessor, openPopover, close };
+        }
+
+        const show = (
+            accessor: DockviewComponent,
+            panel: IDockviewPanel
+        ): HTMLElement => {
+            new ContextMenuController(accessor).show(
+                panel,
+                makeGroup(),
+                new MouseEvent('contextmenu', { cancelable: true })
+            );
+            return (accessor.getPopupServiceForGroup(makeGroup()) as any)
+                .openPopover.mock.calls[0][0] as HTMLElement;
+        };
+
+        test('renders a label, one swatch per channel and a disabled Unlink row when unlinked', () => {
+            const { accessor } = makeChannelAccessor({
+                getTabContextMenuItems: jest.fn().mockReturnValue(['channel']),
+            });
+            const menuEl = show(accessor, channelPanel(undefined));
+
+            expect(
+                menuEl.querySelector('.dv-context-menu-channel-label')!
+                    .textContent
+            ).toBe('Link to');
+            const picker = menuEl.querySelector(
+                '.dv-context-menu-channel-picker'
+            )!;
+            expect(picker.getAttribute('role')).toBe('group');
+            expect(picker.getAttribute('aria-labelledby')).toBe(
+                menuEl.querySelector('.dv-context-menu-channel-label')!.id
+            );
+            const swatches = menuEl.querySelectorAll(
+                '.dv-context-menu-channel-swatch'
+            );
+            expect(swatches).toHaveLength(2);
+            expect(swatches[0].getAttribute('role')).toBe('menuitemradio');
+            expect(swatches[0].getAttribute('aria-checked')).toBe('false');
+            expect(swatches[0].getAttribute('aria-label')).toBe('Red');
+            expect((swatches[0] as HTMLElement).tabIndex).toBe(0);
+            expect(
+                (swatches[0] as HTMLElement).style.getPropertyValue(
+                    '--dv-channel-color'
+                )
+            ).toBe('var(--dv-channel-color-red)');
+            expect(
+                menuEl.querySelectorAll(
+                    '.dv-context-menu-channel-swatch--selected'
+                )
+            ).toHaveLength(0);
+
+            const unlink = menuEl.querySelector('.dv-context-menu-item')!;
+            expect(unlink.textContent).toBe('Unlink');
+            expect(
+                unlink.classList.contains('dv-context-menu-item--disabled')
+            ).toBe(true);
+        });
+
+        test('marks the current channel selected and enables Unlink when linked', () => {
+            const { accessor, close } = makeChannelAccessor({
+                getTabContextMenuItems: jest.fn().mockReturnValue(['channel']),
+            });
+            const leaveChannel = jest.fn();
+            const menuEl = show(
+                accessor,
+                channelPanel('blue', jest.fn(), leaveChannel)
+            );
+
+            const swatches = menuEl.querySelectorAll(
+                '.dv-context-menu-channel-swatch'
+            );
+            expect(
+                swatches[1].classList.contains(
+                    'dv-context-menu-channel-swatch--selected'
+                )
+            ).toBe(true);
+            expect(swatches[1].getAttribute('aria-checked')).toBe('true');
+
+            const unlink = menuEl.querySelector('.dv-context-menu-item')!;
+            expect(
+                unlink.classList.contains('dv-context-menu-item--disabled')
+            ).toBe(false);
+            fireEvent.click(unlink);
+            expect(leaveChannel).toHaveBeenCalledTimes(1);
+            expect(close).toHaveBeenCalled();
+        });
+
+        test('clicking a swatch joins that channel and closes the menu', () => {
+            const { accessor, close } = makeChannelAccessor({
+                getTabContextMenuItems: jest.fn().mockReturnValue(['channel']),
+            });
+            const joinChannel = jest.fn();
+            const menuEl = show(accessor, channelPanel(undefined, joinChannel));
+
+            fireEvent.click(
+                menuEl.querySelectorAll('.dv-context-menu-channel-swatch')[1]
+            );
+
+            expect(joinChannel).toHaveBeenCalledWith('blue');
+            expect(close).toHaveBeenCalled();
+        });
+
+        test('Enter and Space on a focused swatch join that channel', () => {
+            const { accessor } = makeChannelAccessor({
+                getTabContextMenuItems: jest.fn().mockReturnValue(['channel']),
+            });
+            const joinChannel = jest.fn();
+            const menuEl = show(accessor, channelPanel(undefined, joinChannel));
+            const swatch = menuEl.querySelector(
+                '.dv-context-menu-channel-swatch'
+            )!;
+
+            fireEvent.keyDown(swatch, { key: 'Enter' });
+            fireEvent.keyDown(swatch, { key: ' ' });
+            fireEvent.keyDown(swatch, { key: 'a' });
+
+            expect(joinChannel).toHaveBeenCalledTimes(2);
+            expect(joinChannel).toHaveBeenCalledWith('red');
+        });
+
+        test('labels come from the messages option', () => {
+            const { accessor } = makeChannelAccessor({
+                getTabContextMenuItems: jest.fn().mockReturnValue(['channel']),
+                messages: {
+                    channelLinkTo: () => 'Lier à',
+                    channelUnlink: () => 'Délier',
+                },
+            });
+            const menuEl = show(accessor, channelPanel(undefined));
+
+            expect(
+                menuEl.querySelector('.dv-context-menu-channel-label')!
+                    .textContent
+            ).toBe('Lier à');
+            expect(
+                menuEl.querySelector('.dv-context-menu-item')!.textContent
+            ).toBe('Délier');
+        });
+
+        test('is auto-injected after the pin item when enabled and the service is present', () => {
+            const { accessor } = makeChannelAccessor({
+                panelChannels: { enabled: true },
+                getTabContextMenuItems: jest.fn().mockReturnValue(['close']),
+            });
+            const menuEl = show(accessor, channelPanel(undefined));
+
+            expect(
+                menuEl.querySelector('.dv-context-menu-channel-picker')
+            ).not.toBeNull();
+            // The block precedes the app's own items.
+            expect(menuEl.firstElementChild!.className).toBe(
+                'dv-context-menu-channel'
+            );
+            expect(
+                Array.from(
+                    menuEl.querySelectorAll('.dv-context-menu-item')
+                ).map((el) => el.textContent)
+            ).toEqual(['Unlink', 'Close']);
+        });
+
+        test('is not auto-injected when contextMenuItem is false', () => {
+            const { accessor } = makeChannelAccessor({
+                panelChannels: { enabled: true, contextMenuItem: false },
+                getTabContextMenuItems: jest.fn().mockReturnValue(['close']),
+            });
+            const menuEl = show(accessor, channelPanel(undefined));
+            expect(
+                menuEl.querySelector('.dv-context-menu-channel-picker')
+            ).toBeNull();
+        });
+
+        test('is not auto-injected when the module is absent or channels are off', () => {
+            const absent = makeChannelAccessor({
+                panelChannels: { enabled: true },
+                hasService: false,
+                getTabContextMenuItems: jest.fn().mockReturnValue(['close']),
+            });
+            expect(
+                show(absent.accessor, channelPanel(undefined)).querySelector(
+                    '.dv-context-menu-channel-picker'
+                )
+            ).toBeNull();
+
+            const off = makeChannelAccessor({
+                panelChannels: {},
+                getTabContextMenuItems: jest.fn().mockReturnValue(['close']),
+            });
+            expect(
+                show(off.accessor, channelPanel(undefined)).querySelector(
+                    '.dv-context-menu-channel-picker'
+                )
+            ).toBeNull();
+        });
+    });
+
     describe('color swatch click', () => {
         function makeChipAccessor(palette: TabGroupColorPalette) {
             const openPopover = jest.fn();
