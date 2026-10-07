@@ -46,6 +46,7 @@ import {
     DockviewUnhandledDragOverEvent,
     DockviewHeaderDirection,
     DockviewHeaderPosition,
+    PanelChannelDefinition,
 } from './options';
 import { OverlayRenderContainer } from '../overlay/overlayRenderContainer';
 import { TitleEvent } from '../api/dockviewPanelApi';
@@ -196,6 +197,9 @@ export interface IHeader {
     /** Mount (or clear, with `undefined`) a second tab row above the main strip
      *  (PinnedTabs `separate-row` mode). The module owns the element. */
     setPinnedRow(el: HTMLElement | undefined): void;
+    /** Tint the header with a channel's colour (PanelChannels module), or
+     *  clear it with `undefined`. The module decides when; core only paints. */
+    setChannelAccent(channel: PanelChannelDefinition | undefined): void;
 }
 
 export type DockviewGroupPanelLocked = boolean | 'no-drop-target';

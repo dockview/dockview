@@ -27,6 +27,8 @@ import { LongPressDetector } from '../../../dnd/pointer/longPress';
 import { IDockviewPanel } from '../../dockviewPanel';
 import { DockviewHeaderDirection } from '../../options';
 import { resolveDndCapabilities } from '../../dndCapabilities';
+import { findPanelChannel } from '../../panelChannels';
+import { resolveMessages } from '../../accessibilityMessages';
 
 let _tabId = 0;
 /** Stable DOM id referenced by the tabpanel's `aria-labelledby`. */
@@ -43,6 +45,7 @@ export class Tab extends CompositeDisposable {
         LocalSelectionTransfer.getInstance<PanelTransfer>();
     private _direction: DockviewHeaderDirection = 'horizontal';
     private _pinIndicator: HTMLElement | undefined = undefined;
+    private _channelMarker: HTMLElement | undefined = undefined;
 
     private readonly _onPointDown = new Emitter<MouseEvent>();
     readonly onPointerDown: Event<MouseEvent> = this._onPointDown.event;
@@ -114,6 +117,9 @@ export class Tab extends CompositeDisposable {
         // nothing is pinned (i.e. when the PinnedTabs module is absent).
         // Re-applied here because a reorder recreates the Tab.
         this._updatePinnedClasses();
+        // Likewise the channel marker (PanelChannels module), driven off the
+        // panel's channel and inert while nothing is linked.
+        this._updateChannelMarker();
 
         const canDisplayOverlay = (
             event: DragEvent | PointerEvent,
@@ -253,9 +259,14 @@ export class Tab extends CompositeDisposable {
                 this.pointerDropTarget.setOverlayModel(model);
                 // `pinnedTabs.compact` may have changed.
                 this._updatePinnedClasses();
+                // `panelChannels.channels` may have changed.
+                this._updateChannelMarker();
             }),
             this.panel.api?.onDidChangePinned?.(() => {
                 this._updatePinnedClasses();
+            }) ?? { dispose: () => {} },
+            this.panel.api?.onDidChannelChange?.(() => {
+                this._updateChannelMarker();
             }) ?? { dispose: () => {} },
             this.panel.api?.onDidTitleChange?.((event) => {
                 this._element.setAttribute(
@@ -331,6 +342,58 @@ export class Tab extends CompositeDisposable {
         } else if (!wantGlyph && this._pinIndicator) {
             this._pinIndicator.remove();
             this._pinIndicator = undefined;
+        }
+    }
+
+    /**
+     * Reflect the panel's channel on the tab: the `dv-tab--channel` class,
+     * `data-channel` and `--dv-channel-color` are always applied so a custom
+     * tab renderer can style itself; the inline colour dot (`.dv-tab-channel`)
+     * is injected for the default renderer only, after the pin glyph if both
+     * are present. A channel id that is no longer configured keeps the class
+     * and data attribute but drops the colour (the dot falls back to
+     * `currentColor`).
+     */
+    private _updateChannelMarker(): void {
+        const channelId = this.panel.api?.channel;
+        const channel = findPanelChannel(this.accessor.options, channelId);
+        const linked = channelId !== undefined;
+
+        toggleClass(this.element, 'dv-tab--channel', linked);
+        if (linked) {
+            this._element.dataset.channel = channelId;
+        } else {
+            delete this._element.dataset.channel;
+        }
+        if (channel) {
+            this._element.style.setProperty(
+                '--dv-channel-color',
+                channel.color
+            );
+        } else {
+            this._element.style.removeProperty('--dv-channel-color');
+        }
+
+        const wantMarker = linked && !this.panel.api?.tabComponent;
+        if (wantMarker && !this._channelMarker) {
+            const marker = document.createElement('div');
+            marker.className = 'dv-tab-channel';
+            marker.setAttribute('role', 'img');
+            this._element.insertBefore(
+                marker,
+                this._pinIndicator?.nextSibling ?? this._element.firstChild
+            );
+            this._channelMarker = marker;
+        } else if (!wantMarker && this._channelMarker) {
+            this._channelMarker.remove();
+            this._channelMarker = undefined;
+        }
+        if (this._channelMarker) {
+            const name = resolveMessages(
+                this.accessor.options.messages
+            ).channelIndicator(channel?.label ?? channelId ?? '');
+            this._channelMarker.setAttribute('aria-label', name);
+            this._channelMarker.title = name;
         }
     }
 

@@ -1,0 +1,82 @@
+// Panel channels (PanelChannels module). Presentation only: every class here
+// is inert unless a panel is linked to a channel (nothing links panels without
+// the module), so this is a no-op for the default free layout.
+
+// A linked tab carries `dv-tab--channel`, `data-channel` and an inline
+// `--dv-channel-color`; the default renderer also gets a leading colour dot
+// (`.dv-tab-channel`, injected by the tab). A custom tab renderer receives the
+// class and variable only, and styles itself.
+.dv-tab.dv-tab--channel {
+    // Only lay the tab out as a flex row when a dot was actually injected.
+    &:has(.dv-tab-channel) {
+        display: flex;
+        align-items: center;
+    }
+
+    .dv-tab-channel {
+        display: inline-block;
+        flex-shrink: 0;
+        width: var(--dv-channel-marker-size);
+        height: var(--dv-channel-marker-size);
+        border-radius: 50%;
+        margin-right: 6px;
+        // A channel that is no longer configured keeps the dot, uncoloured.
+        background-color: var(--dv-channel-color, currentColor);
+        // Decorative indicator; clicks/drags belong to the tab beneath it.
+        pointer-events: none;
+    }
+
+    // Let the title shrink (ellipsis) beside the dot rather than overflow.
+    .dv-default-tab {
+        min-width: 0;
+    }
+}
+
+// Header accent: a thin channel-coloured line along the top of the strip for
+// the group's active panel. An inset shadow rather than a border so the header
+// keeps its height.
+.dv-tabs-and-actions-container.dv-tabs-and-actions-container--channel {
+    box-shadow: inset 0 2px 0 0 var(--dv-channel-color, currentColor);
+}
+
+// The context-menu channel block: a "Link to" heading, a row of swatches and
+// an "Unlink" row (an ordinary `.dv-context-menu-item`).
+.dv-context-menu-channel-label {
+    padding: 6px 12px 0;
+    font-size: 11px;
+    opacity: 0.7;
+}
+
+.dv-context-menu-channel-picker {
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+    padding: 6px 12px 8px;
+    align-items: center;
+}
+
+.dv-context-menu-channel-swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    flex-shrink: 0;
+    // Each swatch sets `--dv-channel-color` inline; read here so `var(...)`
+    // references resolve in the CSS engine rather than at JS-IDL parse time.
+    background-color: var(--dv-channel-color);
+
+    &:hover {
+        opacity: 0.85;
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--dv-tab-divider-color);
+        outline-offset: 2px;
+    }
+
+    &.dv-context-menu-channel-swatch--selected {
+        outline: 2px solid var(--dv-tab-divider-color);
+        outline-offset: 2px;
+    }
+}
