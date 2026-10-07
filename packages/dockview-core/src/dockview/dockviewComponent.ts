@@ -3477,7 +3477,7 @@ export class DockviewComponent
             this._shellManager!.removeEdgeView(position);
 
             // Clean up service-tracked state + group itself
-            service.remove(position);
+            service.remove(group);
             group.dispose();
             this._groups.delete(group.id);
             this._onDidRemoveGroup.fire(group);
