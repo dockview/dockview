@@ -3427,9 +3427,7 @@ export class DockviewComponent
                 group as IEdgeGroupHost,
                 {
                     index: placement.index,
-                    relativeTo: placement.relativeTo as
-                        | IEdgeGroupHost
-                        | undefined,
+                    relativeTo: placement.relativeTo,
                     placement: options.stack?.placement,
                     size: options.stack?.size,
                     minimumSize: options.stack?.minimumSize,
@@ -3572,11 +3570,14 @@ export class DockviewComponent
         }
         const service = this._edgeGroupService;
         const group = this._groups.get(groupId)?.value;
-        const position = group && service?.findPositionOf(group);
-        if (!group || !position) {
+        if (!service || !group) {
             return;
         }
-        const siblings = service!.getAll(position);
+        const position = service.findPositionOf(group);
+        if (!position) {
+            return;
+        }
+        const siblings = service.getAll(position);
         let index: number;
         if ('relativeTo' in to) {
             const anchor = siblings.find((g) => g.id === to.relativeTo);
@@ -3595,7 +3596,7 @@ export class DockviewComponent
             return;
         }
         this.mutation('move', () => {
-            service!.move(group, index);
+            service.move(group, index);
             this._shellManager!.moveEdgeView(group, index);
         });
     }
@@ -4997,6 +4998,10 @@ export class DockviewComponent
             const target = toTarget(
                 <Direction>options.position?.direction || 'within'
             );
+            const edgePlacement = this._edgeSplitPlacement(
+                referenceGroup,
+                target
+            );
 
             if (options.floating) {
                 const group = this.createGroup();
@@ -5022,11 +5027,11 @@ export class DockviewComponent
                     skipSetGroupActive: options.inactive,
                     index,
                 });
-            } else if (this._edgeSplitPlacement(referenceGroup, target)) {
+            } else if (edgePlacement) {
                 // a direction along a stackable edge opens a new sibling there
                 const group = this._splitEdgeGroup(
                     referenceGroup,
-                    this._edgeSplitPlacement(referenceGroup, target)!,
+                    edgePlacement,
                     {
                         size:
                             target === 'top' || target === 'bottom'

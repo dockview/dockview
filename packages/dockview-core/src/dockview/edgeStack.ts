@@ -214,21 +214,17 @@ export class EdgeGroupView implements IView {
         this._disposables.addDisposables(
             watchElementResize(strip, () => {
                 const thicknessIsWidth = isThicknessWidth(this._position);
+                const along = (element: HTMLElement | null): number =>
+                    thicknessIsWidth
+                        ? (element?.offsetHeight ?? 0)
+                        : (element?.offsetWidth ?? 0);
                 const thickness = thicknessIsWidth
                     ? strip.offsetWidth
                     : strip.offsetHeight;
-                const extent = thicknessIsWidth
-                    ? strip.offsetHeight
-                    : strip.offsetWidth;
                 const drag = strip.querySelector<HTMLElement>(
                     ':scope > .dv-void-container'
                 );
-                const dragExtent = drag
-                    ? thicknessIsWidth
-                        ? drag.offsetHeight
-                        : drag.offsetWidth
-                    : 0;
-                this._applyStripSize(thickness, extent - dragExtent);
+                this._applyStripSize(thickness, along(strip) - along(drag));
             })
         );
     }
