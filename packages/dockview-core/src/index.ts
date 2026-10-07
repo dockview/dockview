@@ -27,6 +27,8 @@ export {
     type PopoutWindowEvent,
     type PopoutWindowFailure,
     type PopoutWindowFailureReason,
+    type PopoutWindowOpenRequest,
+    type PopoutWindowFactory,
 } from './popoutWindow';
 
 /** Readable through `api.dndCapabilities`. */

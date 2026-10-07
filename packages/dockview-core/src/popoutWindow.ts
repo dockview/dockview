@@ -35,6 +35,41 @@ export interface PopoutWindowFailure {
     readonly error?: Error;
 }
 
+/**
+ * Everything dockview would pass to `window.open`, handed to a
+ * `popoutWindowFactory` so a host can open the window itself.
+ */
+export interface PopoutWindowOpenRequest {
+    /** The window name dockview would pass to `window.open`. */
+    readonly id: string;
+    /** The popout url, resolved to an absolute same-origin URL. */
+    readonly url: string;
+    /** The window bounds dockview would request, in screen coordinates. */
+    readonly box: Box;
+    /** The features string dockview would pass to `window.open`. */
+    readonly features: string;
+}
+
+/**
+ * Supply the popout `Window` yourself instead of dockview calling
+ * `window.open`. Return `null` (or throw) to signal "blocked"; dockview then
+ * runs its existing blocked-popout recovery. The returned `Window` must be
+ * same-process and same-origin: dockview drives its normal pipeline against
+ * it (load → move DOM container → clone styles). A window that has already
+ * finished loading is attached to immediately.
+ */
+export type PopoutWindowFactory = (
+    request: PopoutWindowOpenRequest
+) => Window | null | Promise<Window | null>;
+
+/** Feature keys derived from the placement box; not overridable. */
+const GEOMETRY_FEATURE_KEYS: ReadonlySet<string> = new Set([
+    'top',
+    'left',
+    'width',
+    'height',
+]);
+
 export type PopoutWindowOptions = {
     url: string;
     onDidOpen?: (event: PopoutWindowEvent) => void;
@@ -45,6 +80,15 @@ export type PopoutWindowOptions = {
      *  not in `document.styleSheets`. Rules that target the shadow host
      *  (`:host`, `::slotted`) match nothing in the popout. */
     styleRoot?: () => Node;
+    windowFactory?: PopoutWindowFactory;
+    /**
+     * Extra window.open feature entries appended to the features string —
+     * e.g. a marker for an Electron `setWindowOpenHandler` to match on, or
+     * nonstandard features a host honours. Booleans serialize as 1/0 (the
+     * form window features expect). Geometry keys and entries containing
+     * ',' or '=' are ignored with a warning.
+     */
+    extraFeatures?: Record<string, string | number | boolean>;
 } & Box;
 
 /**
@@ -194,20 +238,73 @@ export class PopoutWindow extends CompositeDisposable {
 
         const url = `${this.options.url}`;
         assertSameOriginPopoutUrl(url);
+        // Absolute, so a factory forwarding the request to another process
+        // (an Electron main process, say) receives a usable URL.
+        const resolvedUrl = new URL(url, globalThis.location.href).href;
 
-        const features = Object.entries({
-            top: this.options.top,
-            left: this.options.left,
-            width: this.options.width,
-            height: this.options.height,
-        })
-            .map(([key, value]) => `${key}=${value}`)
-            .join(',');
+        const featureEntries = [
+            `top=${this.options.top}`,
+            `left=${this.options.left}`,
+            `width=${this.options.width}`,
+            `height=${this.options.height}`,
+        ];
+        for (const [key, value] of Object.entries(
+            this.options.extraFeatures ?? {}
+        )) {
+            // The geometry keys come from the placement box; an override here
+            // would make the features string disagree with the box a factory
+            // receives. ','/'=' are the features-string delimiters; a value
+            // containing them would corrupt or inject entries.
+            if (GEOMETRY_FEATURE_KEYS.has(key)) {
+                console.warn(
+                    `dockview: ignoring extra window feature '${key}': geometry keys come from the placement box`
+                );
+                continue;
+            }
+            if (/[,=]/.test(key) || /[,=]/.test(String(value))) {
+                console.warn(
+                    `dockview: ignoring extra window feature '${key}': ',' and '=' cannot appear in a feature`
+                );
+                continue;
+            }
+            featureEntries.push(
+                typeof value === 'boolean'
+                    ? `${key}=${value ? 1 : 0}`
+                    : `${key}=${value}`
+            );
+        }
+        const features = featureEntries.join(',');
 
         /**
          * @see https://developer.mozilla.org/en-US/docs/Web/API/Window/open
          */
-        const externalWindow = window.open(url, this.target, features);
+        let externalWindow: Window | null;
+        if (this.options.windowFactory) {
+            try {
+                externalWindow = await this.options.windowFactory({
+                    id: this.target,
+                    url: resolvedUrl,
+                    box: {
+                        top: this.options.top,
+                        left: this.options.left,
+                        width: this.options.width,
+                        height: this.options.height,
+                    },
+                    features,
+                });
+            } catch (err) {
+                // A throwing factory settles like a blocked popup: the
+                // recovery re-docks the group and reports the failure, rather
+                // than a silent rejection that would orphan a restored group.
+                this._failure = {
+                    reason: 'blocked',
+                    error: err instanceof Error ? err : new Error(String(err)),
+                };
+                return null;
+            }
+        } else {
+            externalWindow = window.open(url, this.target, features);
+        }
 
         if (!externalWindow) {
             this._failure = { reason: 'blocked' };
@@ -261,40 +358,7 @@ export class PopoutWindow extends CompositeDisposable {
                 resolve(null);
             };
 
-            try {
-                externalWindow.addEventListener('unload', () => {
-                    // Deliberately not a settle signal. `unload` fires on the
-                    // window's initial `about:blank` document as it navigates to
-                    // `url`, which happens *before* `load` on a perfectly healthy
-                    // popout - resolving here would send every popout down the
-                    // blocked-popup path.
-                });
-            } catch (err) {
-                abandon(err);
-                return;
-            }
-
-            /**
-             * `load` is the only event that resolves this promise with a
-             * container, so a window that goes away first would leave the
-             * caller awaiting a promise that never settles - and
-             * `addPopoutGroup` holds its layout transaction open until it does.
-             * Settle with `null` on close, the same signal a blocked popup
-             * gives and one the caller already handles. `resolve` after the
-             * fact is a no-op, so a `load` that arrived first still wins.
-             */
-            disposable.addDisposables(
-                this.onWillClose(() => {
-                    this._failure ??= { reason: 'closed' };
-                    resolve(null);
-                })
-            );
-
-            externalWindow.addEventListener('load', () => {
-                /**
-                 * @see https://developer.mozilla.org/en-US/docs/Web/API/Window/load_event
-                 */
-
+            const attach = (): void => {
                 try {
                     const externalDocument = externalWindow.document;
                     externalDocument.title = document.title;
@@ -355,6 +419,66 @@ export class PopoutWindow extends CompositeDisposable {
                     // opened, but its document cannot be reached
                     abandon(err);
                 }
+            };
+
+            // A factory may hand over a window that has ALREADY loaded
+            // (pre-opened / reused windows are an advertised use); 'load'
+            // never re-fires there, so waiting would hang forever. Attach
+            // immediately — but only when the document is the real
+            // same-origin one, not a fresh window's initial about:blank
+            // (which also reports readyState 'complete' while its navigation
+            // is still in flight; that is why the window.open path always
+            // waits for 'load').
+            if (this.options.windowFactory) {
+                try {
+                    const doc = externalWindow.document;
+                    if (
+                        doc?.readyState === 'complete' &&
+                        doc.location?.href !== 'about:blank'
+                    ) {
+                        attach();
+                        return;
+                    }
+                } catch (err) {
+                    abandon(err);
+                    return;
+                }
+            }
+
+            try {
+                externalWindow.addEventListener('unload', () => {
+                    // Deliberately not a settle signal. `unload` fires on the
+                    // window's initial `about:blank` document as it navigates to
+                    // `url`, which happens *before* `load` on a perfectly healthy
+                    // popout - resolving here would send every popout down the
+                    // blocked-popup path.
+                });
+            } catch (err) {
+                abandon(err);
+                return;
+            }
+
+            /**
+             * `load` is the only event that resolves this promise with a
+             * container, so a window that goes away first would leave the
+             * caller awaiting a promise that never settles - and
+             * `addPopoutGroup` holds its layout transaction open until it does.
+             * Settle with `null` on close, the same signal a blocked popup
+             * gives and one the caller already handles. `resolve` after the
+             * fact is a no-op, so a `load` that arrived first still wins.
+             */
+            disposable.addDisposables(
+                this.onWillClose(() => {
+                    this._failure ??= { reason: 'closed' };
+                    resolve(null);
+                })
+            );
+
+            externalWindow.addEventListener('load', () => {
+                /**
+                 * @see https://developer.mozilla.org/en-US/docs/Web/API/Window/load_event
+                 */
+                attach();
             });
         });
     }

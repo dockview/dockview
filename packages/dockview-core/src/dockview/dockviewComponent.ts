@@ -217,6 +217,13 @@ export interface DockviewPopoutGroupOptions {
      * it. Scoped to this call; `onWillClosePopoutWindow` covers every popout.
      */
     onWillClose?: (event: PopoutWindowEvent) => void;
+    /**
+     * Extra window.open feature entries for this popout, merged over the
+     * component-level `popoutWindowFeatures`. Not replayed when a layout is
+     * restored, so keep host-level markers in the component option. Booleans
+     * serialize as 1/0.
+     */
+    extraWindowFeatures?: Record<string, string | number | boolean>;
 }
 
 interface DockviewPopoutGroupOptionsInternal
@@ -2030,6 +2037,18 @@ export class DockviewComponent
                 },
                 nonce: this.options?.nonce,
                 styleRoot: () => this.element.getRootNode(),
+                // Component-level features apply to every popout (including
+                // fromJSON-restored ones, which replay no per-call options);
+                // per-call entries merge over them.
+                extraFeatures:
+                    this.options?.popoutWindowFeatures ||
+                    options?.extraWindowFeatures
+                        ? {
+                              ...this.options?.popoutWindowFeatures,
+                              ...options?.extraWindowFeatures,
+                          }
+                        : undefined,
+                windowFactory: this.options?.popoutWindowFactory,
             }
         );
 

@@ -31,6 +31,7 @@ import { DockviewTheme } from './theme';
 import { ITabGroup } from './tabGroup';
 import { CspNonceProvider } from '../dom';
 export { type CspNonceProvider };
+import { PopoutWindowFactory } from '../popoutWindow';
 import { DockviewTabGroupColorEntry } from './tabGroupAccent';
 
 export interface IHeaderActionsRenderer extends IDisposable {
@@ -408,6 +409,32 @@ export interface DockviewOptions {
      */
     floatingGroupDragHandle?: 'titlebar' | 'tabbar';
     popoutUrl?: string;
+    /**
+     * Supply the popout `Window` yourself instead of dockview calling
+     * `window.open` — e.g. an Electron app routing window creation through
+     * its own logic, an app that pre-opens or reuses windows, or a test
+     * injecting a window. Return `null` (or throw) to signal "blocked":
+     * dockview then runs its existing blocked-popout recovery
+     * (`onDidOpenPopoutWindowFail`).
+     *
+     * The returned `Window` MUST be same-process and same-origin — dockview
+     * drives its normal pipeline against it (load → move DOM container →
+     * clone styles). The popout URL is validated by the same-origin check
+     * regardless of who opens the window. Honoured live via
+     * `updateOptions`; the factory is consulted each time a popout opens.
+     */
+    popoutWindowFactory?: PopoutWindowFactory;
+    /**
+     * Extra window.open feature entries applied to EVERY popout window this
+     * component opens, including popouts recreated by `fromJSON` — the
+     * right home for a host-level marker such as `{ dockviewPopout: 1 }`
+     * that an Electron `setWindowOpenHandler` matches on (a per-call
+     * `extraWindowFeatures` is not replayed on layout restore). Per-call
+     * entries are merged over these. Booleans serialize as 1/0; the
+     * geometry keys (top/left/width/height) and values containing ',' or
+     * '=' are ignored with a warning.
+     */
+    popoutWindowFeatures?: Record<string, string | number | boolean>;
     nonce?: CspNonceProvider;
     defaultRenderer?: DockviewPanelRenderer;
     defaultHeaderPosition?: DockviewHeaderPosition;
@@ -798,6 +825,8 @@ export const PROPERTY_KEYS_DOCKVIEW: (keyof DockviewOptions)[] = (() => {
         smartGuides: undefined,
         floatingGroupDragHandle: undefined,
         popoutUrl: undefined,
+        popoutWindowFactory: undefined,
+        popoutWindowFeatures: undefined,
         nonce: undefined,
         defaultRenderer: undefined,
         defaultHeaderPosition: undefined,
