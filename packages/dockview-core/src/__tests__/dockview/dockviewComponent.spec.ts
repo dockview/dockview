@@ -12669,7 +12669,8 @@ describe('dockviewComponent', () => {
             fresh.layout(1000, 800);
             fresh.fromJSON(state);
 
-            const view = (fresh as any)._shellManager._rightView;
+            const view = (fresh as any)._shellManager._stacks.get('right')
+                .members[0];
             expect(view).toBeDefined();
             expect(view.configuredMaximumSize).toBe(400);
             expect(view.configuredMinimumSize).toBe(150);
@@ -13267,7 +13268,7 @@ describe('dockviewComponent', () => {
             expect(edgeGroup.api.location.type).toBe('edge');
             expect(edgeGroup.panels).toHaveLength(0);
             // ...and auto-collapsed via the addEdgeGroup listener
-            expect((dv as any)._shellManager.isEdgeGroupCollapsed('left')).toBe(
+            expect((dv as any)._shellManager.isEdgeCollapsed('left')).toBe(
                 true
             );
 

@@ -3474,7 +3474,7 @@ export class DockviewComponent
             }
 
             // Remove from the shell splitview
-            this._shellManager!.removeEdgeView(position);
+            this._shellManager!.removeEdgeView(group);
 
             // Clean up service-tracked state + group itself
             service.remove(group);
@@ -3487,25 +3487,21 @@ export class DockviewComponent
     }
 
     setEdgeGroupCollapsed(group: DockviewGroupPanel, collapsed: boolean): void {
-        const position = this._edgeGroupService?.findPositionOf(group);
-        if (!position) {
+        if (!this._edgeGroupService?.includes(group)) {
             return;
         }
-        if (this._shellManager!.isEdgeGroupCollapsed(position) === collapsed) {
+        if (this._shellManager!.isEdgeGroupCollapsed(group) === collapsed) {
             // Skip the splitview resize on a no-op: with non-zero theme gap,
             // redundant resizeView calls accumulate rounding drift that
             // gradually shrinks the group.
             return;
         }
-        this._shellManager!.setEdgeGroupCollapsed(position, collapsed);
+        this._shellManager!.setEdgeGroupCollapsed(group, collapsed);
         group.api._onDidCollapsedChange.fire({ isCollapsed: collapsed });
     }
 
     isEdgeGroupCollapsed(group: DockviewGroupPanel): boolean {
-        const position = this._edgeGroupService?.findPositionOf(group);
-        return position
-            ? this._shellManager!.isEdgeGroupCollapsed(position)
-            : false;
+        return this._shellManager?.isEdgeGroupCollapsed(group) ?? false;
     }
 
     /** Edge groups currently peeking (auto-hide). The peek state is owned by the

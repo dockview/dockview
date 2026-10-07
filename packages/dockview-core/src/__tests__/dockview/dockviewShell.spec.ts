@@ -1,9 +1,9 @@
 import {
-    EdgeGroupView,
     EdgeGroupOptions,
     IEdgeGroupHost,
     ShellManager,
 } from '../../dockview/dockviewShell';
+import { EdgeStackView } from '../../dockview/edgeStack';
 
 function makeGroup(): IEdgeGroupHost & { layout: jest.Mock } {
     return {
@@ -11,291 +11,6 @@ function makeGroup(): IEdgeGroupHost & { layout: jest.Mock } {
         layout: jest.fn(),
     };
 }
-
-describe('EdgeGroupView', () => {
-    describe('construction', () => {
-        test('collapsedSize defaults to 35', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView({ id: 'test' }, group, 'horizontal');
-            expect(view.collapsedSize).toBe(35);
-        });
-
-        test('expandedMinimumSize = collapsedSize + 50 when minimumSize not provided', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView(
-                { id: 'test', collapsedSize: 30 },
-                group,
-                'horizontal'
-            );
-            // minimumSize when not collapsed = expandedMinimumSize = 30 + 50 = 80
-            expect(view.minimumSize).toBe(80);
-        });
-
-        test('expandedMinimumSize = provided minimumSize when given', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView(
-                { id: 'test', minimumSize: 100 },
-                group,
-                'horizontal'
-            );
-            expect(view.minimumSize).toBe(100);
-        });
-
-        test('lastExpandedSize defaults to 200 when initialSize not provided', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView({ id: 'test' }, group, 'horizontal');
-            expect(view.lastExpandedSize).toBe(200);
-        });
-
-        test('lastExpandedSize = provided initialSize', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView(
-                { id: 'test', initialSize: 350 },
-                group,
-                'horizontal'
-            );
-            expect(view.lastExpandedSize).toBe(350);
-        });
-
-        test('adds dv-edge-group CSS class to group element', () => {
-            const group = makeGroup();
-            new EdgeGroupView({ id: 'test' }, group, 'horizontal');
-            expect(group.element.classList.contains('dv-edge-group')).toBe(
-                true
-            );
-        });
-
-        test('sets data-testid = dv-edge-group-<id>', () => {
-            const group = makeGroup();
-            new EdgeGroupView({ id: 'my-panel' }, group, 'horizontal');
-            expect(group.element.dataset.testid).toBe('dv-edge-group-my-panel');
-        });
-
-        test('isCollapsed is true when collapsed option is true', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView(
-                { id: 'test', collapsed: true },
-                group,
-                'horizontal'
-            );
-            expect(view.isCollapsed).toBe(true);
-            expect(group.element.classList.contains('dv-edge-collapsed')).toBe(
-                true
-            );
-        });
-    });
-
-    describe('minimumSize getter', () => {
-        test('returns collapsedSize when collapsed', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView(
-                { id: 'test', collapsedSize: 40 },
-                group,
-                'horizontal'
-            );
-            view.setCollapsed(true);
-            expect(view.minimumSize).toBe(40);
-        });
-
-        test('returns expandedMinimumSize when expanded', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView(
-                { id: 'test', collapsedSize: 40, minimumSize: 120 },
-                group,
-                'horizontal'
-            );
-            expect(view.minimumSize).toBe(120);
-        });
-    });
-
-    describe('maximumSize getter', () => {
-        test('returns collapsedSize when collapsed', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView(
-                { id: 'test', collapsedSize: 40 },
-                group,
-                'horizontal'
-            );
-            view.setCollapsed(true);
-            expect(view.maximumSize).toBe(40);
-        });
-
-        test('returns Infinity when expanded and maximumSize not provided', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView({ id: 'test' }, group, 'horizontal');
-            expect(view.maximumSize).toBe(Number.POSITIVE_INFINITY);
-        });
-
-        test('returns provided expandedMaximumSize when expanded', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView(
-                { id: 'test', maximumSize: 600 },
-                group,
-                'horizontal'
-            );
-            expect(view.maximumSize).toBe(600);
-        });
-    });
-
-    describe('setCollapsed', () => {
-        test('setCollapsed(true): isCollapsed becomes true and adds dv-edge-collapsed class', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView({ id: 'test' }, group, 'horizontal');
-            view.setCollapsed(true);
-            expect(view.isCollapsed).toBe(true);
-            expect(group.element.classList.contains('dv-edge-collapsed')).toBe(
-                true
-            );
-        });
-
-        test('setCollapsed(false): isCollapsed becomes false and removes dv-edge-collapsed class', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView({ id: 'test' }, group, 'horizontal');
-            view.setCollapsed(true);
-            view.setCollapsed(false);
-            expect(view.isCollapsed).toBe(false);
-            expect(group.element.classList.contains('dv-edge-collapsed')).toBe(
-                false
-            );
-        });
-
-        test('setCollapsed(true) twice is a no-op on the second call', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView({ id: 'test' }, group, 'horizontal');
-            view.setCollapsed(true);
-            const afterFirst = view.isCollapsed;
-            view.setCollapsed(true);
-            expect(view.isCollapsed).toBe(afterFirst);
-        });
-    });
-
-    describe('layout', () => {
-        test('horizontal: calls group.layout(size, orthogonalSize)', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView({ id: 'test' }, group, 'horizontal');
-            view.layout(250, 800);
-            expect(group.layout).toHaveBeenCalledWith(250, 800);
-        });
-
-        test('vertical: calls group.layout(orthogonalSize, size)', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView({ id: 'test' }, group, 'vertical');
-            view.layout(200, 900);
-            // vertical: size=height, orthogonalSize=width → layout(width, height)
-            expect(group.layout).toHaveBeenCalledWith(900, 200);
-        });
-
-        test('when not collapsed: updates lastExpandedSize', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView(
-                { id: 'test', initialSize: 200 },
-                group,
-                'horizontal'
-            );
-            view.layout(350, 800);
-            expect(view.lastExpandedSize).toBe(350);
-        });
-
-        test('when collapsed: does NOT update lastExpandedSize', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView(
-                { id: 'test', initialSize: 200 },
-                group,
-                'horizontal'
-            );
-            view.setCollapsed(true);
-            view.layout(35, 800);
-            expect(view.lastExpandedSize).toBe(200);
-        });
-    });
-
-    describe('tab-strip size tracking', () => {
-        test('a measured tab size wins over the configured collapsed size', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView(
-                { id: 'test', collapsedSize: 44 },
-                group,
-                'vertical'
-            );
-            expect(view.collapsedSize).toBe(44);
-
-            // Simulate the tab strip growing (as when the
-            // --dv-tabs-and-actions-container-height CSS variable is bumped).
-            (view as any)._applyMeasuredTabSize(60);
-            expect(view.collapsedSize).toBe(60);
-        });
-
-        test('the measured tab size is added to the gap contribution', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView(
-                { id: 'test', collapsedSize: 44 },
-                group,
-                'vertical',
-                5
-            );
-            expect(view.collapsedSize).toBe(49);
-
-            (view as any)._applyMeasuredTabSize(60);
-            expect(view.collapsedSize).toBe(65);
-        });
-
-        test('when collapsed: a measured tab size resizes via onDidChange', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView(
-                { id: 'test', collapsedSize: 44 },
-                group,
-                'vertical'
-            );
-            view.setCollapsed(true);
-
-            const sizes: (number | undefined)[] = [];
-            view.onDidChange((e) => sizes.push(e.size));
-
-            (view as any)._applyMeasuredTabSize(60);
-
-            expect(sizes).toEqual([60]);
-            expect(view.minimumSize).toBe(60);
-            expect(view.maximumSize).toBe(60);
-        });
-
-        test('when expanded: a measured tab size does NOT fire onDidChange', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView(
-                { id: 'test', collapsedSize: 44 },
-                group,
-                'vertical'
-            );
-
-            const sizes: (number | undefined)[] = [];
-            view.onDidChange((e) => sizes.push(e.size));
-
-            (view as any)._applyMeasuredTabSize(60);
-
-            expect(sizes).toEqual([]);
-            // but a later collapse uses the measured size
-            expect(view.collapsedSize).toBe(60);
-        });
-
-        test('a zero or unchanged measurement is ignored', () => {
-            const group = makeGroup();
-            const view = new EdgeGroupView(
-                { id: 'test', collapsedSize: 44 },
-                group,
-                'vertical'
-            );
-            view.setCollapsed(true);
-
-            const sizes: (number | undefined)[] = [];
-            view.onDidChange((e) => sizes.push(e.size));
-
-            (view as any)._applyMeasuredTabSize(0);
-            (view as any)._applyMeasuredTabSize(60);
-            (view as any)._applyMeasuredTabSize(60);
-
-            expect(sizes).toEqual([60]);
-        });
-    });
-});
 
 describe('ShellManager', () => {
     let container: HTMLElement;
@@ -313,6 +28,11 @@ describe('ShellManager', () => {
         container.parentElement?.removeChild(container);
     });
 
+    /** The group host registered at each position by the last `makeShell`. */
+    let groups: Partial<
+        Record<'top' | 'bottom' | 'left' | 'right', IEdgeGroupHost>
+    >;
+
     function makeShell(
         config: Partial<
             Record<'top' | 'bottom' | 'left' | 'right', EdgeGroupViewOptions>
@@ -327,12 +47,23 @@ describe('ShellManager', () => {
             gap,
             defaultCollapsedSize
         );
+        groups = {};
         for (const pos of ['top', 'bottom', 'left', 'right'] as const) {
             if (config[pos]) {
-                shell.addEdgeView(pos, config[pos]!, makeGroup());
+                const group = makeGroup();
+                groups[pos] = group;
+                shell.addEdgeView(pos, config[pos]!, group);
             }
         }
         return shell;
+    }
+
+    /** The stack view the shell sizes across the edge at `position`. */
+    function stackOf(
+        shell: ShellManager,
+        position: 'top' | 'bottom' | 'left' | 'right'
+    ): EdgeStackView {
+        return (shell as any)._stacks.get(position);
     }
 
     describe('hasEdgeGroup', () => {
@@ -452,16 +183,24 @@ describe('ShellManager', () => {
             });
         });
 
-        test('addEdgeView throws when position already registered', () => {
+        test('a second group at a position joins that edge in order', () => {
             const shell = new ShellManager(
                 container,
                 dockviewElement,
                 layoutGrid
             );
-            shell.addEdgeView('left', { id: 'left' }, makeGroup());
-            expect(() =>
-                shell.addEdgeView('left', { id: 'left-2' }, makeGroup())
-            ).toThrow();
+            const first = shell.addEdgeView(
+                'left',
+                { id: 'left' },
+                makeGroup()
+            );
+            const second = shell.addEdgeView(
+                'left',
+                { id: 'left-2' },
+                makeGroup()
+            );
+            expect(stackOf(shell, 'left').members).toEqual([first, second]);
+            expect(shell.hasEdgeGroup('left')).toBe(true);
             shell.dispose();
         });
     });
@@ -514,41 +253,41 @@ describe('ShellManager', () => {
     describe('setEdgeGroupCollapsed / isEdgeGroupCollapsed', () => {
         test('collapse and expand left panel', () => {
             const shell = makeShell({ left: { id: 'left' } });
-            expect(shell.isEdgeGroupCollapsed('left')).toBe(false);
-            shell.setEdgeGroupCollapsed('left', true);
-            expect(shell.isEdgeGroupCollapsed('left')).toBe(true);
-            shell.setEdgeGroupCollapsed('left', false);
-            expect(shell.isEdgeGroupCollapsed('left')).toBe(false);
+            expect(shell.isEdgeCollapsed('left')).toBe(false);
+            shell.setEdgeGroupCollapsed(groups.left!, true);
+            expect(shell.isEdgeCollapsed('left')).toBe(true);
+            shell.setEdgeGroupCollapsed(groups.left!, false);
+            expect(shell.isEdgeCollapsed('left')).toBe(false);
             shell.dispose();
         });
 
         test('collapse right panel', () => {
             const shell = makeShell({ right: { id: 'right' } });
-            shell.setEdgeGroupCollapsed('right', true);
-            expect(shell.isEdgeGroupCollapsed('right')).toBe(true);
+            shell.setEdgeGroupCollapsed(groups.right!, true);
+            expect(shell.isEdgeCollapsed('right')).toBe(true);
             shell.dispose();
         });
 
         test('collapse top panel', () => {
             const shell = makeShell({ top: { id: 'top' } });
-            shell.setEdgeGroupCollapsed('top', true);
-            expect(shell.isEdgeGroupCollapsed('top')).toBe(true);
+            shell.setEdgeGroupCollapsed(groups.top!, true);
+            expect(shell.isEdgeCollapsed('top')).toBe(true);
             shell.dispose();
         });
 
         test('collapse bottom panel', () => {
             const shell = makeShell({ bottom: { id: 'bottom' } });
-            shell.setEdgeGroupCollapsed('bottom', true);
-            expect(shell.isEdgeGroupCollapsed('bottom')).toBe(true);
+            shell.setEdgeGroupCollapsed(groups.bottom!, true);
+            expect(shell.isEdgeCollapsed('bottom')).toBe(true);
             shell.dispose();
         });
 
-        test('collapse unconfigured position is a no-op', () => {
+        test('collapse of an unregistered group is a no-op', () => {
             const shell = makeShell({});
             expect(() =>
-                shell.setEdgeGroupCollapsed('left', true)
+                shell.setEdgeGroupCollapsed(makeGroup(), true)
             ).not.toThrow();
-            expect(shell.isEdgeGroupCollapsed('left')).toBe(false);
+            expect(shell.isEdgeCollapsed('left')).toBe(false);
             shell.dispose();
         });
     });
@@ -614,13 +353,13 @@ describe('ShellManager', () => {
             test('a collapsed group keeps its strip and expands to the new size', () => {
                 const shell = makeShell(cfg());
                 shell.layout(1000, 800);
-                shell.setEdgeGroupCollapsed(position, true);
+                shell.setEdgeGroupCollapsed(groups[position]!, true);
                 const collapsed = sizeOf(shell, position);
 
                 shell.resizeEdgeGroup(position, 420);
                 expect(sizeOf(shell, position)).toBe(collapsed);
 
-                shell.setEdgeGroupCollapsed(position, false);
+                shell.setEdgeGroupCollapsed(groups[position]!, false);
                 expect(sizeOf(shell, position)).toBe(420);
                 shell.dispose();
             });
@@ -668,7 +407,7 @@ describe('ShellManager', () => {
                         collapsed: true,
                     },
                 });
-                expect(shell.isEdgeGroupCollapsed(position)).toBe(true);
+                expect(shell.isEdgeCollapsed(position)).toBe(true);
 
                 shell.fromJSON({
                     [position]: { size: 300, visible: false },
@@ -680,7 +419,7 @@ describe('ShellManager', () => {
                     [position]: { size: 300, visible: true },
                 });
                 expect(shell.isEdgeGroupVisible(position)).toBe(true);
-                expect(shell.isEdgeGroupCollapsed(position)).toBe(false);
+                expect(shell.isEdgeCollapsed(position)).toBe(false);
                 expect(sizeOf(shell, position)).toBe(300);
                 shell.dispose();
             });
@@ -711,9 +450,9 @@ describe('ShellManager', () => {
         test('a sash resize after a collapse/expand cycle survives a later relayout', () => {
             const shell = makeShell({ left: { id: 'left', initialSize: 260 } });
             // collapsed before layout, so the held size is still outstanding
-            shell.setEdgeGroupCollapsed('left', true);
+            shell.setEdgeGroupCollapsed(groups.left!, true);
             shell.layout(1000, 800);
-            shell.setEdgeGroupCollapsed('left', false);
+            shell.setEdgeGroupCollapsed(groups.left!, false);
 
             // the user drags the sash
             (shell as any)._outerSplitview.resizeView(
@@ -770,7 +509,7 @@ describe('ShellManager', () => {
 
         test('collapsed field is true when collapsed', () => {
             const shell = makeShell({ left: { id: 'left', initialSize: 250 } });
-            shell.setEdgeGroupCollapsed('left', true);
+            shell.setEdgeGroupCollapsed(groups.left!, true);
             const json = shell.toJSON();
             expect(json.left!.collapsed).toBe(true);
             expect(typeof json.left!.size).toBe('number');
@@ -808,7 +547,7 @@ describe('ShellManager', () => {
             shell.fromJSON({
                 left: { size: 200, visible: true, collapsed: true },
             });
-            expect(shell.isEdgeGroupCollapsed('left')).toBe(true);
+            expect(shell.isEdgeCollapsed('left')).toBe(true);
             shell.dispose();
         });
 
@@ -817,8 +556,8 @@ describe('ShellManager', () => {
             shell.fromJSON({
                 left: { size: 350, visible: true, collapsed: true },
             });
-            expect(shell.isEdgeGroupCollapsed('left')).toBe(true);
-            const leftView = (shell as any)._leftView as EdgeGroupView;
+            expect(shell.isEdgeCollapsed('left')).toBe(true);
+            const leftView = stackOf(shell, 'left');
             expect(leftView.lastExpandedSize).toBe(350);
             shell.dispose();
         });
@@ -864,7 +603,7 @@ describe('ShellManager', () => {
     describe('defaultCollapsedSize', () => {
         test('panels use defaultCollapsedSize when no per-panel collapsedSize is set', () => {
             const shell = makeShell({ left: { id: 'left' } }, 0, 48);
-            const leftView = (shell as any)._leftView as EdgeGroupView;
+            const leftView = stackOf(shell, 'left');
             expect(leftView.collapsedSize).toBe(48);
             shell.dispose();
         });
@@ -875,7 +614,7 @@ describe('ShellManager', () => {
                 0,
                 48
             );
-            const leftView = (shell as any)._leftView as EdgeGroupView;
+            const leftView = stackOf(shell, 'left');
             expect(leftView.collapsedSize).toBe(60);
             shell.dispose();
         });
@@ -891,10 +630,10 @@ describe('ShellManager', () => {
                 0,
                 48
             );
-            expect((shell as any)._topView.collapsedSize).toBe(48);
-            expect((shell as any)._bottomView.collapsedSize).toBe(48);
-            expect((shell as any)._leftView.collapsedSize).toBe(48);
-            expect((shell as any)._rightView.collapsedSize).toBe(48);
+            expect(stackOf(shell, 'top').collapsedSize).toBe(48);
+            expect(stackOf(shell, 'bottom').collapsedSize).toBe(48);
+            expect(stackOf(shell, 'left').collapsedSize).toBe(48);
+            expect(stackOf(shell, 'right').collapsedSize).toBe(48);
             shell.dispose();
         });
     });
@@ -913,19 +652,19 @@ describe('ShellManager', () => {
                 44
             );
             const expected = 44 + (10 * 2) / 3; // ≈ 50.667
-            expect((shell as any)._topView.collapsedSize).toBeCloseTo(
+            expect(stackOf(shell, 'top').collapsedSize).toBeCloseTo(
                 expected,
                 5
             );
-            expect((shell as any)._bottomView.collapsedSize).toBeCloseTo(
+            expect(stackOf(shell, 'bottom').collapsedSize).toBeCloseTo(
                 expected,
                 5
             );
-            expect((shell as any)._leftView.collapsedSize).toBeCloseTo(
+            expect(stackOf(shell, 'left').collapsedSize).toBeCloseTo(
                 expected,
                 5
             );
-            expect((shell as any)._rightView.collapsedSize).toBeCloseTo(
+            expect(stackOf(shell, 'right').collapsedSize).toBeCloseTo(
                 expected,
                 5
             );
@@ -940,7 +679,7 @@ describe('ShellManager', () => {
                 44
             );
             // per-panel 60 + gapAdd 5 = 65
-            expect((shell as any)._leftView.collapsedSize).toBe(65);
+            expect(stackOf(shell, 'left').collapsedSize).toBe(65);
             shell.dispose();
         });
 
@@ -952,7 +691,7 @@ describe('ShellManager', () => {
                 44
             );
             // minimumSize 100 + gapAdd 5 = 105
-            expect((shell as any)._leftView.minimumSize).toBe(105);
+            expect(stackOf(shell, 'left').minimumSize).toBe(105);
             shell.dispose();
         });
 
@@ -960,7 +699,7 @@ describe('ShellManager', () => {
             // Only top configured: innerN=2, innerGapAdd = 10*1/2 = 5
             const shell = makeShell({ top: { id: 'top' } }, 10, 44);
             // no minimumSize provided → defaults to collapsedSize + 50 = 49 + 50 = 99
-            expect((shell as any)._topView.minimumSize).toBe(99);
+            expect(stackOf(shell, 'top').minimumSize).toBe(99);
             shell.dispose();
         });
     });
@@ -1005,15 +744,15 @@ describe('ShellManager', () => {
             const outerGapAdd = (10 * 2) / 3; // ≈ 6.667
             const innerGapAdd = (10 * 1) / 2; // = 5
 
-            expect((shell as any)._leftView.collapsedSize).toBeCloseTo(
+            expect(stackOf(shell, 'left').collapsedSize).toBeCloseTo(
                 44 + outerGapAdd,
                 5
             );
-            expect((shell as any)._rightView.collapsedSize).toBeCloseTo(
+            expect(stackOf(shell, 'right').collapsedSize).toBeCloseTo(
                 44 + outerGapAdd,
                 5
             );
-            expect((shell as any)._bottomView.collapsedSize).toBe(
+            expect(stackOf(shell, 'bottom').collapsedSize).toBe(
                 44 + innerGapAdd
             );
             shell.dispose();
@@ -1024,11 +763,11 @@ describe('ShellManager', () => {
             const shell = makeShell({ left: { id: 'left' } }, 10, 44);
 
             // initial collapsed size = 44 + 5 = 49
-            expect((shell as any)._leftView.collapsedSize).toBe(49);
+            expect(stackOf(shell, 'left').collapsedSize).toBe(49);
 
             shell.updateTheme(0, 35);
 
-            expect((shell as any)._leftView.collapsedSize).toBe(35);
+            expect(stackOf(shell, 'left').collapsedSize).toBe(35);
             shell.dispose();
         });
 
@@ -1042,7 +781,7 @@ describe('ShellManager', () => {
             shell.updateTheme(10, 44); // outerGapAdd = 10*1/2 = 5
 
             // original collapsedSize=40, gapAdd=5 → 45
-            expect((shell as any)._leftView.collapsedSize).toBe(45);
+            expect(stackOf(shell, 'left').collapsedSize).toBe(45);
             shell.dispose();
         });
 
@@ -1055,7 +794,7 @@ describe('ShellManager', () => {
 
             shell.updateTheme(10, 44); // outerGapAdd = 5
 
-            expect((shell as any)._leftView.minimumSize).toBe(105);
+            expect(stackOf(shell, 'left').minimumSize).toBe(105);
             shell.dispose();
         });
 
@@ -1064,8 +803,8 @@ describe('ShellManager', () => {
 
             shell.updateTheme(10, 44); // innerN=2, innerGapAdd=5
 
-            expect((shell as any)._bottomView.collapsedSize).toBe(49);
-            expect((shell as any)._bottomView.minimumSize).toBe(99);
+            expect(stackOf(shell, 'bottom').collapsedSize).toBe(49);
+            expect(stackOf(shell, 'bottom').minimumSize).toBe(99);
             shell.dispose();
         });
 
@@ -1085,12 +824,12 @@ describe('ShellManager', () => {
 
         test('a currently-collapsed panel keeps isCollapsed=true after updateTheme', () => {
             const shell = makeShell({ left: { id: 'left' } }, 0, 35);
-            shell.setEdgeGroupCollapsed('left', true);
-            expect(shell.isEdgeGroupCollapsed('left')).toBe(true);
+            shell.setEdgeGroupCollapsed(groups.left!, true);
+            expect(shell.isEdgeCollapsed('left')).toBe(true);
 
             shell.updateTheme(10, 44);
 
-            expect(shell.isEdgeGroupCollapsed('left')).toBe(true);
+            expect(shell.isEdgeCollapsed('left')).toBe(true);
             shell.dispose();
         });
 
@@ -1098,10 +837,10 @@ describe('ShellManager', () => {
             const shell = makeShell({ left: { id: 'left' } }, 0, 35);
 
             shell.updateTheme(10, 44);
-            const sizeAfterFirst = (shell as any)._leftView.collapsedSize;
+            const sizeAfterFirst = stackOf(shell, 'left').collapsedSize;
 
             shell.updateTheme(10, 44);
-            expect((shell as any)._leftView.collapsedSize).toBe(sizeAfterFirst);
+            expect(stackOf(shell, 'left').collapsedSize).toBe(sizeAfterFirst);
             shell.dispose();
         });
     });
