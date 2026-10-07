@@ -173,6 +173,9 @@
                     },
                     // Enable auto-hide edge groups (collapsed-strip peek).
                     autoHideEdgeGroups: true,
+                    // Let an edge hold more than one group (stacked-edge-groups
+                    // spec). Inert until a second group is added to an edge.
+                    stackedEdgeGroups: true,
                     // A served (not about:blank) target avoids a 404 when the
                     // popout window navigates before dockview injects content.
                     popoutUrl: '/e2e/fixtures/popout.html',
@@ -1088,6 +1091,59 @@
                     },
                     setEdgeGroupSize: (position, size) =>
                         dockview.getEdgeGroup(position)?.setSize(size),
+                    // Two groups stacked on `position` (default left):
+                    // 'edge-a' holding 'a', then 'edge-b' after it holding
+                    // 'b', plus two centre groups to drag tabs from. Static
+                    // unless `autoHide` is set, since the harness turns
+                    // `autoHideEdgeGroups` on globally.
+                    setupStackedEdge: (position, autoHide) => {
+                        const pos = position || 'left';
+                        dockview.addPanel({
+                            id: 'main',
+                            component: 'default',
+                            title: 'main',
+                        });
+                        dockview.addPanel({
+                            id: 'other',
+                            component: 'default',
+                            title: 'other',
+                            position: { direction: 'right' },
+                        });
+                        dockview.addEdgeGroup(pos, {
+                            id: 'edge-a',
+                            initialSize: 260,
+                            autoHide: !!autoHide,
+                        });
+                        dockview.addPanel({
+                            id: 'a',
+                            component: 'default',
+                            title: 'a',
+                            position: { referenceGroup: 'edge-a' },
+                        });
+                        dockview.addEdgeGroup(pos, {
+                            id: 'edge-b',
+                            autoHide: !!autoHide,
+                            stack: { relativeTo: 'edge-a', placement: 'after' },
+                        });
+                        dockview.addPanel({
+                            id: 'b',
+                            component: 'default',
+                            title: 'b',
+                            position: { referenceGroup: 'edge-b' },
+                        });
+                    },
+                    stackedEdgeGroupIds: (pos) =>
+                        dockview.getEdgeGroups(pos).map((g) => g.id),
+                    moveEdgeGroup: (id, to) => dockview.moveEdgeGroup(id, to),
+                    collapseEdgeGroupById: (pos, id) =>
+                        dockview.getEdgeGroup(pos, id)?.collapse(),
+                    setEdgeGroupSizeById: (pos, id, size) =>
+                        dockview.getEdgeGroup(pos, id)?.setSize(size),
+                    autoHideEdgeGroupById: (pos, id) =>
+                        dockview.autoHideEdgeGroup(pos, id),
+                    isEdgeCollapsed: (pos) => dockview.isEdgeCollapsed(pos),
+                    panelGroupId: (panelId) =>
+                        dockview.getGroupPanel(panelId)?.group.id ?? null,
                     collapseEdgeGroup: (position) =>
                         dockview.getEdgeGroup(position)?.collapse(),
                     expandEdgeGroup: (position) =>
