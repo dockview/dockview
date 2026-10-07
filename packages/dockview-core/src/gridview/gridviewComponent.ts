@@ -122,6 +122,7 @@ export class GridviewComponent
                 : undefined,
             disableAutoResizing: options.disableAutoResizing,
             className: options.className,
+            disableCornerResize: options.disableCornerResize,
         });
 
         this._options = options;

@@ -8,6 +8,11 @@ export interface GridviewOptions {
     orientation: Orientation;
     className?: string;
     hideBorders?: boolean;
+    /**
+     * Disable dragging where a row sash meets a column sash to resize both at
+     * once. Defaults to `false` (corner resizing on).
+     */
+    disableCornerResize?: boolean;
 }
 
 export interface GridviewFrameworkOptions {
@@ -28,6 +33,7 @@ export const PROPERTY_KEYS_GRIDVIEW: (keyof GridviewOptions)[] = (() => {
         orientation: undefined,
         hideBorders: undefined,
         className: undefined,
+        disableCornerResize: undefined,
     };
 
     return Object.keys(properties) as (keyof GridviewOptions)[];

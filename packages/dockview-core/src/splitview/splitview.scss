@@ -123,7 +123,8 @@
             background-color: var(--dv-sash-color, transparent);
 
             &:not(.disabled):active,
-            &:not(.disabled):hover {
+            &:not(.disabled):hover,
+            &.dv-sash-corner {
                 background-color: var(--dv-active-sash-color, transparent);
                 transition-property: background-color;
                 transition-timing-function: ease-in-out;
@@ -133,6 +134,15 @@
                 );
                 transition-delay: var(--dv-active-sash-transition-delay, 0.5s);
             }
+        }
+    }
+
+    // Where two orthogonal sashes meet (corner resize) both drag together;
+    // override the per-orientation resize cursors set above.
+    &.dv-horizontal,
+    &.dv-vertical {
+        & > .dv-sash-container > .dv-sash.dv-sash-corner:not(.dv-disabled) {
+            cursor: move;
         }
     }
 

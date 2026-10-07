@@ -1579,6 +1579,7 @@ export class DockviewComponent
             locked: options.locked,
             margin: options.theme?.gap ?? 0,
             className: options.className,
+            disableCornerResize: options.disableCornerResize,
         });
 
         this._options = options;

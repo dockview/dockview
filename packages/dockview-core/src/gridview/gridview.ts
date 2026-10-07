@@ -11,11 +11,12 @@ import {
 } from '../splitview/splitview';
 import { tail } from '../array';
 import { LeafNode } from './leafNode';
-import { BranchNode } from './branchNode';
+import { BranchNode, CORNER_RESIZE_DISABLED_CLASS } from './branchNode';
 import { Node } from './types';
 import { Emitter, Event } from '../events';
 import { IDisposable, MutableDisposable } from '../lifecycle';
 import { Position } from '../dnd/droptarget';
+import { toggleClass } from '../dom';
 
 function findLeaf(candiateNode: Node, last: boolean): LeafNode {
     if (candiateNode instanceof LeafNode) {
@@ -422,6 +423,18 @@ export class Gridview implements IDisposable {
                 branch.push(...node.children);
             }
         }
+    }
+
+    /**
+     * Dragging where a row sash meets a column sash resizes both at once.
+     * On by default.
+     */
+    get cornerResize(): boolean {
+        return !this.element.classList.contains(CORNER_RESIZE_DISABLED_CLASS);
+    }
+
+    set cornerResize(value: boolean) {
+        toggleClass(this.element, CORNER_RESIZE_DISABLED_CLASS, !value);
     }
 
     get margin(): number {

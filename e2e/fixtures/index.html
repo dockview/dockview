@@ -716,6 +716,41 @@
                             position: { direction: 'below', referencePanel: 'tr' },
                         });
                     },
+                    setDisableCornerResize: (value) =>
+                        dockview.updateOptions({ disableCornerResize: value }),
+                    // 2x2 grid: tl | tr over bl | br, so every group meets
+                    // at a single centre junction of the row and column sashes.
+                    setupTwoByTwo: () => {
+                        panels['tl'] = dockview.addPanel({
+                            id: 'tl',
+                            component: 'default',
+                            title: 'tl',
+                        });
+                        panels['tr'] = dockview.addPanel({
+                            id: 'tr',
+                            component: 'default',
+                            title: 'tr',
+                            position: { direction: 'right' },
+                        });
+                        panels['bl'] = dockview.addPanel({
+                            id: 'bl',
+                            component: 'default',
+                            title: 'bl',
+                            position: {
+                                referencePanel: 'tl',
+                                direction: 'below',
+                            },
+                        });
+                        panels['br'] = dockview.addPanel({
+                            id: 'br',
+                            component: 'default',
+                            title: 'br',
+                            position: {
+                                referencePanel: 'tr',
+                                direction: 'below',
+                            },
+                        });
+                    },
                     setupTwoGroups: () => {
                         panels['one'] = dockview.addPanel({
                             id: 'one',

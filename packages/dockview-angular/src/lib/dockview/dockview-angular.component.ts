@@ -104,6 +104,7 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
     @Input() nonce?: CspNonceProvider;
     @Input() debug?: boolean;
     @Input() locked?: boolean;
+    @Input() disableCornerResize?: boolean;
     @Input() disableAutoResizing?: boolean;
     @Input() proportionalLayout?: boolean;
     @Input() singleTabMode?: 'fullwidth' | 'default';
