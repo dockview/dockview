@@ -25,6 +25,18 @@ export interface DockviewMessages {
     /** Accessible name for a tab's close button when the panel has no title. */
     closeTabPlain(): string;
 
+    // --- panel channels ---
+    /** Heading of the context-menu channel picker. */
+    channelLinkTo(): string;
+    /** The context-menu item that unlinks a panel from its channel. */
+    channelUnlink(): string;
+    /** Accessible name of a tab's channel marker, qualified with the channel label. */
+    channelIndicator(channel: string): string;
+    /** A panel joined a channel. */
+    channelJoined(title: string, channel: string): string;
+    /** A panel left its channel. */
+    channelLeft(title: string): string;
+
     // --- keyboard-docking narration ---
     /** Target phase: which group is highlighted, and how to proceed. */
     movePickTarget(
@@ -70,6 +82,12 @@ export const DEFAULT_MESSAGES: DockviewMessages = {
 
     closeTab: (title) => `Close ${title}`,
     closeTabPlain: () => `Close`,
+
+    channelLinkTo: () => `Link to`,
+    channelUnlink: () => `Unlink`,
+    channelIndicator: (channel) => `Linked to ${channel}`,
+    channelJoined: (title, channel) => `${title} linked to ${channel}`,
+    channelLeft: (title) => `${title} unlinked`,
 
     movePickTarget: (source, target, current, total) =>
         `Moving ${source}. Target ${target}, ${current} of ${total}. Enter to choose where, Escape to cancel.`,

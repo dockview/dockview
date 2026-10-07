@@ -14,6 +14,8 @@ import { ITabGroup } from './tabGroup';
 import { TabGroupColorPalette } from './tabGroupAccent';
 import { defineModule } from './modules';
 import { IContextMenuHost, IContextMenuService } from './moduleContracts';
+import { PanelChannelDefinition } from './options';
+import { DockviewMessages, resolveMessages } from './accessibilityMessages';
 
 function popoverZIndexFor(
     target: EventTarget | null,
@@ -166,6 +168,73 @@ function buildColorPicker(
     return wrapper;
 }
 
+/**
+ * One channel swatch of the picker: a focusable `menuitemradio` that joins its
+ * channel on click, Enter or Space. The colour rides on `--dv-channel-color`
+ * for the same reason the tab-group swatches use a custom property.
+ */
+function buildChannelSwatch(
+    entry: PanelChannelDefinition,
+    selected: boolean,
+    select: () => void
+): HTMLElement {
+    const swatch = document.createElement('div');
+    swatch.className = 'dv-context-menu-channel-swatch';
+    swatch.setAttribute('role', 'menuitemradio');
+    swatch.setAttribute('aria-checked', selected ? 'true' : 'false');
+    swatch.setAttribute('aria-label', entry.label);
+    swatch.title = entry.label;
+    swatch.tabIndex = 0;
+    swatch.style.setProperty('--dv-channel-color', entry.color);
+    if (selected) {
+        swatch.classList.add('dv-context-menu-channel-swatch--selected');
+    }
+    swatch.addEventListener('click', select);
+    swatch.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            select();
+        }
+    });
+    return swatch;
+}
+
+/**
+ * The "Link to" heading plus one swatch per configured channel, grouped for
+ * assistive technology under that heading.
+ */
+function buildChannelPicker(
+    panel: IDockviewPanel,
+    channels: readonly PanelChannelDefinition[],
+    messages: DockviewMessages,
+    close: () => void
+): HTMLElement {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'dv-context-menu-channel';
+
+    const label = document.createElement('div');
+    label.className = 'dv-context-menu-channel-label';
+    label.id = nextContextMenuItemId();
+    label.textContent = messages.channelLinkTo();
+    wrapper.appendChild(label);
+
+    const picker = document.createElement('div');
+    picker.className = 'dv-context-menu-channel-picker';
+    picker.setAttribute('role', 'group');
+    picker.setAttribute('aria-labelledby', label.id);
+    for (const entry of channels) {
+        picker.appendChild(
+            buildChannelSwatch(entry, panel.api.channel === entry.id, () => {
+                panel.api.joinChannel(entry.id);
+                close();
+            })
+        );
+    }
+    wrapper.appendChild(picker);
+
+    return wrapper;
+}
+
 export class ContextMenuController implements IContextMenuService {
     constructor(private readonly accessor: IContextMenuHost) {}
 
@@ -219,10 +288,51 @@ export class ContextMenuController implements IContextMenuService {
     }
 
     /**
+     * Whether to auto-inject the built-in channel block: the PanelChannels
+     * module is registered, channels are enabled, and the app has not opted
+     * out via `panelChannels.contextMenuItem: false`.
+     */
+    private _shouldInjectChannel(): boolean {
+        const panelChannels = this.accessor.options.panelChannels;
+        return (
+            !!this.accessor.panelChannelsService &&
+            !!panelChannels?.enabled &&
+            panelChannels.contextMenuItem !== false
+        );
+    }
+
+    /**
+     * The built-in channel block: the "Link to" picker followed by an
+     * "Unlink" row, disabled while the panel is on no channel.
+     */
+    private buildChannelItem(
+        panel: IDockviewPanel,
+        close: () => void
+    ): HTMLElement {
+        const messages = resolveMessages(this.accessor.options.messages);
+        const block = buildChannelPicker(
+            panel,
+            this.accessor.getPanelChannels(),
+            messages,
+            close
+        );
+        block.appendChild(
+            buildItem(
+                messages.channelUnlink(),
+                close,
+                () => panel.api.leaveChannel(),
+                panel.api.channel === undefined
+            )
+        );
+        return block;
+    }
+
+    /**
      * The tab menu items: the app's own items (if any) with the built-in
-     * `'pin'` item prepended when {@link _shouldInjectPin} applies, so the app
-     * keeps full control of its list, and pinning is added without disturbing
-     * it. Reuses the existing `'pin'` token rendering below.
+     * `'pin'` and `'channel'` items prepended when {@link _shouldInjectPin} /
+     * {@link _shouldInjectChannel} apply, so the app keeps full control of its
+     * list and the module items are added without disturbing it. Reuses the
+     * token rendering below.
      */
     private _resolveTabItems(
         panel: IDockviewPanel,
@@ -237,7 +347,14 @@ export class ContextMenuController implements IContextMenuService {
                 event,
             }) ?? [];
 
-        return this._shouldInjectPin() ? ['pin', ...appItems] : appItems;
+        const injected: ContextMenuItem[] = [];
+        if (this._shouldInjectPin()) {
+            injected.push('pin');
+        }
+        if (this._shouldInjectChannel()) {
+            injected.push('channel');
+        }
+        return [...injected, ...appItems];
     }
 
     /**
@@ -357,6 +474,8 @@ export class ContextMenuController implements IContextMenuService {
                     close,
                     () => panel.api.setPinned(!panel.api.isPinned)
                 );
+            case 'channel':
+                return this.buildChannelItem(panel, close);
             default:
                 return undefined;
         }
