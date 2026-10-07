@@ -133,6 +133,7 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
     // Typed via indexed access so they track the core option shape.
     @Input() overflow?: DockviewOptions['overflow'];
     @Input() pinnedTabs?: DockviewOptions['pinnedTabs'];
+    @Input() panelChannels?: DockviewOptions['panelChannels'];
     @Input() smartGuides?: DockviewOptions['smartGuides'];
     @Input() dndCompass?: DockviewOptions['dndCompass'];
     @Input() dropPositionResolver?: DockviewOptions['dropPositionResolver'];

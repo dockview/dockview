@@ -32,6 +32,7 @@ import { ITabGroup } from './tabGroup';
 import { CspNonceProvider } from '../dom';
 export { type CspNonceProvider };
 import { DockviewTabGroupColorEntry } from './tabGroupAccent';
+import { PanelChannelTransport } from './panelChannels';
 
 export interface IHeaderActionsRenderer extends IDisposable {
     readonly element: HTMLElement;
@@ -50,7 +51,11 @@ export type BuiltInContextMenuItem =
     | 'separator'
     // Toggle the panel's pinned state (PinnedTabs module). Renders as
     // "Pin tab" / "Unpin tab"; a no-op when pinning is not enabled.
-    | 'pin';
+    | 'pin'
+    // Link the panel to a colour channel (PanelChannels module). Renders a
+    // "Link to" swatch picker plus an "Unlink" row; inert when channels are
+    // not enabled.
+    | 'channel';
 
 export type BuiltInChipContextMenuItem =
     | 'separator'
@@ -492,6 +497,8 @@ export interface DockviewOptions {
      * - `'popout'`: move the panel into a new browser window (disabled when
      *   already popped out)
      * - `'pin'`: toggle the panel's pinned state (PinnedTabs module)
+     * - `'channel'`: a "Link to" colour-channel picker plus an "Unlink" row
+     *   (PanelChannels module)
      * - `'separator'`: a divider line
      *
      * If omitted, no context menu is shown.
@@ -665,6 +672,47 @@ export interface DockviewOptions {
      * module; dormant unless `enabled` is set.
      */
     pinnedTabs?: PinnedTabsOptions;
+    /**
+     * Link panels into named colour channels so a context broadcast by one
+     * member reaches the others (FDC3-style user channels). Owned by the
+     * PanelChannels module; dormant unless `enabled` is set.
+     */
+    panelChannels?: PanelChannelsOptions;
+}
+
+/** One selectable channel: its stored id, picker label and swatch colour. */
+export interface PanelChannelDefinition {
+    /** Stored on the panel and serialized as the panel's `channel`. */
+    id: string;
+    /** Shown in the picker, tooltips and screen-reader announcements. */
+    label: string;
+    /** Any CSS colour expression. The defaults use `var(--dv-channel-color-<id>)`. */
+    color: string;
+}
+
+export interface PanelChannelsOptions {
+    /** Master switch. Default: undefined (dormant; join and broadcast are no-ops). */
+    enabled?: boolean;
+    /**
+     * Replace the built-in eight-channel set. The list fully replaces the
+     * defaults; there is no merge.
+     */
+    channels?: PanelChannelDefinition[];
+    /** Add the built-in "Link to" / "Unlink" block to the tab context menu
+     *  (requires the context menu to be available). Default true. */
+    contextMenuItem?: boolean;
+    /** Also tint the group header with the active panel's channel. Default true. */
+    headerIndicator?: boolean;
+    /**
+     * Deliver the channel's last broadcast context to a panel when it joins
+     * (and to every linked panel after a `fromJSON` restore). Default true.
+     */
+    replayLastContext?: boolean;
+    /**
+     * The message transport broadcasts ride on. Defaults to an in-process
+     * bus; supply one to bridge channels across windows or processes.
+     */
+    transport?: PanelChannelTransport;
 }
 
 export interface PinnedTabsOptions {
@@ -831,6 +879,7 @@ export const PROPERTY_KEYS_DOCKVIEW: (keyof DockviewOptions)[] = (() => {
         tabGroupColors: undefined,
         tabGroupAccent: undefined,
         pinnedTabs: undefined,
+        panelChannels: undefined,
     };
 
     return Object.keys(properties) as (keyof DockviewOptions)[];

@@ -174,6 +174,7 @@ export {
 export {
     type TitleEvent,
     type PinnedChangeEvent,
+    type ChannelChangeEvent,
     type RendererChangedEvent,
     type DockviewPanelApi,
     type DockviewPanelMoveParams,
@@ -246,6 +247,8 @@ export {
     type ITabGroupChipsService,
     type IPinnedTabsHost,
     type IPinnedTabsService,
+    type IPanelChannelsHost,
+    type IPanelChannelsService,
     type IAdvancedOverflowHost,
     type IAdvancedOverflowService,
     type IAdvancedOverflowRenderContext,
@@ -253,6 +256,15 @@ export {
     type IOverflowRow,
 } from './dockview/moduleContracts';
 export { resolveMessages } from './dockview/accessibilityMessages';
+export {
+    DEFAULT_PANEL_CHANNELS,
+    findPanelChannel,
+    resolvePanelChannels,
+    type PanelChannelContext,
+    type PanelChannelContextEvent,
+    type PanelChannelMessage,
+    type PanelChannelTransport,
+} from './dockview/panelChannels';
 export {
     findRelativeZIndexParent,
     getActiveElement,

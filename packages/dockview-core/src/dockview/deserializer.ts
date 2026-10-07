@@ -77,6 +77,12 @@ export class DefaultDockviewDeserialzier implements IPanelDeserializer {
             panel.setPinned(true);
         }
 
+        // Same rule for the channel id: honoured only when channels are
+        // enabled and the id is still configured; otherwise unlinked.
+        panel.setChannel(
+            this.accessor.resolveRestoredChannel(panelData.channel)
+        );
+
         return panel;
     }
 }

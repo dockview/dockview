@@ -73,4 +73,7 @@ export interface GroupviewPanelState {
     /** Pinned tab state (PinnedTabs module). Emitted only when `true`; absent
      *  layouts load unpinned. */
     pinned?: boolean;
+    /** Channel id (PanelChannels module). Emitted only when linked; absent
+     *  layouts load unlinked. */
+    channel?: string;
 }

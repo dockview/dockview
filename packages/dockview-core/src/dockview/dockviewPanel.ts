@@ -25,6 +25,9 @@ export interface IDockviewPanel extends IDisposable, IPanel {
     readonly maximumHeight?: number;
     readonly isPinned: boolean;
     setPinned(pinned: boolean): void;
+    /** The id of the channel this panel is linked to, or `undefined`. */
+    readonly channel: string | undefined;
+    setChannel(channelId: string | undefined): void;
     updateParentGroup(
         group: DockviewGroupPanel,
         options?: { skipSetActive?: boolean }
@@ -48,6 +51,7 @@ export class DockviewPanel
     private _title: string | undefined;
     private _renderer: DockviewPanelRenderer | undefined;
     private _pinned = false;
+    private _channel: string | undefined;
 
     private _minimumWidth: number | undefined;
     private _minimumHeight: number | undefined;
@@ -64,6 +68,10 @@ export class DockviewPanel
 
     get isPinned(): boolean {
         return this._pinned;
+    }
+
+    get channel(): string | undefined {
+        return this._channel;
     }
 
     get group(): DockviewGroupPanel {
@@ -173,6 +181,8 @@ export class DockviewPanel
             maximumWidth: this._maximumWidth,
             // Emit only when pinned so existing layouts stay byte-stable.
             pinned: this._pinned ? true : undefined,
+            // Likewise only when linked to a channel.
+            channel: this._channel,
         };
     }
 
@@ -203,6 +213,24 @@ export class DockviewPanel
         }
         this._pinned = pinned;
         this.api._onDidChangePinned.fire({ isPinned: pinned });
+    }
+
+    /**
+     * Low-level channel mutation. Sets the id and fires the panel-api event
+     * with the resolved definition. The public, module-gated entry point is
+     * `panel.api.joinChannel` / `leaveChannel` → `DockviewComponent.setPanelChannel`,
+     * which validates the id and decides whether channels are active before
+     * reaching here; this method itself does not gate, so serialization can
+     * drive it directly.
+     */
+    setChannel(channelId: string | undefined): void {
+        if (this._channel === channelId) {
+            return;
+        }
+        this._channel = channelId;
+        this.api._onDidChannelChange.fire({
+            channel: this.accessor.getPanelChannel(channelId),
+        });
     }
 
     setRenderer(renderer: DockviewPanelRenderer): void {
@@ -258,6 +286,9 @@ export class DockviewPanel
             (state.pinned ?? false) &&
                 !!this.accessor.options.pinnedTabs?.enabled
         );
+        // Likewise the channel: only when channels are enabled and the id is
+        // still configured; otherwise the panel loads unlinked.
+        this.setChannel(this.accessor.resolveRestoredChannel(state.channel));
 
         // state.contentComponent;
         // state.tabComponent;

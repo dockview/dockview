@@ -10,6 +10,11 @@ import {
     DockviewGroupPanelLocationChangeEvent,
 } from './dockviewGroupPanelApi';
 import { DockviewGroupLocation } from '../dockview/dockviewGroupPanelModel';
+import { PanelChannelDefinition } from '../dockview/options';
+import {
+    PanelChannelContext,
+    PanelChannelContextEvent,
+} from '../dockview/panelChannels';
 
 export interface TitleEvent {
     readonly title: string;
@@ -17,6 +22,12 @@ export interface TitleEvent {
 
 export interface PinnedChangeEvent {
     readonly isPinned: boolean;
+}
+
+/** Fired by `onDidChannelChange`; `channel` is the new definition, or
+ *  `undefined` once the panel has left its channel. */
+export interface ChannelChangeEvent {
+    readonly channel: PanelChannelDefinition | undefined;
 }
 
 export interface RendererChangedEvent {
@@ -57,10 +68,21 @@ export interface DockviewPanelApi
      * component with pinning disabled always reports `false`.
      */
     readonly isPinned: boolean;
+    /**
+     * The id of the colour channel this panel is linked to, or `undefined`.
+     * Owned by the PanelChannels module; reads `undefined` until the panel
+     * joins a channel, which requires `panelChannels.enabled`.
+     */
+    readonly channel: string | undefined;
     readonly onDidActiveGroupChange: Event<ActiveGroupEvent>;
     readonly onDidGroupChange: Event<GroupChangedEvent>;
     readonly onDidTitleChange: Event<TitleEvent>;
     readonly onDidChangePinned: Event<PinnedChangeEvent>;
+    /** Fires when this panel joins, switches or leaves a channel. */
+    readonly onDidChannelChange: Event<ChannelChangeEvent>;
+    /** Fires with each context delivered over this panel's channel: live
+     *  broadcasts from other members and last-value replays. */
+    readonly onDidReceiveContext: Event<PanelChannelContextEvent>;
     readonly onDidRendererChange: Event<RendererChangedEvent>;
     readonly location: DockviewGroupLocation;
     readonly onDidLocationChange: Event<DockviewGroupPanelLocationChangeEvent>;
@@ -71,6 +93,19 @@ export interface DockviewPanelApi
      * module is not registered, and dormant unless `pinnedTabs.enabled` is set.
      */
     setPinned(pinned: boolean): void;
+    /**
+     * Link this panel to the channel with `channelId`, leaving its current
+     * channel first. Throws for an id that is not configured. A no-op unless
+     * `panelChannels.enabled` is set and the PanelChannels module is present.
+     */
+    joinChannel(channelId: string): void;
+    /** Unlink this panel from its channel. A no-op when it has none. */
+    leaveChannel(): void;
+    /** Broadcast `context` to the other members of this panel's channel. A
+     *  no-op when the panel is on no channel. */
+    broadcast(context: PanelChannelContext): void;
+    /** The last context broadcast on this panel's channel, or `undefined`. */
+    getCurrentContext(): PanelChannelContext | undefined;
     setRenderer(renderer: DockviewPanelRenderer): void;
     moveTo(options: DockviewPanelMoveParams): void;
     maximize(): void;
@@ -94,6 +129,12 @@ export class DockviewPanelApiImpl
 
     readonly _onDidChangePinned = new Emitter<PinnedChangeEvent>();
     readonly onDidChangePinned = this._onDidChangePinned.event;
+
+    readonly _onDidChannelChange = new Emitter<ChannelChangeEvent>();
+    readonly onDidChannelChange = this._onDidChannelChange.event;
+
+    readonly _onDidReceiveContext = new Emitter<PanelChannelContextEvent>();
+    readonly onDidReceiveContext = this._onDidReceiveContext.event;
 
     private readonly _onDidActiveGroupChange = new Emitter<ActiveGroupEvent>();
     readonly onDidActiveGroupChange = this._onDidActiveGroupChange.event;
@@ -121,6 +162,10 @@ export class DockviewPanelApiImpl
 
     get isPinned(): boolean {
         return this.panel.isPinned;
+    }
+
+    get channel(): string | undefined {
+        return this.panel.channel;
     }
 
     get isGroupActive(): boolean {
@@ -174,6 +219,8 @@ export class DockviewPanelApiImpl
             this._onDidRendererChange,
             this._onDidTitleChange,
             this._onDidChangePinned,
+            this._onDidChannelChange,
+            this._onDidReceiveContext,
             this._onDidGroupChange,
             this._onDidActiveGroupChange,
             this._onDidLocationChange
@@ -217,6 +264,22 @@ export class DockviewPanelApiImpl
 
     setPinned(pinned: boolean): void {
         this.accessor.setPanelPinned(this.panel, pinned);
+    }
+
+    joinChannel(channelId: string): void {
+        this.accessor.setPanelChannel(this.panel, channelId);
+    }
+
+    leaveChannel(): void {
+        this.accessor.setPanelChannel(this.panel, undefined);
+    }
+
+    broadcast(context: PanelChannelContext): void {
+        this.accessor.broadcastPanelContext(this.panel, context);
+    }
+
+    getCurrentContext(): PanelChannelContext | undefined {
+        return this.accessor.getChannelContext(this.panel.channel);
     }
 
     setRenderer(renderer: DockviewPanelRenderer): void {
