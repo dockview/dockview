@@ -1,9 +1,13 @@
 import {
     DockviewComponent,
+    DockviewGroupPanel,
     DockviewGroupPanelApi,
     DockviewLayoutMutationKind,
     EdgeGroupPosition,
     IContentRenderer,
+    LocalSelectionTransfer,
+    PanelTransfer,
+    Position,
     SerializedEdgeStack,
 } from 'dockview-core';
 
@@ -339,5 +343,241 @@ describe('stacked edge groups', () => {
         await flush();
         expect(ids('left')).toEqual([]);
         expect(dockview.getEdgeGroup('left')).toBeUndefined();
+    });
+});
+
+describe('stacked edge groups: splitting and merging', () => {
+    const transfer = LocalSelectionTransfer.getInstance<PanelTransfer>();
+    let container: HTMLElement;
+    let dockview: DockviewComponent;
+    let announced: string[];
+
+    beforeEach(() => {
+        container = document.createElement('div');
+        document.body.appendChild(container);
+        announced = [];
+        dockview = new DockviewComponent(container, {
+            createComponent: () => new TestPanel(),
+            stackedEdgeGroups: true,
+            announcer: (e) => announced.push(e.message),
+        });
+        dockview.layout(1000, 800);
+        dockview.addPanel({ id: 'main', component: 'default', title: 'Main' });
+        dockview.addEdgeGroup('left', { id: 'a' });
+        dockview.addPanel({
+            id: 'a-panel',
+            component: 'default',
+            title: 'A',
+            position: { referenceGroup: 'a' },
+        });
+    });
+
+    afterEach(() => {
+        transfer.clearData(PanelTransfer.prototype);
+        dockview.dispose();
+        container.remove();
+    });
+
+    const ids = (position: EdgeGroupPosition): string[] =>
+        dockview.getEdgeGroups(position).map((g) => g.id);
+    const edge = (id: string): DockviewGroupPanel =>
+        dockview.getPanel(id) as DockviewGroupPanel;
+    const groupOf = (panelId: string): string =>
+        dockview.getGroupPanel(panelId)!.group.id;
+    const zonesOf = (group: DockviewGroupPanel): string[] => [
+        ...(
+            group.model as never as {
+                contentContainer: {
+                    dropTarget: { _acceptedTargetZonesSet: Set<string> };
+                };
+            }
+        ).contentContainer.dropTarget._acceptedTargetZonesSet,
+    ];
+    /** A user drop of `panelId` (or of its whole group) on `target`'s content. */
+    const drop = (
+        panelId: string | null,
+        sourceGroupId: string,
+        target: DockviewGroupPanel,
+        position: Position
+    ): void => {
+        transfer.setData(
+            [new PanelTransfer(dockview.id, sourceGroupId, panelId)],
+            PanelTransfer.prototype
+        );
+        (
+            target.model as never as {
+                handleDropEvent(
+                    type: string,
+                    event: Event,
+                    position: Position
+                ): void;
+            }
+        ).handleDropEvent('content', new MouseEvent('drop'), position);
+    };
+
+    test('an edge group offers split zones along its edge while its edge can stack', () => {
+        expect(zonesOf(edge('a'))).toEqual(['center', 'top', 'bottom']);
+        expect(dockview.getEdgeGroupDropZones('top')).toEqual([
+            'center',
+            'left',
+            'right',
+        ]);
+
+        dockview.updateOptions({ stackedEdgeGroups: { left: false } });
+        expect(zonesOf(edge('a'))).toEqual(['center']);
+
+        dockview.updateOptions({ stackedEdgeGroups: true });
+        expect(zonesOf(edge('a'))).toEqual(['center', 'top', 'bottom']);
+    });
+
+    test('addPanel below an edge group opens it in a new sibling', () => {
+        const panel = dockview.addPanel({
+            id: 'p',
+            component: 'default',
+            position: { referenceGroup: 'a', direction: 'below' },
+        });
+
+        expect(ids('left')).toHaveLength(2);
+        expect(ids('left')[0]).toBe('a');
+        expect(panel.group.id).toBe(ids('left')[1]);
+        expect(panel.group.api.location).toEqual({
+            type: 'edge',
+            position: 'left',
+        });
+        expect(dockview.activePanel).toBe(panel);
+
+        // a direction across the edge still opens within the group
+        const within = dockview.addPanel({
+            id: 'q',
+            component: 'default',
+            position: { referenceGroup: 'a', direction: 'left' },
+        });
+        expect(within.group.id).toBe('a');
+        expect(ids('left')).toHaveLength(2);
+    });
+
+    test('moving a panel to the bottom half splits; to the centre merges', async () => {
+        const moves: { panel: string; from: string; to: string }[] = [];
+        dockview.onDidMovePanel((e) =>
+            moves.push({ panel: e.panel.id, from: e.from.id, to: e.to.id })
+        );
+        const mainGroup = groupOf('main');
+
+        dockview.moveGroupOrPanel({
+            from: { groupId: mainGroup, panelId: 'main' },
+            to: { group: edge('a'), position: 'bottom' },
+        });
+
+        const [, sibling] = ids('left');
+        expect(ids('left')).toHaveLength(2);
+        expect(groupOf('main')).toBe(sibling);
+        expect(moves).toEqual([
+            { panel: 'main', from: mainGroup, to: sibling },
+        ]);
+        // the emptied grid group is gone
+        expect(dockview.getPanel(mainGroup)).toBeUndefined();
+
+        dockview.moveGroupOrPanel({
+            from: { groupId: sibling, panelId: 'main' },
+            to: { group: edge('a'), position: 'center' },
+        });
+        expect(groupOf('main')).toBe('a');
+        await flush();
+        // the emptied sibling leaves the edge
+        expect(ids('left')).toEqual(['a']);
+    });
+
+    test('moving a whole group to the top half splits before', () => {
+        dockview.addPanel({
+            id: 'second',
+            component: 'default',
+            position: { referencePanel: 'main', direction: 'within' },
+        });
+        const mainGroup = groupOf('main');
+        const moved: string[] = [];
+        dockview.onDidMovePanel((e) => moved.push(e.panel.id));
+
+        dockview.moveGroup({
+            from: { group: edge(mainGroup) },
+            to: { group: edge('a'), position: 'top' },
+        });
+
+        const [sibling, a] = ids('left');
+        expect(a).toBe('a');
+        expect(groupOf('main')).toBe(sibling);
+        expect(groupOf('second')).toBe(sibling);
+        expect(moved.sort()).toEqual(['main', 'second']);
+        expect(dockview.getPanel(mainGroup)).toBeUndefined();
+    });
+
+    test("dropping a group's only panel onto its own split half leaves it to the empty rule", async () => {
+        dockview.moveGroupOrPanel({
+            from: { groupId: 'a', panelId: 'a-panel' },
+            to: { group: edge('a'), position: 'bottom' },
+        });
+
+        expect(ids('left')).toHaveLength(2);
+        expect(groupOf('a-panel')).toBe(ids('left')[1]);
+        await flush();
+        expect(ids('left')).toEqual([groupOf('a-panel')]);
+    });
+
+    test('a tab group dropped on a split half moves as one', () => {
+        dockview.addPanel({
+            id: 'second',
+            component: 'default',
+            position: { referencePanel: 'main', direction: 'within' },
+        });
+        const mainGroup = groupOf('main');
+        const tabGroup = dockview.api.createTabGroup({
+            groupId: mainGroup,
+            label: 'Pair',
+        });
+        dockview.api.addPanelToTabGroup({
+            groupId: mainGroup,
+            tabGroupId: tabGroup.id,
+            panelId: 'main',
+        });
+        dockview.api.addPanelToTabGroup({
+            groupId: mainGroup,
+            tabGroupId: tabGroup.id,
+            panelId: 'second',
+        });
+
+        dockview.moveGroupOrPanel({
+            from: { groupId: mainGroup, tabGroupId: tabGroup.id },
+            to: { group: edge('a'), position: 'bottom' },
+        });
+
+        const [, sibling] = ids('left');
+        expect(groupOf('main')).toBe(sibling);
+        expect(groupOf('second')).toBe(sibling);
+        expect(
+            edge(sibling)
+                .model.getTabGroups()
+                .map((tg) => tg.label)
+        ).toEqual(['Pair']);
+    });
+
+    test('a user drop on a split half is announced; a merge is not', () => {
+        drop('main', groupOf('main'), edge('a'), 'bottom');
+        expect(ids('left')).toHaveLength(2);
+        expect(groupOf('main')).toBe(ids('left')[1]);
+        expect(announced).toContain('Main docked in a new left group');
+
+        announced.length = 0;
+        drop('main', groupOf('main'), edge('a'), 'center');
+        expect(groupOf('main')).toBe('a');
+        expect(announced.some((m) => m.includes('docked in a new'))).toBe(
+            false
+        );
+    });
+
+    test('a group drop on a split half announces its active panel', () => {
+        const mainGroup = groupOf('main');
+        drop(null, mainGroup, edge('a'), 'top');
+        expect(ids('left')).toHaveLength(2);
+        expect(groupOf('main')).toBe(ids('left')[0]);
+        expect(announced).toContain('Main docked in a new left group');
     });
 });

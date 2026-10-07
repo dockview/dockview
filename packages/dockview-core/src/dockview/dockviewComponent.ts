@@ -181,6 +181,60 @@ function buildTabGroupColorPalette(options: {
     return new TabGroupColorPalette(entries, enabled);
 }
 
+/**
+ * Which side of an edge group a drop at `target` splits to, along its edge:
+ * `top`/`bottom` on a left or right edge, `left`/`right` on a top or bottom
+ * one. `undefined` for a merge, or for a position across the edge.
+ */
+function edgeSplitPlacement(
+    position: EdgeGroupPosition,
+    target: Position
+): 'before' | 'after' | undefined {
+    const alongVertical = position === 'left' || position === 'right';
+    const before = alongVertical ? 'top' : 'left';
+    const after = alongVertical ? 'bottom' : 'right';
+    if (target === before) {
+        return 'before';
+    }
+    return target === after ? 'after' : undefined;
+}
+
+/** The tab groups of a group, captured so they can be recreated elsewhere. */
+interface TabGroupSnapshot {
+    label: string;
+    color: string | undefined;
+    collapsed: boolean;
+    componentParams: Record<string, unknown> | undefined;
+    panelIds: string[];
+}
+
+function snapshotTabGroups(group: DockviewGroupPanel): TabGroupSnapshot[] {
+    return group.model.getTabGroups().map((tg) => ({
+        label: tg.label,
+        color: tg.color,
+        collapsed: tg.collapsed,
+        componentParams: tg.componentParams,
+        panelIds: [...tg.panelIds],
+    }));
+}
+
+function restoreTabGroups(
+    group: DockviewGroupPanel,
+    snapshots: TabGroupSnapshot[]
+): void {
+    for (const snapshot of snapshots) {
+        const newTabGroup = group.model.createTabGroup({
+            label: snapshot.label,
+            color: snapshot.color,
+            collapsed: snapshot.collapsed,
+            componentParams: snapshot.componentParams,
+        });
+        for (const panelId of snapshot.panelIds) {
+            group.model.addPanelToTabGroup(newTabGroup.id, panelId);
+        }
+    }
+}
+
 function moveGroupWithoutDestroying(options: {
     from: DockviewGroupPanel;
     to: DockviewGroupPanel;
@@ -529,6 +583,7 @@ export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
     getEdgeGroupPanels(
         position: EdgeGroupPosition
     ): readonly DockviewGroupPanel[];
+    getEdgeGroupDropZones(position: EdgeGroupPosition): Position[];
     pinEdgeGroup(position: EdgeGroupPosition): void;
     autoHideEdgeGroup(position: EdgeGroupPosition): void;
     peekEdgeGroup(position: EdgeGroupPosition, peek: boolean): void;
@@ -3139,6 +3194,12 @@ export class DockviewComponent
             this.headerActionsService?.refreshAll();
         }
 
+        if ('stackedEdgeGroups' in options) {
+            for (const [, group] of this._edgeGroupService?.entries() ?? []) {
+                group.model.refreshDropZones();
+            }
+        }
+
         if ('createWatermarkComponent' in options) {
             this._watermarkService?.refresh();
             for (const group of this.groups) {
@@ -3295,29 +3356,30 @@ export class DockviewComponent
             // When the group becomes empty: a group with siblings on its edge,
             // or an auto-reveal edge, is torn down; every other edge group
             // collapses to its strip.
+            const tearsDown = (): boolean =>
+                service.isAutoReveal(group) ||
+                service.getAll(position).length > 1;
             const autoCollapseDisposable = group.model.onDidRemovePanel(() => {
                 if (!group.model.isEmpty) {
                     return;
                 }
-                if (
-                    service.isAutoReveal(group) ||
-                    service.getAll(position).length > 1
-                ) {
-                    // Defer the teardown: disposing the group (and its
-                    // onDidRemovePanel emitter) from inside that emitter's own
-                    // dispatch corrupts the emitter / mutation depth. The
-                    // re-check no-ops if a concurrent move re-filled the group.
-                    queueMicrotask(() => {
-                        if (
-                            group.model.isEmpty &&
-                            this._edgeGroupService?.includes(group)
-                        ) {
-                            this._removeEdgeGroupPanel(group);
-                        }
-                    });
-                } else {
+                if (!tearsDown()) {
                     this.setEdgeGroupCollapsed(group, true);
                 }
+                // Defer the teardown: disposing the group (and its
+                // onDidRemovePanel emitter) from inside that emitter's own
+                // dispatch corrupts the emitter / mutation depth. The re-check
+                // no-ops if a concurrent move re-filled the group, and
+                // catches a sibling the same move went on to create.
+                queueMicrotask(() => {
+                    if (
+                        group.model.isEmpty &&
+                        service.includes(group) &&
+                        tearsDown()
+                    ) {
+                        this._removeEdgeGroupPanel(group);
+                    }
+                });
             });
 
             const placement = this._resolveStackPlacement(
@@ -3665,6 +3727,140 @@ export class DockviewComponent
     /** The element wrapping every group stacked on an edge. */
     getEdgeStackElement(position: EdgeGroupPosition): HTMLElement | undefined {
         return this._shellManager?.getEdgeStackElement(position);
+    }
+
+    /**
+     * The drop zones an edge group's content accepts: a merge, plus, where
+     * the edge can stack, a split to either side along it. Positions across
+     * the edge are never offered.
+     */
+    getEdgeGroupDropZones(position: EdgeGroupPosition): Position[] {
+        if (!this._canStackEdge(position)) {
+            return ['center'];
+        }
+        return position === 'left' || position === 'right'
+            ? ['center', 'top', 'bottom']
+            : ['center', 'left', 'right'];
+    }
+
+    private _canStackEdge(position: EdgeGroupPosition): boolean {
+        return (
+            this._moduleRegistry.services.stackedEdgeGroupService?.canStack(
+                position
+            ) ?? false
+        );
+    }
+
+    /** The side a drop at `target` on `group` splits to, when `group` is an
+     *  edge group whose edge can stack; `undefined` for anything else. */
+    private _edgeSplitPlacement(
+        group: DockviewGroupPanel,
+        target: Position
+    ): 'before' | 'after' | undefined {
+        const location = group.api.location;
+        if (
+            location.type !== 'edge' ||
+            !this._canStackEdge(location.position)
+        ) {
+            return undefined;
+        }
+        return edgeSplitPlacement(location.position, target);
+    }
+
+    /** Create an empty sibling next to the edge group `target`. */
+    private _splitEdgeGroup(
+        target: DockviewGroupPanel,
+        placement: 'before' | 'after',
+        options: { autoReveal?: boolean; size?: number } = {}
+    ): DockviewGroupPanel {
+        const location = target.api.location as {
+            position: EdgeGroupPosition;
+        };
+        const id = this.getNextGroupId();
+        this._doAddEdgeGroup(this._edgeGroupService!, location.position, {
+            id,
+            autoReveal: options.autoReveal,
+            stack: { relativeTo: target.id, placement, size: options.size },
+        });
+        return this._groups.get(id)!.value;
+    }
+
+    /**
+     * Move every panel of `from` into a new sibling of the edge group `to`.
+     * `from` is removed if it empties (an edge group instead follows its
+     * own empty rule).
+     */
+    private _moveGroupIntoEdgeSplit(
+        from: DockviewGroupPanel,
+        to: DockviewGroupPanel,
+        placement: 'before' | 'after',
+        skipSetActive: boolean | undefined
+    ): void {
+        const activePanel = from.activePanel;
+        const tabGroups = snapshotTabGroups(from);
+        const panels = this.movingLock(() =>
+            [...from.panels].map((p) =>
+                from.model.removePanel(p.id, { skipSetActive: true })
+            )
+        );
+        if (from.model.size === 0) {
+            this.doRemoveGroup(from, { skipActive: true });
+        }
+
+        const group = this._splitEdgeGroup(to, placement, {
+            autoReveal: true,
+        });
+        this.movingLock(() => {
+            for (const panel of panels) {
+                group.model.openPanel(panel, {
+                    skipSetActive: panel !== activePanel,
+                    skipSetGroupActive: true,
+                });
+            }
+        });
+        restoreTabGroups(group, tabGroups);
+
+        for (const panel of panels) {
+            this.fireDidMovePanel(panel, from);
+        }
+        this.debouncedUpdateAllPositions();
+        if (skipSetActive !== true) {
+            this.doSetGroupAndPanelActive(group);
+        }
+    }
+
+    /** Move one panel into a new sibling of the edge group `destination`. */
+    private _movePanelIntoEdgeSplit(
+        sourceGroup: DockviewGroupPanel,
+        panelId: string,
+        destination: DockviewGroupPanel,
+        placement: 'before' | 'after',
+        options: { skipSetActive?: boolean; keepEmptyGroups?: boolean }
+    ): void {
+        const removedPanel = this.movingLock(() =>
+            sourceGroup.model.removePanel(panelId, {
+                skipSetActive: false,
+                skipSetActiveGroup: true,
+            })
+        );
+        if (!removedPanel) {
+            throw new Error(`dockview: No panel with id ${panelId}`);
+        }
+        if (!options.keepEmptyGroups && sourceGroup.model.size === 0) {
+            // an edge group is kept here and follows its own empty rule
+            this.doRemoveGroup(sourceGroup, { skipActive: true });
+        }
+
+        const group = this._splitEdgeGroup(destination, placement, {
+            autoReveal: true,
+        });
+        this.movingLock(() =>
+            group.model.openPanel(removedPanel, { skipSetGroupActive: true })
+        );
+        if (!options.skipSetActive) {
+            this.doSetGroupAndPanelActive(group);
+        }
+        this.fireDidMovePanel(removedPanel, sourceGroup);
     }
 
     setEdgeGroupCollapsed(group: DockviewGroupPanel, collapsed: boolean): void {
@@ -4798,6 +4994,28 @@ export class DockviewComponent
                     skipSetGroupActive: options.inactive,
                     index,
                 });
+            } else if (this._edgeSplitPlacement(referenceGroup, target)) {
+                // a direction along a stackable edge opens a new sibling there
+                const group = this._splitEdgeGroup(
+                    referenceGroup,
+                    this._edgeSplitPlacement(referenceGroup, target)!,
+                    {
+                        size:
+                            target === 'top' || target === 'bottom'
+                                ? initial?.height
+                                : initial?.width,
+                    }
+                );
+                panel = this.createPanel(options, group);
+                group.model.openPanel(panel, {
+                    skipSetActive: shouldSkipSetActive(group),
+                    skipSetGroupActive: options.inactive,
+                    index,
+                });
+
+                if (!options.inactive) {
+                    this.doSetGroupAndPanelActive(group);
+                }
             } else if (
                 referenceGroup.api.location.type === 'floating' ||
                 referenceGroup.api.location.type === 'edge' ||
@@ -5583,6 +5801,21 @@ export class DockviewComponent
              * into an adjacent group
              */
 
+            const edgePlacement = this._edgeSplitPlacement(
+                destinationGroup,
+                destinationTarget
+            );
+            if (edgePlacement) {
+                this._movePanelIntoEdgeSplit(
+                    sourceGroup,
+                    sourceItemId,
+                    destinationGroup,
+                    edgePlacement,
+                    options
+                );
+                return;
+            }
+
             // The destination group may live in the main grid or in a floating
             // window's nested gridview, so resolve which root we are dropping
             // into so locations/orientation are computed against it.
@@ -5841,11 +6074,18 @@ export class DockviewComponent
         const componentParams = tabGroup.componentParams;
         const panelIds = [...tabGroup.panelIds];
 
+        const edgePlacement = this._edgeSplitPlacement(
+            destinationGroup,
+            destinationTarget
+        );
+
         // Capture the destination's grid location BEFORE potentially
         // removing the source group, in case source === destination and
         // the source becomes empty after panel removal.
         const referenceLocation =
-            destinationTarget && destinationTarget !== 'center'
+            destinationTarget &&
+            destinationTarget !== 'center' &&
+            !edgePlacement
                 ? getGridLocation(destinationGroup.element)
                 : undefined;
 
@@ -5897,7 +6137,15 @@ export class DockviewComponent
         };
 
         let targetGroup: DockviewGroupPanel;
-        if (
+        if (edgePlacement) {
+            targetGroup = this._splitEdgeGroup(
+                destinationGroup,
+                edgePlacement,
+                {
+                    autoReveal: true,
+                }
+            );
+        } else if (
             !destinationTarget ||
             destinationTarget === 'center' ||
             !referenceLocation
@@ -5957,6 +6205,17 @@ export class DockviewComponent
             return;
         }
 
+        const edgePlacement = this._edgeSplitPlacement(to, target);
+        if (edgePlacement) {
+            this._moveGroupIntoEdgeSplit(
+                from,
+                to,
+                edgePlacement,
+                options.skipSetActive
+            );
+            return;
+        }
+
         // The group whose panels end up at the target. For non-edge moves
         // we relocate `from` itself; for edge moves we move panels into a
         // freshly created group so the edge slot stays anchored.
@@ -5975,13 +6234,7 @@ export class DockviewComponent
             // Snapshot tab group metadata before removing panels so we
             // can recreate the tab groups in the destination after the
             // panels are merged in.
-            const tabGroupSnapshots = from.model.getTabGroups().map((tg) => ({
-                label: tg.label,
-                color: tg.color,
-                collapsed: tg.collapsed,
-                componentParams: tg.componentParams,
-                panelIds: [...tg.panelIds],
-            }));
+            const tabGroupSnapshots = snapshotTabGroups(from);
 
             const panels = this.movingLock(() =>
                 [...from.panels].map((p) =>
@@ -6006,17 +6259,7 @@ export class DockviewComponent
 
             mergedPanels = panels;
 
-            for (const snapshot of tabGroupSnapshots) {
-                const newTabGroup = to.model.createTabGroup({
-                    label: snapshot.label,
-                    color: snapshot.color,
-                    collapsed: snapshot.collapsed,
-                    componentParams: snapshot.componentParams,
-                });
-                for (const panelId of snapshot.panelIds) {
-                    to.model.addPanelToTabGroup(newTabGroup.id, panelId);
-                }
-            }
+            restoreTabGroups(to, tabGroupSnapshots);
 
             // Ensure group becomes active after move
             if (options.skipSetActive !== true) {
@@ -6086,15 +6329,7 @@ export class DockviewComponent
 
                 // Snapshot tab group metadata so the new group inherits
                 // the tab grouping from the edge slot.
-                const tabGroupSnapshots = from.model
-                    .getTabGroups()
-                    .map((tg) => ({
-                        label: tg.label,
-                        color: tg.color,
-                        collapsed: tg.collapsed,
-                        componentParams: tg.componentParams,
-                        panelIds: [...tg.panelIds],
-                    }));
+                const tabGroupSnapshots = snapshotTabGroups(from);
 
                 const movedPanels = this.movingLock(() =>
                     [...from.panels].map((p) =>
@@ -6118,20 +6353,7 @@ export class DockviewComponent
                     }
                 });
 
-                for (const snapshot of tabGroupSnapshots) {
-                    const newTabGroup = source.model.createTabGroup({
-                        label: snapshot.label,
-                        color: snapshot.color,
-                        collapsed: snapshot.collapsed,
-                        componentParams: snapshot.componentParams,
-                    });
-                    for (const panelId of snapshot.panelIds) {
-                        source.model.addPanelToTabGroup(
-                            newTabGroup.id,
-                            panelId
-                        );
-                    }
-                }
+                restoreTabGroups(source, tabGroupSnapshots);
             } else {
                 switch (from.api.location.type) {
                     case 'grid':

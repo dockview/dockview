@@ -85,6 +85,21 @@ describe('stacked edge groups are enterprise-only', () => {
         );
     });
 
+    test('an edge group accepts only a merge, even with the option set', () => {
+        const dockview = freeDockview({ stackedEdgeGroups: true });
+        dockview.addEdgeGroup('left', { id: 'a' });
+        const dropTarget = (
+            dockview.getEdgeGroupPanel('left')!.model as never as {
+                contentContainer: {
+                    dropTarget: { _acceptedTargetZonesSet: Set<string> };
+                };
+            }
+        ).contentContainer.dropTarget;
+
+        expect(dockview.getEdgeGroupDropZones('left')).toEqual(['center']);
+        expect([...dropTarget._acceptedTargetZonesSet]).toEqual(['center']);
+    });
+
     test('fromJSON of a stack restores the first group only, logging once', () => {
         const source = freeDockview();
         source.addEdgeGroup('left', { id: 'a', initialSize: 240 });

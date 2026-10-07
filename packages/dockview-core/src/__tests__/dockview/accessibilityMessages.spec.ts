@@ -61,6 +61,12 @@ describe('accessibilityMessages', () => {
         });
     });
 
+    test('stacked edge groups', () => {
+        expect(DEFAULT_MESSAGES.edgeGroupStacked('Explorer', 'left')).toBe(
+            'Explorer docked in a new left group'
+        );
+    });
+
     describe('resolveMessages', () => {
         test('returns the defaults verbatim when no overrides are given', () => {
             expect(resolveMessages()).toBe(DEFAULT_MESSAGES);

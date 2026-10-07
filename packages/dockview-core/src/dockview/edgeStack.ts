@@ -260,6 +260,10 @@ export class EdgeGroupView implements IView {
         this._group.element.classList.toggle('dv-edge-collapsed', collapsed);
     }
 
+    get isLockedToStrip(): boolean {
+        return this._lockedToStrip;
+    }
+
     /** Pin the member to its strip (a collapsed member of an expanded edge)
      *  or release it. The stack owns the rule; this only applies it. */
     setLockedToStrip(locked: boolean): void {
@@ -489,19 +493,10 @@ export class EdgeStackView implements IView {
     setMemberCollapsed(member: EdgeGroupView, collapsed: boolean): void {
         member.setCollapsed(collapsed);
         this._syncMembers();
-        if (this.isCollapsed || this._members.length < 2) {
-            // a lone member always fills its edge; a collapsed edge keeps
-            // every member's length for when it expands
-            return;
+        if (!collapsed && !this.isCollapsed && this._members.length > 1) {
+            // an expanding member takes its length back from its siblings
+            member.requestSize(member.lastExpandedSize);
         }
-        for (const other of this._members) {
-            if (other !== member && other.isCollapsed) {
-                other.requestSize(other.stripLength);
-            }
-        }
-        member.requestSize(
-            collapsed ? member.stripLength : member.lastExpandedSize
-        );
     }
 
     /** Resize a member along the edge. The size becomes the member's expanded
@@ -602,11 +597,23 @@ export class EdgeStackView implements IView {
     private _syncMembers(): void {
         const edgeCollapsed = this.isCollapsed;
         const hasSiblings = this._members.length > 1;
+        const pinned: EdgeGroupView[] = [];
         for (const member of this._members) {
             member.setHasSiblings(hasSiblings);
-            member.setLockedToStrip(member.isCollapsed && !edgeCollapsed);
+            const locked = member.isCollapsed && !edgeCollapsed;
+            if (locked && !member.isLockedToStrip) {
+                pinned.push(member);
+            }
+            member.setLockedToStrip(locked);
         }
         this._splitview.disabled = edgeCollapsed;
+        if (hasSiblings) {
+            // a newly pinned member gives its length to its siblings; a lone
+            // member always fills its edge
+            for (const member of pinned) {
+                member.requestSize(member.stripLength);
+            }
+        }
     }
 
     /** A strip measurement changed: a collapsed edge follows the widest strip

@@ -282,6 +282,7 @@ describe('dockviewGroupPanelModel', () => {
                 fromPartial<DockviewComponent>({})
             ),
             onDidOptionsChange: () => ({ dispose: jest.fn() }),
+            getEdgeGroupDropZones: () => ['center'],
         });
 
         groupview = new DockviewGroupPanel(dockview, 'groupview-1', options);

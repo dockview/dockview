@@ -539,47 +539,43 @@ export class DockviewGroupPanelModel
     set location(value: DockviewGroupLocation) {
         this._location = value;
 
-        toggleClass(this.container, 'dv-groupview-floating', false);
-        toggleClass(this.container, 'dv-groupview-popout', false);
-        toggleClass(this.container, 'dv-groupview-edge', false);
+        toggleClass(
+            this.container,
+            'dv-groupview-floating',
+            value.type === 'floating'
+        );
+        toggleClass(
+            this.container,
+            'dv-groupview-popout',
+            value.type === 'popout'
+        );
+        toggleClass(this.container, 'dv-groupview-edge', value.type === 'edge');
 
-        // Mouse and touch drop targets must agree on accepted zones.
-        const applyZones = (zones: Position[]): void => {
-            this.contentContainer.dropTarget.setTargetZones(zones);
-            this.contentContainer.pointerDropTarget.setTargetZones(zones);
-        };
-
-        switch (value.type) {
-            case 'grid':
-                applyZones(['top', 'bottom', 'left', 'right', 'center']);
-                break;
-            case 'floating':
-                // Floating windows host their own nested gridview, so an edge
-                // drop splits the window's layout just like the main grid.
-                applyZones(['top', 'bottom', 'left', 'right', 'center']);
-
-                toggleClass(this.container, 'dv-groupview-floating', true);
-
-                break;
-            case 'popout':
-                // Popout windows host their own nested gridview, so an edge
-                // drop splits the window's layout just like the main grid.
-                applyZones(['top', 'bottom', 'left', 'right', 'center']);
-
-                toggleClass(this.container, 'dv-groupview-popout', true);
-
-                break;
-            case 'edge':
-                applyZones(['center']);
-
-                toggleClass(this.container, 'dv-groupview-edge', true);
-
-                break;
-        }
+        this.refreshDropZones();
 
         this.groupPanel.api._onDidLocationChange.fire({
             location: this.location,
         });
+    }
+
+    /**
+     * Re-apply the drop zones the content accepts for the current location.
+     * Mouse and touch drop targets must agree on accepted zones.
+     */
+    refreshDropZones(): void {
+        const zones = this._dropZones();
+        this.contentContainer.dropTarget.setTargetZones(zones);
+        this.contentContainer.pointerDropTarget.setTargetZones(zones);
+    }
+
+    private _dropZones(): Position[] {
+        // Floating and popout windows host their own nested gridview, so an
+        // edge drop splits the window's layout just like the main grid. An
+        // edge group merges, and splits along its edge only where the edge
+        // can stack.
+        return this._location.type === 'edge'
+            ? this.accessor.getEdgeGroupDropZones(this._location.position)
+            : ['top', 'bottom', 'left', 'right', 'center'];
     }
 
     constructor(

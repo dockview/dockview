@@ -1,4 +1,5 @@
 import { Position } from '../dnd/droptarget';
+import { EdgeGroupPosition } from './dockviewShell';
 
 /**
  * The full set of localisable strings dockview speaks to assistive technology:
@@ -43,6 +44,11 @@ export interface DockviewMessages {
     moveNotAllowed(): string;
     /** The panel was floated as a terminal move action. */
     moveFloated(source: string): string;
+
+    // --- stacked edge groups ---
+    /** A drop split an edge group: the panel opened in a new group stacked
+     *  on that edge. */
+    edgeGroupStacked(title: string, position: EdgeGroupPosition): string;
 }
 
 /** Where a drop position lands, phrased for the *edge prompt*. */
@@ -80,6 +86,9 @@ export const DEFAULT_MESSAGES: DockviewMessages = {
     moveCancelled: () => `Move cancelled.`,
     moveNotAllowed: () => `That move is not allowed.`,
     moveFloated: (source) => `${source} floated.`,
+
+    edgeGroupStacked: (title, position) =>
+        `${title} docked in a new ${position} group`,
 };
 
 /** Merge an app's partial overrides over the English defaults. */
