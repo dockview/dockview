@@ -7,8 +7,46 @@ import {
     PanelChannelMessage,
     PanelChannelTransport,
 } from 'dockview-core';
-import { setupMockWindow } from '../../../dockview-core/src/__tests__/__mocks__/mockWindow';
 import { PanelChannelsService } from '../panelChannelsService';
+
+/**
+ * A popout `Window` stand-in for jsdom: fires `load` as soon as it is
+ * subscribed to and shares the main document, which is all a popout needs
+ * to open and render in a unit test.
+ */
+function createMockWindow(): Window {
+    const listeners = new Map<string, (() => void)[]>();
+    const fire = (type: string) => {
+        for (const listener of listeners.get(type) ?? []) {
+            listener();
+        }
+    };
+    return {
+        addEventListener: (type: string, listener: () => void) => {
+            const list = listeners.get(type) ?? [];
+            list.push(listener);
+            listeners.set(type, list);
+            if (type === 'load') {
+                listener();
+            }
+        },
+        removeEventListener: (type: string, listener: () => void) => {
+            const list = listeners.get(type) ?? [];
+            const index = list.indexOf(listener);
+            if (index > -1) {
+                list.splice(index, 1);
+            }
+        },
+        dispatchEvent: (event: Event) => {
+            fire(event.type);
+            return true;
+        },
+        document,
+        close: () => fire('beforeunload'),
+        innerWidth: 1000,
+        innerHeight: 2000,
+    } as unknown as Window;
+}
 
 class TestPanel implements IContentRenderer {
     element = document.createElement('div');
@@ -255,6 +293,89 @@ describe('panel channels', () => {
 
             // Every member sees `first` before anyone sees `reply`.
             expect(log).toEqual(['a:first', 'b:first', 'b:reply']);
+        });
+
+        test('a throwing member does not starve the others or lose queued broadcasts', () => {
+            make({ enabled: true });
+            const a = add('a');
+            const b = add('b');
+            const c = add('c');
+            const d = add('d');
+            for (const p of [a, b, c, d]) {
+                p.api.joinChannel('red');
+            }
+
+            const log: string[] = [];
+            a.api.onDidReceiveContext((e) => {
+                log.push(`a:${e.context.type}`);
+                if (e.context.type === 'first') {
+                    a.api.broadcast({ type: 'reply' });
+                }
+            });
+            b.api.onDidReceiveContext((e) => {
+                log.push(`b:${e.context.type}`);
+                if (e.context.type === 'first') {
+                    throw new Error('b failed');
+                }
+            });
+            c.api.onDidReceiveContext((e) => log.push(`c:${e.context.type}`));
+            d.api.onDidReceiveContext((e) => log.push(`d:${e.context.type}`));
+            const deliveries: string[][] = [];
+            dockview.api.onDidChannelContext((e) =>
+                deliveries.push(e.panels.map((p) => p.id))
+            );
+
+            // The broadcaster still sees the error...
+            expect(() => d.api.broadcast({ type: 'first' })).toThrow(
+                'b failed'
+            );
+
+            // ...but c got `first`, the component event still fired, and the
+            // reply a queued from inside the delivery reached everyone after.
+            expect(log).toEqual([
+                'a:first',
+                'b:first',
+                'c:first',
+                'b:reply',
+                'c:reply',
+                'd:reply',
+            ]);
+            expect(deliveries).toEqual([
+                ['a', 'b', 'c'],
+                ['b', 'c', 'd'],
+            ]);
+            // The queue is empty again: a later broadcast is delivered alone.
+            log.length = 0;
+            d.api.broadcast({ type: 'later' });
+            expect(log).toEqual(['a:later', 'b:later', 'c:later']);
+        });
+
+        test('a join issued inside a delivery replays after the outer dispatch', () => {
+            make({ enabled: true });
+            const a = add('a');
+            const b = add('b');
+            const c = add('c');
+            const d = add('d');
+            a.api.joinChannel('red');
+            b.api.joinChannel('red');
+            d.api.joinChannel('red');
+
+            const log: string[] = [];
+            a.api.onDidReceiveContext((e) => {
+                log.push(`a:${e.context.type}`);
+                if (e.context.type === 'first') {
+                    c.api.joinChannel('red');
+                }
+            });
+            b.api.onDidReceiveContext((e) => log.push(`b:${e.context.type}`));
+            c.api.onDidReceiveContext((e) =>
+                log.push(`c:${e.context.type}:${e.replay ? 'replay' : 'live'}`)
+            );
+
+            d.api.broadcast({ type: 'first' });
+
+            // c's replay of `first` waits for every member to see it live.
+            expect(log).toEqual(['a:first', 'b:first', 'c:first:replay']);
         });
 
         test('nested broadcasts are dispatched in the order they were issued', () => {
@@ -602,7 +723,7 @@ describe('panel channels', () => {
     });
 
     describe('presentation', () => {
-        test('the tab shows a channel marker with the colour and an accessible name', () => {
+        test('the tab shows a channel marker with the colour and carries the description', () => {
             make({ enabled: true });
             const a = add('a');
 
@@ -614,11 +735,13 @@ describe('panel channels', () => {
             expect(tab.style.getPropertyValue('--dv-channel-color')).toBe(
                 'var(--dv-channel-color-red)'
             );
+            expect(tab.getAttribute('aria-description')).toBe('Linked to Red');
             const marker = tab.querySelector('.dv-tab-channel')!;
-            expect(marker.getAttribute('role')).toBe('img');
-            expect(marker.getAttribute('aria-label')).toBe('Linked to Red');
+            expect(marker.getAttribute('aria-hidden')).toBe('true');
+            expect(marker.getAttribute('title')).toBe('Linked to Red');
 
             a.api.leaveChannel();
+            expect(tab.hasAttribute('aria-description')).toBe(false);
             expect(tab.classList.contains('dv-tab--channel')).toBe(false);
             expect(tab.querySelector('.dv-tab-channel')).toBeNull();
             expect(tab.style.getPropertyValue('--dv-channel-color')).toBe('');
@@ -699,7 +822,7 @@ describe('panel channels', () => {
 
         test('a popped-out member still receives broadcasts and shows the marker', async () => {
             const originalOpen = window.open;
-            window.open = () => setupMockWindow();
+            window.open = () => createMockWindow();
             try {
                 make({ enabled: true });
                 const a = add('a');

@@ -1,5 +1,6 @@
 import { IDisposable } from '../lifecycle';
 import { Event } from '../events';
+import { toggleClass } from '../dom';
 import { IDockviewPanel } from './dockviewPanel';
 import { DockviewComponentOptions, PanelChannelDefinition } from './options';
 
@@ -65,6 +66,33 @@ export function resolvePanelChannels(
     options: DockviewComponentOptions
 ): readonly PanelChannelDefinition[] {
     return options.panelChannels?.channels ?? DEFAULT_PANEL_CHANNELS;
+}
+
+/**
+ * Reflect a channel on an element: `className` and `data-channel` while
+ * `channelId` is set, plus `--dv-channel-color` while the channel is still
+ * configured (an unconfigured id keeps the class and attribute but drops the
+ * colour). A custom property rather than a colour property, because the IDL
+ * colour setters reject `var(...)` in some environments (jsdom included); the
+ * SCSS reads it at use time.
+ */
+export function applyChannelAttributes(
+    element: HTMLElement,
+    className: string,
+    channelId: string | undefined,
+    channel: PanelChannelDefinition | undefined
+): void {
+    toggleClass(element, className, channelId !== undefined);
+    if (channelId === undefined) {
+        delete element.dataset.channel;
+    } else {
+        element.dataset.channel = channelId;
+    }
+    if (channel) {
+        element.style.setProperty('--dv-channel-color', channel.color);
+    } else {
+        element.style.removeProperty('--dv-channel-color');
+    }
 }
 
 /** The configured channel with `id`, or `undefined` when unknown or unset. */

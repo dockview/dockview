@@ -47,8 +47,10 @@ test.describe('panel channels', () => {
 
         const marker = tab.locator('.dv-tab-channel');
         await expect(marker).toBeVisible();
-        await expect(marker).toHaveAttribute('role', 'img');
-        await expect(marker).toHaveAttribute('aria-label', 'Linked to Red');
+        // Decorative dot with a tooltip; the tab itself carries the link.
+        await expect(marker).toHaveAttribute('aria-hidden', 'true');
+        await expect(marker).toHaveAttribute('title', 'Linked to Red');
+        await expect(tab).toHaveAttribute('aria-description', 'Linked to Red');
 
         // The theme variable resolves to a real paint colour.
         const colour = await marker.evaluate(

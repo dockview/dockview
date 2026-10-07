@@ -24,6 +24,7 @@ import {
     DropdownElement,
 } from './tabOverflowControl';
 import { DockviewHeaderDirection, PanelChannelDefinition } from '../../options';
+import { applyChannelAttributes } from '../../panelChannels';
 import { applyTabGroupAccent } from '../../tabGroupAccent';
 import { IAdvancedOverflowRenderContext } from '../../moduleContracts';
 import { PopupService } from '../popupService';
@@ -468,24 +469,12 @@ export class TabsContainer
     }
 
     setChannelAccent(channel: PanelChannelDefinition | undefined): void {
-        toggleClass(
+        applyChannelAttributes(
             this._element,
             'dv-tabs-and-actions-container--channel',
-            !!channel
+            channel?.id,
+            channel
         );
-        if (channel) {
-            this._element.dataset.channel = channel.id;
-            // A custom property rather than a colour property: the IDL colour
-            // setters reject `var(...)` in some environments (jsdom included);
-            // the SCSS reads it at use time.
-            this._element.style.setProperty(
-                '--dv-channel-color',
-                channel.color
-            );
-        } else {
-            delete this._element.dataset.channel;
-            this._element.style.removeProperty('--dv-channel-color');
-        }
     }
 
     setDropIndexResolver(fn: (panelId: string, index: number) => number): void {

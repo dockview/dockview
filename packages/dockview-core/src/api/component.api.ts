@@ -1155,8 +1155,8 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
 
     /**
      * Broadcast a context to every member of a channel from outside any
-     * panel (receivers see `source: undefined`). Warns once and does nothing
-     * when the PanelChannels module is absent.
+     * panel (receivers see `source: undefined`). Logs a missing-module error
+     * (once) and does nothing when the PanelChannels module is absent.
      */
     broadcastToChannel(channelId: string, context: PanelChannelContext): void {
         this.component.broadcastToChannel(channelId, context);

@@ -98,8 +98,9 @@ export class PanelChannelsService implements IPanelChannelsService {
     /** channel id → members keyed by panel id, in join order. */
     private readonly _members = new Map<string, Map<string, IDockviewPanel>>();
     private readonly _lastContext = new Map<string, PanelChannelContext>();
-    /** Broadcasts issued from inside a delivery, dispatched FIFO after it. */
-    private readonly _queue: PanelChannelMessage[] = [];
+    /** Delivery steps (dispatches and replays) issued from inside a delivery,
+     *  run FIFO after it so deliveries never nest. */
+    private readonly _queue: (() => void)[] = [];
     private _dispatching = false;
     private readonly _headers = new Map<
         DockviewGroupPanel,
@@ -269,8 +270,10 @@ export class PanelChannelsService implements IPanelChannelsService {
             return;
         }
         const event = { channel, context, source: undefined, replay: true };
-        this._host.deliverContext(panel, event);
-        this._host.fireDidChannelContext({ ...event, panels: [panel] });
+        this._serialise(() => {
+            this._host.deliverContext(panel, event);
+            this._host.fireDidChannelContext({ ...event, panels: [panel] });
+        });
     }
 
     private _rebuildFromPanels(): void {
@@ -313,24 +316,39 @@ export class PanelChannelsService implements IPanelChannelsService {
         }
     }
 
-    /** Serialise dispatches: a broadcast issued from inside a delivery handler
-     *  waits for the current dispatch to finish, then runs in order. */
     private _receive(message: PanelChannelMessage): void {
+        this._serialise(() => this._dispatch(message));
+    }
+
+    /**
+     * Run a delivery step now, or queue it when one is already running (a
+     * broadcast or join issued from inside a handler), then drain the queue in
+     * order. A step that throws does not stop the drain: the first error is
+     * rethrown once everything queued has run, so the broadcaster still sees
+     * it (as it would from a core emitter) and no queued step is lost.
+     */
+    private _serialise(step: () => void): void {
         if (this._dispatching) {
-            this._queue.push(message);
+            this._queue.push(step);
             return;
         }
         this._dispatching = true;
+        let failure: { error: unknown } | undefined;
         try {
-            this._dispatch(message);
-            let next = this._queue.shift();
+            let next: (() => void) | undefined = step;
             while (next) {
-                this._dispatch(next);
+                try {
+                    next();
+                } catch (error) {
+                    failure ??= { error };
+                }
                 next = this._queue.shift();
             }
         } finally {
             this._dispatching = false;
-            this._queue.length = 0;
+        }
+        if (failure) {
+            throw failure.error;
         }
     }
 
@@ -361,10 +379,20 @@ export class PanelChannelsService implements IPanelChannelsService {
             source,
             replay: false,
         };
+        // One member's handler throwing must not starve the others: deliver to
+        // every member, then rethrow the first error.
+        let failure: { error: unknown } | undefined;
         for (const panel of panels) {
-            this._host.deliverContext(panel, event);
+            try {
+                this._host.deliverContext(panel, event);
+            } catch (error) {
+                failure ??= { error };
+            }
         }
         this._host.fireDidChannelContext({ ...event, panels });
+        if (failure) {
+            throw failure.error;
+        }
     }
 }
 

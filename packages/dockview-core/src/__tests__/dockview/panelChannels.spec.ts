@@ -226,7 +226,7 @@ describe('panel channels without the module', () => {
     });
 
     describe('tab marker', () => {
-        test('is injected for the default renderer with colour and accessible name', () => {
+        test('is injected for the default renderer with colour; the tab carries the description', () => {
             make({ panelChannels: { enabled: true } });
             const a = add('a');
             const tab = tabEl(a);
@@ -240,13 +240,15 @@ describe('panel channels without the module', () => {
             expect(tab.style.getPropertyValue('--dv-channel-color')).toBe(
                 'var(--dv-channel-color-red)'
             );
+            // The link is exposed on the tab (a `tab`'s children are
+            // presentational); the dot is decorative with a tooltip.
+            expect(tab.getAttribute('aria-description')).toBe('Linked to Red');
+            expect(tab.getAttribute('aria-label')).toBe('a');
             const marker = tab.querySelector('.dv-tab-channel')!;
-            expect(marker.getAttribute('role')).toBe('img');
-            expect(marker.getAttribute('aria-label')).toBe('Linked to Red');
+            expect(marker.getAttribute('aria-hidden')).toBe('true');
+            expect(marker.hasAttribute('role')).toBe(false);
+            expect(marker.hasAttribute('aria-label')).toBe(false);
             expect(marker.getAttribute('title')).toBe('Linked to Red');
-            expect(marker.getAttribute('aria-label')).toBe(
-                marker.getAttribute('title')
-            );
         });
 
         test('is removed on leave', () => {
@@ -259,21 +261,23 @@ describe('panel channels without the module', () => {
 
             expect(tab.classList.contains('dv-tab--channel')).toBe(false);
             expect(tab.dataset.channel).toBeUndefined();
+            expect(tab.hasAttribute('aria-description')).toBe(false);
             expect(tab.querySelector('.dv-tab-channel')).toBeNull();
             expect(tab.style.getPropertyValue('--dv-channel-color')).toBe('');
         });
 
-        test('uses the messages option for the accessible name', () => {
+        test('uses the messages option for the description', () => {
             make({
                 panelChannels: { enabled: true },
                 messages: { channelIndicator: (c) => `Canal ${c}` },
             });
             const a = add('a');
             a.setChannel('blue');
+            expect(tabEl(a).getAttribute('aria-description')).toBe(
+                'Canal Blue'
+            );
             expect(
-                tabEl(a)
-                    .querySelector('.dv-tab-channel')!
-                    .getAttribute('aria-label')
+                tabEl(a).querySelector('.dv-tab-channel')!.getAttribute('title')
             ).toBe('Canal Blue');
         });
 
@@ -302,6 +306,8 @@ describe('panel channels without the module', () => {
             );
             expect(tab.querySelector('.dv-tab-channel')).toBeNull();
             expect(tab.querySelector('.my-custom-tab')).not.toBeNull();
+            // The description is on the tab element, so it applies here too.
+            expect(tab.getAttribute('aria-description')).toBe('Linked to Red');
         });
 
         test('survives a reorder, which recreates the tab', () => {
@@ -318,22 +324,50 @@ describe('panel channels without the module', () => {
             expect(tab.querySelector('.dv-tab-channel')).not.toBeNull();
         });
 
-        test('sits after the pin glyph when both are present', () => {
-            make({
-                panelChannels: { enabled: true },
-                pinnedTabs: { enabled: true },
-            });
-            const a = add('a');
-            a.setChannel('red');
-            a.setPinned(true);
+        describe('sits after the pin glyph when both are present', () => {
+            const leading = (panel: IDockviewPanel) =>
+                Array.from(tabEl(panel).children)
+                    .map((el) => el.className)
+                    .slice(0, 2);
 
-            const children = Array.from(tabEl(a).children).map(
-                (el) => el.className
-            );
-            expect(children.slice(0, 2)).toEqual([
-                'dv-tab-pin',
-                'dv-tab-channel',
-            ]);
+            test('channel then pin', () => {
+                make({
+                    panelChannels: { enabled: true },
+                    pinnedTabs: { enabled: true },
+                });
+                const a = add('a');
+                a.setChannel('red');
+                a.setPinned(true);
+                expect(leading(a)).toEqual(['dv-tab-pin', 'dv-tab-channel']);
+            });
+
+            test('pin then channel', () => {
+                make({
+                    panelChannels: { enabled: true },
+                    pinnedTabs: { enabled: true },
+                });
+                const a = add('a');
+                a.setPinned(true);
+                a.setChannel('red');
+                expect(leading(a)).toEqual(['dv-tab-pin', 'dv-tab-channel']);
+            });
+
+            test('after a reorder recreates the tab with both set', () => {
+                // The recreated tab injects the glyph before it has any other
+                // child, so the glyph is the last child when the dot is added.
+                make({
+                    panelChannels: { enabled: true },
+                    pinnedTabs: { enabled: true },
+                });
+                const a = add('a');
+                const b = add('b');
+                b.setPinned(true);
+                b.setChannel('red');
+
+                a.api.moveTo({ index: 1 });
+
+                expect(leading(b)).toEqual(['dv-tab-pin', 'dv-tab-channel']);
+            });
         });
 
         test('re-resolves the colour when the channel list changes', () => {
@@ -352,9 +386,9 @@ describe('panel channels without the module', () => {
             expect(tab.style.getPropertyValue('--dv-channel-color')).toBe(
                 'crimson'
             );
-            expect(
-                tab.querySelector('.dv-tab-channel')!.getAttribute('aria-label')
-            ).toBe('Linked to Rouge');
+            expect(tab.getAttribute('aria-description')).toBe(
+                'Linked to Rouge'
+            );
         });
     });
 });

@@ -27,7 +27,7 @@ import { LongPressDetector } from '../../../dnd/pointer/longPress';
 import { IDockviewPanel } from '../../dockviewPanel';
 import { DockviewHeaderDirection } from '../../options';
 import { resolveDndCapabilities } from '../../dndCapabilities';
-import { findPanelChannel } from '../../panelChannels';
+import { applyChannelAttributes, findPanelChannel } from '../../panelChannels';
 import { resolveMessages } from '../../accessibilityMessages';
 
 let _tabId = 0;
@@ -348,52 +348,56 @@ export class Tab extends CompositeDisposable {
     /**
      * Reflect the panel's channel on the tab: the `dv-tab--channel` class,
      * `data-channel` and `--dv-channel-color` are always applied so a custom
-     * tab renderer can style itself; the inline colour dot (`.dv-tab-channel`)
-     * is injected for the default renderer only, after the pin glyph if both
-     * are present. A channel id that is no longer configured keeps the class
-     * and data attribute but drops the colour (the dot falls back to
-     * `currentColor`).
+     * tab renderer can style itself, and the tab carries the link as its
+     * `aria-description` (its accessible name stays the title). The inline
+     * colour dot (`.dv-tab-channel`) is injected for the default renderer
+     * only, after the pin glyph if both are present; it is decorative
+     * (`aria-hidden`, a `title` tooltip) since a `tab`'s children are
+     * presentational to assistive technology. A channel id that is no longer
+     * configured keeps the class and attributes but drops the colour (the dot
+     * falls back to `currentColor`).
      */
     private _updateChannelMarker(): void {
         const channelId = this.panel.api?.channel;
         const channel = findPanelChannel(this.accessor.options, channelId);
         const linked = channelId !== undefined;
 
-        toggleClass(this.element, 'dv-tab--channel', linked);
-        if (linked) {
-            this._element.dataset.channel = channelId;
+        applyChannelAttributes(
+            this._element,
+            'dv-tab--channel',
+            channelId,
+            channel
+        );
+        const description = linked
+            ? resolveMessages(this.accessor.options.messages).channelIndicator(
+                  channel?.label ?? channelId
+              )
+            : undefined;
+        if (description === undefined) {
+            this._element.removeAttribute('aria-description');
         } else {
-            delete this._element.dataset.channel;
-        }
-        if (channel) {
-            this._element.style.setProperty(
-                '--dv-channel-color',
-                channel.color
-            );
-        } else {
-            this._element.style.removeProperty('--dv-channel-color');
+            this._element.setAttribute('aria-description', description);
         }
 
         const wantMarker = linked && !this.panel.api?.tabComponent;
         if (wantMarker && !this._channelMarker) {
             const marker = document.createElement('div');
             marker.className = 'dv-tab-channel';
-            marker.setAttribute('role', 'img');
+            marker.setAttribute('aria-hidden', 'true');
+            // After the pin glyph when there is one (`null` appends when the
+            // glyph is the last child), otherwise first.
+            const pin = this._pinIndicator;
             this._element.insertBefore(
                 marker,
-                this._pinIndicator?.nextSibling ?? this._element.firstChild
+                pin ? pin.nextSibling : this._element.firstChild
             );
             this._channelMarker = marker;
         } else if (!wantMarker && this._channelMarker) {
             this._channelMarker.remove();
             this._channelMarker = undefined;
         }
-        if (this._channelMarker) {
-            const name = resolveMessages(
-                this.accessor.options.messages
-            ).channelIndicator(channel?.label ?? channelId ?? '');
-            this._channelMarker.setAttribute('aria-label', name);
-            this._channelMarker.title = name;
+        if (this._channelMarker && description !== undefined) {
+            this._channelMarker.title = description;
         }
     }
 
