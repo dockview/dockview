@@ -106,7 +106,7 @@ const api = createDockview(element, {
 
 A per-call `extraWindowFeatures` on `addPopoutGroup` merges over the component-level entries. Per-call entries are not replayed when a layout is restored, so use them for one-off tweaks, not for markers the host depends on.
 
-`popoutWindowFactory` replaces the `window.open` call entirely. Return the `Window` to use, or `null` to signal the popout was blocked (dockview then runs its normal blocked-popout recovery). The returned window must be same-process and same-origin; the same-origin URL check still applies.
+`popoutWindowFactory` replaces the `window.open` call entirely. Return the `Window` to use, or `null` to signal the popout was blocked; a factory that throws is treated the same way. Dockview then runs its normal blocked-popout recovery and `onDidOpenPopoutWindowFail` reports the failure with reason `'blocked'`. The returned window must be same-process and same-origin; the same-origin URL check still applies, and a window that has already finished loading is used as is.
 
 ```tsx
 const api = createDockview(element, {
