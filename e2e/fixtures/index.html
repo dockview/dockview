@@ -134,6 +134,11 @@
                 // by default (`contextMenuItem: false`) so the base context-menu
                 // spec keeps seeing exactly its app-supplied items.
                 const pinAutoInject = params.get('pinautoinject') === '1';
+                // `?channelmenu=1` lets the PanelChannels module auto-inject its
+                // "Link to" / "Unlink" block into the tab menu. Off by default
+                // so the base context-menu spec keeps its app-supplied item
+                // count.
+                const channelMenu = params.get('channelmenu') === '1';
                 // `?chipcomponent=1` adds a custom `component` item to the tab
                 // group chip context menu so the chip-menu component path (and
                 // `componentProps` forwarding) can be driven end-to-end. Off by
@@ -157,6 +162,12 @@
                         mode: pinnedMode,
                         compact: params.get('compact') === '1',
                         contextMenuItem: pinAutoInject,
+                    },
+                    // Panel channels — inert until a panel joins one. The menu
+                    // block is query-gated (see `channelMenu`).
+                    panelChannels: {
+                        enabled: true,
+                        contextMenuItem: channelMenu,
                     },
                     // Record layout history so the harness can exercise undo/redo
                     // (incl. async popout re-open).
@@ -343,7 +354,17 @@
                         element.textContent = options.id;
                         return {
                             element,
-                            init() {},
+                            // Capture every context delivered over the panel's
+                            // channel so a spec can assert on the receiver side.
+                            init(params) {
+                                params.api.onDidReceiveContext((event) => {
+                                    (received[options.id] ||= []).push({
+                                        context: event.context,
+                                        replay: event.replay,
+                                        channel: event.channel.id,
+                                    });
+                                });
+                            },
                             // Record the content-area dimensions the group hands
                             // each panel so the content-sizing seam (group box
                             // minus header) is observable to the harness.
@@ -358,6 +379,9 @@
 
                 // Test-facing handle.
                 const panels = {};
+                // Contexts each panel received over its channel, keyed by panel
+                // id (written by the panel's init() above).
+                const received = {};
                 // Last content-area dimensions each panel was laid out with,
                 // keyed by panel id (written by the panel's layout() above).
                 const panelDimensions = {};
@@ -388,6 +412,15 @@
                     setPinned: (id, pinned) =>
                         panels[id] && panels[id].api.setPinned(pinned),
                     isPinned: (id) => panels[id] && panels[id].api.isPinned,
+                    // Panel channels.
+                    joinChannel: (id, channel) =>
+                        panels[id] && panels[id].api.joinChannel(channel),
+                    leaveChannel: (id) =>
+                        panels[id] && panels[id].api.leaveChannel(),
+                    channelOf: (id) => panels[id] && panels[id].api.channel,
+                    broadcast: (id, context) =>
+                        panels[id] && panels[id].api.broadcast(context),
+                    received: (id) => received[id] || [],
                     // The content-area dimensions a panel was last laid out
                     // with — the seam reports the group box minus the header.
                     panelDimensions: (id) => panelDimensions[id],
