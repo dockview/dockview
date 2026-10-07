@@ -187,6 +187,64 @@ function onReady(event: DockviewReadyEvent) {
 </template>
 ```
 
+Alternatively, declare panels, tabs, header actions and the watermark as scoped
+slots. Slot content is part of your template, so it can use your component's
+state and event handlers directly. A slot takes precedence over the matching
+component prop.
+
+Slot props are the same objects a component receives as its `params` prop,
+and the slot re-renders when they change: after `api.updateParameters(...)`,
+when a panel's title changes (so `api.title` stays current), and for header
+actions when a group's panels or active panel change. Other values read from
+the `api` objects are not tracked; listen to the api for those, just as a
+component would.
+
+| Slot | Renders | Slot props |
+| --- | --- | --- |
+| `#panel-<name>` | panels added with `component: '<name>'` | `IDockviewPanelProps` |
+| `#tab-<name>` | tabs added with `tabComponent: '<name>'` | `IDockviewPanelHeaderProps` |
+| `#defaultTab` | tabs without a `tabComponent` | `IDockviewPanelHeaderProps` |
+| `#rightHeaderActions`, `#leftHeaderActions`, `#prefixHeaderActions` | group header actions | `IDockviewHeaderActionsProps` |
+| `#watermark` | the watermark shown when there are no panels | `IWatermarkPanelProps` |
+
+```vue
+<script setup lang="ts">
+import 'dockview-vue/dist/styles/dockview.css';
+import { DockviewVue, type DockviewReadyEvent } from 'dockview-vue';
+import { ref } from 'vue';
+
+const saved = ref(0);
+
+function onReady(event: DockviewReadyEvent) {
+    event.api.addPanel({
+        id: 'panel_1',
+        component: 'my-panel',
+        title: 'Panel 1',
+    });
+}
+</script>
+
+<template>
+    <div style="height:100dvh">
+        <DockviewVue
+            style="width:100%;height:100%"
+            class="dockview-theme-abyss"
+            @ready="onReady"
+        >
+            <template #panel-my-panel="{ api }">
+                <div style="padding: 16px">
+                    {{ api.title }}: saved {{ saved }} times
+                    <button @click="saved++">Save</button>
+                </div>
+            </template>
+            <template #rightHeaderActions="{ group }">
+                <button @click="group.api.maximize()">Maximize</button>
+            </template>
+        </DockviewVue>
+    </div>
+</template>
+```
+
 </FrameworkSpecific>
 
 <FrameworkSpecific framework="Angular">

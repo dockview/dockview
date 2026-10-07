@@ -2,7 +2,6 @@ import type {
     DockviewApi,
     DockviewGroupLocation,
     DockviewGroupPanel,
-    DockviewPanelApi,
     IContentRenderer,
     IDockviewGroupPanel,
     IDockviewHeaderActionsProps,
@@ -27,6 +26,7 @@ import {
     DockviewCompositeDisposable,
     DockviewMutableDisposable,
 } from 'dockview';
+import { VueSlotOutlet, isSlotReference, type VueSlotReference } from './slots';
 import {
     createVNode,
     type ComponentOptionsBase,
@@ -52,6 +52,13 @@ export type ComponentInterface = ComponentOptionsBase<
 >;
 
 export type VueComponent<T = any> = DefineComponent<T>;
+
+/**
+ * What a renderer mounts: a component, or a named slot of the host.
+ *
+ * @internal
+ */
+export type VueRenderable = VueComponent | VueSlotReference;
 
 export function findComponent(
     parent: ComponentInternalInstance,
@@ -211,7 +218,7 @@ abstract class AbstractVueRenderer {
     }
 
     constructor(
-        protected readonly component: VueComponent,
+        protected readonly component: VueRenderable,
         protected readonly parent: ComponentInternalInstance,
         protected readonly registry?: VueRendererRegistry
     ) {
@@ -226,17 +233,23 @@ abstract class AbstractVueRenderer {
      * is provided the component is teleported by the host (keeping it in the
      * Vue component tree); otherwise it falls back to the detached
      * {@link mountVueComponent} render root.
+     *
+     * A {@link VueSlotReference} is mounted as a {@link VueSlotOutlet}, which
+     * renders the host's slot with `props.params` as the slot props.
      */
     protected mount(props: Record<string, any>): void {
+        let component: VueComponent;
+        if (isSlotReference(this.component)) {
+            component = VueSlotOutlet;
+            props = { ...props, slotName: this.component.name };
+        } else {
+            component = this.component;
+        }
+
         this._renderDisposable?.dispose();
         this._renderDisposable = this.registry
-            ? this.registry.mount(this.component, this.element, props)
-            : mountVueComponent(
-                  this.component,
-                  this.parent,
-                  props,
-                  this.element
-              );
+            ? this.registry.mount(component, this.element, props)
+            : mountVueComponent(component, this.parent, props, this.element);
     }
 }
 
@@ -244,39 +257,48 @@ export class VueRenderer
     extends AbstractVueRenderer
     implements ITabRenderer, IContentRenderer
 {
-    private _api: DockviewPanelApi | undefined;
-    private _containerApi: DockviewApi | undefined;
+    private _props: IDockviewPanelHeaderProps | undefined;
+    private readonly _titleDisposable = new DockviewMutableDisposable();
 
     init(parameters: TabPartInitParameters): void {
-        this._api = parameters.api;
-        this._containerApi = parameters.containerApi;
-
-        const props: IDockviewPanelHeaderProps = {
+        this._props = {
             params: parameters.params,
             api: parameters.api,
             containerApi: parameters.containerApi,
             tabLocation: parameters.tabLocation,
         };
 
-        this.mount({ params: props });
+        this.mount({ params: this._props });
+
+        /**
+         * Slot content cannot subscribe to the panel api the way a component's
+         * setup can, so re-render it when the title changes, keeping
+         * `api.title` in a slot current. Components are left to subscribe
+         * themselves.
+         */
+        if (isSlotReference(this.component)) {
+            this._titleDisposable.value = parameters.api.onDidTitleChange(
+                () => {
+                    if (this._props) {
+                        this._props = { ...this._props };
+                        this._renderDisposable?.update({ params: this._props });
+                    }
+                }
+            );
+        }
     }
 
     update(event: PanelUpdateEvent<Parameters>): void {
-        if (!this._api || !this._containerApi) {
+        if (!this._props) {
             return;
         }
 
-        const params = event.params;
-        this._renderDisposable?.update({
-            params: {
-                params: params,
-                api: this._api,
-                containerApi: this._containerApi,
-            },
-        });
+        this._props = { ...this._props, params: event.params };
+        this._renderDisposable?.update({ params: this._props });
     }
 
     dispose(): void {
+        this._titleDisposable.dispose();
         this._renderDisposable?.dispose();
     }
 }
@@ -319,7 +341,7 @@ export class VueHeaderActionsRenderer
     }
 
     constructor(
-        component: VueComponent,
+        component: VueRenderable,
         parent: ComponentInternalInstance,
         private readonly group: DockviewGroupPanel,
         registry?: VueRendererRegistry

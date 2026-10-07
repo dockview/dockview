@@ -62,8 +62,8 @@ Use the component in a Vue SFC:
 <template>
     <div style="height: 400px">
         <DockviewVue :theme="theme" @ready="onReady">
-            <template #myComponent="{ params }">
-                <div>Hello World</div>
+            <template #panel-myComponent="{ api }">
+                <div>Hello {{ api.title }}</div>
             </template>
         </DockviewVue>
     </div>
@@ -79,10 +79,16 @@ function onReady(event: DockviewReadyEvent) {
     event.api.addPanel({
         id: 'panel_1',
         component: 'myComponent',
+        title: 'World',
     });
 }
 </script>
 ```
+
+Panels, tabs (`#tab-<name>`, `#defaultTab`), header actions
+(`#rightHeaderActions`, `#leftHeaderActions`, `#prefixHeaderActions`) and the
+watermark (`#watermark`) can all be declared as scoped slots, or passed as
+components through the `components`, `tabComponents` and `*Component` props.
 
 See the [documentation](https://dockview.dev) for full examples.
 
