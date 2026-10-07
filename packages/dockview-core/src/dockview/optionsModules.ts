@@ -85,6 +85,12 @@ export const OPTION_MODULE_RULES: OptionModuleRule[] = [
         when: (o) => o.pinnedTabs?.enabled === true,
     },
     {
+        optionKey: 'panelChannels',
+        reason: 'panelChannels.enabled: true',
+        moduleName: 'PanelChannels',
+        when: (o) => o.panelChannels?.enabled === true,
+    },
+    {
         optionKey: 'overflow',
         reason: "overflow.mode: 'wrap'",
         moduleName: 'MultiRowTabs',

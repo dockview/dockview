@@ -1,5 +1,7 @@
 import {
     DockviewActivePanelChangeEvent,
+    DockviewChannelContextEvent,
+    DockviewPanelChannelChangeEvent,
     DockviewPanelPinnedChangeEvent,
     DockviewLayoutMutationEvent,
     DockviewMaximizedGroupChangeEvent,
@@ -21,8 +23,10 @@ import {
     DockviewComponentOptions,
     DockviewDndOverlayEvent,
     MovementOptions,
+    PanelChannelDefinition,
     SmartGuidesOptions,
 } from '../dockview/options';
+import { PanelChannelContext } from '../dockview/panelChannels';
 import {
     DockviewMessages,
     resolveMessages,
@@ -713,6 +717,24 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
     }
 
     /**
+     * Fired when a panel joins, switches or leaves a channel (PanelChannels
+     * module). Carries the panel and its new channel definition, or
+     * `undefined` after a leave.
+     */
+    get onDidPanelChannelChange(): Event<DockviewPanelChannelChangeEvent> {
+        return this.component.onDidPanelChannelChange;
+    }
+
+    /**
+     * Fired after a context has been delivered over a channel: live
+     * broadcasts and last-value replays alike (see `replay`). Carries the
+     * receiving panels in delivery order.
+     */
+    get onDidChannelContext(): Event<DockviewChannelContextEvent> {
+        return this.component.onDidChannelContext;
+    }
+
+    /**
      * Invoked when a panel is added. May be called multiple times when moving panels.
      */
     get onDidAddPanel(): Event<IDockviewPanel> {
@@ -1111,6 +1133,39 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
     /** Drop both undo and redo stacks (e.g. on document switch). */
     clearHistory(): void {
         this.component.clearHistory();
+    }
+
+    /**
+     * The configured panel channels: the `panelChannels.channels` option, or
+     * the built-in set when unset.
+     */
+    getPanelChannels(): readonly PanelChannelDefinition[] {
+        return this.component.getPanelChannels();
+    }
+
+    /** The last context broadcast on a channel, or `undefined`. */
+    getChannelContext(channelId: string): PanelChannelContext | undefined {
+        return this.component.getChannelContext(channelId);
+    }
+
+    /** The panels linked to a channel, in join order. */
+    getChannelMembers(channelId: string): IDockviewPanel[] {
+        return this.component.getChannelMembers(channelId);
+    }
+
+    /**
+     * Broadcast a context to every member of a channel from outside any
+     * panel (receivers see `source: undefined`). Warns once and does nothing
+     * when the PanelChannels module is absent.
+     */
+    broadcastToChannel(channelId: string, context: PanelChannelContext): void {
+        this.component.broadcastToChannel(channelId, context);
+    }
+
+    /** Drop the retained last context of one channel, or of every channel
+     *  when `channelId` is omitted. */
+    clearChannelContexts(channelId?: string): void {
+        this.component.clearChannelContexts(channelId);
     }
 
     /** Fires whenever the undo/redo stacks change. */

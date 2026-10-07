@@ -42,9 +42,16 @@ import {
     isPanelOptionsWithPanel,
     MovementOptions,
     DockviewHeaderPosition,
+    PanelChannelDefinition,
     SmartGuidesOptions,
     isEdgeGroupEnabled,
 } from './options';
+import {
+    findPanelChannel,
+    PanelChannelContext,
+    PanelChannelContextEvent,
+    resolvePanelChannels,
+} from './panelChannels';
 import {
     BaseGrid,
     Direction,
@@ -112,6 +119,8 @@ import {
     SmartGuidesSnapTogetherEvent,
     ITabGroupChipsHost,
     IPinnedTabsService,
+    IPanelChannelsHost,
+    IPanelChannelsService,
     IAdvancedOverflowService,
 } from './moduleContracts';
 import { IHeaderActionsHost } from './headerActionsService';
@@ -392,6 +401,29 @@ export interface DockviewPanelPinnedChangeEvent {
     readonly isPinned: boolean;
 }
 
+/**
+ * Fired by `onDidPanelChannelChange` when a panel joins, switches or leaves a
+ * channel via the PanelChannels module. `channel` is the new definition, or
+ * `undefined` after a leave.
+ */
+export interface DockviewPanelChannelChangeEvent {
+    readonly panel: IDockviewPanel;
+    readonly channel: PanelChannelDefinition | undefined;
+}
+
+/**
+ * Fired by `onDidChannelContext` after a context has been delivered over a
+ * channel. `panels` are the receivers, in delivery order; `replay` marks a
+ * last-value replay (join / restore) rather than a live broadcast.
+ */
+export interface DockviewChannelContextEvent {
+    readonly channel: PanelChannelDefinition;
+    readonly context: PanelChannelContext;
+    readonly source: IDockviewPanel | undefined;
+    readonly replay: boolean;
+    readonly panels: IDockviewPanel[];
+}
+
 export interface PopoutGroupChangeSizeEvent {
     width: number;
     height: number;
@@ -435,6 +467,8 @@ export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
     readonly onDidLayoutFromJSON: Event<void>;
     readonly onDidActivePanelChange: Event<DockviewActivePanelChangeEvent>;
     readonly onDidPanelPinnedChange: Event<DockviewPanelPinnedChangeEvent>;
+    readonly onDidPanelChannelChange: Event<DockviewPanelChannelChangeEvent>;
+    readonly onDidChannelContext: Event<DockviewChannelContextEvent>;
     readonly onWillDragPanel: Event<TabDragEvent>;
     readonly onWillDragGroup: Event<GroupDragEvent>;
     readonly onDidRemoveGroup: Event<DockviewGroupPanel>;
@@ -463,6 +497,14 @@ export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
     moveGroupOrPanel(options: MoveGroupOrPanelOptions): void;
     moveGroup(options: MoveGroupOptions): void;
     setPanelPinned(panel: DockviewPanel, pinned: boolean): void;
+    setPanelChannel(panel: DockviewPanel, channelId: string | undefined): void;
+    getPanelChannels(): readonly PanelChannelDefinition[];
+    getChannelContext(
+        channelId: string | undefined
+    ): PanelChannelContext | undefined;
+    getChannelMembers(channelId: string): IDockviewPanel[];
+    broadcastToChannel(channelId: string, context: PanelChannelContext): void;
+    clearChannelContexts(channelId?: string): void;
     doSetGroupActive: (group: DockviewGroupPanel, skipFocus?: boolean) => void;
     removeGroup: (group: DockviewGroupPanel) => void;
     addPanel<T extends object = Parameters>(
@@ -571,7 +613,8 @@ export class DockviewComponent
         IDndCompassHost,
         ISmartGuidesHost,
         IAutoHideEdgeGroupHost,
-        IMultiRowTabsHost
+        IMultiRowTabsHost,
+        IPanelChannelsHost
 {
     private readonly nextGroupId = sequentialNumberGenerator();
     private readonly _deserializer = new DefaultDockviewDeserialzier(this);
@@ -719,6 +762,20 @@ export class DockviewComponent
         new Emitter<DockviewPanelPinnedChangeEvent>();
     readonly onDidPanelPinnedChange: Event<DockviewPanelPinnedChangeEvent> =
         this._onDidPanelPinnedChange.event;
+
+    private readonly _onDidPanelChannelChange =
+        new Emitter<DockviewPanelChannelChangeEvent>();
+    readonly onDidPanelChannelChange: Event<DockviewPanelChannelChangeEvent> =
+        this._onDidPanelChannelChange.event;
+
+    private readonly _onDidChannelContext =
+        new Emitter<DockviewChannelContextEvent>();
+    readonly onDidChannelContext: Event<DockviewChannelContextEvent> =
+        this._onDidChannelContext.event;
+
+    /** Channel ids a restore already warned about, so a layout holding many
+     *  panels on one unconfigured channel warns once. */
+    private readonly _warnedUnknownChannels = new Set<string>();
 
     private readonly _onDidMovePanel = new Emitter<MovePanelEvent>();
     readonly onDidMovePanel = this._onDidMovePanel.event;
@@ -1544,6 +1601,129 @@ export class DockviewComponent
         this._onDidPanelPinnedChange.fire({ panel, isPinned: pinned });
     }
 
+    get panelChannelsService(): IPanelChannelsService | undefined {
+        // Owned by PanelChannelsModule; undefined when the module is not
+        // registered, so callers must `?.`-guard.
+        return this._moduleRegistry.services.panelChannelsService;
+    }
+
+    /** The configured channel list: `panelChannels.channels` or the defaults. */
+    getPanelChannels(): readonly PanelChannelDefinition[] {
+        return resolvePanelChannels(this.options);
+    }
+
+    /** The configured channel with `channelId`, or `undefined`. */
+    getPanelChannel(
+        channelId: string | undefined
+    ): PanelChannelDefinition | undefined {
+        return findPanelChannel(this.options, channelId);
+    }
+
+    /**
+     * Link / unlink a panel's channel. The single gated entry point behind
+     * `panel.api.joinChannel` / `leaveChannel`. Dormant unless
+     * `panelChannels.enabled` is set (a silent no-op), and a silent no-op when
+     * the PanelChannels module is not registered: reaching past the `enabled`
+     * check means the option was set, so the option rule has already named the
+     * missing module. An id that is not configured throws. When active it
+     * mutates the panel's channel (which fires `panel.api.onDidChannelChange`)
+     * and the component-level `onDidPanelChannelChange`; the module reacts to
+     * move membership and replay the channel's last context.
+     */
+    setPanelChannel(panel: DockviewPanel, channelId: string | undefined): void {
+        if (panel.channel === channelId) {
+            return;
+        }
+
+        if (!this.options.panelChannels?.enabled) {
+            return;
+        }
+
+        if (!this.panelChannelsService) {
+            return;
+        }
+
+        const channel = this.getPanelChannel(channelId);
+        if (channelId !== undefined && !channel) {
+            throw new Error(`dockview: unknown channel "${channelId}"`);
+        }
+
+        panel.setChannel(channelId);
+        this._onDidPanelChannelChange.fire({ panel, channel });
+    }
+
+    /**
+     * The channel id a restored panel should load with: the serialized id only
+     * when channels are enabled and the id is still configured. An enabled
+     * component restoring an unconfigured id warns once per id; a disabled one
+     * ignores the key silently (the panel loads unlinked either way).
+     */
+    resolveRestoredChannel(channelId: string | undefined): string | undefined {
+        if (channelId === undefined || !this.options.panelChannels?.enabled) {
+            return undefined;
+        }
+        if (this.getPanelChannel(channelId)) {
+            return channelId;
+        }
+        if (!this._warnedUnknownChannels.has(channelId)) {
+            this._warnedUnknownChannels.add(channelId);
+            console.warn(
+                `dockview: restored layout references unknown channel "${channelId}"; the panel loads unlinked`
+            );
+        }
+        return undefined;
+    }
+
+    /** Broadcast on `panel`'s channel (a no-op when it has none or the module
+     *  is absent). Behind `panel.api.broadcast`. */
+    broadcastPanelContext(
+        panel: DockviewPanel,
+        context: PanelChannelContext
+    ): void {
+        this.panelChannelsService?.broadcast(panel, context);
+    }
+
+    /** Broadcast to every member of a channel (no panel source). A command,
+     *  reachable without the gating option, so it reports a missing module. */
+    broadcastToChannel(channelId: string, context: PanelChannelContext): void {
+        assertModule(
+            this.panelChannelsService,
+            'PanelChannels',
+            'api.broadcastToChannel'
+        )?.broadcastToChannel(channelId, context);
+    }
+
+    getChannelContext(
+        channelId: string | undefined
+    ): PanelChannelContext | undefined {
+        if (channelId === undefined) {
+            return undefined;
+        }
+        return this.panelChannelsService?.getLastContext(channelId);
+    }
+
+    getChannelMembers(channelId: string): IDockviewPanel[] {
+        return [...(this.panelChannelsService?.getMembers(channelId) ?? [])];
+    }
+
+    /** Idempotent cleanup: nothing to clear without the module. */
+    clearChannelContexts(channelId?: string): void {
+        this.panelChannelsService?.clearContexts(channelId);
+    }
+
+    deliverContext(
+        panel: IDockviewPanel,
+        event: PanelChannelContextEvent
+    ): void {
+        // The host surface speaks in `IDockviewPanel`; the runtime instance is
+        // always a concrete `DockviewPanel` whose api owns the emitter.
+        (panel as DockviewPanel).api._onDidReceiveContext.fire(event);
+    }
+
+    fireDidChannelContext(event: DockviewChannelContextEvent): void {
+        this._onDidChannelContext.fire(event);
+    }
+
     get mountElement(): HTMLElement {
         return this.gridview.element;
     }
@@ -1717,6 +1897,8 @@ export class DockviewComponent
             this._onWillShowOverlay,
             this._onDidActivePanelChange,
             this._onDidPanelPinnedChange,
+            this._onDidPanelChannelChange,
+            this._onDidChannelContext,
             this._onDidAddPanel,
             this._onDidRemovePanel,
             this._onDidLayoutFromJSON,

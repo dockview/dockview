@@ -28,6 +28,7 @@ import {
     IKeyboardDockingService,
     ILayoutHistoryService,
     IMultiRowTabsService,
+    IPanelChannelsService,
     IPinnedTabsService,
     ISmartGuidesService,
     ITabGroupChipsService,
@@ -54,6 +55,7 @@ export interface ServiceCollection {
     multiRowTabsService?: IMultiRowTabsService;
     pinnedTabsService?: IPinnedTabsService;
     advancedOverflowService?: IAdvancedOverflowService;
+    panelChannelsService?: IPanelChannelsService;
 }
 
 export interface DockviewModule<THost = unknown> {
@@ -141,6 +143,7 @@ export const ENTERPRISE_MODULE_NAMES: ReadonlySet<string> = new Set([
     'LayoutHistory',
     'License',
     'MultiRowTabs',
+    'PanelChannels',
     'PinnedTabs',
     'SmartGuides',
 ]);

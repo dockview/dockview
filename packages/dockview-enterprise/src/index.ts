@@ -7,6 +7,7 @@ import { AutoHideEdgeGroupModule } from './autoHideEdgeGroupService';
 import { AutoEdgeGroupModule } from './autoEdgeGroupService';
 import { MultiRowTabsModule } from './multiRowTabsService';
 import { PinnedTabsModule } from './pinnedTabsService';
+import { PanelChannelsModule } from './panelChannelsService';
 import { AdvancedOverflowModule } from './advancedOverflowService';
 import { KeyboardDockingModule } from './keyboardDockingService';
 import { LicenseModule } from './licenseService';
@@ -43,6 +44,11 @@ export {
     computePinnedFirstOrder,
 } from './pinnedTabsService';
 export {
+    PanelChannelsService,
+    PanelChannelsModule,
+    InProcessTransport,
+} from './panelChannelsService';
+export {
     AdvancedOverflowService,
     OverflowListView,
     AdvancedOverflowModule,
@@ -77,6 +83,7 @@ export const Modules: DockviewModule<any>[] = [
     AutoEdgeGroupModule,
     MultiRowTabsModule,
     PinnedTabsModule,
+    PanelChannelsModule,
     AdvancedOverflowModule,
     KeyboardDockingModule,
     LicenseModule,

@@ -24,13 +24,17 @@ import { PopupService } from './components/popupService';
 import {
     DockviewComponentOptions,
     FloatingGroupDragContext,
+    PanelChannelDefinition,
     SmartGuidesOptions,
 } from './options';
+import { PanelChannelContext, PanelChannelContextEvent } from './panelChannels';
 import {
     DockviewActivePanelChangeEvent,
+    DockviewChannelContextEvent,
     DockviewLayoutMutationEvent,
     DockviewLayoutMutationKind,
     DockviewOrigin,
+    DockviewPanelChannelChangeEvent,
     DockviewPanelPinnedChangeEvent,
     GroupNavigationDirection,
     SerializedDockview,
@@ -62,6 +66,14 @@ export interface IContextMenuHost {
      * never a hard dependency.
      */
     readonly pinnedTabsService: IPinnedTabsService | undefined;
+    /**
+     * The PanelChannels module service, or `undefined` when that module is
+     * not registered. The tab context menu auto-injects the channel picker
+     * only when this is present (and channels are enabled).
+     */
+    readonly panelChannelsService: IPanelChannelsService | undefined;
+    /** The configured channel list the picker renders. */
+    getPanelChannels(): readonly PanelChannelDefinition[];
     getPopupServiceForGroup(group: DockviewGroupPanel): PopupService;
 }
 
@@ -635,6 +647,68 @@ export interface IPinnedTabsService extends IDisposable {
         panelId: string,
         index: number
     ): number;
+}
+
+// --- PanelChannels ---
+
+/**
+ * The narrow surface the panel-channels service reads from the host
+ * (`DockviewComponent`). Channel membership lives on the panel
+ * (`panel.api.channel`, mutated through the gated
+ * `DockviewComponent.setPanelChannel`); the module observes membership
+ * changes, fans contexts out to members and drives the presentation seams.
+ */
+export interface IPanelChannelsHost {
+    /** The owning component's id: the `originId` a published message carries. */
+    readonly id: string;
+    readonly options: DockviewComponentOptions;
+    readonly panels: IDockviewPanel[];
+    readonly onDidAddGroup: Event<DockviewGroupPanel>;
+    readonly onDidRemoveGroup: Event<DockviewGroupPanel>;
+    /** Fires when a panel is removed; the service prunes it from its
+     *  membership bookkeeping (a close is not a leave; contexts are kept). */
+    readonly onDidRemovePanel: Event<IDockviewPanel>;
+    /** Fires after a `fromJSON` restore completes; the service rebuilds
+     *  membership from the restored panels' `channel` ids and replays. */
+    readonly onDidLayoutFromJSON: Event<void>;
+    /** Fires after `updateOptions`; the service re-resolves the channel list
+     *  and re-applies the header accents. */
+    readonly onDidOptionsChange: Event<void>;
+    /** Fires after a panel's channel is mutated via the gated
+     *  `setPanelChannel`; the service's join / leave trigger. */
+    readonly onDidPanelChannelChange: Event<DockviewPanelChannelChangeEvent>;
+    /** Fire a panel's `api.onDidReceiveContext` (the emitter is core-private). */
+    deliverContext(
+        panel: IDockviewPanel,
+        event: PanelChannelContextEvent
+    ): void;
+    /** Re-fire on the component-level `onDidChannelContext`. */
+    fireDidChannelContext(event: DockviewChannelContextEvent): void;
+    /** Narrate a join / leave to assistive technology. */
+    announce(message: string): void;
+}
+
+/**
+ * Panel-channels module service. Its presence is what
+ * `DockviewComponent.setPanelChannel` checks before mutating channel state;
+ * fan-out, last-value replay and the tab / header presentation are driven
+ * internally and reactively as panels join, leave, broadcast or are restored.
+ */
+export interface IPanelChannelsService extends IDisposable {
+    readonly channels: readonly PanelChannelDefinition[];
+    getChannel(id: string): PanelChannelDefinition | undefined;
+    /** The channel's members in join order. */
+    getMembers(channelId: string): readonly IDockviewPanel[];
+    getLastContext(channelId: string): PanelChannelContext | undefined;
+    /** Returns `false` when `source` is on no channel (a no-op). */
+    broadcast(source: IDockviewPanel, context: PanelChannelContext): boolean;
+    /** Returns `false` when `channelId` is not configured (a no-op). */
+    broadcastToChannel(
+        channelId: string,
+        context: PanelChannelContext
+    ): boolean;
+    /** Drop the retained last context of one channel, or of all channels. */
+    clearContexts(channelId?: string): void;
 }
 
 // --- AdvancedOverflow ---
