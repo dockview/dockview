@@ -9,6 +9,7 @@ import {
 import { isInDocument, watchElementResize } from '../dom';
 import {
     EdgeGroupView,
+    EdgeSashLabeller,
     EdgeStackMemberPlacement,
     EdgeStackView,
 } from './edgeStack';
@@ -365,6 +366,7 @@ export class ShellManager implements IDisposable {
     private _currentHeight = 0;
     private _gap: number;
     private _defaultCollapsedSize: number;
+    private readonly _labelSash: EdgeSashLabeller | undefined;
 
     private readonly _onDidSashEnd = new Emitter<void>();
     /** Fires when any shell sash (around an edge, or between two groups
@@ -376,10 +378,12 @@ export class ShellManager implements IDisposable {
         dockviewElement: HTMLElement,
         layoutGrid: (width: number, height: number) => void,
         gap = 0,
-        defaultCollapsedSize = 35
+        defaultCollapsedSize = 35,
+        labelSash?: EdgeSashLabeller
     ) {
         this._gap = gap;
         this._defaultCollapsedSize = defaultCollapsedSize;
+        this._labelSash = labelSash;
 
         this._shellElement = document.createElement('div');
         this._shellElement.className = 'dv-shell';
@@ -520,6 +524,7 @@ export class ShellManager implements IDisposable {
             defaultCollapsedSize: this._defaultCollapsedSize,
             gapAdd: 0,
             gap: this._gap,
+            labelSash: this._labelSash,
         });
         this._stacks.set(position, stack);
         const disposables = new CompositeDisposable(

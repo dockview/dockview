@@ -529,5 +529,44 @@ describe('EdgeStackView', () => {
             expect(stack.sashElements).toHaveLength(2);
             stack.dispose();
         });
+
+        test('sashes are labelled separators, relabelled after a reorder', () => {
+            const names = new Map<IEdgeGroupHost, string>();
+            const stack = new EdgeStackView('left', {
+                initialSize: 200,
+                defaultCollapsedSize: 35,
+                gapAdd: 0,
+                gap: 0,
+                labelSash: (before, after) =>
+                    `Resize ${names.get(before)} and ${names.get(after)}`,
+            });
+            const a = member({ id: 'a' });
+            const b = member({ id: 'b' });
+            names.set(a.group, 'A');
+            names.set(b.group, 'B');
+            stack.addMember(a);
+            stack.addMember(b);
+
+            const [sash] = stack.sashElements;
+            expect(sash.getAttribute('role')).toBe('separator');
+            expect(sash.getAttribute('aria-orientation')).toBe('horizontal');
+            expect(sash.getAttribute('aria-label')).toBe('Resize A and B');
+
+            stack.moveMember(b, 0);
+            expect(stack.sashElements[0].getAttribute('aria-label')).toBe(
+                'Resize B and A'
+            );
+            stack.dispose();
+        });
+
+        test('a top edge has vertical separators', () => {
+            const stack = makeStack('top');
+            stack.addMember(member({ id: 'a' }, 'top'));
+            stack.addMember(member({ id: 'b' }, 'top'));
+            expect(stack.sashElements[0].getAttribute('aria-orientation')).toBe(
+                'vertical'
+            );
+            stack.dispose();
+        });
     });
 });

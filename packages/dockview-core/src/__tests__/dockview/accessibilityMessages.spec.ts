@@ -65,6 +65,9 @@ describe('accessibilityMessages', () => {
         expect(DEFAULT_MESSAGES.edgeGroupStacked('Explorer', 'left')).toBe(
             'Explorer docked in a new left group'
         );
+        expect(DEFAULT_MESSAGES.edgeStackSash('Explorer', 'Search')).toBe(
+            'Resize Explorer and Search'
+        );
     });
 
     describe('resolveMessages', () => {

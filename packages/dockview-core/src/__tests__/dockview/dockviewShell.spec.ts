@@ -618,6 +618,34 @@ describe('ShellManager', () => {
             shell.dispose();
         });
 
+        test('onDidSashEnd fires when an inner or outer sash is released', () => {
+            const shell = makeShell({ left: { id: 'a' } });
+            shell.addEdgeView('left', { id: 'b' }, makeGroup());
+            shell.layout(1000, 800);
+            const ended = jest.fn();
+            shell.onDidSashEnd(ended);
+
+            const drag = (sash: HTMLElement) => {
+                sash.dispatchEvent(
+                    new MouseEvent('pointerdown', {
+                        clientX: 100,
+                        clientY: 100,
+                    })
+                );
+                document.dispatchEvent(new MouseEvent('pointerup'));
+            };
+            drag(stackOf(shell, 'left').sashElements[0]);
+            expect(ended).toHaveBeenCalledTimes(1);
+
+            drag(
+                shell.element.querySelector<HTMLElement>(
+                    ':scope > .dv-split-view-container > .dv-sash-container > .dv-sash'
+                )!
+            );
+            expect(ended).toHaveBeenCalledTimes(2);
+            shell.dispose();
+        });
+
         test('updateTheme propagates the gap to every stack', () => {
             const shell = makeShell({ left: { id: 'a' }, top: { id: 't' } });
             shell.updateTheme(10, 35);

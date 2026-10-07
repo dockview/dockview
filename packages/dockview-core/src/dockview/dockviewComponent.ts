@@ -93,6 +93,7 @@ import {
     ModuleRegistry,
 } from './modules';
 import { validateOptionModules } from './optionsModules';
+import { resolveMessages } from './accessibilityMessages';
 import { AllModules } from './allModules';
 import { IFloatingGroupHost } from './floatingGroupService';
 import { IPopoutWindowHost, PopoutGroupEntry } from './popoutWindowService';
@@ -1716,7 +1717,19 @@ export class DockviewComponent
             this.element,
             (w, h) => this._layoutFromShell(w, h),
             options.theme?.gap ?? 0,
-            options.theme?.edgeGroupCollapsedSize
+            options.theme?.edgeGroupCollapsedSize,
+            (before, after) =>
+                resolveMessages(this.options.messages).edgeStackSash(
+                    this._describeEdgeGroup(before),
+                    this._describeEdgeGroup(after)
+                )
+        );
+        // A shell sash drag resizes an edge (or a group stacked on it)
+        // without touching the grid, so it reaches onDidLayoutChange here.
+        this.addDisposables(
+            this._shellManager.onDidSashEnd(() => {
+                this._bufferOnDidLayoutChange.fire();
+            })
         );
         // The shell wraps the dockview element, so move the popup anchor
         // into the shell so overflow dropdowns in edge groups position correctly
@@ -3735,6 +3748,13 @@ export class DockviewComponent
     /** The element wrapping every group stacked on an edge. */
     getEdgeStackElement(position: EdgeGroupPosition): HTMLElement | undefined {
         return this._shellManager?.getEdgeStackElement(position);
+    }
+
+    /** An edge group's name for assistive technology: its active panel's
+     *  title, else its id. The shell only ever hosts DockviewGroupPanels. */
+    private _describeEdgeGroup(host: IEdgeGroupHost): string {
+        const group = host as DockviewGroupPanel;
+        return group.activePanel?.title ?? group.id;
     }
 
     /**

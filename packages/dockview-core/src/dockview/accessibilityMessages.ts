@@ -49,6 +49,8 @@ export interface DockviewMessages {
     /** A drop split an edge group: the panel opened in a new group stacked
      *  on that edge. */
     edgeGroupStacked(title: string, position: EdgeGroupPosition): string;
+    /** Accessible name of the sash between two groups stacked on an edge. */
+    edgeStackSash(before: string, after: string): string;
 }
 
 /** Where a drop position lands, phrased for the *edge prompt*. */
@@ -89,6 +91,7 @@ export const DEFAULT_MESSAGES: DockviewMessages = {
 
     edgeGroupStacked: (title, position) =>
         `${title} docked in a new ${position} group`,
+    edgeStackSash: (before, after) => `Resize ${before} and ${after}`,
 };
 
 /** Merge an app's partial overrides over the English defaults. */

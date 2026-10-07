@@ -32,6 +32,12 @@ export interface EdgeStripChangeEvent {
     length: boolean;
 }
 
+/** Names the sash between two stacked groups for assistive technology. */
+export type EdgeSashLabeller = (
+    before: IEdgeGroupHost,
+    after: IEdgeGroupHost
+) => string;
+
 /** Thickness (the edge axis) runs across the edge; length runs along it. */
 function isThicknessWidth(position: EdgeGroupPosition): boolean {
     return position === 'left' || position === 'right';
@@ -82,6 +88,11 @@ export class EdgeGroupView implements IView {
 
     get element(): HTMLElement {
         return this._group.element;
+    }
+
+    /** The group this member lays out. */
+    get group(): IEdgeGroupHost {
+        return this._group;
     }
 
     get position(): EdgeGroupPosition {
@@ -326,6 +337,8 @@ export class EdgeStackView implements IView {
     /** Fires when a sash between two members is released. */
     readonly onDidSashEnd: Event<void>;
 
+    private readonly _labelSash: EdgeSashLabeller | undefined;
+
     private _lastExpandedSize: number;
     private _gapAdd: number;
     private _defaultCollapsedSize: number;
@@ -394,12 +407,15 @@ export class EdgeStackView implements IView {
             defaultCollapsedSize: number;
             gapAdd: number;
             gap: number;
+            /** Names the sash between two members for assistive technology. */
+            labelSash?: EdgeSashLabeller;
         }
     ) {
         this.position = position;
         this._lastExpandedSize = options.initialSize;
         this._defaultCollapsedSize = options.defaultCollapsedSize;
         this._gapAdd = options.gapAdd;
+        this._labelSash = options.labelSash;
 
         this._element = document.createElement('div');
         this._element.className = 'dv-edge-stack';
@@ -614,6 +630,27 @@ export class EdgeStackView implements IView {
                 member.requestSize(member.stripLength);
             }
         }
+        this._decorateSashes();
+    }
+
+    /** Each sash is a separator between the two members it sits between,
+     *  named after them. */
+    private _decorateSashes(): void {
+        const vertical = isThicknessWidth(this.position);
+        this.sashElements.forEach((sash, index) => {
+            sash.setAttribute('role', 'separator');
+            sash.setAttribute(
+                'aria-orientation',
+                vertical ? 'horizontal' : 'vertical'
+            );
+            const label = this._labelSash?.(
+                this._members[index].group,
+                this._members[index + 1].group
+            );
+            if (label) {
+                sash.setAttribute('aria-label', label);
+            }
+        });
     }
 
     /** A strip measurement changed: a collapsed edge follows the widest strip

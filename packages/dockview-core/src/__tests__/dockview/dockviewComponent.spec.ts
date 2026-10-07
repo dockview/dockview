@@ -12465,6 +12465,32 @@ describe('dockviewComponent', () => {
             dv.dispose();
         });
 
+        test('releasing an edge sash fires onDidLayoutChange', async () => {
+            const c = document.createElement('div');
+            const dv = new DockviewComponent(c, {
+                createComponent(options) {
+                    return new PanelContentPartTest(options.id, options.name);
+                },
+            });
+            dv.layout(1000, 800);
+            dv.addPanel({ id: 'main', component: 'default' });
+            dv.addEdgeGroup('left', { id: 'left-group' });
+            const changed = new Promise<void>((resolve) => {
+                dv.onDidLayoutChange(() => resolve());
+            });
+
+            const sash = (dv as any)._shellManager.element.querySelector(
+                ':scope > .dv-split-view-container > .dv-sash-container > .dv-sash'
+            ) as HTMLElement;
+            sash.dispatchEvent(
+                new MouseEvent('pointerdown', { clientX: 200, clientY: 100 })
+            );
+            document.dispatchEvent(new MouseEvent('pointerup'));
+
+            await changed;
+            dv.dispose();
+        });
+
         test('getEdgeGroups lists the one group on a single edge', () => {
             const c = document.createElement('div');
             const dv = new DockviewComponent(c, {
