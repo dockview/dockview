@@ -136,6 +136,11 @@ const COMPONENTS: ComponentGroup[] = [
                 enterprise: true,
             },
             {
+                name: 'panel-channels',
+                frameworks: ['react', 'vue', 'angular', 'typescript'],
+                enterprise: true,
+            },
+            {
                 name: 'popout-group',
                 frameworks: ['react', 'vue', 'angular', 'typescript'],
             },

@@ -21,6 +21,10 @@ calls `registerModules(Modules)` at import (a side effect — hence
 - `AutoEdgeGroupModule` (`autoEdgeGroupService.ts`) — `dependsOn` `EdgeGroupModule` (core)
 - `MultiRowTabsModule` (`multiRowTabsService.ts`)
 - `PinnedTabsModule` (`pinnedTabsService.ts`)
+- `PanelChannelsModule` (`panelChannelsService.ts`) — linked panels: one
+  colour channel per panel, context fan-out over a pluggable transport
+  (`InProcessTransport` by default), last-value replay, tab marker + header
+  accent via core seams
 - `AdvancedOverflowModule` (`advancedOverflowService.ts`)
 - `KeyboardDockingModule` (`keyboardDockingService.ts`) — `dependsOn` `AdvancedDnDModule` + `LiveRegionModule` (core)
 - `LicenseModule` (`licenseService.ts`) — the license gate; renders a corner

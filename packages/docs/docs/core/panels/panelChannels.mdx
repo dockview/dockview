@@ -1,0 +1,226 @@
+---
+title: Linked panels
+description: Link panels into colour channels so a selection in one panel reaches the others, in the style of FDC3 user channels.
+sidebar_position: 12
+enterprise: true
+sidebar_custom_props:
+    enterprise: true
+---
+
+import { DocRef } from '@site/src/components/ui/reference/docRef';
+
+Linked panels let a user wire panels together at runtime. Each panel can join one named colour channel; a context broadcast by one member is delivered to every other member of that channel. The pattern follows FDC3 user channels: a "ticker list" panel linked to Red broadcasts the selected instrument, and every "detail" panel on Red updates to show it.
+
+A linked tab shows a colour dot in its channel colour, and the group header carries a matching accent for its active panel. Linking is available from the tab context menu and from the panel `api`. Importing `dockview-enterprise` enables the feature; it is governed by a licence key (see [Enterprise](/enterprise)).
+
+<CodeRunner id="dockview/panel-channels" />
+
+## Enabling linked panels
+
+Channels are dormant until you enable them through the `panelChannels` option. With the option unset (or `enabled: false`) joining and broadcasting are no-ops and the tab strip behaves exactly as it does by default.
+
+<FrameworkSpecific framework="React">
+    <DocRef declaration="IDockviewReactProps" methods={['panelChannels']} />
+</FrameworkSpecific>
+
+<FrameworkSpecific framework="Vue">
+    <DocRef declaration="IDockviewVueProps" methods={['panelChannels']} />
+</FrameworkSpecific>
+
+<FrameworkSpecific framework="JavaScript">
+    <DocRef declaration="DockviewComponentOptions" methods={['panelChannels']} />
+</FrameworkSpecific>
+
+<FrameworkSpecific framework="Angular">
+    <DocRef declaration="DockviewAngularOptions" methods={['panelChannels']} />
+</FrameworkSpecific>
+
+```tsx
+const api = createDockview(element, {
+    panelChannels: { enabled: true },
+});
+```
+
+## Options
+
+<DocRef declaration="PanelChannelsOptions" />
+
+- **`enabled`**: the master switch. Leave it unset (or `false`) to keep channels dormant.
+- **`channels`**: replace the built-in channel set with your own list of `{ id, label, color }` entries. The list fully replaces the defaults; there is no merge.
+- **`contextMenuItem`**: add the built-in "Link to" picker and "Unlink" row to the tab context menu. Defaults to `true`.
+- **`headerIndicator`**: tint the group header with the active panel's channel colour. Defaults to `true`.
+- **`replayLastContext`**: deliver the channel's most recent context to a panel when it joins, and to every linked panel after a layout is restored. Defaults to `true`.
+- **`transport`**: the message bus broadcasts travel over. Defaults to an in-process bus; see [Transport](#transport).
+
+## Default channels
+
+| id        | label   | colour variable              |
+| --------- | ------- | ---------------------------- |
+| `red`     | Red     | `--dv-channel-color-red`     |
+| `orange`  | Orange  | `--dv-channel-color-orange`  |
+| `yellow`  | Yellow  | `--dv-channel-color-yellow`  |
+| `green`   | Green   | `--dv-channel-color-green`   |
+| `cyan`    | Cyan    | `--dv-channel-color-cyan`    |
+| `blue`    | Blue    | `--dv-channel-color-blue`    |
+| `magenta` | Magenta | `--dv-channel-color-magenta` |
+| `purple`  | Purple  | `--dv-channel-color-purple`  |
+
+To use a different set, pass `channels`:
+
+```tsx
+panelChannels: {
+    enabled: true,
+    channels: [
+        { id: 'trading', label: 'Trading', color: '#0090ff' },
+        { id: 'research', label: 'Research', color: '#30a46c' },
+    ],
+}
+```
+
+## Linking from the context menu
+
+When `contextMenuItem` is left enabled (the default) the tab context menu gains a "Link to" row of colour swatches, with the panel's current channel marked, followed by an "Unlink" item. Picking a swatch links the panel and closes the menu. The swatches are keyboard reachable: focus one and press `Enter` or `Space`.
+
+If you want to place the block yourself, set `panelChannels.contextMenuItem: false` to stop the automatic injection, then include the built-in `'channel'` item in your own builder:
+
+```tsx
+getTabContextMenuItems={({ panel }) => [
+    'channel',
+    'separator',
+    'close',
+    'closeOthers',
+]}
+```
+
+## Panel API
+
+Join, leave, broadcast and listen through the panel `api`.
+
+<DocRef
+    declaration="DockviewPanelApi"
+    methods={[
+        'channel',
+        'joinChannel',
+        'leaveChannel',
+        'broadcast',
+        'getCurrentContext',
+        'onDidChannelChange',
+        'onDidReceiveContext',
+    ]}
+/>
+
+```tsx
+const api: DockviewPanelApi;
+
+// link this panel to the Red channel (leaves any current channel first)
+api.joinChannel('red');
+
+// send a context to the other members of the panel's channel
+api.broadcast({ type: 'instrument', id: 'AAPL' });
+
+// receive contexts broadcast by the other members
+api.onDidReceiveContext((event) => {
+    console.log(event.context, event.source?.id, event.replay);
+});
+
+// the channel's most recent context, or undefined
+const current = api.getCurrentContext();
+
+// react to the panel joining, switching or leaving a channel
+api.onDidChannelChange((event) => {
+    console.log(event.channel?.id);
+});
+
+// unlink
+api.leaveChannel();
+```
+
+A context is a plain object with a `type` field, in the shape FDC3 uses. Contexts are delivered by reference and should be treated as immutable: the same object reaches every receiver and is retained as the channel's last value.
+
+`broadcast` never delivers to the sender. `joinChannel` throws for an id that is not in the configured list.
+
+## Container API
+
+Observe and drive channels from outside any panel through the container `api`.
+
+<DocRef
+    declaration="DockviewApi"
+    methods={[
+        'getPanelChannels',
+        'getChannelMembers',
+        'getChannelContext',
+        'broadcastToChannel',
+        'clearChannelContexts',
+        'onDidPanelChannelChange',
+        'onDidChannelContext',
+    ]}
+/>
+
+```tsx
+const api: DockviewApi;
+
+// every member of Red, in the order they joined
+api.getChannelMembers('red');
+
+// broadcast to Red from application code; receivers see source: undefined
+api.broadcastToChannel('red', { type: 'instrument', id: 'MSFT' });
+
+// one event per delivery, live broadcasts and replays alike
+api.onDidChannelContext((event) => {
+    console.log(event.channel.id, event.panels.length, event.replay);
+});
+```
+
+## Last-value replay
+
+Each channel remembers the last context broadcast on it. When a panel joins (or switches to) a channel, that context is delivered to it straight away with `replay: true`, so a freshly linked detail panel shows the current selection without waiting for the next broadcast. The same happens for every linked panel after `fromJSON`. Set `replayLastContext: false` to opt out.
+
+The retained contexts survive panels closing and `clear()`. Drop them with `api.clearChannelContexts()` (every channel) or `api.clearChannelContexts('red')`.
+
+## Styling
+
+Each channel colour is a CSS variable you can override per theme, and the marker size is tunable:
+
+```css
+.dockview-theme-abyss {
+    --dv-channel-color-red: #ff4d4f;
+    --dv-channel-marker-size: 10px;
+}
+```
+
+The rendered classes:
+
+- `.dv-tab--channel` on a linked tab, with `data-channel="<id>"` and `--dv-channel-color` set inline. A custom tab renderer receives these and can style itself; the colour dot is not injected into custom tabs.
+- `.dv-tab-channel`: the colour dot inside a default tab.
+- `.dv-tabs-and-actions-container--channel` on a group header whose active panel is linked, with the same `data-channel` and `--dv-channel-color`.
+- `.dv-context-menu-channel-picker` and `.dv-context-menu-channel-swatch` (plus `--selected`) in the context menu.
+
+## Serialization
+
+Channel membership round-trips through `toJSON` / `fromJSON`. The `channel` key is written only for linked panels, so existing layouts stay byte-stable. Contexts are not serialised.
+
+```tsx
+const state = api.toJSON();
+// ... later
+api.fromJSON(state); // linked panels rejoin their channels and receive the last context
+```
+
+:::info
+A layout restored with `panelChannels` disabled loads every panel unlinked. A layout that names a channel no longer in your `channels` list also loads that panel unlinked, with a single console warning.
+:::
+
+## Accessibility
+
+The colour dot carries an accessible name ("Linked to Red") so the link is announced, not only coloured. Joining and leaving are narrated through the live region ("Alpha linked to Red", "Alpha unlinked"). The picker swatches are a labelled radio group reachable from the keyboard. Every string is localisable through the `messages` option: `channelLinkTo`, `channelUnlink`, `channelIndicator`, `channelJoined` and `channelLeft`.
+
+## Transport
+
+Broadcasts travel over a `PanelChannelTransport`: an object with `publish(message)` and an `onMessage` event. The default is an in-process bus that delivers synchronously. Supplying your own transport is the extension point for bridging channels across windows or processes, for example over `BroadcastChannel`; messages carry the channel id, the context, the sending panel id and the id of the originating component.
+
+<DocRef declaration="PanelChannelTransport" />
+
+## See also
+
+- [Tabs](/docs/core/panels/tabs): custom tab renderers and the tab context menu that hosts the `'channel'` item.
+- [Context menus](/docs/core/panels/contextMenus): building the tab menu yourself.
+- [Pinned tabs](/docs/core/panels/pinnedTabs): another per-tab state that shares the same menu and serialization patterns.
