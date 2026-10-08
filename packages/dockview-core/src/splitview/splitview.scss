@@ -62,15 +62,6 @@
                 cursor: e-resize;
             }
         }
-
-        & > .dv-view-container > .dv-view {
-            &:not(:first-child) {
-                &::before {
-                    height: 100%;
-                    width: 1px;
-                }
-            }
-        }
     }
 
     &.dv-vertical {
@@ -95,14 +86,9 @@
         }
 
         & > .dv-view-container > .dv-view {
+            // Cross-axis sizing: layoutViews() clears the inline width for
+            // vertical views and relies on this to span the container.
             width: 100%;
-
-            &:not(:first-child) {
-                &::before {
-                    height: 1px;
-                    width: 100%;
-                }
-            }
         }
     }
 
@@ -176,14 +162,20 @@
     }
 
     &.dv-separator-border {
-        .dv-view:not(:first-child)::before {
-            content: ' ';
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 5;
-            pointer-events: none;
-            background-color: var(--dv-separator-border);
+        // Scope the separator border to the container's *own* views via the
+        // direct-child chain. A plain descendant selector
+        // (`.dv-vertical .dv-view`) would leak the border into nested
+        // split-view containers of the opposite orientation, drawing a stray
+        // line on the wrong axis of grandchild views.
+        &.dv-horizontal {
+            & > .dv-view-container > .dv-view:not(:first-child) {
+                border-left: 1px solid var(--dv-separator-border);
+            }
+        }
+        &.dv-vertical {
+            & > .dv-view-container > .dv-view:not(:first-child) {
+                border-top: 1px solid var(--dv-separator-border);
+            }
         }
     }
 }
