@@ -149,6 +149,52 @@ sizes in place at that moment as the proportions to preserve, rather than the
 proportions from before it was disabled. Passing `undefined` restores the
 default.
 
+## Sizing groups after a drop
+
+By default, dropping a panel or group on another group's edge splits the target
+group in half. The other groups in that row or column keep their sizes. Moving a
+whole group within the same row or column preserves the existing group sizes.
+
+Set `dropSizing` to `'distribute'` to share the row or column evenly after the
+drop instead. Minimum and maximum size constraints still apply. This is useful
+for workspaces that keep their panes equally sized as users rearrange them.
+
+<FrameworkSpecific framework='JavaScript'>
+```ts
+const api = createDockview(element, {
+    dropSizing: 'distribute',
+    createComponent: (options) => new MyPanel(),
+});
+```
+</FrameworkSpecific>
+
+<FrameworkSpecific framework='React'>
+```tsx
+<DockviewReact
+    dropSizing="distribute"
+    onReady={onReady}
+    components={components}
+/>
+```
+</FrameworkSpecific>
+
+<FrameworkSpecific framework='Vue'>
+```html
+<dockview-vue dropSizing="distribute" @ready="onReady" />
+```
+</FrameworkSpecific>
+
+<FrameworkSpecific framework='Angular'>
+```html
+<dv-dockview dropSizing="distribute" (ready)="onReady($event)" />
+```
+</FrameworkSpecific>
+
+Change it at runtime with `api.updateOptions({ dropSizing: 'distribute' })`.
+The change applies to subsequent drops; it does not resize the current layout.
+Use `'split'` or `undefined` to restore the default. This option does not change
+how programmatic `addPanel` calls size groups.
+
 ## Hiding borders
 
 By default, Dockview renders thin borders between groups in the grid. The `hideBorders` option removes them. See [Hiding borders](/docs/core/theming#hiding-borders) on the theming page for the full example.

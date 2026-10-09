@@ -66,6 +66,17 @@ describe('DockviewVue Component', () => {
         expect(readyEvent.api).toBeInstanceOf(DockviewApi);
     });
 
+    test('forwards dropSizing on mount and when the prop changes', async () => {
+        wrapper = mountDockview({ dropSizing: 'distribute' });
+        await flushPromises();
+        const api = (wrapper.emitted('ready')![0][0] as any).api as DockviewApi;
+        expect((api as any).component.options.dropSizing).toBe('distribute');
+        const update = vi.spyOn(api, 'updateOptions');
+        await wrapper.setProps({ dropSizing: 'split' });
+        await nextTick();
+        expect(update).toHaveBeenCalledWith({ dropSizing: 'split' });
+    });
+
     test('forwards fallthrough style/class attributes to the root container', async () => {
         // Regression test for #1510: the SFC renders multiple root nodes
         // (the host element plus <DockviewPortals>), so Vue cannot

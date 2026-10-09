@@ -5369,6 +5369,8 @@ export class DockviewComponent
                     const [sourceParentLocation, from] = tail(sourceLocation);
 
                     if (
+                        (this.options.dropSizing !== 'distribute' ||
+                            sourceGroup === destinationGroup) &&
                         sequenceEquals(
                             sourceParentLocation,
                             targetParentLocation
@@ -5974,23 +5976,21 @@ export class DockviewComponent
                     target
                 );
 
-                // A reorder keeps the group's own size, measured along the
-                // branch's axis. Any other move takes its room from the group
-                // it was dropped on, the only space on offer: the reference is
-                // either wrapped in a fresh branch the two now share, or sits
-                // in a row whose extent is already spoken for (#1612).
+                // Default sizing preserves a sibling reorder's own size.
+                // Other moves follow the configured drop sizing strategy.
                 let size: number | Sizing;
 
-                if (isReorderWithinBranch) {
+                if (
+                    isReorderWithinBranch &&
+                    this.options.dropSizing !== 'distribute'
+                ) {
                     size =
                         getDirectionOrientation(target) ===
                         Orientation.HORIZONTAL
                             ? from.api.width
                             : from.api.height;
                 } else {
-                    size = Sizing.Split(
-                        referenceLocation[referenceLocation.length - 1] ?? 0
-                    );
+                    size = this.dropSizing(referenceLocation);
                 }
 
                 destGridview.addView(source, size, dropLocation);
@@ -6211,13 +6211,14 @@ export class DockviewComponent
     }
 
     /**
-     * Sizing for a group created by a drop next to `referenceLocation`: half
-     * of the group the overlay was drawn over, leaving its siblings alone, so
-     * the panel lands in the region the overlay indicated (#1612). Gridview
-     * rewrites the index to 0 when a cross-axis drop wraps the reference in a
-     * new branch, so one value serves both paths.
+     * A drop either shares the destination branch evenly or halves the target
+     * group. Gridview rewrites the index to 0 when a cross-axis drop wraps the
+     * reference in a new branch, so one split index serves both paths.
      */
     private dropSizing(referenceLocation: number[]): Sizing {
+        if (this.options.dropSizing === 'distribute') {
+            return Sizing.Distribute;
+        }
         return Sizing.Split(
             referenceLocation.length === 0
                 ? 0
