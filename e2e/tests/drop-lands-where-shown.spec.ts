@@ -67,3 +67,33 @@ test('a panel dropped on a group’s top edge lands inside that group', async ({
     expect(untouched.y).toBeCloseTo(above.y, 0);
     expect(untouched.height).toBeCloseTo(above.height, 0);
 });
+
+test('distribute sizing shares the target column after a panel drop', async ({
+    page,
+}) => {
+    await page.goto('/e2e/fixtures/index.html?compass=0&dropSizing=distribute');
+    await page.waitForFunction(() => (window as any).__ready === true);
+    await page.evaluate(() => (window as any).__dv.setupQuad());
+    const target = await box(page, 'br');
+    const above = await box(page, 'tr');
+    const expectedHeight = (target.height + above.height) / 3;
+
+    const tab = (await page.locator('.dv-tab', { hasText: /^tl$/ }).boundingBox())!;
+    await page.mouse.move(tab.x + tab.width / 2, tab.y + tab.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(tab.x + tab.width / 2 + 8, tab.y + tab.height / 2, {
+        steps: 3,
+    });
+    await page.mouse.move(target.x + target.width / 2, target.y + 45, {
+        steps: 18,
+    });
+    await page.mouse.up();
+
+    for (const id of ['tr', 'tl', 'br']) {
+        await expect
+            .poll(async () =>
+                Math.abs((await box(page, id)).height - expectedHeight)
+            )
+            .toBeLessThanOrEqual(1);
+    }
+});

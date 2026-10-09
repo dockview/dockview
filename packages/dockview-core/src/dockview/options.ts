@@ -445,6 +445,14 @@ export interface DockviewOptions {
      * hide the outer whole-layout-edge cells (`edges: false`, default on).
      */
     dndCompass?: boolean | { zones?: Position[]; edges?: boolean };
+    /**
+     * Size groups after a panel or group is dropped on a group's edge.
+     * `split` (default) halves the target group, or preserves sizes when
+     * reordering sibling groups.
+     * `distribute` shares the row or column evenly, subject to size constraints.
+     * Applies to subsequent drops; changing it does not resize existing groups.
+     */
+    dropSizing?: 'split' | 'distribute';
     // #end dnd
     locked?: boolean;
     className?: string;
@@ -810,6 +818,7 @@ export const PROPERTY_KEYS_DOCKVIEW: (keyof DockviewOptions)[] = (() => {
         dndEdges: undefined,
         dropPositionResolver: undefined,
         dndCompass: undefined,
+        dropSizing: undefined,
         theme: undefined,
         disableTabsOverflowList: undefined,
         overflow: undefined,
