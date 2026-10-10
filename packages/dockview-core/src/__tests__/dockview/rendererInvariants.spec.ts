@@ -1,9 +1,9 @@
 import { DockviewComponent } from '../../dockview/dockviewComponent';
-import { IContentRenderer } from '../../dockview/types';
-import { PanelUpdateEvent } from '../../panel/types';
+import type { IContentRenderer } from '../../dockview/types';
+import type { PanelUpdateEvent } from '../../panel/types';
 import { Orientation } from '../../splitview/splitview';
 import { OverlayRenderContainer } from '../../overlay/overlayRenderContainer';
-import { DockviewPanelRenderer } from '../../overlay/types';
+import type { DockviewPanelRenderer } from '../../overlay/types';
 
 /**
  * Every combination of active/inactive renderer through every path that adds
@@ -277,14 +277,14 @@ describe.each(RENDERERS)('active %s', (ra) => {
             );
             const host = document.createElement('div');
             dockview.element.appendChild(host);
-            const before = counts['a'].show;
+            const before = counts.a.show;
             a.api.group.model.renderContainer = new OverlayRenderContainer(
                 host,
                 dockview
             );
             check(dockview, 'swap');
             if (ra === 'onlyWhenVisible') {
-                expect(counts['a'].show - before).toBe(1);
+                expect(counts.a.show - before).toBe(1);
             }
             a.api.group.model.renderContainer = null;
             check(dockview, 'swap back');
