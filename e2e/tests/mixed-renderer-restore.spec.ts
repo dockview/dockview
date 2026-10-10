@@ -1,15 +1,14 @@
 import { test, expect, Page, BrowserContext } from '@playwright/test';
 
 /**
- * #1675 — a group whose active `onlyWhenVisible` panel precedes an inactive
- * `always` panel. Registering the inactive panel with the overlay render
- * container used to evict the active panel's directly-mounted content, so the
- * selected tab showed a blank body after `fromJSON` and after the
- * render-container swap a popout performs. The jsdom unit tests cover the
- * `fromJSON` / `addPanel` / `setRenderer` paths; the popout swap needs a
- * genuine second window, so it lives here.
+ * A group whose active `onlyWhenVisible` panel precedes an inactive `always`
+ * panel. Registering the inactive panel with the overlay render container
+ * must leave the active panel's directly-mounted content in place, both on
+ * `fromJSON` and across the render-container swap a popout performs. The
+ * jsdom unit tests cover the `fromJSON` / `addPanel` / `setRenderer` / move
+ * paths; the popout swap needs a genuine second window, so it lives here.
  */
-test.describe('mixed renderer restore (#1675)', () => {
+test.describe('mixed renderer restore', () => {
     const ready = async (page: Page) => {
         await page.goto('/e2e/fixtures/index.html');
         await page.waitForFunction(() => (window as any).__ready === true);

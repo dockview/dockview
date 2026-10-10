@@ -149,49 +149,28 @@ export class ContentContainer
         const doRender =
             (options?.asActive ?? true) || this.group.isPanelActive(panel);
 
-        if (!doRender && this.panel !== panel) {
-            // An inactive panel is only being (de)registered with the overlay
-            // render container (e.g. an `always` panel restored by fromJSON,
-            // added with `inactive: true`, or whose renderer changed). Leave
-            // the panel currently on display untouched: evicting it here would
-            // blank the group's active panel (#1675).
-            switch (panel.api.renderer) {
-                case 'onlyWhenVisible':
-                    this.group.renderContainer.detatch(panel);
-                    break;
-                case 'always':
-                    this.group.renderContainer.attach({
-                        panel,
-                        referenceContainer: this,
-                    });
-                    break;
-                default:
-                    throw new Error(
-                        `dockview: invalid renderer type '${panel.api.renderer}'`
-                    );
+        // An inactive panel other than the one on display is only being
+        // (de)registered with the overlay render container, so the displayed
+        // panel stays mounted.
+        if (doRender || this.panel === panel) {
+            if (
+                this.panel?.view.content.element.parentElement === this._element
+            ) {
+                this.panel.view.content.element.remove();
+                this.panel.view.content.onHide?.();
             }
-            return;
-        }
 
-        if (this.panel?.view.content.element.parentElement === this._element) {
-            this.panel.view.content.element.remove();
-            this.panel.view.content.onHide?.();
+            this.panel = panel;
         }
-
-        this.panel = panel;
 
         let container: HTMLElement;
 
         switch (panel.api.renderer) {
             case 'onlyWhenVisible':
                 this.group.renderContainer.detatch(panel);
-                if (this.panel) {
-                    if (doRender) {
-                        this._element.appendChild(
-                            this.panel.view.content.element
-                        );
-                        this.panel.view.content.onShow?.();
-                    }
+                if (doRender) {
+                    this._element.appendChild(panel.view.content.element);
+                    panel.view.content.onShow?.();
                 }
                 container = this._element;
                 break;
