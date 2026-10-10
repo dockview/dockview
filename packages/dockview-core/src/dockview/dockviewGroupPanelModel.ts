@@ -1303,7 +1303,7 @@ export class DockviewGroupPanelModel
 
         // Re-run layout() so the active content is sized after the container
         // switch — matching doSetActivePanel(). Without it the content keeps
-        // stale dimensions when a group is moved back from a popout (fixes #989).
+        // stale dimensions when a group is moved back from a popout.
         if (this._activePanel) {
             const { width, height } = this.contentDimensions();
             this._activePanel.layout(width, height);
