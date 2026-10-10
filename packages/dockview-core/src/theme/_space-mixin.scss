@@ -190,9 +190,7 @@
             border-bottom-right-radius: var(--dv-border-radius);
         }
 
-        // A header on another side (edge groups, or a grid group with its
-        // header at the bottom): the strip takes the card's corners on that
-        // side and the content the opposite ones, so the two meet square.
+        // A header on another side takes the card's corners on that side.
         &.dv-groupview-header-bottom {
             > .dv-tabs-and-actions-container {
                 border-radius: 0 0 var(--dv-border-radius)
