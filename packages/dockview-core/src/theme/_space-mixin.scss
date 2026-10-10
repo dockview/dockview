@@ -48,6 +48,19 @@
     --dv-header-padding: calc(var(--dv-border-radius) / 2);
     --dv-content-border-radius: 0 0 var(--dv-border-radius)
         var(--dv-border-radius);
+    // The same card with the header on another side.
+    --dv-header-border-radius-bottom: 0 0 var(--dv-border-radius)
+        var(--dv-border-radius);
+    --dv-content-border-radius-bottom: var(--dv-border-radius)
+        var(--dv-border-radius) 0 0;
+    --dv-header-border-radius-left: var(--dv-border-radius) 0 0
+        var(--dv-border-radius);
+    --dv-content-border-radius-left: 0 var(--dv-border-radius)
+        var(--dv-border-radius) 0;
+    --dv-header-border-radius-right: 0 var(--dv-border-radius)
+        var(--dv-border-radius) 0;
+    --dv-content-border-radius-right: var(--dv-border-radius) 0 0
+        var(--dv-border-radius);
     --dv-content-background-color: #{dv.ref('tabs-and-actions-container-background-color')};
 
     // A tool window's title bar caps its top and the strip its bottom.

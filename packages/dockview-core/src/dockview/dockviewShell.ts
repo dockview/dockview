@@ -141,8 +141,14 @@ export class EdgeGroupView implements IView {
         return this._isCollapsed;
     }
 
+    /** The slot size (gap share included) to restore on expand. */
     get lastExpandedSize(): number {
         return this._lastExpandedSize;
+    }
+
+    /** The group's own size when expanded, without the gap share. */
+    get lastExpandedContentSize(): number {
+        return this._lastExpandedSize - this._gapAdd;
     }
 
     get collapsedSize(): number {
@@ -233,9 +239,11 @@ export class EdgeGroupView implements IView {
     }
 
     layout(size: number, orthogonalSize: number): void {
-        // Track the last expanded size so we can restore it after collapsing
+        // Track the last expanded size so we can restore it after collapsing.
+        // The slot is larger than `size` by the gap share, and the expanded
+        // size is restored as a slot size.
         if (!this._isCollapsed) {
-            this._lastExpandedSize = size;
+            this._lastExpandedSize = size + this._gapAdd;
         }
 
         // horizontal (left/right): size=width, orthogonalSize=height → layout(width, height)
@@ -1000,7 +1008,7 @@ export class ShellManager implements IDisposable {
     /** The size an edge group expands to (its pre-collapse size), used to size
      *  the auto-hide peek overlay. */
     getEdgeGroupExpandedSize(position: EdgeGroupPosition): number {
-        return this._getView(position)?.lastExpandedSize ?? 0;
+        return this._getView(position)?.lastExpandedContentSize ?? 0;
     }
 
     private _getView(position: EdgeGroupPosition): EdgeGroupView | undefined {

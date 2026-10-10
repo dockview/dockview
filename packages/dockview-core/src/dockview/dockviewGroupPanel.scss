@@ -52,6 +52,26 @@
     overflow: var(--dv-content-overflow, visible);
 }
 
+// The header and content radii describe a header on top. A header on another
+// side takes the shapes a theme gives for that side, else the same ones.
+@each $side in (bottom, left, right) {
+    .dv-groupview.dv-groupview-header-#{$side} {
+        > .dv-tabs-and-actions-container {
+            border-radius: var(
+                --dv-header-border-radius-#{$side},
+                var(--dv-header-border-radius, 0px)
+            );
+        }
+
+        > .dv-content-container {
+            border-radius: var(
+                --dv-content-border-radius-#{$side},
+                var(--dv-content-border-radius, 0px)
+            );
+        }
+    }
+}
+
 // A docked tool window has a title bar above the content and the strip below,
 // so both take their own corner shapes.
 .dv-groupview.dv-edge-tool-window {
