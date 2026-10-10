@@ -1,0 +1,27 @@
+[package]
+name = "dockview-tauri-demo"
+version = "0.0.0"
+description = "Tauri shell hosting dockview"
+authors = ["https://github.com/mathuo"]
+license = "MIT"
+edition = "2021"
+rust-version = "1.77.2"
+publish = false
+
+[lib]
+name = "dockview_tauri_demo_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+tauri = { version = "2.11.5", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Version-matched with wry: the same crate instance is what makes the raw
+# `webkit2gtk::WebView` Tauri hands out usable here.
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = "2.0"
+gtk = "0.18"

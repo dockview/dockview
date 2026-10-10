@@ -25,7 +25,12 @@ import {
 } from 'dockview';
 import { ReactPanelContentPart } from './reactContentPart';
 import { ReactPanelHeaderPart } from './reactHeaderPart';
-import { ReactPortalStore, usePortalsLifecycle } from '../react';
+import {
+    ReactPortalStore,
+    useAppliedOptions,
+    useKeptInstance,
+    usePortalsLifecycle,
+} from '../react';
 import { ReactWatermarkPart } from './reactWatermarkPart';
 import { ReactHeaderActionsRendererPart } from './headerActionsRenderer';
 import { ReactContextMenuItemPart } from './reactContextMenuItemPart';
@@ -112,6 +117,7 @@ export const DockviewReact = React.forwardRef(
         const domRef = React.useRef<HTMLDivElement>(null);
         const dockviewRef = React.useRef<DockviewApi | undefined>(undefined);
         const [portals, addPortal] = usePortalsLifecycle();
+        const isApplied = useAppliedOptions(dockviewRef);
 
         React.useImperativeHandle(ref, () => domRef.current!, []);
 
@@ -130,10 +136,8 @@ export const DockviewReact = React.forwardRef(
                     }
                 });
 
-                if (dockviewRef.current) {
+                if (dockviewRef.current && Object.keys(changes).length > 0) {
                     dockviewRef.current.updateOptions(changes);
-                } else {
-                    // not yet fully initialized
                 }
 
                 prevProps.current = props;
@@ -141,11 +145,7 @@ export const DockviewReact = React.forwardRef(
             PROPERTY_KEYS_DOCKVIEW.map((key) => props[key])
         );
 
-        React.useEffect(() => {
-            if (!domRef.current) {
-                return;
-            }
-
+        useKeptInstance(domRef, dockviewRef, (element) => {
             const frameworkTabComponents = { ...props.tabComponents };
 
             if (props.defaultTabComponent) {
@@ -233,25 +233,20 @@ export const DockviewReact = React.forwardRef(
                 };
             }
 
-            const api = createDockview(domRef.current, {
+            const api = createDockview(element, {
                 ...coreOptions,
                 ...frameworkOptions,
             });
 
-            const { clientWidth, clientHeight } = domRef.current;
+            const { clientWidth, clientHeight } = element;
             api.layout(clientWidth, clientHeight);
 
             if (props.onReady) {
                 props.onReady({ api });
             }
 
-            dockviewRef.current = api;
-
-            return () => {
-                dockviewRef.current = undefined;
-                api.dispose();
-            };
-        }, []);
+            return api;
+        });
 
         React.useEffect(() => {
             if (!dockviewRef.current) {
@@ -290,7 +285,12 @@ export const DockviewReact = React.forwardRef(
         }, [props.onWillDrop]);
 
         React.useEffect(() => {
-            if (!dockviewRef.current) {
+            if (
+                !dockviewRef.current ||
+                isApplied({
+                    tabGroupChipComponent: props.tabGroupChipComponent,
+                })
+            ) {
                 return;
             }
 
@@ -309,7 +309,12 @@ export const DockviewReact = React.forwardRef(
         }, [props.tabGroupChipComponent]);
 
         React.useEffect(() => {
-            if (!dockviewRef.current) {
+            if (
+                !dockviewRef.current ||
+                isApplied({
+                    groupDragGhostComponent: props.groupDragGhostComponent,
+                })
+            ) {
                 return;
             }
 
@@ -328,7 +333,10 @@ export const DockviewReact = React.forwardRef(
         }, [props.groupDragGhostComponent]);
 
         React.useEffect(() => {
-            if (!dockviewRef.current) {
+            if (
+                !dockviewRef.current ||
+                isApplied({ components: props.components })
+            ) {
                 return;
             }
 
@@ -346,7 +354,13 @@ export const DockviewReact = React.forwardRef(
         }, [props.components]);
 
         React.useEffect(() => {
-            if (!dockviewRef.current) {
+            if (
+                !dockviewRef.current ||
+                isApplied({
+                    tabComponents: props.tabComponents,
+                    defaultTabComponent: props.defaultTabComponent,
+                })
+            ) {
                 return;
             }
 
@@ -374,7 +388,10 @@ export const DockviewReact = React.forwardRef(
         }, [props.tabComponents, props.defaultTabComponent]);
 
         React.useEffect(() => {
-            if (!dockviewRef.current) {
+            if (
+                !dockviewRef.current ||
+                isApplied({ watermarkComponent: props.watermarkComponent })
+            ) {
                 return;
             }
 
@@ -394,7 +411,13 @@ export const DockviewReact = React.forwardRef(
         }, [props.watermarkComponent]);
 
         React.useEffect(() => {
-            if (!dockviewRef.current) {
+            if (
+                !dockviewRef.current ||
+                isApplied({
+                    rightHeaderActionsComponent:
+                        props.rightHeaderActionsComponent,
+                })
+            ) {
                 return;
             }
             dockviewRef.current.updateOptions({
@@ -406,7 +429,13 @@ export const DockviewReact = React.forwardRef(
         }, [props.rightHeaderActionsComponent]);
 
         React.useEffect(() => {
-            if (!dockviewRef.current) {
+            if (
+                !dockviewRef.current ||
+                isApplied({
+                    leftHeaderActionsComponent:
+                        props.leftHeaderActionsComponent,
+                })
+            ) {
                 return;
             }
             dockviewRef.current.updateOptions({
@@ -418,7 +447,13 @@ export const DockviewReact = React.forwardRef(
         }, [props.leftHeaderActionsComponent]);
 
         React.useEffect(() => {
-            if (!dockviewRef.current) {
+            if (
+                !dockviewRef.current ||
+                isApplied({
+                    prefixHeaderActionsComponent:
+                        props.prefixHeaderActionsComponent,
+                })
+            ) {
                 return;
             }
             dockviewRef.current.updateOptions({

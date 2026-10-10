@@ -656,6 +656,8 @@ export interface IOverflowRow {
      * the keyboard controller (Enter).
      */
     activate(): void;
+    /** Disposes the row's tab renderer. */
+    dispose(): void;
 }
 
 /**

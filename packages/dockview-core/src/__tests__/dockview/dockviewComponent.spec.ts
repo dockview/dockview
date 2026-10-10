@@ -12,6 +12,7 @@ import { CompositeDisposable } from '../../lifecycle';
 import { Emitter } from '../../events';
 import { DockviewPanel, IDockviewPanel } from '../../dockview/dockviewPanel';
 import { DockviewGroupPanel } from '../../dockview/dockviewGroupPanel';
+import { OverlayRenderContainer } from '../../overlay/overlayRenderContainer';
 import { fireEvent, queryByTestId } from '@testing-library/dom';
 import { getPanelData } from '../../dnd/dataTransfer';
 import {
@@ -5709,6 +5710,46 @@ describe('dockviewComponent', () => {
                 '.dv-watermark-container .dv-watermark-custom'
             )
         ).toHaveLength(0);
+    });
+
+    test('removing the last panel of the active group does not leak a watermark', () => {
+        // https://github.com/dockview/dockview/issues/1661
+        const container = document.createElement('div');
+
+        let created = 0;
+        const alive = new Set<number>();
+
+        const dockview = new DockviewComponent(container, {
+            createComponent(options) {
+                return new PanelContentPartTest(options.id, options.name);
+            },
+            createWatermarkComponent: () => {
+                const id = ++created;
+                alive.add(id);
+                return {
+                    element: document.createElement('div'),
+                    init: () => {
+                        /* noop */
+                    },
+                    dispose: () => {
+                        alive.delete(id);
+                    },
+                };
+            },
+        });
+        dockview.layout(800, 600);
+
+        for (let i = 1; i <= 3; i++) {
+            const panel = dockview.addPanel({
+                id: `panel${i}`,
+                component: 'default',
+            });
+            dockview.removePanel(panel);
+
+            // Only the dockview-level watermark should be alive.
+            expect(dockview.groups).toHaveLength(0);
+            expect(alive.size).toBe(1);
+        }
     });
 
     test('that deserializing an empty layout has zero groups and a watermark', () => {
@@ -12042,6 +12083,136 @@ describe('dockviewComponent', () => {
 
             // The inactive "always" panel's content should be attached to the DOM
             expect(panel2.view.content.element.parentElement).toBeTruthy();
+
+            expect(dockview.element.contains(panel1.view.content.element)).toBe(
+                true
+            );
+        });
+
+        test('inactive "always" panel added with inactive:true keeps the active "onlyWhenVisible" panel mounted (#1675)', () => {
+            dockview.layout(1000, 1000);
+
+            const panel1 = dockview.addPanel({
+                id: 'panel1',
+                component: 'default',
+                renderer: 'onlyWhenVisible',
+            });
+            const panel2 = dockview.addPanel({
+                id: 'panel2',
+                component: 'default',
+                renderer: 'always',
+                inactive: true,
+                position: { referencePanel: 'panel1', direction: 'within' },
+            });
+
+            expect(panel1.api.isActive).toBe(true);
+            expect(panel2.api.isActive).toBe(false);
+            expect(dockview.element.contains(panel1.view.content.element)).toBe(
+                true
+            );
+            expect(panel2.view.content.element.parentElement).toBeTruthy();
+        });
+
+        test('changing the renderer of an inactive panel keeps the active panel mounted (#1675)', () => {
+            dockview.layout(1000, 1000);
+
+            const panel1 = dockview.addPanel({
+                id: 'panel1',
+                component: 'default',
+                renderer: 'onlyWhenVisible',
+            });
+            const panel2 = dockview.addPanel({
+                id: 'panel2',
+                component: 'default',
+                renderer: 'onlyWhenVisible',
+                position: { referencePanel: 'panel1', direction: 'within' },
+            });
+            panel1.api.setActive();
+
+            panel2.api.setRenderer('always');
+
+            expect(panel1.api.isActive).toBe(true);
+            expect(dockview.element.contains(panel1.view.content.element)).toBe(
+                true
+            );
+            expect(panel2.view.content.element.parentElement).toBeTruthy();
+
+            panel2.api.setRenderer('onlyWhenVisible');
+
+            expect(dockview.element.contains(panel1.view.content.element)).toBe(
+                true
+            );
+            expect(panel2.view.content.element.parentElement).toBeNull();
+        });
+
+        test('moving an inactive "always" panel into a group keeps its active "onlyWhenVisible" panel mounted (#1675)', () => {
+            dockview.layout(1000, 1000);
+
+            const panel1 = dockview.addPanel({
+                id: 'panel1',
+                component: 'default',
+                renderer: 'onlyWhenVisible',
+            });
+            const panel2 = dockview.addPanel({
+                id: 'panel2',
+                component: 'default',
+                renderer: 'always',
+                position: { direction: 'right' },
+            });
+            dockview.addPanel({
+                id: 'panel3',
+                component: 'default',
+                position: { referencePanel: 'panel2', direction: 'within' },
+            });
+            panel1.api.setActive();
+
+            // The path a group move (and a live popout) takes for inactive panels.
+            dockview.moveGroupOrPanel({
+                from: { groupId: panel2.api.group.id, panelId: 'panel2' },
+                to: { group: panel1.api.group, position: 'center' },
+                skipSetActive: true,
+            });
+
+            expect(panel2.api.group).toBe(panel1.api.group);
+            expect(panel1.api.isActive).toBe(true);
+            expect(dockview.element.contains(panel1.view.content.element)).toBe(
+                true
+            );
+            expect(panel2.view.content.element.parentElement).toBeTruthy();
+        });
+
+        test('swapping the render container keeps the active "onlyWhenVisible" panel mounted once', () => {
+            dockview.layout(1000, 1000);
+
+            const panel1 = dockview.addPanel({
+                id: 'panel1',
+                component: 'default',
+                renderer: 'onlyWhenVisible',
+            });
+            const panel2 = dockview.addPanel({
+                id: 'panel2',
+                component: 'default',
+                renderer: 'always',
+                inactive: true,
+                position: { referencePanel: 'panel1', direction: 'within' },
+            });
+
+            const onShow = jest.fn();
+            panel1.view.content.onShow = onShow;
+
+            const host = document.createElement('div');
+            dockview.element.appendChild(host);
+            panel1.api.group.model.renderContainer = new OverlayRenderContainer(
+                host,
+                dockview
+            );
+
+            expect(panel1.api.isActive).toBe(true);
+            expect(dockview.element.contains(panel1.view.content.element)).toBe(
+                true
+            );
+            expect(onShow).toHaveBeenCalledTimes(1);
+            expect(host.contains(panel2.view.content.element)).toBe(true);
         });
     });
 

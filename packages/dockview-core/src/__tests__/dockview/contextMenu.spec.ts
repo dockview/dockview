@@ -144,10 +144,14 @@ describe('ContextMenuController', () => {
 
             controller.show(makePanel(), makeGroup(), event);
 
-            expect(openPopover).toHaveBeenCalledWith(expect.any(HTMLElement), {
-                x: 150,
-                y: 300,
-            });
+            expect(openPopover).toHaveBeenCalledWith(
+                expect.any(HTMLElement),
+                {
+                    x: 150,
+                    y: 300,
+                },
+                expect.anything()
+            );
         });
 
         test('does not call openPopover when getTabContextMenuItems returns empty array', () => {
@@ -245,7 +249,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(1001 * 2)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(floating);
@@ -296,7 +301,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(999 * 2)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(floating);
@@ -326,7 +332,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(1003 * 2)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(outer);
@@ -375,7 +382,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(var(--dv-overlay-z-index, 999) + 100)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(tab);
@@ -402,7 +410,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(var(--dv-overlay-z-index, 999) + 100)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(floating);
@@ -428,7 +437,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(var(--dv-overlay-z-index, 999) + 100)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(chip);
@@ -1232,6 +1242,118 @@ describe('ContextMenuController', () => {
         });
     });
 
+    describe('component item renderers', () => {
+        function makeRenderer() {
+            return {
+                element: document.createElement('div'),
+                init: jest.fn(),
+                dispose: jest.fn(),
+            };
+        }
+
+        test('tab menu disposes its renderers on close', () => {
+            const renderer = makeRenderer();
+            const { accessor, openPopover } = makeAccessor({
+                getTabContextMenuItems: jest
+                    .fn()
+                    .mockReturnValue([{ component: {} }]),
+                createContextMenuItemComponent: jest
+                    .fn()
+                    .mockReturnValue(renderer),
+            });
+
+            new ContextMenuController(accessor).show(
+                makePanel(),
+                makeGroup(),
+                new MouseEvent('contextmenu')
+            );
+            expect(renderer.dispose).not.toHaveBeenCalled();
+
+            openPopover.mock.calls[0][2].onClose();
+            expect(renderer.dispose).toHaveBeenCalledTimes(1);
+        });
+
+        test('disposes the renderers built so far when an item init throws', () => {
+            const first = makeRenderer();
+            const second = makeRenderer();
+            second.init.mockImplementation(() => {
+                throw new Error('init failed');
+            });
+            const { accessor, openPopover } = makeAccessor({
+                getTabContextMenuItems: jest
+                    .fn()
+                    .mockReturnValue([{ component: 'a' }, { component: 'b' }]),
+                createContextMenuItemComponent: jest
+                    .fn()
+                    .mockReturnValueOnce(first)
+                    .mockReturnValueOnce(second),
+            });
+
+            expect(() =>
+                new ContextMenuController(accessor).show(
+                    makePanel(),
+                    makeGroup(),
+                    new MouseEvent('contextmenu')
+                )
+            ).toThrow('init failed');
+
+            expect(openPopover).not.toHaveBeenCalled();
+            expect(first.dispose).toHaveBeenCalledTimes(1);
+            expect(second.dispose).toHaveBeenCalledTimes(1);
+        });
+
+        test('chip menu disposes the renderers built so far when an item init throws', () => {
+            const first = makeRenderer();
+            const second = makeRenderer();
+            second.init.mockImplementation(() => {
+                throw new Error('init failed');
+            });
+            const { accessor, openPopover } = makeAccessor({
+                getTabGroupChipContextMenuItems: jest
+                    .fn()
+                    .mockReturnValue([{ component: 'a' }, { component: 'b' }]),
+                createContextMenuItemComponent: jest
+                    .fn()
+                    .mockReturnValueOnce(first)
+                    .mockReturnValueOnce(second),
+            });
+
+            expect(() =>
+                new ContextMenuController(accessor).showForChip(
+                    fromPartial<ITabGroup>({}),
+                    makeGroup(),
+                    new MouseEvent('contextmenu', { cancelable: true })
+                )
+            ).toThrow('init failed');
+
+            expect(openPopover).not.toHaveBeenCalled();
+            expect(first.dispose).toHaveBeenCalledTimes(1);
+            expect(second.dispose).toHaveBeenCalledTimes(1);
+        });
+
+        test('chip menu disposes its renderers on close', () => {
+            const renderer = makeRenderer();
+            const { accessor, openPopover } = makeAccessor({
+                getTabGroupChipContextMenuItems: jest
+                    .fn()
+                    .mockReturnValue([{ component: {} }]),
+                createContextMenuItemComponent: jest
+                    .fn()
+                    .mockReturnValue(renderer),
+            });
+
+            new ContextMenuController(accessor).showForChip(
+                fromPartial<ITabGroup>({}),
+                makeGroup(),
+                new MouseEvent('contextmenu', { cancelable: true })
+            );
+            expect(renderer.dispose).not.toHaveBeenCalled();
+
+            openPopover.mock.calls[0][2].onClose();
+            expect(renderer.dispose).toHaveBeenCalledTimes(1);
+        });
+    });
+
     describe("built-in chip 'collapse' item", () => {
         function makeChipAccessor(items: unknown[]) {
             const openPopover = jest.fn();
@@ -1374,7 +1496,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(1001 * 2)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(floating);

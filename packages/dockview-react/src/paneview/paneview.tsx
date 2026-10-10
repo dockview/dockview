@@ -9,7 +9,11 @@ import {
     PaneviewComponentOptions,
     PaneviewFrameworkOptions,
 } from 'dockview';
-import { usePortalsLifecycle } from '../react';
+import {
+    useAppliedOptions,
+    useKeptInstance,
+    usePortalsLifecycle,
+} from '../react';
 import { PanePanelSection } from './view';
 import { PanelParameters } from '../types';
 
@@ -53,6 +57,7 @@ export const PaneviewReact = React.forwardRef(
         const domRef = React.useRef<HTMLDivElement>(null);
         const paneviewRef = React.useRef<PaneviewApi | undefined>(undefined);
         const [portals, addPortal] = usePortalsLifecycle();
+        const isApplied = useAppliedOptions(paneviewRef);
 
         React.useImperativeHandle(ref, () => domRef.current!, []);
 
@@ -71,10 +76,8 @@ export const PaneviewReact = React.forwardRef(
                     }
                 });
 
-                if (paneviewRef.current) {
+                if (paneviewRef.current && Object.keys(changes).length > 0) {
                     paneviewRef.current.updateOptions(changes);
-                } else {
-                    // not yet fully initialized
                 }
 
                 prevProps.current = props;
@@ -82,13 +85,7 @@ export const PaneviewReact = React.forwardRef(
             PROPERTY_KEYS_PANEVIEW.map((key) => props[key])
         );
 
-        React.useEffect(() => {
-            if (!domRef.current) {
-                return () => {
-                    // noop
-                };
-            }
-
+        useKeptInstance(domRef, paneviewRef, (element) => {
             const headerComponents = props.headerComponents ?? {};
 
             const frameworkOptions: PaneviewFrameworkOptions = {
@@ -108,28 +105,26 @@ export const PaneviewReact = React.forwardRef(
                 },
             };
 
-            const api = createPaneview(domRef.current, {
+            const api = createPaneview(element, {
                 ...extractCoreOptions(props),
                 ...frameworkOptions,
             });
 
-            const { clientWidth, clientHeight } = domRef.current;
+            const { clientWidth, clientHeight } = element;
             api.layout(clientWidth, clientHeight);
 
             if (props.onReady) {
                 props.onReady({ api });
             }
 
-            paneviewRef.current = api;
-
-            return () => {
-                paneviewRef.current = undefined;
-                api.dispose();
-            };
-        }, []);
+            return api;
+        });
 
         React.useEffect(() => {
-            if (!paneviewRef.current) {
+            if (
+                !paneviewRef.current ||
+                isApplied({ components: props.components })
+            ) {
                 return;
             }
             paneviewRef.current.updateOptions({
@@ -144,7 +139,10 @@ export const PaneviewReact = React.forwardRef(
         }, [props.components]);
 
         React.useEffect(() => {
-            if (!paneviewRef.current) {
+            if (
+                !paneviewRef.current ||
+                isApplied({ headerComponents: props.headerComponents })
+            ) {
                 return;
             }
 

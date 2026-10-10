@@ -141,12 +141,12 @@ export class EdgeGroupView implements IView {
         return this._isCollapsed;
     }
 
-    /** The slot size (gap share included) to restore on expand. */
+    /** Includes the gap share, as expanding restores a slot size. */
     get lastExpandedSize(): number {
         return this._lastExpandedSize;
     }
 
-    /** The group's own size when expanded, without the gap share. */
+    /** Without the gap share. */
     get lastExpandedContentSize(): number {
         return this._lastExpandedSize - this._gapAdd;
     }
@@ -239,9 +239,7 @@ export class EdgeGroupView implements IView {
     }
 
     layout(size: number, orthogonalSize: number): void {
-        // Track the last expanded size so we can restore it after collapsing.
-        // The slot is larger than `size` by the gap share, and the expanded
-        // size is restored as a slot size.
+        // `size` excludes the gap share; the restored slot includes it.
         if (!this._isCollapsed) {
             this._lastExpandedSize = size + this._gapAdd;
         }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
     DockviewApi,
+    type CreateComponentOptions,
     type DockviewOptions,
     PROPERTY_KEYS_DOCKVIEW,
     type DockviewFrameworkOptions,
@@ -12,8 +13,12 @@ import {
     onMounted,
     watch,
     onBeforeUnmount,
+    onBeforeUpdate,
+    onUpdated,
     markRaw,
     getCurrentInstance,
+    provide,
+    type Slots,
 } from 'vue';
 import {
     VueGroupDragGhostRenderer,
@@ -25,9 +30,16 @@ import {
     VueWatermarkRenderer,
     findComponent,
     resolveComponent,
+    type VueComponent,
+    type VueRenderable,
 } from '../utils';
+import {
+    VUE_SLOT_CONTEXT,
+    createSlotFunctions,
+    createSlotReference,
+} from '../slots';
 import DockviewPortals from '../dockviewPortals.vue';
-import type { IDockviewVueProps, VueEvents } from './types';
+import type { DockviewVueSlots, IDockviewVueProps, VueEvents } from './types';
 
 const DEFAULT_VUE_TAB = 'props.defaultTabComponent';
 
@@ -82,6 +94,165 @@ const inst = getCurrentInstance()!;
  */
 const registry = new VueRendererRegistry();
 
+/**
+ * Scoped slots (see {@link DockviewVueSlots}) are rendered by
+ * {@link VueSlotOutlet}s mounted through the registry. `slotFunctions` is
+ * re-synced before each re-render so outlets pick up slot functions the
+ * parent replaced; outlets whose slot is unchanged are not re-rendered.
+ */
+const slots = defineSlots<DockviewVueSlots>();
+
+const PANEL_SLOT_PREFIX = 'panel-';
+const TAB_SLOT_PREFIX = 'tab-';
+
+/**
+ * Dockview never re-creates existing panels or tabs when options change, so a
+ * panel or tab slot that is removed keeps rendering where it is already used,
+ * the same way removing a `components` entry or changing `defaultTabComponent`
+ * only affects panels and tabs created afterwards. Header-action and watermark
+ * slots are not retained: dockview re-creates those when the slot is removed.
+ */
+const slotFunctions = createSlotFunctions(
+    slots as Slots,
+    (name) =>
+        name === 'defaultTab' ||
+        name.startsWith(PANEL_SLOT_PREFIX) ||
+        name.startsWith(TAB_SLOT_PREFIX)
+);
+provide(VUE_SLOT_CONTEXT, {
+    functions: slotFunctions.functions,
+    slots: slots as Slots,
+});
+
+type FixedSlotName =
+    | 'defaultTab'
+    | 'watermark'
+    | 'rightHeaderActions'
+    | 'leftHeaderActions'
+    | 'prefixHeaderActions';
+
+const FIXED_SLOTS: FixedSlotName[] = [
+    'defaultTab',
+    'watermark',
+    'rightHeaderActions',
+    'leftHeaderActions',
+    'prefixHeaderActions',
+];
+
+function hasSlot(name: string): boolean {
+    return typeof (slots as Slots)[name] === 'function';
+}
+
+function snapshotFixedSlots(): Record<FixedSlotName, boolean> {
+    return FIXED_SLOTS.reduce(
+        (obj, name) => {
+            obj[name] = hasSlot(name);
+            return obj;
+        },
+        {} as Record<FixedSlotName, boolean>
+    );
+}
+
+/**
+ * Resolve to the slot `slotName` when present, otherwise to the component
+ * given by `value` (a component or a registered component name).
+ */
+function resolveRenderable(
+    slotName: string,
+    value: string | VueComponent | undefined
+): VueRenderable | undefined {
+    if (hasSlot(slotName)) {
+        return createSlotReference(slotName);
+    }
+    return resolveComponent(value, inst);
+}
+
+function defaultTabCoreName(): string | undefined {
+    if (hasSlot('defaultTab')) {
+        return DEFAULT_VUE_TAB;
+    }
+    const value = props.defaultTabComponent;
+    if (typeof value === 'string') {
+        return value;
+    }
+    return value ? DEFAULT_VUE_TAB : undefined;
+}
+
+function createTabComponent(
+    options: CreateComponentOptions
+): VueRenderer | undefined {
+    if (options.name !== DEFAULT_VUE_TAB) {
+        const slotName = TAB_SLOT_PREFIX + options.name;
+        if (hasSlot(slotName)) {
+            return new VueRenderer(
+                createSlotReference(slotName),
+                inst,
+                registry
+            );
+        }
+    }
+
+    let component: VueRenderable | null =
+        options.name === DEFAULT_VUE_TAB
+            ? null
+            : findComponent(inst, options.name, props.tabComponents);
+
+    if (!component && (hasSlot('defaultTab') || props.defaultTabComponent)) {
+        component =
+            resolveRenderable('defaultTab', props.defaultTabComponent) ?? null;
+    }
+
+    if (component) {
+        return new VueRenderer(component, inst, registry);
+    }
+    return undefined;
+}
+
+function watermarkFactory(): DockviewFrameworkOptions['createWatermarkComponent'] {
+    if (!hasSlot('watermark') && !props.watermarkComponent) {
+        return undefined;
+    }
+    return () => {
+        const component = resolveRenderable(
+            'watermark',
+            props.watermarkComponent
+        );
+        return new VueWatermarkRenderer(component!, inst, registry);
+    };
+}
+
+type HeaderActionsFactory =
+    DockviewFrameworkOptions['createRightHeaderActionComponent'];
+
+function headerActionsFactory(
+    slotName: FixedSlotName,
+    getValue: () => string | VueComponent | undefined
+): HeaderActionsFactory {
+    if (!hasSlot(slotName) && !getValue()) {
+        return undefined;
+    }
+    return (group) => {
+        const component = resolveRenderable(slotName, getValue());
+        return new VueHeaderActionsRenderer(component!, inst, group, registry);
+    };
+}
+
+const rightHeaderActionsFactory = () =>
+    headerActionsFactory(
+        'rightHeaderActions',
+        () => props.rightHeaderActionsComponent
+    );
+const leftHeaderActionsFactory = () =>
+    headerActionsFactory(
+        'leftHeaderActions',
+        () => props.leftHeaderActionsComponent
+    );
+const prefixHeaderActionsFactory = () =>
+    headerActionsFactory(
+        'prefixHeaderActions',
+        () => props.prefixHeaderActionsComponent
+    );
+
 watch(
     () => props.tabGroupChipComponent,
     (newValue) => {
@@ -124,37 +295,11 @@ watch(
 
 watch(
     () => props.defaultTabComponent,
-    (newValue) => {
+    () => {
         if (instance.value) {
-            let coreDefault: string | undefined;
-            if (typeof newValue === 'string') {
-                coreDefault = newValue;
-            } else if (newValue) {
-                coreDefault = DEFAULT_VUE_TAB;
-            } else {
-                coreDefault = undefined;
-            }
             instance.value.updateOptions({
-                defaultTabComponent: coreDefault,
-                createTabComponent(options) {
-                    let component =
-                        options.name === DEFAULT_VUE_TAB
-                            ? null
-                            : findComponent(
-                                  inst,
-                                  options.name,
-                                  props.tabComponents
-                              );
-
-                    if (!component && newValue) {
-                        component = resolveComponent(newValue, inst) ?? null;
-                    }
-
-                    if (component) {
-                        return new VueRenderer(component, inst, registry);
-                    }
-                    return undefined;
-                },
+                defaultTabComponent: defaultTabCoreName(),
+                createTabComponent,
             });
         }
     }
@@ -162,19 +307,10 @@ watch(
 
 watch(
     () => props.watermarkComponent,
-    (newValue) => {
+    () => {
         if (instance.value) {
             instance.value.updateOptions({
-                createWatermarkComponent: newValue
-                    ? () => {
-                          const component = resolveComponent(newValue, inst);
-                          return new VueWatermarkRenderer(
-                              component!,
-                              inst,
-                              registry
-                          );
-                      }
-                    : undefined,
+                createWatermarkComponent: watermarkFactory(),
             });
         }
     }
@@ -182,20 +318,10 @@ watch(
 
 watch(
     () => props.rightHeaderActionsComponent,
-    (newValue) => {
+    () => {
         if (instance.value) {
             instance.value.updateOptions({
-                createRightHeaderActionComponent: newValue
-                    ? (group) => {
-                          const component = resolveComponent(newValue, inst);
-                          return new VueHeaderActionsRenderer(
-                              component!,
-                              inst,
-                              group,
-                              registry
-                          );
-                      }
-                    : undefined,
+                createRightHeaderActionComponent: rightHeaderActionsFactory(),
             });
         }
     }
@@ -203,20 +329,10 @@ watch(
 
 watch(
     () => props.leftHeaderActionsComponent,
-    (newValue) => {
+    () => {
         if (instance.value) {
             instance.value.updateOptions({
-                createLeftHeaderActionComponent: newValue
-                    ? (group) => {
-                          const component = resolveComponent(newValue, inst);
-                          return new VueHeaderActionsRenderer(
-                              component!,
-                              inst,
-                              group,
-                              registry
-                          );
-                      }
-                    : undefined,
+                createLeftHeaderActionComponent: leftHeaderActionsFactory(),
             });
         }
     }
@@ -224,24 +340,62 @@ watch(
 
 watch(
     () => props.prefixHeaderActionsComponent,
-    (newValue) => {
+    () => {
         if (instance.value) {
             instance.value.updateOptions({
-                createPrefixHeaderActionComponent: newValue
-                    ? (group) => {
-                          const component = resolveComponent(newValue, inst);
-                          return new VueHeaderActionsRenderer(
-                              component!,
-                              inst,
-                              group,
-                              registry
-                          );
-                      }
-                    : undefined,
+                createPrefixHeaderActionComponent: prefixHeaderActionsFactory(),
             });
         }
     }
 );
+
+/**
+ * The fixed slots enable dockview features (header actions, watermark,
+ * default tab) that are configured once through options, so adding or
+ * removing one of them after mount has to be pushed to dockview explicitly.
+ */
+let fixedSlotsPresence: Record<FixedSlotName, boolean>;
+
+onBeforeUpdate(() => {
+    slotFunctions.sync();
+});
+
+onUpdated(() => {
+    const next = snapshotFixedSlots();
+    const changed = FIXED_SLOTS.filter(
+        (name) => next[name] !== fixedSlotsPresence[name]
+    );
+    fixedSlotsPresence = next;
+
+    if (!instance.value || changed.length === 0) {
+        return;
+    }
+
+    const options: Partial<DockviewFrameworkOptions> = {};
+    for (const name of changed) {
+        switch (name) {
+            case 'defaultTab':
+                options.defaultTabComponent = defaultTabCoreName();
+                break;
+            case 'watermark':
+                options.createWatermarkComponent = watermarkFactory();
+                break;
+            case 'rightHeaderActions':
+                options.createRightHeaderActionComponent =
+                    rightHeaderActionsFactory();
+                break;
+            case 'leftHeaderActions':
+                options.createLeftHeaderActionComponent =
+                    leftHeaderActionsFactory();
+                break;
+            case 'prefixHeaderActions':
+                options.createPrefixHeaderActionComponent =
+                    prefixHeaderActionsFactory();
+                break;
+        }
+    }
+    instance.value.updateOptions(options);
+});
 
 onMounted(() => {
     if (!el.value) {
@@ -252,8 +406,18 @@ onMounted(() => {
         throw new Error('dockview-vue: getCurrentInstance() returned null');
     }
 
+    fixedSlotsPresence = snapshotFixedSlots();
+
     const frameworkOptions: DockviewFrameworkOptions = {
         createComponent(options) {
+            const slotName = PANEL_SLOT_PREFIX + options.name;
+            if (hasSlot(slotName)) {
+                return new VueRenderer(
+                    createSlotReference(slotName),
+                    inst,
+                    registry
+                );
+            }
             const component = findComponent(
                 inst,
                 options.name,
@@ -261,74 +425,11 @@ onMounted(() => {
             );
             return new VueRenderer(component!, inst, registry);
         },
-        createTabComponent(options) {
-            let component =
-                options.name === DEFAULT_VUE_TAB
-                    ? null
-                    : findComponent(inst, options.name, props.tabComponents);
-
-            if (!component && props.defaultTabComponent) {
-                component =
-                    resolveComponent(props.defaultTabComponent, inst) ?? null;
-            }
-
-            if (component) {
-                return new VueRenderer(component, inst, registry);
-            }
-            return undefined;
-        },
-        createWatermarkComponent: props.watermarkComponent
-            ? () => {
-                  const component = resolveComponent(
-                      props.watermarkComponent,
-                      inst
-                  );
-
-                  return new VueWatermarkRenderer(component!, inst, registry);
-              }
-            : undefined,
-        createLeftHeaderActionComponent: props.leftHeaderActionsComponent
-            ? (group) => {
-                  const component = resolveComponent(
-                      props.leftHeaderActionsComponent,
-                      inst
-                  );
-                  return new VueHeaderActionsRenderer(
-                      component!,
-                      inst,
-                      group,
-                      registry
-                  );
-              }
-            : undefined,
-        createPrefixHeaderActionComponent: props.prefixHeaderActionsComponent
-            ? (group) => {
-                  const component = resolveComponent(
-                      props.prefixHeaderActionsComponent,
-                      inst
-                  );
-                  return new VueHeaderActionsRenderer(
-                      component!,
-                      inst,
-                      group,
-                      registry
-                  );
-              }
-            : undefined,
-        createRightHeaderActionComponent: props.rightHeaderActionsComponent
-            ? (group) => {
-                  const component = resolveComponent(
-                      props.rightHeaderActionsComponent,
-                      inst
-                  );
-                  return new VueHeaderActionsRenderer(
-                      component!,
-                      inst,
-                      group,
-                      registry
-                  );
-              }
-            : undefined,
+        createTabComponent,
+        createWatermarkComponent: watermarkFactory(),
+        createLeftHeaderActionComponent: leftHeaderActionsFactory(),
+        createPrefixHeaderActionComponent: prefixHeaderActionsFactory(),
+        createRightHeaderActionComponent: rightHeaderActionsFactory(),
         createContextMenuItemComponent: (options) => {
             if (!options.component) {
                 return undefined;
@@ -344,10 +445,9 @@ onMounted(() => {
 
     const coreOptions = extractCoreOptions(props);
 
-    if (typeof props.defaultTabComponent === 'string') {
-        frameworkOptions.defaultTabComponent = props.defaultTabComponent;
-    } else if (props.defaultTabComponent) {
-        frameworkOptions.defaultTabComponent = DEFAULT_VUE_TAB;
+    const defaultTab = defaultTabCoreName();
+    if (defaultTab) {
+        frameworkOptions.defaultTabComponent = defaultTab;
     }
 
     if (props.tabGroupChipComponent) {
