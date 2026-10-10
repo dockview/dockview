@@ -1,6 +1,6 @@
 {
   "name": "dockview",
-  "version": "8.4.1",
+  "version": "8.4.2",
   "description": "Docking layout manager — tabs, groups, grids, splitviews, drag and drop, floating panels",
   "keywords": [
     "splitview",
@@ -83,6 +83,6 @@
     "format:check": "biome format src"
   },
   "dependencies": {
-    "dockview-core": "^8.4.1"
+    "dockview-core": "^8.4.2"
   }
 }
