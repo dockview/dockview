@@ -190,6 +190,43 @@
             border-bottom-right-radius: var(--dv-border-radius);
         }
 
+        // A header on another side takes the card's corners on that side.
+        &.dv-groupview-header-bottom {
+            > .dv-tabs-and-actions-container {
+                border-radius: 0 0 var(--dv-border-radius)
+                    var(--dv-border-radius);
+            }
+
+            > .dv-content-container {
+                border-radius: var(--dv-border-radius) var(--dv-border-radius)
+                    0 0;
+            }
+        }
+
+        &.dv-groupview-header-left {
+            > .dv-tabs-and-actions-container {
+                border-radius: var(--dv-border-radius) 0 0
+                    var(--dv-border-radius);
+            }
+
+            > .dv-content-container {
+                border-radius: 0 var(--dv-border-radius)
+                    var(--dv-border-radius) 0;
+            }
+        }
+
+        &.dv-groupview-header-right {
+            > .dv-tabs-and-actions-container {
+                border-radius: 0 var(--dv-border-radius)
+                    var(--dv-border-radius) 0;
+            }
+
+            > .dv-content-container {
+                border-radius: var(--dv-border-radius) 0 0
+                    var(--dv-border-radius);
+            }
+        }
+
         // Docked (pinned) auto-hide edge group — a "tool window": title bar on
         // top, content in the middle, tab strip at the bottom (the header is
         // moved to the bottom, so the group is laid out `column-reverse`). The
