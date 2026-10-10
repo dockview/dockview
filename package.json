@@ -73,7 +73,7 @@
         "jest-sonar-reporter": "^2.0.0",
         "jsdom": "^29.1.1",
         "ng-packagr": "^21.0.0",
-        "nx": "^22.7.1",
+        "nx": "^22.7.10",
         "react": "^19.2.6",
         "react-dom": "^19.2.6",
         "rimraf": "^6.1.3",
