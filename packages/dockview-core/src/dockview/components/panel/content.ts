@@ -149,9 +149,8 @@ export class ContentContainer
         const doRender =
             (options?.asActive ?? true) || this.group.isPanelActive(panel);
 
-        // An inactive panel other than the one on display is only being
-        // (de)registered with the overlay render container, so the displayed
-        // panel stays mounted.
+        // Inactive and not on display: only (de)register with the overlay
+        // container, leaving the displayed panel mounted.
         if (doRender || this.panel === panel) {
             if (
                 this.panel?.view.content.element.parentElement === this._element

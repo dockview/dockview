@@ -12083,7 +12083,6 @@ describe('dockviewComponent', () => {
             // The inactive "always" panel's content should be attached to the DOM
             expect(panel2.view.content.element.parentElement).toBeTruthy();
 
-            // ...and registering it leaves the active panel's content mounted
             expect(dockview.element.contains(panel1.view.content.element)).toBe(
                 true
             );
@@ -12166,8 +12165,7 @@ describe('dockviewComponent', () => {
             });
             panel1.api.setActive();
 
-            // The path a group move (and a live popout) takes for every
-            // non-active panel: re-open in the target group without activating.
+            // The path a group move (and a live popout) takes for inactive panels.
             dockview.moveGroupOrPanel({
                 from: { groupId: panel2.api.group.id, panelId: 'panel2' },
                 to: { group: panel1.api.group, position: 'center' },

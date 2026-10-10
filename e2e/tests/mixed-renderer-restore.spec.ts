@@ -1,12 +1,9 @@
 import { test, expect, Page, BrowserContext } from '@playwright/test';
 
 /**
- * A group whose active `onlyWhenVisible` panel precedes an inactive `always`
- * panel. Registering the inactive panel with the overlay render container
- * must leave the active panel's directly-mounted content in place, both on
- * `fromJSON` and across the render-container swap a popout performs. The
- * jsdom unit tests cover the `fromJSON` / `addPanel` / `setRenderer` / move
- * paths; the popout swap needs a genuine second window, so it lives here.
+ * An active `onlyWhenVisible` panel ahead of an inactive `always` panel must
+ * stay mounted across `fromJSON` and the render-container swap a popout
+ * performs — the latter needs a genuine second window.
  */
 test.describe('mixed renderer restore', () => {
     const ready = async (page: Page) => {
@@ -23,9 +20,6 @@ test.describe('mixed renderer restore', () => {
     const activePanelId = (page: Page) =>
         page.evaluate(() => (window as any).__dv.activePanelId());
 
-    // The active `onlyWhenVisible` panel renders directly inside the group's
-    // content container; the inactive `always` panel lives in the overlay
-    // render container (attached, hidden until activated).
     const expectActiveAMounted = async (page: Page) => {
         await expect(
             page.locator('.dv-content-container .dv-test-panel', {
@@ -57,7 +51,6 @@ test.describe('mixed renderer restore', () => {
             activeView: 'a',
         });
 
-        // Fresh component (as after a page reload), then restore.
         await ready(page);
         await page.evaluate(
             (state) => (window as any).__dv.restore(JSON.parse(state)),
