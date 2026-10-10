@@ -900,6 +900,27 @@ describe('ShellManager', () => {
     });
 
     describe('gap adjustment', () => {
+        test('collapse and expand keep the size with a gap', () => {
+            const shell = makeShell(
+                { left: { id: 'left', initialSize: 300 } },
+                10
+            );
+            shell.layout(1000, 600);
+            const size = () =>
+                (shell as any)._outerSplitview.getViewSize(
+                    (shell as any)._leftIndex
+                );
+            expect(size()).toBe(300);
+            for (let i = 0; i < 3; i++) {
+                shell.setEdgeGroupCollapsed('left', true);
+                shell.setEdgeGroupCollapsed('left', false);
+            }
+            expect(size()).toBe(300);
+            // The peek uses the group's own size, without the gap share.
+            expect(shell.getEdgeGroupExpandedSize('left')).toBe(295);
+            shell.dispose();
+        });
+
         test('gap is added to collapsedSize for all four positions', () => {
             // All 4 positions: outerN=3, innerN=3, gapAdd = gap*(n-1)/n = 10*2/3
             const shell = makeShell(
