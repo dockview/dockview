@@ -4,10 +4,7 @@ description: Theming Dockview Components
 title: Theming
 ---
 
-import {
-    CSSVariablesTable,
-    ThemeTable,
-} from '@site/src/components/cssVariables';
+import { ThemeTable } from '@site/src/components/cssVariables';
 import { DocRef } from '@site/src/components/ui/reference/docRef';
 
 Dockview components accept a `theme` property which is highly customisable. Theming is largely controlled through CSS variables, however some properties can only be adjusted by editing the `theme` object directly.
@@ -101,19 +98,120 @@ const { className } = themeAbyss;
 
 ## Build your own theme
 
-You can define your own `DockviewTheme` object and pass it to the `theme` property. At minimum you need to provide a `name` and a `className`. The class name should match a CSS class where you define your theme variables.
+A theme is a CSS class that sets `--dv-*` custom properties, plus a `DockviewTheme` object that names it. Every built-in theme works this way: its class only declares custom properties, and dockview's stylesheet does all the rendering (rounded cards, folder tabs, pills, dividers, floating frames) from them. Anything a built-in theme does, your theme can do with variables alone.
+
+The quickest start is `themeBase`. It derives every colour, radius and padding from five base tokens, so your class only has to set those. Override individual properties to customise further:
+
+```css
+.my-theme {
+    color-scheme: light;
+    --dv-background-color: #ffffff;
+    --dv-foreground-color: #1f2328;
+    --dv-accent-color: #0a7d5a;
+    --dv-spacing: 4px; /* tab padding */
+    --dv-border-radius: 8px; /* groups, floating groups, tabs, sashes... */
+
+    /* optional: override any derived property */
+    --dv-tabs-and-actions-container-background-color: #f6f8fa;
+}
+```
+
+| Base token              | Derived from it (unless set)                                                                    |
+| ----------------------- | ----------------------------------------------------------------------------------------------- |
+| `--dv-background-color` | content, selected tab and floating frame; the tab strip, unselected tabs and hover as steps away from it (darker on a light `color-scheme`, lighter on a dark one) |
+| `--dv-foreground-color` | tab text (at 100/75/65/50%), separators and tab dividers (18%), icon hover (15%), scrollbars     |
+| `--dv-accent-color`     | focus ring, drop line and fill, active sash, edge indicator                                     |
+| `--dv-spacing`          | tab padding                                                                                     |
+| `--dv-border-radius`    | group, floating and peek radii; tab and dropdown (⅔), sash (⅓), drop preview (¼) |
+
+Add your class next to the base theme's. Layout styles are classes too: `dockview-spaced` lays groups out as rounded cards, and `dockview-tabs-connected` gives folder tabs. `dockview-spaced` pairs with the [theme settings](#theme-settings) the spaced themes use, so set those on the object too. Load your stylesheet after dockview's so your values win.
+
+```ts
+import { DockviewTheme, themeBase } from 'dockview';
+
+const myTheme: DockviewTheme = {
+    ...themeBase,
+    name: 'mine',
+    colorScheme: 'light',
+    className: `dockview-spaced ${themeBase.className} my-theme`,
+    gap: 10,
+    dndOverlayMounting: 'absolute',
+    dndPanelOverlay: 'group',
+    dndTabIndicator: 'line',
+};
+```
+
+To recolour an existing theme while keeping its layout, add `dockview-base-colors` next to it: its colours then derive from the base tokens, and its spacing, radii and tab shapes stay as they are. Surfaces step darker on a light `color-scheme` and lighter on a dark one, so if your background switches between light and dark, set `color-scheme` to match.
+
+```ts
+import { DockviewTheme, themeSlateDark } from 'dockview';
+
+const myTheme: DockviewTheme = {
+    ...themeSlateDark,
+    className: `${themeSlateDark.className} dockview-base-colors my-theme`,
+};
+```
+
+The [theme builder](/theme-builder) starts from any built-in theme, edits these tokens with a live preview and exports the class and theme object.
+
+A fully hand-specified theme, like the built-in ones, sets the derived properties directly:
+
+```css
+.my-theme {
+    --dv-group-view-background-color: #ededee;
+    --dv-tabs-and-actions-container-background-color: #ededee;
+    --dv-activegroup-visiblepanel-tab-background-color: #ffffff;
+    --dv-activegroup-visiblepanel-tab-color: #2563eb;
+    /* ... */
+
+    /* connected "folder" tabs */
+    --dv-tab-border-radius: 10px;
+    --dv-tab-content-side-border-radius: 0;
+    --dv-tab-shoulder-size: 10px;
+    --dv-tab-gap: 12px;
+    --dv-tabs-container-padding: 0 16px;
+
+    /* rounded content sheets on a canvas, 8px apart */
+    --dv-border-radius: 6px;
+    --dv-content-border-radius: 6px;
+    --dv-content-background-color: #ffffff;
+    --dv-root-padding: 8px;
+}
+```
+
+```ts
+const myTheme: DockviewTheme = { name: 'mine', className: 'my-theme', gap: 8 };
+```
+
+The built-in themes are also available as SCSS mixins (for example `dockview-connected-tabs-mixin` and `dockview-design-space-mixin`) and utility classes (`.dockview-tabs-connected`, `.dockview-spaced`) that each set a related group of these properties.
 
 <DocRef declaration="DockviewTheme" />
 
-## Theme properties
+## Theme settings
 
-The `DockviewTheme` object accepts a number of optional properties beyond `name` / `className` that change layout behaviour rather than CSS-variable values. The most commonly used ones are listed below.
+Layout and drag-and-drop settings are read by JavaScript, so they go on the `DockviewTheme` object rather than in CSS. Change them at runtime with `api.updateOptions({ theme })`. `api.themeSettings` returns them with the defaults filled in.
+
+| Setting                  | Default      |
+| ------------------------ | ------------ |
+| `gap`                    | `0`          |
+| `edgeGroupCollapsedSize` | `35`         |
+| `dndOverlayMounting`     | `'relative'` |
+| `dndPanelOverlay`        | `'content'`  |
+| `dndTabIndicator`        | `'fill'`     |
+| `tabGroupIndicator`      | `'wrap'`     |
+| `tabAnimation`           | `'default'`  |
+
+`gap` sets the space between groups. The padding around the layout is CSS (`--dv-root-padding`), so keep the two in step.
+
+`dndOverlayBorder` sets `--dv-drag-over-border`, which a theme can also set in CSS.
+
+## Theme properties
 
 ### `tabAnimation`
 
 Controls how tabs animate when they are reordered or moved across groups.
 
-- `'none'` (default): no animation, tabs snap to their new position.
+- `'default'` (default): no animation, tabs snap to their new position.
 - `'smooth'`: animated FLIP transition between positions, including for vertical tab strips and cross-group moves.
 
 ```ts
@@ -127,11 +225,11 @@ const theme = { ...themeAbyss, tabAnimation: 'smooth' as const };
 Controls how the indicator under a tab group's tabs is rendered.
 
 - `'wrap'` (default): a continuous coloured bar wraps the group's tabs.
-- `'none'`: no indicator is drawn.
+- `'none'`: a flat bar under the group's tabs, without the outline around the active tab.
 
 ### `dndOverlayBorder`
 
-Controls whether drop-target overlays (the highlight that appears when dragging a panel over a group) render an outline border. Themes can opt out for a flatter look. Boolean, default depends on the theme.
+A CSS `border` value for the drop preview (the highlight that appears when dragging a panel over a group), for example `'2px solid var(--dv-active-sash-color)'`. It sets `--dv-drag-over-border`.
 
 ### `dndTabIndicator`
 
@@ -142,43 +240,32 @@ Controls how the drop position indicator within a tab strip is drawn while dragg
 
 ### `edgeGroupCollapsedSize`
 
-Per-theme override for the pixel size of an [edge group](/docs/core/groups/edgeGroups) when it is collapsed. The default differs between compact and spaced themes; override this when you need an exact rail size.
+The pixel size of a collapsed [edge group](/docs/core/groups/edgeGroups). Defaults to `35`; set it to the theme's tab strip height so a collapsed rail matches the strip.
 
 ### `colorScheme`
 
-Hint passed to the browser via the `color-scheme` CSS property, either `'light'` or `'dark'`. Native form controls and scrollbars adapt accordingly.
+Whether the theme is `'light'` or `'dark'`, so an app can match its panel content. It is not applied by dockview: the theme class sets the CSS `color-scheme` itself, which native form controls and scrollbars follow.
 
 ## Interactive theme builder
 
-The [live demo](/demo) includes an interactive theme builder that lets you tweak any CSS variable and the theme properties above, then copy the resulting theme object and CSS. This is the fastest way to author a custom theme without writing CSS by hand.
+The [theme builder](/theme-builder) edits these variables and the theme settings above with a live preview, and you can copy the resulting CSS and theme object. Click Inspect, then any part of the preview, to find the setting that styles it.
 
 ## Customising theme
 
-The provided themes are controlled through CSS variables which can be overridden entirely for a new theme, or partially to tweak an existing one.
-
-<CSSVariablesTable />
+The provided themes are controlled through CSS variables which can be overridden entirely for a new theme, or partially to tweak an existing one. The [theme reference](/docs/core/themeReference) lists every variable, grouped and searchable, and every property of the theme object.
 
 ## Extending theme
 
 You can extend existing themes or create new ones.
 
-As an example, if you wanted to extend the **dockview-theme-abyss** theme to display a border below the tabs container you may try:
+As an example, to give the **dockview-theme-abyss** theme a 2px rule under the tab strip in the visible tab's colour, and pill-shaped tabs:
 
 ```css
 .dockview-theme-abyss {
-    .dv-groupview {
-        &.dv-active-group {
-            > .dv-tabs-and-actions-container {
-                border-bottom: 2px solid
-                    var(--dv-activegroup-visiblepanel-tab-background-color);
-            }
-        }
-        &.dv-inactive-group {
-            > .dv-tabs-and-actions-container {
-                border-bottom: 2px solid
-                    var(--dv-inactivegroup-visiblepanel-tab-background-color);
-            }
-        }
-    }
+    --dv-tabs-and-actions-container-border-bottom-width: 2px;
+    --dv-tab-border-radius: 6px;
+    --dv-tab-margin: 4px 2px;
 }
 ```
+
+To opt an existing theme into connected folder tabs, add the `dockview-tabs-connected` class alongside it (for example through the `className` option), or set the variables it sets yourself.

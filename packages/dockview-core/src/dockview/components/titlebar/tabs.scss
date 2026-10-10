@@ -1,3 +1,5 @@
+@use '../../../theme/tokens' as dv;
+
 .dv-tabs-container {
     display: flex;
     position: relative;
@@ -26,8 +28,13 @@
         // below the tabs. Give each wrapped tab the base row height so every
         // row matches the single-row header height (no gap, and the header
         // grows in whole-row increments).
+        // Subtract the tab's cross-axis margin so each wrapped row stays
+        // exactly one header tall.
         .dv-tab {
-            height: var(--dv-tabs-and-actions-container-height);
+            height: calc(
+                #{dv.ref('tabs-and-actions-container-height')} -
+                    2 * var(--dv-tab-margin-block, 0px)
+            );
         }
 
         // `overflow.maxRows` cap. The MultiRowTabsModule adds
@@ -38,7 +45,7 @@
         // `overflow: visible` above and grows unbounded.
         &.dv-tabs-container--wrap-capped {
             max-height: calc(
-                var(--dv-tabs-and-actions-container-height) *
+                #{dv.ref('tabs-and-actions-container-height')} *
                     var(--dv-max-tab-rows)
             );
             overflow: hidden;
@@ -46,23 +53,13 @@
 
         // Discrete drop indicator for 2-D cross-row reorder (the 1-D gap
         // animation is suppressed in wrap). A bar on the leading/trailing edge
-        // of the tab the drop would land before/after.
-        .dv-tab--reorder-before::after,
-        .dv-tab--reorder-after::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            z-index: 10;
-            pointer-events: none;
-            background-color: var(--dv-drag-over-border-color);
+        // of the tab the drop would land before/after, drawn as an inset
+        // shadow so the tab's pseudo-elements stay free for themes.
+        .dv-tab--reorder-before {
+            box-shadow: inset 2px 0 0 0 #{dv.ref('drag-over-border-color')};
         }
-        .dv-tab--reorder-before::after {
-            left: 0;
-        }
-        .dv-tab--reorder-after::after {
-            right: 0;
+        .dv-tab--reorder-after {
+            box-shadow: inset -2px 0 0 0 #{dv.ref('drag-over-border-color')};
         }
     }
 
@@ -102,7 +99,10 @@
         // Falls back to auto (natural per-tab height) when the module hasn't set
         // the variable, so core-only wrap is unchanged.
         .dv-tab {
-            width: var(--dv-tabs-and-actions-container-height);
+            width: calc(
+                #{dv.ref('tabs-and-actions-container-height')} -
+                    2 * var(--dv-tab-margin-block, 0px)
+            );
             height: var(--dv-wrap-vertical-tab-height, auto);
         }
 
@@ -112,7 +112,7 @@
         // route into the overflow dropdown.
         &.dv-tabs-container--wrap-capped {
             max-width: calc(
-                var(--dv-tabs-and-actions-container-height) *
+                #{dv.ref('tabs-and-actions-container-height')} *
                     var(--dv-max-tab-rows)
             );
             overflow: hidden;
@@ -120,22 +120,11 @@
 
         // Discrete drop indicator for 2-D cross-column reorder: a bar on the
         // leading/trailing (top/bottom) edge of the target tab.
-        .dv-tab--reorder-before::after,
-        .dv-tab--reorder-after::after {
-            content: '';
-            position: absolute;
-            left: 0;
-            right: 0;
-            height: 2px;
-            z-index: 10;
-            pointer-events: none;
-            background-color: var(--dv-drag-over-border-color);
+        .dv-tab--reorder-before {
+            box-shadow: inset 0 2px 0 0 #{dv.ref('drag-over-border-color')};
         }
-        .dv-tab--reorder-before::after {
-            top: 0;
-        }
-        .dv-tab--reorder-after::after {
-            bottom: 0;
+        .dv-tab--reorder-after {
+            box-shadow: inset 0 -2px 0 0 #{dv.ref('drag-over-border-color')};
         }
     }
 
@@ -177,31 +166,99 @@
             &:not(:first-child)::before {
                 content: ' ';
                 position: absolute;
-                top: 0;
-                left: 0;
                 z-index: 5;
                 pointer-events: none;
-                background-color: var(--dv-tab-divider-color);
+                background-color: #{dv.ref('tab-divider-color')};
+                border-radius: var(--dv-tab-divider-radius, 0px);
             }
         }
     }
 
     &.dv-horizontal {
+        // Horizontal only: vertical rails use `--dv-vertical-tab-margin`.
+        column-gap: var(--dv-tab-gap, 0px);
+        padding: var(--dv-tabs-container-padding, 0px);
+
         .dv-tab {
             &:not(:first-child)::before {
-                width: 1px;
-                height: 100%;
+                top: 50%;
+                transform: translateY(-50%);
+                left: calc(-0.5 * var(--dv-tab-gap, 0px));
+                width: var(--dv-tab-divider-width, 1px);
+                height: var(--dv-tab-divider-length, 100%);
             }
+        }
+
+        // Dividers either side of the selected tab; connected tabs make
+        // these transparent so the shoulders fill the gap.
+        > .dv-tab.dv-active-tab::before,
+        > .dv-tab.dv-active-tab + .dv-tab::before {
+            background-color: var(
+                --dv-active-tab-divider-color,
+                #{dv.ref('tab-divider-color')}
+            );
+        }
+
+        // Connected-tab shoulders: the pseudo-element spans the tab plus a
+        // shoulder-size square either side, and two mask tiles cut the concave
+        // quarter-circles. Inert at the default size of 0.
+        > .dv-tab.dv-active-tab::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: calc(-1 * var(--dv-tab-shoulder-size, 0px));
+            width: calc(100% + 2 * var(--dv-tab-shoulder-size, 0px));
+            height: var(--dv-tab-shoulder-size, 0px);
+            background-color: inherit;
+            pointer-events: none;
+            z-index: 2;
+            -webkit-mask-image:
+                radial-gradient(
+                    circle at top left,
+                    transparent var(--dv-tab-shoulder-size, 0px),
+                    #000 var(--dv-tab-shoulder-size, 0px)
+                ),
+                radial-gradient(
+                    circle at top right,
+                    transparent var(--dv-tab-shoulder-size, 0px),
+                    #000 var(--dv-tab-shoulder-size, 0px)
+                );
+            mask-image:
+                radial-gradient(
+                    circle at top left,
+                    transparent var(--dv-tab-shoulder-size, 0px),
+                    #000 var(--dv-tab-shoulder-size, 0px)
+                ),
+                radial-gradient(
+                    circle at top right,
+                    transparent var(--dv-tab-shoulder-size, 0px),
+                    #000 var(--dv-tab-shoulder-size, 0px)
+                );
+            -webkit-mask-size: var(--dv-tab-shoulder-size, 0px)
+                var(--dv-tab-shoulder-size, 0px);
+            mask-size: var(--dv-tab-shoulder-size, 0px)
+                var(--dv-tab-shoulder-size, 0px);
+            -webkit-mask-position: left, right;
+            mask-position: left, right;
+            -webkit-mask-repeat: no-repeat;
+            mask-repeat: no-repeat;
         }
     }
     &.dv-vertical {
         .dv-tab {
             &:not(:first-child)::before {
+                top: 0;
+                left: 0;
                 width: 100%;
                 height: 1px;
+                background-color: var(
+                    --dv-vertical-tab-divider-color,
+                    #{dv.ref('tab-divider-color')}
+                );
             }
         }
     }
+
 
     &::-webkit-scrollbar {
         height: 3px;
@@ -214,7 +271,7 @@
 
     /* Handle */
     &::-webkit-scrollbar-thumb {
-        background: var(--dv-tabs-container-scrollbar-color);
+        background: #{dv.ref('tabs-container-scrollbar-color')};
     }
 }
 
@@ -231,16 +288,43 @@
     -moz-user-select: none;
     -ms-user-select: none;
     outline: none;
-    padding: 0.25rem 0.5rem;
+    // Logical, so the padding follows a vertical rail's writing mode.
+    padding-block: #{dv.ref('tab-padding-block')};
+    padding-inline: #{dv.ref('tab-padding-inline')};
     cursor: pointer;
     position: relative;
     box-sizing: border-box;
     font-size: var(--dv-tab-font-size);
-    margin: var(--dv-tab-margin);
+    // Unset tokens leave the weight inherited.
+    font-weight: var(--dv-tab-font-weight);
+    margin: #{dv.ref('tab-margin')};
+    border-radius: #{dv.ref('tab-border-radius')};
     // Block the browser's native pan so the pointer drag source can run
     // its long-press arming without Chrome firing pointercancel mid-gesture.
     // See the container comment above; pre-arm scroll is forwarded in JS.
     touch-action: none;
+
+    &.dv-active-tab {
+        font-weight: var(
+            --dv-active-tab-font-weight,
+            var(--dv-tab-font-weight)
+        );
+    }
+
+    .dv-svg {
+        width: #{dv.ref('tab-close-icon-size')};
+        height: #{dv.ref('tab-close-icon-size')};
+    }
+
+    // Kept off the animated states below, whose own transitions this would
+    // otherwise replace.
+    &:not(.dv-tab--shifting):not(.dv-tab--dragging):not(
+            .dv-tab--group-collapsed
+        ):not(.dv-tab--group-expanding) {
+        transition:
+            background-color var(--dv-tab-transition-duration, 0s) ease,
+            color var(--dv-tab-transition-duration, 0s) ease;
+    }
 
     &.dv-tab--shifting {
         will-change:
@@ -290,6 +374,79 @@
             margin var(--dv-transition-duration, 200ms) ease-out,
             opacity var(--dv-transition-duration, 200ms) ease-out;
     }
+}
+
+// Connected tabs set `--dv-tab-content-side-border-radius` to 0 so the tab
+// merges into the panel.
+.dv-tabs-container.dv-horizontal > .dv-tab {
+    border-radius: #{dv.ref('tab-border-radius')}
+        #{dv.ref('tab-border-radius')}
+        var(
+            --dv-tab-content-side-border-radius,
+            #{dv.ref('tab-border-radius')}
+        )
+        var(
+            --dv-tab-content-side-border-radius,
+            #{dv.ref('tab-border-radius')}
+        );
+}
+
+.dv-groupview-header-bottom .dv-tabs-container.dv-horizontal > .dv-tab {
+    // A theme with a tab inset toward the header's outer edge flips it here.
+    margin: var(--dv-bottom-header-tab-margin, #{dv.ref('tab-margin')});
+    border-radius: var(
+            --dv-tab-content-side-border-radius,
+            #{dv.ref('tab-border-radius')}
+        )
+        var(
+            --dv-tab-content-side-border-radius,
+            #{dv.ref('tab-border-radius')}
+        )
+        #{dv.ref('tab-border-radius')} #{dv.ref('tab-border-radius')};
+}
+
+.dv-groupview-header-bottom
+    .dv-tabs-container.dv-horizontal
+    > .dv-tab.dv-active-tab::after {
+    top: 0;
+    bottom: auto;
+    -webkit-mask-image:
+        radial-gradient(
+            circle at bottom left,
+            transparent var(--dv-tab-shoulder-size, 0px),
+            #000 var(--dv-tab-shoulder-size, 0px)
+        ),
+        radial-gradient(
+            circle at bottom right,
+            transparent var(--dv-tab-shoulder-size, 0px),
+            #000 var(--dv-tab-shoulder-size, 0px)
+        );
+    mask-image:
+        radial-gradient(
+            circle at bottom left,
+            transparent var(--dv-tab-shoulder-size, 0px),
+            #000 var(--dv-tab-shoulder-size, 0px)
+        ),
+        radial-gradient(
+            circle at bottom right,
+            transparent var(--dv-tab-shoulder-size, 0px),
+            #000 var(--dv-tab-shoulder-size, 0px)
+        );
+}
+
+.dv-tabs-container.dv-vertical > .dv-tab {
+    border-radius: var(
+        --dv-vertical-tab-border-radius,
+        #{dv.ref('tab-border-radius')}
+    );
+    margin: var(--dv-vertical-tab-margin, #{dv.ref('tab-margin')});
+}
+
+// A tab collapsed out of a horizontal strip (dragged away, or folded into a
+// collapsed tab group) also gives back its share of the tab gap.
+.dv-tabs-container.dv-horizontal > .dv-tab.dv-tab--dragging,
+.dv-tabs-container.dv-horizontal > .dv-tab.dv-tab--group-collapsed {
+    margin-inline-start: calc(-1 * var(--dv-tab-gap, 0px)) !important;
 }
 
 // Pinned tabs (PinnedTabs module). Presentation only: the classes are inert
@@ -376,7 +533,7 @@
 .dv-tabs-and-actions-container.dv-tabs-and-actions-container--pinned-row {
     flex-wrap: wrap;
     height: auto;
-    min-height: var(--dv-tabs-and-actions-container-height);
+    min-height: #{dv.ref('tabs-and-actions-container-height')};
     align-content: flex-start;
 
     .dv-pinned-row {
@@ -397,10 +554,10 @@
     gap: 2px;
     box-sizing: border-box;
     width: 100%;
-    min-height: var(--dv-tabs-and-actions-container-height);
+    min-height: #{dv.ref('tabs-and-actions-container-height')};
     padding: 2px 4px;
-    background-color: var(--dv-tabs-and-actions-container-background-color);
-    border-bottom: 1px solid var(--dv-tab-divider-color);
+    background-color: #{dv.ref('tabs-and-actions-container-background-color')};
+    border-bottom: 1px solid #{dv.ref('separator-border')};
 }
 
 .dv-pinned-tab {
@@ -412,14 +569,12 @@
     font-size: var(--dv-tab-font-size);
     cursor: pointer;
     user-select: none;
-    background-color: var(--dv-activegroup-hiddenpanel-tab-background-color);
-    color: var(--dv-activegroup-hiddenpanel-tab-color);
+    background-color: #{dv.ref('activegroup-hiddenpanel-tab-background-color')};
+    color: #{dv.ref('activegroup-hiddenpanel-tab-color')};
 
     &.dv-pinned-tab--active {
-        background-color: var(
-            --dv-activegroup-visiblepanel-tab-background-color
-        );
-        color: var(--dv-activegroup-visiblepanel-tab-color);
+        background-color: #{dv.ref('activegroup-visiblepanel-tab-background-color')};
+        color: #{dv.ref('activegroup-visiblepanel-tab-color')};
     }
 
     .dv-pinned-tab-label {
@@ -457,7 +612,7 @@
             width: 2px;
             z-index: 10;
             pointer-events: none;
-            background-color: var(--dv-drag-over-border-color);
+            background-color: #{dv.ref('drag-over-border-color')};
         }
     }
 
@@ -470,21 +625,12 @@
     }
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .dv-tab {
-        transition: none !important;
-    }
-    .dv-tab-group-chip {
-        transition: none !important;
-    }
-}
-
 // Tab group chip
 .dv-tab-group-chip {
     display: inline-flex;
     align-items: center;
     align-self: center;
-    padding: var(--dv-tab-group-chip-padding);
+    padding: #{dv.ref('tab-group-chip-padding')};
     margin: 0 8px 0 8px;
     border-radius: var(--dv-tab-group-chip-border-radius);
     font-size: var(--dv-tab-group-chip-font-size);
@@ -611,8 +757,6 @@
     }
 
     .dv-tab {
-        padding: 0.5rem 0.25rem;
-
         &.dv-tab--group-collapsed {
             height: 0 !important;
             min-height: 0 !important;
@@ -655,11 +799,12 @@
 .dv-tabs-overflow-container {
     flex-direction: column;
     height: unset;
-    font-size: var(--dv-tabs-and-actions-container-font-size);
+    border-radius: #{dv.ref('dropdown-border-radius')};
+    font-size: #{dv.ref('tabs-and-actions-container-font-size')};
     max-height: min(50vh, 400px);
     overflow-y: auto;
-    border: 1px solid var(--dv-tab-divider-color);
-    background-color: var(--dv-group-view-background-color);
+    border: 1px solid #{dv.ref('separator-border')};
+    background-color: #{dv.ref('group-view-background-color')};
 
     /* Scrollbar styling for webkit browsers */
     &::-webkit-scrollbar {
@@ -671,7 +816,7 @@
     }
 
     &::-webkit-scrollbar-thumb {
-        background: var(--dv-tabs-container-scrollbar-color);
+        background: #{dv.ref('tabs-container-scrollbar-color')};
         border-radius: 3px;
     }
 
@@ -680,21 +825,17 @@
 
     .dv-tab {
         &:not(:last-child) {
-            border-bottom: 1px solid var(--dv-tab-divider-color);
+            border-bottom: 1px solid #{dv.ref('tab-divider-color')};
         }
     }
 
     .dv-active-tab {
-        background-color: var(
-            --dv-activegroup-visiblepanel-tab-background-color
-        );
-        color: var(--dv-activegroup-visiblepanel-tab-color);
+        background-color: #{dv.ref('activegroup-visiblepanel-tab-background-color')};
+        color: #{dv.ref('activegroup-visiblepanel-tab-color')};
     }
     .dv-inactive-tab {
-        background-color: var(
-            --dv-activegroup-hiddenpanel-tab-background-color
-        );
-        color: var(--dv-activegroup-hiddenpanel-tab-color);
+        background-color: #{dv.ref('activegroup-hiddenpanel-tab-background-color')};
+        color: #{dv.ref('activegroup-hiddenpanel-tab-color')};
     }
 
     .dv-tabs-overflow-group-header {
@@ -704,12 +845,12 @@
         padding: 4px 8px;
         font-size: 0.8em;
         font-weight: 600;
-        color: var(--dv-activegroup-hiddenpanel-tab-color);
+        color: #{dv.ref('activegroup-hiddenpanel-tab-color')};
         cursor: pointer;
-        border-bottom: 1px solid var(--dv-tab-divider-color);
+        border-bottom: 1px solid #{dv.ref('separator-border')};
 
         &:hover {
-            background-color: var(--dv-icon-hover-background-color);
+            background-color: #{dv.ref('icon-hover-background-color')};
         }
     }
 
@@ -735,7 +876,7 @@
         opacity: 0.7;
         padding: 1px 4px;
         border-radius: 3px;
-        background-color: var(--dv-tab-divider-color);
+        background-color: #{dv.ref('tab-divider-color')};
     }
 
     // The "Pinned" section header (pinned tabs that clipped out of the strip).
@@ -779,12 +920,12 @@
         width: 100%;
         padding: 6px 8px;
         border: none;
-        border-bottom: 1px solid var(--dv-tab-divider-color);
+        border-bottom: 1px solid #{dv.ref('separator-border')};
         outline: none;
         font-size: inherit;
         font-family: inherit;
-        color: var(--dv-activegroup-visiblepanel-tab-color);
-        background-color: var(--dv-group-view-background-color);
+        color: #{dv.ref('activegroup-visiblepanel-tab-color')};
+        background-color: #{dv.ref('group-view-background-color')};
     }
 
     .dv-tabs-overflow-list {
@@ -794,8 +935,8 @@
     }
 
     .dv-tab.dv-tabs-overflow-option--focused {
-        outline: 1px solid var(--dv-tab-divider-color);
-        outline-offset: -1px;
-        background-color: var(--dv-icon-hover-background-color);
+        outline: #{dv.ref('focus-ring-width')} solid #{dv.ref('focus-ring-color')};
+        outline-offset: calc(-1 * #{dv.ref('focus-ring-width')});
+        background-color: #{dv.ref('icon-hover-background-color')};
     }
 }

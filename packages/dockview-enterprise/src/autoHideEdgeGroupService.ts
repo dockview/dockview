@@ -139,6 +139,9 @@ class EdgeGroupController extends CompositeDisposable {
                 }
                 this._updateDocked();
             }),
+            // Chrome backgrounds are resolved colours set inline, so a theme
+            // switch must re-resolve them.
+            this.host.onDidOptionsChange(() => this._refreshChrome()),
             {
                 dispose: () => {
                     strip.removeEventListener('click', onClick, true);
@@ -192,6 +195,19 @@ class EdgeGroupController extends CompositeDisposable {
             '.dv-tabs-and-actions-container'
         );
         return resolveOpaqueBackground(strip ?? this.group.element);
+    }
+
+    private _refreshChrome(): void {
+        if (this._docked) {
+            this._docked.bar.style.backgroundColor = this._titleBarBackground();
+        }
+        if (this._peek) {
+            this._peek.overlay.style.backgroundColor = resolveOpaqueBackground(
+                this.group.element
+            );
+            this._peek.header.style.backgroundColor =
+                this._titleBarBackground();
+        }
     }
 
     /** Map a pointer/keyboard target to the panel of the strip tab under it, or

@@ -1,10 +1,12 @@
+@use '../../../theme/tokens' as dv;
+
 .dv-tabs-and-actions-container {
     display: flex;
-    background-color: var(--dv-tabs-and-actions-container-background-color);
+    background-color: #{dv.ref('tabs-and-actions-container-background-color')};
     flex-shrink: 0;
     box-sizing: border-box;
-    height: var(--dv-tabs-and-actions-container-height);
-    font-size: var(--dv-tabs-and-actions-container-font-size);
+    height: #{dv.ref('tabs-and-actions-container-height')};
+    font-size: #{dv.ref('tabs-and-actions-container-font-size')};
 
     /**
      * Multi-row (wrapping) tabs: when the tab list wraps onto multiple rows
@@ -14,7 +16,7 @@
      */
     &:has(.dv-tabs-container--wrap) {
         height: auto;
-        min-height: var(--dv-tabs-and-actions-container-height);
+        min-height: #{dv.ref('tabs-and-actions-container-height')};
         // Keep the header chrome (prefix / left / right actions, drag void) on
         // the first row instead of stretching and centering across the full
         // multi-row height; only the tab list grows downward.
@@ -24,7 +26,7 @@
         > .dv-left-actions-container,
         > .dv-right-actions-container,
         > .dv-void-container {
-            height: var(--dv-tabs-and-actions-container-height);
+            height: #{dv.ref('tabs-and-actions-container-height')};
         }
     }
 
@@ -80,7 +82,7 @@
     &.dv-groupview-header-vertical {
         flex-direction: column;
         height: auto;
-        width: var(--dv-tabs-and-actions-container-height);
+        width: #{dv.ref('tabs-and-actions-container-height')};
     }
 
     // Vertical header + multi-column (wrapping) tabs: the header grows in WIDTH
@@ -90,7 +92,7 @@
     // switches the growth axis from height to width for the vertical case.
     &.dv-groupview-header-vertical:has(.dv-tabs-container--wrap) {
         width: auto;
-        min-width: var(--dv-tabs-and-actions-container-height);
+        min-width: #{dv.ref('tabs-and-actions-container-height')};
 
         // The multi-row module pins the header to `columns x thickness` once it
         // knows the column count. The scrollable wrapper doesn't inherit that

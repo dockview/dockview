@@ -1,12 +1,15 @@
+@use '../../../theme/tokens' as dv;
+
 .dv-tabs-overflow-dropdown-default {
-    height: 100%;
+    height: var(--dv-tabs-overflow-dropdown-height, 100%);
+    border-radius: #{dv.ref('dropdown-border-radius')};
     // Keep the padding inside the 100% header height. Without border-box the
     // vertical padding is added on top of `height: 100%`, making the control
     // taller than the header so its hover background spills below the tab strip.
     box-sizing: border-box;
-    color: var(--dv-activegroup-hiddenpanel-tab-color);
+    color: #{dv.ref('activegroup-hiddenpanel-tab-color')};
 
-    margin: var(--dv-tab-margin);
+    margin: #{dv.ref('tab-margin')};
     display: flex;
     align-items: center;
     flex-shrink: 0;
@@ -23,6 +26,6 @@
 
     &:hover {
         border-radius: 2px;
-        background-color: var(--dv-icon-hover-background-color);
+        background-color: #{dv.ref('icon-hover-background-color')};
     }
 }

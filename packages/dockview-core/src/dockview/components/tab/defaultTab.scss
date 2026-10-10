@@ -1,3 +1,5 @@
+@use '../../../theme/tokens' as dv;
+
 .dv-dragged {
     transform: translate3d(
         0px,
@@ -6,7 +8,7 @@
     ); /* forces tab to be drawn on a separate layer (see https://github.com/microsoft/vscode/issues/18733) */
 }
 
-/* Applied to the ghost tab clone during drag so it shows the same border as a focused tab */
+/* Applied to the ghost tab clone during drag: a neutral hairline border */
 .dv-tab-ghost-drag {
     position: relative;
 
@@ -18,7 +20,7 @@
         top: 0px;
         left: 0px;
         pointer-events: none;
-        outline: 1px solid var(--dv-tab-divider-color) !important;
+        outline: 1px solid #{dv.ref('separator-border')} !important;
         outline-offset: -1px;
         z-index: 5;
     }
@@ -30,27 +32,18 @@
     // Keyboard-only focus ring: :focus-visible suppresses it on mouse click,
     // :has(:focus-visible) keeps it when a child (e.g. the close button) is
     // keyboard-focused, the descendant case the old :focus-within covered.
+    // An inset outline, not a pseudo-element, so it follows the corner radius
+    // and leaves ::before/::after free for dividers and shoulders.
     &:focus-visible,
     &:has(:focus-visible) {
-        position: relative;
-
-        &::after {
-            position: absolute;
-            content: '';
-            height: 100%;
-            width: 100%;
-            top: 0px;
-            left: 0px;
-            pointer-events: none;
-            outline: 1px solid var(--dv-tab-divider-color) !important;
-            outline-offset: -1px;
-            z-index: 5;
-        }
+        outline: #{dv.ref('focus-ring-width')} solid
+            #{dv.ref('focus-ring-color')};
+        outline-offset: calc(-1 * #{dv.ref('focus-ring-width')});
     }
 
     &.dv-tab-dragging {
         .dv-default-tab-action {
-            background-color: var(--dv-activegroup-visiblepanel-tab-color);
+            background-color: #{dv.ref('activegroup-visiblepanel-tab-color')};
         }
     }
 
@@ -113,7 +106,7 @@
 
             &:hover {
                 border-radius: 2px;
-                background-color: var(--dv-icon-hover-background-color);
+                background-color: #{dv.ref('icon-hover-background-color')};
             }
 
             // Default 24×24 hit area is below the ~36px comfortable

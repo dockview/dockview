@@ -69,6 +69,33 @@ export interface DockviewTheme {
     tabAnimation?: TabAnimation;
 }
 
+/** The theme's layout and drag-and-drop settings. */
+export type DockviewThemeSettings = Pick<
+    DockviewTheme,
+    | 'gap'
+    | 'edgeGroupCollapsedSize'
+    | 'dndOverlayMounting'
+    | 'dndPanelOverlay'
+    | 'dndTabIndicator'
+    | 'tabGroupIndicator'
+    | 'tabAnimation'
+>;
+
+/** {@link DockviewThemeSettings} with the defaults filled in. */
+export type ResolvedDockviewThemeSettings = Required<DockviewThemeSettings>;
+
+/**
+ * Derives every colour, radius and padding from five base tokens:
+ * `--dv-background-color`, `--dv-foreground-color`, `--dv-accent-color`,
+ * `--dv-spacing` and `--dv-border-radius`. Add your own class next to it to set
+ * them, or to override any derived token.
+ */
+export const themeBase: DockviewTheme = {
+    name: 'base',
+    className: 'dockview-theme-base',
+    colorScheme: 'dark',
+};
+
 export const themeDark: DockviewTheme = {
     name: 'dark',
     className: 'dockview-theme-dark',
@@ -221,4 +248,29 @@ export const themeGithubLightSpaced: DockviewTheme = {
     dndPanelOverlay: 'group',
     dndTabIndicator: 'line',
     dndOverlayBorder: '2px solid var(--dv-active-sash-color)',
+};
+
+export const themeSlate: DockviewTheme = {
+    name: 'slate',
+    className: 'dockview-theme-slate',
+    colorScheme: 'light',
+    gap: 8,
+    edgeGroupCollapsedSize: 32,
+    dndTabIndicator: 'line',
+};
+
+export const themeSlateDark: DockviewTheme = {
+    name: 'slateDark',
+    className: 'dockview-theme-slate-dark',
+    colorScheme: 'dark',
+    gap: 8,
+    edgeGroupCollapsedSize: 32,
+    dndTabIndicator: 'line',
+};
+
+export const themeDarkRounded: DockviewTheme = {
+    name: 'darkRounded',
+    className: 'dockview-theme-dark-rounded',
+    colorScheme: 'dark',
+    dndTabIndicator: 'line',
 };

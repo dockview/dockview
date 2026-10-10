@@ -8,6 +8,7 @@ import {
     DockviewApi,
     DockviewTheme,
     themeAbyss,
+    themeBase,
     IContextMenuItemComponentProps,
     GetTabContextMenuItemsParams,
     GetTabGroupChipContextMenuItemsParams,
@@ -49,12 +50,6 @@ import {
     LIGHT_COLORS,
     usePanelColors,
 } from './panelTheme';
-import {
-    ThemeBuilderState,
-    ThemeCssOverrides,
-    buildEffectiveTheme,
-    getInitialStateFromTheme,
-} from './themeBuilder';
 import { Sidebar } from './themeBuilderModal';
 
 // Set the docs license key here (not only in index.tsx): the docs /demo page
@@ -147,7 +142,6 @@ const components = {
                     gap: 8,
                     background: c.bg,
                     color: c.text,
-                    border: `1px solid ${c.border}`,
                     backgroundImage: `radial-gradient(${c.border} 1px, transparent 1px)`,
                     backgroundSize: '16px 16px',
                 }}
@@ -751,66 +745,29 @@ const DockviewDemo = (props: {
         }
     }, [layoutReady, props]);
 
-    const [builderState, setBuilderState] = React.useState<ThemeBuilderState>(
-        () => getInitialStateFromTheme(props.theme ?? themeAbyss)
-    );
-
-    const prevTheme = React.useRef(props.theme);
-    React.useEffect(() => {
-        if (prevTheme.current !== props.theme) {
-            prevTheme.current = props.theme;
-            setBuilderState(
-                getInitialStateFromTheme(props.theme ?? themeAbyss)
-            );
-        }
-    }, [props.theme]);
-
-    const updateBuilder = (patch: Partial<ThemeBuilderState>) =>
-        setBuilderState((s) => ({ ...s, ...patch }));
-
-    const updateCss = (patch: Partial<ThemeCssOverrides>) =>
-        setBuilderState((s) => {
-            const next = { ...s.cssOverrides };
-            for (const [k, v] of Object.entries(patch)) {
-                if (v === undefined || v === '') {
-                    delete (next as Record<string, unknown>)[k];
-                } else {
-                    (next as Record<string, unknown>)[k] = v;
-                }
-            }
-            return { ...s, cssOverrides: next };
-        });
-
-    const effectiveTheme = React.useMemo(
-        () => buildEffectiveTheme(props.theme ?? themeAbyss, builderState),
-        [props.theme, builderState]
-    );
-
+    const effectiveTheme = props.theme ?? themeAbyss;
     const containerRef = React.useRef<HTMLDivElement>(null);
-    const prevCssOverrideKeys = React.useRef<string[]>([]);
 
-    React.useEffect(() => {
-        const dvRoot = containerRef.current?.querySelector(
-            '[class*="dockview-theme"]'
-        ) as HTMLElement | null;
-        if (!dvRoot) return;
-
-        for (const k of prevCssOverrideKeys.current) {
-            if (!(k in builderState.cssOverrides)) {
-                dvRoot.style.removeProperty(k);
-            }
+    const panelColors = React.useMemo(() => {
+        const palette =
+            effectiveTheme.colorScheme === 'light' ? LIGHT_COLORS : DARK_COLORS;
+        if (effectiveTheme.name !== themeBase.name) {
+            return palette;
         }
-        for (const [k, v] of Object.entries(builderState.cssOverrides)) {
-            dvRoot.style.setProperty(k, v as string);
-        }
-        prevCssOverrideKeys.current = Object.keys(builderState.cssOverrides);
-    }, [builderState.cssOverrides]);
-
-    const panelColors = React.useMemo(
-        () =>
-            effectiveTheme.colorScheme === 'light' ? LIGHT_COLORS : DARK_COLORS,
-        [effectiveTheme]
-    );
+        // The base theme derives from its base tokens, so the panels take its
+        // content surface and text too.
+        const surface =
+            'var(--dv-content-background-color, var(--dv-group-view-background-color))';
+        const tint = (amount: number) =>
+            `color-mix(in srgb, var(--dv-foreground-color) ${amount}%, ${surface})`;
+        return {
+            ...palette,
+            bg: surface,
+            bgAlt: tint(3),
+            elevated: tint(6),
+            text: 'var(--dv-foreground-color)',
+        };
+    }, [effectiveTheme]);
 
     // Briefly enable colour transitions when the light/dark scheme flips, so the
     // dock crossfades between modes instead of hard-cutting. Scoped to the
@@ -1211,16 +1168,7 @@ const DockviewDemo = (props: {
                 <Sidebar
                     open={props.showSidebar ?? false}
                     onClose={props.onCloseSidebar ?? (() => {})}
-                    state={builderState}
-                    onChange={updateBuilder}
-                    onCssChange={updateCss}
-                    onReset={() =>
-                        setBuilderState(
-                            getInitialStateFromTheme(props.theme ?? themeAbyss)
-                        )
-                    }
-                    baseTheme={props.theme ?? themeAbyss}
-                    containerEl={containerRef.current}
+                    theme={effectiveTheme}
                     api={api}
                     panels={panels}
                     groups={groups}

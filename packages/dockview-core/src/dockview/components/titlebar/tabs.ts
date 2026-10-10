@@ -417,7 +417,8 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         super();
 
         this._tabsList = document.createElement('div');
-        this._tabsList.className = 'dv-tabs-container';
+        // Set here because the `direction` setter only runs on a change.
+        this._tabsList.className = 'dv-tabs-container dv-horizontal';
         // WAI-ARIA Tabs pattern: the strip of tabs is the tablist.
         this._tabsList.setAttribute('role', 'tablist');
         this._tabsList.setAttribute(

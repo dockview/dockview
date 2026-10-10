@@ -89,6 +89,7 @@ DockviewTabGroupColorEntry
 DockviewTabGroupIndicator
 DockviewTabGroupPanelChangeEvent
 DockviewTheme
+DockviewThemeSettings
 DockviewUnhandledDragOverEvent
 DockviewWillDropEvent
 DockviewWillShowOverlayLocationEvent
@@ -265,6 +266,7 @@ PositionResolver
 PositionResolverArgs
 PositionResolverResult
 RendererChangedEvent
+ResolvedDockviewThemeSettings
 SashState
 SerializedDockview
 SerializedEdgeGroups
@@ -349,9 +351,11 @@ resolveOpaqueBackground
 resolveTabGroupAccent
 themeAbyss
 themeAbyssSpaced
+themeBase
 themeCatppuccinMocha
 themeCatppuccinMochaSpaced
 themeDark
+themeDarkRounded
 themeDracula
 themeGithubDark
 themeGithubDarkSpaced
@@ -362,6 +366,8 @@ themeLightSpaced
 themeMonokai
 themeNord
 themeNordSpaced
+themeSlate
+themeSlateDark
 themeSolarizedLight
 themeSolarizedLightSpaced
 themeVisualStudio

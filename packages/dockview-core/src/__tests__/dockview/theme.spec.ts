@@ -5,6 +5,7 @@ import {
     themeCatppuccinMocha,
     themeCatppuccinMochaSpaced,
     themeDark,
+    themeDarkRounded,
     themeDracula,
     themeGithubDark,
     themeGithubDarkSpaced,
@@ -15,10 +16,13 @@ import {
     themeMonokai,
     themeNord,
     themeNordSpaced,
+    themeSlate,
+    themeSlateDark,
     themeSolarizedLight,
     themeSolarizedLightSpaced,
     themeVisualStudio,
 } from '../../dockview/theme';
+import { resolveThemeSettings } from '../../dockview/themeSettings';
 
 describe('theme', () => {
     const allThemes: {
@@ -112,6 +116,21 @@ describe('theme', () => {
             name: 'githubLightSpaced',
             className: 'dockview-theme-github-light-spaced',
         },
+        {
+            theme: themeSlate,
+            name: 'slate',
+            className: 'dockview-theme-slate',
+        },
+        {
+            theme: themeSlateDark,
+            name: 'slateDark',
+            className: 'dockview-theme-slate-dark',
+        },
+        {
+            theme: themeDarkRounded,
+            name: 'darkRounded',
+            className: 'dockview-theme-dark-rounded',
+        },
     ];
 
     test.each(allThemes)('theme $name has the expected name and className', ({
@@ -154,6 +173,8 @@ describe('theme', () => {
                 themeMonokai,
                 themeGithubDark,
                 themeGithubDarkSpaced,
+                themeSlateDark,
+                themeDarkRounded,
             ];
             for (const theme of darkThemes) {
                 expect(theme.colorScheme).toBe('dark');
@@ -168,6 +189,7 @@ describe('theme', () => {
                 themeSolarizedLightSpaced,
                 themeGithubLight,
                 themeGithubLightSpaced,
+                themeSlate,
             ];
             for (const theme of lightThemes) {
                 expect(theme.colorScheme).toBe('light');
@@ -237,6 +259,45 @@ describe('theme', () => {
             expect(themeDark.tabGroupIndicator).toBeUndefined();
             expect(themeLight.tabGroupIndicator).toBeUndefined();
             expect(themeAbyssSpaced.tabGroupIndicator).toBeUndefined();
+        });
+    });
+
+    describe('newer themes', () => {
+        test('slate themes lay sheets out with an 8px gap and line drops', () => {
+            for (const theme of [themeSlate, themeSlateDark]) {
+                expect(theme.gap).toBe(8);
+                expect(theme.edgeGroupCollapsedSize).toBe(32);
+                expect(theme.dndTabIndicator).toBe('line');
+            }
+        });
+
+        test('dark rounded uses line drops', () => {
+            expect(themeDarkRounded.dndTabIndicator).toBe('line');
+        });
+    });
+
+    describe('resolveThemeSettings', () => {
+        test('fills in the defaults for unset settings', () => {
+            expect(resolveThemeSettings(undefined)).toEqual({
+                gap: 0,
+                edgeGroupCollapsedSize: 35,
+                dndOverlayMounting: 'relative',
+                dndPanelOverlay: 'content',
+                dndTabIndicator: 'fill',
+                tabGroupIndicator: 'wrap',
+                tabAnimation: 'default',
+            });
+        });
+
+        test('takes each setting the theme sets', () => {
+            expect(resolveThemeSettings(themeAbyssSpaced)).toMatchObject({
+                gap: 10,
+                edgeGroupCollapsedSize: 44,
+                dndOverlayMounting: 'absolute',
+                dndPanelOverlay: 'group',
+                dndTabIndicator: 'line',
+                tabGroupIndicator: 'wrap',
+            });
         });
     });
 });

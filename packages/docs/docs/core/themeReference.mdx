@@ -1,0 +1,24 @@
+---
+sidebar_position: 6.5
+description: Every property of a dockview theme, on the theme object and as CSS variables
+title: Theme reference
+---
+
+import {
+    CssVariableReference,
+    ThemeObjectReference,
+} from '@site/src/components/themeReference';
+
+Everything a theme can set, in one place. The [theming guide](/docs/core/theming) explains how themes work, and the [theme builder](/theme-builder) edits these properties with a live preview.
+
+## Theme object
+
+The `DockviewTheme` object passed to the `theme` option. The settings after `colorScheme` are read by JavaScript; change them with `api.updateOptions({ theme })`.
+
+<ThemeObjectReference />
+
+## CSS variables
+
+Custom properties a theme class sets. Unless a theme sets them, most derive from the five base tokens at the top: `--dv-background-color`, `--dv-foreground-color`, `--dv-accent-color`, `--dv-spacing` and `--dv-border-radius`.
+
+<CssVariableReference />

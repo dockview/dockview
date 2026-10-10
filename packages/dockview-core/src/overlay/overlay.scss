@@ -1,3 +1,5 @@
+@use '../theme/tokens' as dv;
+
 .dv-debug {
     .dv-resize-container {
         .dv-resize-handle-top {
@@ -38,9 +40,9 @@
 // backdrop, the peeked content, and the Pin header are three separate sibling
 // overlays (the `always` render overlay can't be nested), layered by z-index.
 .dv-edge-peek {
-    background-color: var(--dv-group-view-background-color);
-    border: 1px solid var(--dv-separator-border);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    background-color: #{dv.ref('group-view-background-color')};
+    border: var(--dv-edge-peek-border, 1px solid #{dv.ref('separator-border')});
+    box-shadow: var(--dv-edge-peek-box-shadow, 0 6px 16px rgba(0, 0, 0, 0.4));
 
     // the reparented content container fills the backdrop
     > * {
@@ -48,6 +50,12 @@
         height: 100%;
         overflow: auto;
     }
+}
+
+.dv-edge-peek,
+.dv-edge-peek-clip {
+    border-bottom-left-radius: #{dv.ref('edge-peek-border-radius')};
+    border-bottom-right-radius: #{dv.ref('edge-peek-border-radius')};
 }
 
 // Drag-reveal edge indicator: a thin accent line hugging the content-area edge
@@ -58,9 +66,9 @@
 .dv-auto-edge-band {
     position: absolute;
     pointer-events: none;
-    z-index: var(--dv-overlay-z-index, 999);
-    background-color: var(--dv-edge-dock-indicator-color);
-    box-shadow: 0 0 6px var(--dv-edge-dock-indicator-color);
+    z-index: #{dv.ref('overlay-z-index')};
+    background-color: #{dv.ref('edge-dock-indicator-color')};
+    box-shadow: 0 0 6px #{dv.ref('edge-dock-indicator-color')};
 }
 
 // The title bar is a sibling overlay so it can sit above an `always` panel's
@@ -72,10 +80,12 @@
     gap: 4px;
     padding: 0 4px 0 8px;
     box-sizing: border-box;
-    background-color: var(--dv-group-view-background-color);
-    border: 1px solid var(--dv-separator-border);
+    background-color: #{dv.ref('group-view-background-color')};
+    border: var(--dv-edge-peek-border, 1px solid #{dv.ref('separator-border')});
     border-bottom: none;
-    color: var(--dv-activegroup-visiblepanel-tab-color);
+    border-top-left-radius: #{dv.ref('edge-peek-border-radius')};
+    border-top-right-radius: #{dv.ref('edge-peek-border-radius')};
+    color: #{dv.ref('activegroup-visiblepanel-tab-color')};
     font-size: 12px;
 
     // Behave like the tab close icon: borderless, monotone, with a hover
@@ -98,14 +108,14 @@
 
         &:hover {
             border-radius: 2px;
-            background-color: var(--dv-icon-hover-background-color);
+            background-color: #{dv.ref('icon-hover-background-color')};
         }
 
         // Keyboard-only focus ring (suppressed on mouse click).
         &:focus-visible {
             border-radius: 2px;
-            outline: 1px solid var(--dv-tab-divider-color);
-            outline-offset: -1px;
+            outline: #{dv.ref('focus-ring-width')} solid #{dv.ref('focus-ring-color')};
+            outline-offset: calc(-1 * #{dv.ref('focus-ring-width')});
         }
     }
 }
@@ -122,6 +132,20 @@
 .dv-resize-container > .dv-grid-view {
     width: 100%;
     height: 100%;
+    box-sizing: border-box;
+    padding: var(--dv-floating-inset, 0px);
+}
+
+// The title bar already frames the top, so the top inset can differ.
+.dv-resize-container-with-titlebar > .dv-grid-view {
+    padding-top: var(
+        --dv-floating-inset-below-titlebar,
+        var(--dv-floating-inset, 0px)
+    );
+}
+
+.dv-resize-container .dv-groupview {
+    border: var(--dv-floating-group-border, none);
 }
 
 // When a dedicated drag-handle title bar is present the overlay stacks the
@@ -146,17 +170,66 @@
 .dv-floating-titlebar {
     box-sizing: border-box;
     flex-shrink: 0;
-    height: var(--dv-floating-titlebar-height, 22px);
-    background-color: var(--dv-floating-titlebar-background-color);
-    border-bottom: var(--dv-floating-titlebar-border-bottom, none);
+    height: #{dv.ref('floating-titlebar-height')};
+    background-color: #{dv.ref('floating-titlebar-background-color')};
+    border-bottom: #{dv.ref('floating-titlebar-border-bottom')};
     user-select: none;
+    // Centres the optional grip handle.
+    display: flex;
+    align-items: center;
+    justify-content: center;
     // Without touch-action: none, mobile browsers interpret a drag on the bar
     // as a scroll/zoom and fire pointercancel, losing the move gesture.
     touch-action: none;
 
     &.dv-draggable {
-        cursor: grab;
+        cursor: var(--dv-floating-titlebar-cursor, grab);
+
+        &:active {
+            cursor: grabbing;
+        }
     }
+}
+
+// Invisible until a theme sets `--dv-floating-titlebar-handle-color`.
+.dv-floating-titlebar-handle {
+    width: #{dv.ref('floating-titlebar-handle-size')};
+    height: #{dv.ref('floating-titlebar-handle-size')};
+    background-image: radial-gradient(
+        circle,
+        var(--dv-floating-titlebar-handle-color) 1.4px,
+        transparent 1.7px
+    );
+    background-size: 5px 5px;
+    background-position: center;
+    opacity: 0.8;
+    pointer-events: none;
+}
+
+.dv-floating-titlebar:hover .dv-floating-titlebar-handle {
+    opacity: 1;
+}
+
+// Rounded floating windows round their corner leaf elements rather than use
+// `overflow: hidden`: the edge resize handles straddle the frame at -2px, so
+// clipping would halve their grab area.
+
+.dv-resize-container-with-titlebar > .dv-floating-titlebar {
+    border-top-left-radius: #{dv.ref('floating-border-radius')};
+    border-top-right-radius: #{dv.ref('floating-border-radius')};
+}
+
+.dv-resize-container:not(.dv-resize-container-with-titlebar)
+    .dv-groupview
+    > .dv-tabs-and-actions-container {
+    border-top-left-radius: #{dv.ref('floating-border-radius')};
+    border-top-right-radius: #{dv.ref('floating-border-radius')};
+}
+
+// Outranks the general `--dv-content-border-radius` rule.
+.dv-resize-container .dv-groupview > .dv-content-container {
+    border-bottom-left-radius: #{dv.ref('floating-border-radius')};
+    border-bottom-right-radius: #{dv.ref('floating-border-radius')};
 }
 
 .dv-resize-container {
@@ -165,14 +238,13 @@
     position: absolute;
     z-index: calc(var(--dv-overlay-z-index) - 2);
 
-    // The container is the backdrop behind its content. A single floating group
-    // hides it entirely, but a nested floating layout exposes the gaps/sashes
-    // between groups, and without a fill those gaps would be transparent. Mirror
-    // the docked backdrop (the dockview root uses --dv-group-view-background-color).
-    background-color: var(--dv-group-view-background-color);
+    // Backdrop showing through a nested floating layout's gaps and sashes,
+    // and through the inset band when `--dv-floating-inset` is set.
+    background-color: #{dv.ref('floating-frame-color')};
 
-    border: var(--dv-floating-border);
-    box-shadow: var(--dv-floating-box-shadow);
+    border: #{dv.ref('floating-border')};
+    border-radius: #{dv.ref('floating-border-radius')};
+    box-shadow: #{dv.ref('floating-box-shadow')};
 
     /* GPU optimizations for floating group movement */
     will-change: transform, opacity;
@@ -184,7 +256,7 @@
     }
 
     &.dv-resize-container-dragging {
-        opacity: var(--dv-floating-group-dragging-opacity);
+        opacity: #{dv.ref('floating-group-dragging-opacity')};
         /* Enhanced GPU acceleration during drag */
         will-change: transform, opacity;
     }
@@ -358,7 +430,7 @@
     // overlays. `always`/force-visible panel content carries an inline z-index
     // (1000, or `--dv-overlay-z-index` + aria-level) and would otherwise paint
     // over the alignment lines. Lift the guides clear of that whole band.
-    z-index: calc(var(--dv-overlay-z-index, 999) + 100);
+    z-index: calc(#{dv.ref('overlay-z-index')} + 100);
 }
 
 .dv-smart-guide {

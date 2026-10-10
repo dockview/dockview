@@ -137,7 +137,12 @@ import { IRootDropTargetHost } from './rootDropTargetService';
 import { ILiveRegionHost } from './liveRegionService';
 import { IDragGhostSpec } from '../dnd/backend';
 import { DropTargetAnchorContainer } from '../dnd/dropTargetAnchorContainer';
-import { themeAbyss } from './theme';
+import {
+    DockviewTheme,
+    ResolvedDockviewThemeSettings,
+    themeAbyss,
+} from './theme';
+import { readStyleProperty, resolveThemeSettings } from './themeSettings';
 import {
     EdgeGroupPosition,
     AddEdgeGroupOptions,
@@ -418,7 +423,19 @@ export interface PopoutGroup {
     readonly window: Window;
 }
 
+// Copied from a `className`-applied theme to the shell, where the root and
+// floating drop previews mount (outside the component root).
+const SHELL_DROP_PREVIEW_PROPERTIES = [
+    '--dv-drag-over-border',
+    '--dv-drag-over-background-color',
+    '--dv-drop-target-border-radius',
+    '--dv-drop-target-content-border-radius',
+    '--dv-drop-target-travel',
+] as const;
+
 export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
+    /** The active theme's settings, with defaults for those it leaves unset. */
+    readonly themeSettings: ResolvedDockviewThemeSettings;
     readonly activePanel: IDockviewPanel | undefined;
     readonly totalPanels: number;
     readonly panels: IDockviewPanel[];
@@ -805,6 +822,10 @@ export class DockviewComponent
     private readonly _onDidOptionsChange = new Emitter<void>();
     readonly onDidOptionsChange: Event<void> = this._onDidOptionsChange.event;
 
+    get themeSettings(): ResolvedDockviewThemeSettings {
+        return resolveThemeSettings(this._options.theme);
+    }
+
     private readonly _onDidActiveGroupChange = new Emitter<
         DockviewGroupPanel | undefined
     >();
@@ -1109,7 +1130,7 @@ export class DockviewComponent
         if (!content) {
             return undefined;
         }
-        return this.options.theme?.dndPanelOverlay === 'group'
+        return this.themeSettings.dndPanelOverlay === 'group'
             ? (content.parentElement ?? content)
             : content;
     }
@@ -1969,7 +1990,17 @@ export class DockviewComponent
             return this.addPopoutGroup(itemToPopout.group, options);
         }
 
-        const theme = getDockviewTheme(this.gridview.element);
+        // A `className` theme overrides the theme object in the main window,
+        // so it wins here too.
+        const classNameTheme = (this._options.className ?? '')
+            .split(/\s+/)
+            .filter((cls) => cls.startsWith('dockview-'));
+        const theme = classNameTheme.some((cls) =>
+            cls.startsWith('dockview-theme-')
+        )
+            ? classNameTheme.join(' ')
+            : (this._options.theme?.className ??
+              getDockviewTheme(this.gridview.element));
         const element = this.element;
 
         // Always returns absolute *screen* coordinates. A caller-supplied /
@@ -2229,7 +2260,9 @@ export class DockviewComponent
                 const anchor = document.createElement('div');
                 const dropTargetContainer = new DropTargetAnchorContainer(
                     anchor,
-                    { disabled: this.rootDropTargetContainer.disabled }
+                    {
+                        disabled: this.rootDropTargetContainer.disabled,
+                    }
                 );
                 popoutContainer.appendChild(anchor);
 
@@ -2897,7 +2930,7 @@ export class DockviewComponent
                 : undefined,
             orientation,
             false,
-            this.options.theme?.gap ?? 0
+            this.themeSettings.gap
         );
     }
 
@@ -3110,7 +3143,8 @@ export class DockviewComponent
             }
         }
 
-        if ('theme' in options) {
+        // `className` can apply or remove a theme's drop-preview styling.
+        if ('theme' in options || 'className' in options) {
             this.updateTheme();
         }
 
@@ -6323,6 +6357,43 @@ export class DockviewComponent
             : orthogonal(rootOrientation);
     }
 
+    private applyDropPreviewStyle(
+        theme: DockviewTheme,
+        style: CSSStyleDeclaration | undefined
+    ): void {
+        const shell = this._shellManager?.element;
+        const shellStyle = shell?.style;
+        const classNameApplied =
+            style !== undefined && !!this._options.className?.trim();
+        const shellComputed =
+            classNameApplied && shell ? getComputedStyle(shell) : undefined;
+        // Copy only what `className` changes: copies are resolved values, so
+        // the shell's own `var()`-based ones stay live.
+        for (const property of SHELL_DROP_PREVIEW_PROPERTIES) {
+            const value = classNameApplied
+                ? readStyleProperty(style, property)
+                : '';
+            if (
+                value &&
+                (!shellComputed ||
+                    value !== readStyleProperty(shellComputed, property))
+            ) {
+                shellStyle?.setProperty(property, value);
+            }
+        }
+
+        if (theme.dndOverlayBorder !== undefined) {
+            this.element.style.setProperty(
+                '--dv-drag-over-border',
+                theme.dndOverlayBorder
+            );
+            shellStyle?.setProperty(
+                '--dv-drag-over-border',
+                theme.dndOverlayBorder
+            );
+        }
+    }
+
     private updateTheme(): void {
         const theme = this._options.theme ?? themeAbyss;
         // Apply the theme class only to the shell so edge groups and the
@@ -6331,7 +6402,21 @@ export class DockviewComponent
         // set on the shell from reaching the dockview subtree.
         this._shellThemeClassnames?.setClassNames(theme.className);
 
-        const gap = theme.gap ?? 0;
+        const shell = this._shellManager?.element;
+        // Clear values copied to the shell last time so they aren't read back.
+        for (const property of SHELL_DROP_PREVIEW_PROPERTIES) {
+            shell?.style.removeProperty(property);
+        }
+        this.element.style.removeProperty('--dv-drag-over-border');
+        shell?.style.removeProperty('--dv-drag-over-border');
+
+        const style =
+            typeof getComputedStyle === 'function' && this.element.isConnected
+                ? getComputedStyle(this.element)
+                : undefined;
+        const settings = resolveThemeSettings(theme);
+
+        const gap = settings.gap;
         this.gridview.margin = gap;
         // Floating / popout windows host their own nested gridviews; keep their
         // gap in sync with the main grid when the theme changes at runtime.
@@ -6341,28 +6426,11 @@ export class DockviewComponent
         for (const entry of this._popoutWindowService?.entries ?? []) {
             entry.gridview.margin = gap;
         }
-        this._shellManager?.updateTheme(
-            gap,
-            theme.edgeGroupCollapsedSize ?? 35
-        );
+        this._shellManager?.updateTheme(gap, settings.edgeGroupCollapsedSize);
 
-        if (theme.dndOverlayBorder === undefined) {
-            this.element.style.removeProperty('--dv-drag-over-border');
-            this._shellManager?.element.style.removeProperty(
-                '--dv-drag-over-border'
-            );
-        } else {
-            this.element.style.setProperty(
-                '--dv-drag-over-border',
-                theme.dndOverlayBorder
-            );
-            this._shellManager?.element.style.setProperty(
-                '--dv-drag-over-border',
-                theme.dndOverlayBorder
-            );
-        }
+        this.applyDropPreviewStyle(theme, style);
 
-        switch (theme.dndOverlayMounting) {
+        switch (settings.dndOverlayMounting) {
             case 'absolute':
                 this.rootDropTargetContainer.disabled = false;
                 break;
@@ -6374,7 +6442,7 @@ export class DockviewComponent
 
         // Toggle a CSS class so theme stylesheets can scope pure-CSS
         // tab group indicator rules to the 'none' mode only.
-        const indicatorNone = (theme.tabGroupIndicator ?? 'wrap') === 'none';
+        const indicatorNone = settings.tabGroupIndicator === 'none';
         toggleClass(this.element, 'dv-tab-group-indicator-none', indicatorNone);
         if (this._shellManager) {
             toggleClass(

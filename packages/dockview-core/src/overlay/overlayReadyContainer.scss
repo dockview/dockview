@@ -1,5 +1,7 @@
+@use '../theme/tokens' as dv;
+
 .dv-render-overlay {
-    --dv-overlay-z-index: var(--dv-overlay-z-index, 999);
+    --dv-overlay-z-index: #{dv.ref('overlay-z-index')};
 
     position: absolute;
     z-index: 1;
@@ -7,6 +9,8 @@
     height: 100%;
     contain: layout paint;
     isolation: isolate;
+    // Overlays the content container, so it takes the same corner shape.
+    border-radius: var(--dv-content-border-radius, 0px);
     
     /* GPU optimizations */
     will-change: transform;
@@ -14,7 +18,7 @@
     backface-visibility: hidden;
 
     &.dv-render-overlay-float {
-        z-index: calc(var(--dv-overlay-z-index) - 1);
+        z-index: calc(#{dv.ref('overlay-z-index')} - 1);
     }
 }
 

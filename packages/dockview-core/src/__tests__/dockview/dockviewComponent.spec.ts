@@ -21,6 +21,7 @@ import {
 } from '../../dockview/components/titlebar/tabsContainer';
 import { fromPartial } from '@total-typescript/shoehorn';
 import { DockviewApi } from '../../api/component.api';
+import type { DockviewTheme } from '../../dockview/theme';
 import {
     DockviewDndOverlayEvent,
     IHeaderActionsRenderer,
@@ -154,13 +155,13 @@ describe('dockviewComponent', () => {
             className: 'test-a test-b',
         });
         expect(dockview.element.className).toBe(
-            'test-a test-b dv-tab-group-indicator-none'
+            'dv-component-root test-a test-b dv-tab-group-indicator-none'
         );
 
         dockview.updateOptions({ className: 'test-b test-c' });
 
         expect(dockview.element.className).toBe(
-            'dv-tab-group-indicator-none test-b test-c'
+            'dv-component-root dv-tab-group-indicator-none test-b test-c'
         );
     });
 
@@ -14544,5 +14545,126 @@ describe('popout styles from a shadow-root mount', () => {
             window.open = originalOpen;
             host.remove();
         }
+    });
+});
+
+describe('theme settings and className themes', () => {
+    function createDockview(theme?: DockviewTheme): DockviewComponent {
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        return new DockviewComponent(container, {
+            theme,
+            createComponent(options) {
+                return new PanelContentPartTest(options.id, options.name);
+            },
+        });
+    }
+
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    test('themeSettings resolves the theme object with defaults', () => {
+        const dv = createDockview({ name: 't', className: 't', gap: 4 });
+        expect(dv.themeSettings.gap).toBe(4);
+        expect(dv.themeSettings.dndTabIndicator).toBe('fill');
+
+        const api = new DockviewApi(dv);
+        dv.updateOptions({
+            theme: { name: 't', className: 't', tabGroupIndicator: 'none' },
+        });
+        expect(api.themeSettings.gap).toBe(0);
+        expect(dv.element.classList).toContain('dv-tab-group-indicator-none');
+        dv.dispose();
+    });
+
+    test('a className-applied theme hands its drop-preview styling to the shell', () => {
+        const style = document.createElement('style');
+        style.textContent =
+            '.drop-class { --dv-drag-over-border: 3px solid red; --dv-drop-target-border-radius: 5px; }';
+        document.head.appendChild(style);
+        try {
+            const dv = createDockview();
+            const shell = dv.element.closest('.dv-shell') as HTMLElement;
+            expect(shell).toBeTruthy();
+
+            dv.updateOptions({ className: 'drop-class' });
+            expect(shell.style.getPropertyValue('--dv-drag-over-border')).toBe(
+                '3px solid red'
+            );
+            expect(
+                shell.style.getPropertyValue('--dv-drop-target-border-radius')
+            ).toBe('5px');
+
+            dv.updateOptions({ className: '' });
+            expect(shell.style.getPropertyValue('--dv-drag-over-border')).toBe(
+                ''
+            );
+            dv.dispose();
+        } finally {
+            style.remove();
+        }
+    });
+
+    test('the shell keeps its own drop-preview values when className leaves them unchanged', () => {
+        const style = document.createElement('style');
+        style.textContent =
+            // Declared on both, as inheritance would give in a browser (jsdom
+            // doesn't inherit custom properties).
+            '.dv-shell, .dv-component-root { --dv-drop-target-border-radius: 6px; } .layout-class { --dv-group-gap: 3px; }';
+        document.head.appendChild(style);
+        try {
+            const dv = createDockview();
+            const shell = dv.element.closest('.dv-shell') as HTMLElement;
+
+            dv.updateOptions({ className: 'layout-class' });
+            // Not copied inline, so the shell's own (live) value still applies.
+            expect(
+                shell.style.getPropertyValue('--dv-drop-target-border-radius')
+            ).toBe('');
+            dv.dispose();
+        } finally {
+            style.remove();
+        }
+    });
+
+    test('a popout uses a theme applied through className over the theme object', async () => {
+        window.open = () => setupMockWindow();
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        const dv = new DockviewComponent(container, {
+            theme: { name: 'obj', className: 'dockview-theme-abyss' },
+            className: 'dockview-theme-light h-full',
+            createComponent(options) {
+                return new PanelContentPartTest(options.id, options.name);
+            },
+        });
+        dv.layout(1000, 500);
+        dv.addPanel({ id: 'a', component: 'default' });
+        const panel = dv.addPanel({ id: 'b', component: 'default' });
+
+        await dv.addPopoutGroup(panel);
+
+        const popout = Array.from(
+            document.querySelectorAll<HTMLElement>('.dv-popout-window')
+        ).pop();
+        expect(popout?.classList).toContain('dockview-theme-light');
+        expect(popout?.classList).not.toContain('dockview-theme-abyss');
+        expect(popout?.classList).not.toContain('h-full');
+        dv.dispose();
+        container.remove();
+    });
+
+    test('a detached dockview falls back to the theme object and defaults', () => {
+        const dv = new DockviewComponent(document.createElement('div'), {
+            theme: { name: 't', className: 't', dndTabIndicator: 'line' },
+            createComponent(options) {
+                return new PanelContentPartTest(options.id, options.name);
+            },
+        });
+
+        expect(dv.themeSettings.dndTabIndicator).toBe('line');
+        expect(dv.themeSettings.gap).toBe(0);
+        dv.dispose();
     });
 });
