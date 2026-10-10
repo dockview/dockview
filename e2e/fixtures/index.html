@@ -459,6 +459,28 @@
                     // Serialization round-trip (e.g. pinned state persistence).
                     snapshot: () => dockview.toJSON(),
                     restore: (state) => dockview.fromJSON(state),
+                    // Active `onlyWhenVisible` panel ahead of an inactive
+                    // `always` panel in the serialized `views` order.
+                    setupMixedRenderers: () => {
+                        panels['a'] = dockview.addPanel({
+                            id: 'a',
+                            component: 'default',
+                            title: 'a',
+                            renderer: 'onlyWhenVisible',
+                        });
+                        panels['b'] = dockview.addPanel({
+                            id: 'b',
+                            component: 'default',
+                            title: 'b',
+                            renderer: 'always',
+                            position: {
+                                referencePanel: panels['a'],
+                                direction: 'within',
+                            },
+                        });
+                        panels['a'].api.setActive();
+                    },
+                    activePanelId: () => dockview.activeGroup?.activePanel?.id,
                     // Restore reusing the live panel instances rather than
                     // recreating them. Reused `always`-rendered panels keep
                     // their overlay element across the rebuild, so their

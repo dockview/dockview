@@ -147,28 +147,29 @@ export class ContentContainer
 
     renderPanel(panel: IDockviewPanel, options?: { asActive?: boolean }): void {
         const doRender =
-            (options?.asActive ?? true) ||
-            (this.panel && this.group.isPanelActive(this.panel));
+            (options?.asActive ?? true) || this.group.isPanelActive(panel);
 
-        if (this.panel?.view.content.element.parentElement === this._element) {
-            this.panel.view.content.element.remove();
-            this.panel.view.content.onHide?.();
+        // Inactive and not on display: only (de)register with the overlay
+        // container, leaving the displayed panel mounted.
+        if (doRender || this.panel === panel) {
+            if (
+                this.panel?.view.content.element.parentElement === this._element
+            ) {
+                this.panel.view.content.element.remove();
+                this.panel.view.content.onHide?.();
+            }
+
+            this.panel = panel;
         }
-
-        this.panel = panel;
 
         let container: HTMLElement;
 
         switch (panel.api.renderer) {
             case 'onlyWhenVisible':
                 this.group.renderContainer.detatch(panel);
-                if (this.panel) {
-                    if (doRender) {
-                        this._element.appendChild(
-                            this.panel.view.content.element
-                        );
-                        this.panel.view.content.onShow?.();
-                    }
+                if (doRender) {
+                    this._element.appendChild(panel.view.content.element);
+                    panel.view.content.onShow?.();
                 }
                 container = this._element;
                 break;
