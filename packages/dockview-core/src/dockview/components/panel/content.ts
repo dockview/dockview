@@ -147,8 +147,31 @@ export class ContentContainer
 
     renderPanel(panel: IDockviewPanel, options?: { asActive?: boolean }): void {
         const doRender =
-            (options?.asActive ?? true) ||
-            (this.panel && this.group.isPanelActive(this.panel));
+            (options?.asActive ?? true) || this.group.isPanelActive(panel);
+
+        if (!doRender && this.panel !== panel) {
+            // An inactive panel is only being (de)registered with the overlay
+            // render container (e.g. an `always` panel restored by fromJSON,
+            // added with `inactive: true`, or whose renderer changed). Leave
+            // the panel currently on display untouched: evicting it here would
+            // blank the group's active panel (#1675).
+            switch (panel.api.renderer) {
+                case 'onlyWhenVisible':
+                    this.group.renderContainer.detatch(panel);
+                    break;
+                case 'always':
+                    this.group.renderContainer.attach({
+                        panel,
+                        referenceContainer: this,
+                    });
+                    break;
+                default:
+                    throw new Error(
+                        `dockview: invalid renderer type '${panel.api.renderer}'`
+                    );
+            }
+            return;
+        }
 
         if (this.panel?.view.content.element.parentElement === this._element) {
             this.panel.view.content.element.remove();

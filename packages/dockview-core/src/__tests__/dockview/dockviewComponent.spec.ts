@@ -12081,6 +12081,67 @@ describe('dockviewComponent', () => {
 
             // The inactive "always" panel's content should be attached to the DOM
             expect(panel2.view.content.element.parentElement).toBeTruthy();
+
+            // ...and registering it must not evict the active panel's content (#1675)
+            expect(dockview.element.contains(panel1.view.content.element)).toBe(
+                true
+            );
+        });
+
+        test('inactive "always" panel added with inactive:true keeps the active "onlyWhenVisible" panel mounted (#1675)', () => {
+            dockview.layout(1000, 1000);
+
+            const panel1 = dockview.addPanel({
+                id: 'panel1',
+                component: 'default',
+                renderer: 'onlyWhenVisible',
+            });
+            const panel2 = dockview.addPanel({
+                id: 'panel2',
+                component: 'default',
+                renderer: 'always',
+                inactive: true,
+                position: { referencePanel: 'panel1', direction: 'within' },
+            });
+
+            expect(panel1.api.isActive).toBe(true);
+            expect(panel2.api.isActive).toBe(false);
+            expect(dockview.element.contains(panel1.view.content.element)).toBe(
+                true
+            );
+            expect(panel2.view.content.element.parentElement).toBeTruthy();
+        });
+
+        test('changing the renderer of an inactive panel keeps the active panel mounted (#1675)', () => {
+            dockview.layout(1000, 1000);
+
+            const panel1 = dockview.addPanel({
+                id: 'panel1',
+                component: 'default',
+                renderer: 'onlyWhenVisible',
+            });
+            const panel2 = dockview.addPanel({
+                id: 'panel2',
+                component: 'default',
+                renderer: 'onlyWhenVisible',
+                position: { referencePanel: 'panel1', direction: 'within' },
+            });
+            panel1.api.setActive();
+
+            panel2.api.setRenderer('always');
+
+            expect(panel1.api.isActive).toBe(true);
+            expect(dockview.element.contains(panel1.view.content.element)).toBe(
+                true
+            );
+            expect(panel2.view.content.element.parentElement).toBeTruthy();
+
+            panel2.api.setRenderer('onlyWhenVisible');
+
+            expect(dockview.element.contains(panel1.view.content.element)).toBe(
+                true
+            );
+            expect(panel2.view.content.element.parentElement).toBeNull();
         });
     });
 
