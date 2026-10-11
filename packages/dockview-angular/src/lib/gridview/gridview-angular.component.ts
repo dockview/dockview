@@ -65,6 +65,7 @@ export class GridviewAngularComponent implements OnInit, OnDestroy, OnChanges {
     @Input() hideBorders?: boolean;
     @Input() debug?: boolean;
     @Input() disableAutoResizing?: boolean;
+    @Input() disableOrthogonalSashMultidrag?: boolean;
 
     @Output() ready = new EventEmitter<GridviewAngularReadyEvent>();
 

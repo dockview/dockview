@@ -1054,4 +1054,309 @@ describe('splitview', () => {
             { left: '464px', top: '0px' },
         ]);
     });
+
+    describe('orthogonal sash multidrag', () => {
+        // a view hosting a vertical splitview, like a grid branch
+        class NestedView implements IView {
+            readonly element = document.createElement('div');
+            readonly inner = new Splitview(this.element, {
+                orientation: Orientation.VERTICAL,
+            });
+            readonly minimumSize = 0;
+            readonly maximumSize = Number.POSITIVE_INFINITY;
+            private readonly _onDidChange = new Emitter<{
+                size?: number;
+                orthogonalSize?: number;
+            }>();
+            readonly onDidChange = this._onDidChange.event;
+
+            layout(size: number, orthogonalSize: number) {
+                this.inner.layout(orthogonalSize, size);
+            }
+            setVisible() {
+                //
+            }
+            dispose() {
+                this.inner.dispose();
+                this._onDidChange.dispose();
+            }
+        }
+
+        const setRect = (
+            element: HTMLElement,
+            left: number,
+            top: number,
+            width: number,
+            height: number
+        ) => {
+            jest.spyOn(element, 'getBoundingClientRect').mockReturnValue({
+                left,
+                top,
+                width,
+                height,
+                right: left + width,
+                bottom: top + height,
+                x: left,
+                y: top,
+                toJSON: () => ({}),
+            } as DOMRect);
+        };
+
+        // 400x300 split at x=200, its left view split at y=150
+        const setup = (gap = 0) => {
+            const outer = new Splitview(document.createElement('div'), {
+                orientation: Orientation.HORIZONTAL,
+                proportionalLayout: true,
+            });
+            outer.layout(400, 300);
+
+            const nested = new NestedView();
+            const sibling = new Testview(0, 1000);
+            outer.addView(nested, Sizing.Distribute);
+            outer.addView(sibling, Sizing.Distribute);
+
+            const top = new Testview(0, 1000);
+            const bottom = new Testview(0, 1000);
+            nested.inner.addView(top, Sizing.Distribute);
+            nested.inner.addView(bottom, Sizing.Distribute);
+
+            const scope = {};
+            outer.multidragScope = () => scope;
+            nested.inner.multidragScope = () => scope;
+            outer.margin = gap;
+            nested.inner.margin = gap;
+
+            const outerSash = (outer as any).element.querySelector(
+                ':scope > .dv-sash-container > .dv-sash'
+            ) as HTMLElement;
+            const innerSash = (nested.inner as any).element.querySelector(
+                ':scope > .dv-sash-container > .dv-sash'
+            ) as HTMLElement;
+            setRect(outerSash, 198, 0, 4, 300);
+            setRect(innerSash, 0, 148, 200 - gap / 2, 4);
+
+            return {
+                outer,
+                nested,
+                sibling,
+                top,
+                bottom,
+                outerSash,
+                innerSash,
+            };
+        };
+
+        const hover = (sash: HTMLElement, clientX = 200, clientY = 150) =>
+            fireEvent(
+                sash,
+                new MouseEvent('pointermove', {
+                    clientX,
+                    clientY,
+                    buttons: 0,
+                })
+            );
+
+        const isMultidrag = (sash: HTMLElement) =>
+            sash.classList.contains('dv-sash-multidrag');
+
+        test('hovering where an inner sash meets an outer sash marks both', () => {
+            const { outerSash, innerSash } = setup();
+
+            hover(innerSash, 197, 150);
+
+            expect(isMultidrag(innerSash)).toBe(true);
+            expect(isMultidrag(outerSash)).toBe(true);
+
+            fireEvent(innerSash, new MouseEvent('pointerleave'));
+
+            expect(isMultidrag(innerSash)).toBe(false);
+            expect(isMultidrag(outerSash)).toBe(false);
+        });
+
+        test('hovering the outer sash at the junction marks both', () => {
+            const { outerSash, innerSash } = setup();
+
+            hover(outerSash, 200, 152);
+
+            expect(isMultidrag(outerSash)).toBe(true);
+            expect(isMultidrag(innerSash)).toBe(true);
+        });
+
+        test("a sash leaving does not clear the other sash's highlight", () => {
+            const { outerSash, innerSash } = setup();
+
+            hover(innerSash, 197, 150);
+            // the outer sash's pointermove arrives before the inner's pointerleave
+            hover(outerSash, 200, 150);
+            fireEvent(innerSash, new MouseEvent('pointerleave'));
+
+            expect(isMultidrag(outerSash)).toBe(true);
+            expect(isMultidrag(innerSash)).toBe(true);
+
+            fireEvent(outerSash, new MouseEvent('pointerleave'));
+
+            expect(isMultidrag(outerSash)).toBe(false);
+            expect(isMultidrag(innerSash)).toBe(false);
+        });
+
+        test('not linked with a locked (disabled) splitview', () => {
+            const { outer, outerSash, innerSash } = setup();
+            outer.disabled = true;
+
+            hover(innerSash, 197, 150);
+
+            expect(isMultidrag(innerSash)).toBe(false);
+            expect(isMultidrag(outerSash)).toBe(false);
+        });
+
+        test('away from the junction it is a plain sash', () => {
+            const { outerSash, innerSash } = setup();
+
+            hover(innerSash, 100, 150);
+            expect(isMultidrag(innerSash)).toBe(false);
+
+            hover(outerSash, 200, 50);
+            expect(isMultidrag(outerSash)).toBe(false);
+        });
+
+        test('linked across a margin gap', () => {
+            const { outerSash, innerSash } = setup(10);
+
+            hover(outerSash, 200, 150);
+            expect(isMultidrag(outerSash)).toBe(true);
+            expect(isMultidrag(innerSash)).toBe(true);
+        });
+
+        test('dragging the junction resizes both splitviews', () => {
+            const {
+                outer,
+                nested,
+                sibling,
+                top,
+                bottom,
+                outerSash,
+                innerSash,
+            } = setup();
+
+            const outerSashEnd = jest.fn();
+            const innerSashEnd = jest.fn();
+            outer.onDidSashEnd(outerSashEnd);
+            nested.inner.onDidSashEnd(innerSashEnd);
+
+            expect([outer.getViewSize(0), sibling.size]).toEqual([200, 200]);
+            expect([top.size, bottom.size]).toEqual([150, 150]);
+
+            // the outer (proportional) layout must not undo the inner drag
+            fireEvent(
+                innerSash,
+                new MouseEvent('pointerdown', { clientX: 200, clientY: 150 })
+            );
+            fireEvent(
+                document,
+                new MouseEvent('pointermove', { clientX: 230, clientY: 190 })
+            );
+
+            expect([outer.getViewSize(0), sibling.size]).toEqual([230, 170]);
+            expect([top.size, bottom.size]).toEqual([190, 110]);
+
+            fireEvent(
+                document,
+                new MouseEvent('pointerup', { clientX: 230, clientY: 190 })
+            );
+
+            expect(outerSashEnd).toHaveBeenCalledTimes(1);
+            expect(innerSashEnd).toHaveBeenCalledTimes(1);
+            expect(isMultidrag(innerSash)).toBe(false);
+            expect(isMultidrag(outerSash)).toBe(false);
+
+            fireEvent(
+                document,
+                new MouseEvent('pointermove', { clientX: 300, clientY: 250 })
+            );
+            expect([outer.getViewSize(0), top.size]).toEqual([230, 190]);
+        });
+
+        test('dragging the junction from the outer sash resizes both', () => {
+            const { outer, top, outerSash } = setup();
+
+            fireEvent(
+                outerSash,
+                new MouseEvent('pointerdown', { clientX: 200, clientY: 150 })
+            );
+            fireEvent(
+                document,
+                new MouseEvent('pointermove', { clientX: 180, clientY: 130 })
+            );
+            fireEvent(document, new MouseEvent('pointerup'));
+
+            expect(outer.getViewSize(0)).toBe(180);
+            expect(top.size).toBe(130);
+        });
+
+        test.each([
+            [
+                'the scopes differ',
+                (ctx: ReturnType<typeof setup>) => {
+                    ctx.nested.inner.multidragScope = () => ({});
+                },
+            ],
+            [
+                'multidrag is disabled for the scope',
+                (ctx: ReturnType<typeof setup>) => {
+                    ctx.outer.multidragScope = () => undefined;
+                },
+            ],
+            [
+                'the other sash is disabled',
+                (ctx: ReturnType<typeof setup>) => {
+                    ctx.outerSash.classList.add('dv-disabled');
+                },
+            ],
+        ])('not linked when %s', (_, configure) => {
+            const ctx = setup();
+            configure(ctx);
+
+            hover(ctx.innerSash);
+            expect(isMultidrag(ctx.innerSash)).toBe(false);
+
+            fireEvent(
+                ctx.innerSash,
+                new MouseEvent('pointerdown', { clientX: 200, clientY: 150 })
+            );
+            fireEvent(
+                document,
+                new MouseEvent('pointermove', { clientX: 230, clientY: 190 })
+            );
+            fireEvent(document, new MouseEvent('pointerup'));
+
+            // only the inner sash moved
+            expect(ctx.outer.getViewSize(0)).toBe(200);
+            expect(ctx.top.size).toBe(190);
+        });
+
+        test('not linked between orthogonal splitviews that are not nested', () => {
+            // touching and in the same scope, but not nested
+            const scope = {};
+            const create = (orientation: Orientation) => {
+                const splitview = new Splitview(document.createElement('div'), {
+                    orientation,
+                });
+                splitview.layout(400, 300);
+                splitview.addView(new Testview(0, 1000), Sizing.Distribute);
+                splitview.addView(new Testview(0, 1000), Sizing.Distribute);
+                splitview.multidragScope = () => scope;
+                return (splitview as any).element.querySelector(
+                    '.dv-sash'
+                ) as HTMLElement;
+            };
+            const columnSash = create(Orientation.HORIZONTAL);
+            const rowSash = create(Orientation.VERTICAL);
+            setRect(columnSash, 198, 0, 4, 300);
+            setRect(rowSash, 0, 148, 200, 4);
+
+            hover(rowSash);
+
+            expect(isMultidrag(rowSash)).toBe(false);
+        });
+    });
 });

@@ -447,6 +447,11 @@ export interface DockviewOptions {
     dndCompass?: boolean | { zones?: Position[]; edges?: boolean };
     // #end dnd
     locked?: boolean;
+    /**
+     * Disable dragging where a row and column sash meet to resize both.
+     * Defaults to `false`.
+     */
+    disableOrthogonalSashMultidrag?: boolean;
     className?: string;
     /**
      * Define the behaviour of the dock when there are no panels to display. Defaults to `watermark`.
@@ -803,6 +808,7 @@ export const PROPERTY_KEYS_DOCKVIEW: (keyof DockviewOptions)[] = (() => {
         defaultHeaderPosition: undefined,
         debug: undefined,
         locked: undefined,
+        disableOrthogonalSashMultidrag: undefined,
         disableDnd: undefined,
         dndStrategy: undefined,
         className: undefined,

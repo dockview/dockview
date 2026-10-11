@@ -16,6 +16,8 @@ import { INodeDescriptor } from './gridview';
 import { Node } from './types';
 import { CompositeDisposable, IDisposable, Disposable } from '../lifecycle';
 
+export const MULTIDRAG_DISABLED_CLASS = 'dv-grid-view-multidrag-disabled';
+
 export class BranchNode extends CompositeDisposable implements IView {
     readonly element: HTMLElement;
     private readonly splitview: Splitview;
@@ -261,6 +263,14 @@ export class BranchNode extends CompositeDisposable implements IView {
         }
 
         this.disabled = disabled;
+
+        // scoped to this grid, so nested grids are never linked
+        this.splitview.multidragScope = () => {
+            const grid = this.element.closest('.dv-grid-view');
+            return grid && !grid.classList.contains(MULTIDRAG_DISABLED_CLASS)
+                ? grid
+                : undefined;
+        };
 
         this.addDisposables(
             this._onDidChange,

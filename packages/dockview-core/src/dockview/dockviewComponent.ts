@@ -1579,6 +1579,8 @@ export class DockviewComponent
             locked: options.locked,
             margin: options.theme?.gap ?? 0,
             className: options.className,
+            disableOrthogonalSashMultidrag:
+                options.disableOrthogonalSashMultidrag,
         });
 
         this._options = options;
@@ -2882,6 +2884,17 @@ export class DockviewComponent
         }
     }
 
+    private forEachNestedGridview(
+        callback: (gridview: Gridview) => void
+    ): void {
+        for (const floating of this.floatingGroups) {
+            callback(floating.gridview);
+        }
+        for (const entry of this._popoutWindowService?.entries ?? []) {
+            callback(entry.gridview);
+        }
+    }
+
     /**
      * Build an empty gridview configured to match the main grid's styling and
      * resize behaviour, for hosting a nested layout inside a floating or popout
@@ -2890,7 +2903,7 @@ export class DockviewComponent
     private createNestedGridview(
         orientation: Orientation = Orientation.HORIZONTAL
     ): Gridview {
-        return new Gridview(
+        const gridview = new Gridview(
             this.gridview.proportionalLayout,
             this.options.hideBorders
                 ? { separatorBorder: 'transparent' }
@@ -2899,6 +2912,9 @@ export class DockviewComponent
             false,
             this.options.theme?.gap ?? 0
         );
+        gridview.orthogonalSashMultidrag =
+            this.gridview.orthogonalSashMultidrag;
+        return gridview;
     }
 
     /**
@@ -3098,16 +3114,20 @@ export class DockviewComponent
             this.updateDragAndDropState();
         }
 
+        // floating and popout windows have their own gridviews
         if ('proportionalLayout' in options) {
-            // super.updateOptions has already updated the main grid; floating
-            // and popout windows host their own nested gridviews
             const proportionalLayout = this.gridview.proportionalLayout;
-            for (const floating of this.floatingGroups) {
-                floating.gridview.proportionalLayout = proportionalLayout;
-            }
-            for (const entry of this._popoutWindowService?.entries ?? []) {
-                entry.gridview.proportionalLayout = proportionalLayout;
-            }
+            this.forEachNestedGridview((gridview) => {
+                gridview.proportionalLayout = proportionalLayout;
+            });
+        }
+
+        if ('disableOrthogonalSashMultidrag' in options) {
+            const orthogonalSashMultidrag =
+                this.gridview.orthogonalSashMultidrag;
+            this.forEachNestedGridview((gridview) => {
+                gridview.orthogonalSashMultidrag = orthogonalSashMultidrag;
+            });
         }
 
         if ('theme' in options) {

@@ -1418,4 +1418,159 @@ describe('gridview', () => {
 
         subscription.dispose();
     });
+
+    describe('orthogonal sash multidrag', () => {
+        const setRect = (
+            element: HTMLElement,
+            left: number,
+            top: number,
+            width: number,
+            height: number
+        ) => {
+            jest.spyOn(element, 'getBoundingClientRect').mockReturnValue({
+                left,
+                top,
+                width,
+                height,
+                right: left + width,
+                bottom: top + height,
+                x: left,
+                y: top,
+                toJSON: () => ({}),
+            } as DOMRect);
+        };
+
+        // two columns, the first split into two rows
+        const setup = () => {
+            const gridview = new Gridview(
+                true,
+                undefined,
+                Orientation.HORIZONTAL
+            );
+            container.appendChild(gridview.element);
+            gridview.layout(400, 300);
+
+            const leaf = new MockGridview();
+            gridview.addView(leaf, Sizing.Distribute, [0]);
+            gridview.addView(new MockGridview(), Sizing.Distribute, [1]);
+            gridview.addView(new MockGridview(), Sizing.Distribute, [0, 1]);
+
+            const sashes = Array.from(
+                gridview.element.querySelectorAll<HTMLElement>('.dv-sash')
+            );
+            const columnSash = sashes.find(
+                (s) =>
+                    s.closest('.dv-split-view-container') ===
+                    gridview.element.querySelector('.dv-split-view-container')
+            )!;
+            const rowSash = sashes.find((s) => s !== columnSash)!;
+            setRect(columnSash, 198, 0, 4, 300);
+            setRect(rowSash, 0, 148, 200, 4);
+
+            return { gridview, leaf, columnSash, rowSash };
+        };
+
+        const hover = (sash: HTMLElement) =>
+            sash.dispatchEvent(
+                new MouseEvent('pointermove', {
+                    bubbles: true,
+                    buttons: 0,
+                    clientX: 199,
+                    clientY: 150,
+                })
+            );
+
+        test('a row sash meeting a column sash is linked', () => {
+            const { gridview, columnSash, rowSash } = setup();
+            expect(gridview.orthogonalSashMultidrag).toBe(true);
+
+            hover(rowSash);
+
+            expect(rowSash.classList.contains('dv-sash-multidrag')).toBe(true);
+            expect(columnSash.classList.contains('dv-sash-multidrag')).toBe(
+                true
+            );
+        });
+
+        test('a junction below the root keeps both resizes on release', () => {
+            // the junction is between two non-root splitviews
+            const gridview = new Gridview(
+                true,
+                undefined,
+                Orientation.HORIZONTAL
+            );
+            container.appendChild(gridview.element);
+            gridview.layout(400, 300);
+
+            const left = new MockGridview();
+            const a = new MockGridview();
+            gridview.addView(left, Sizing.Distribute, [0]);
+            gridview.addView(a, Sizing.Distribute, [1]);
+            gridview.addView(new MockGridview(), Sizing.Distribute, [1, 1]);
+            gridview.addView(new MockGridview(), Sizing.Distribute, [1, 0, 1]);
+
+            expect([a.width, a.height]).toEqual([100, 150]);
+
+            const sashesOf = (node: HTMLElement) =>
+                Array.from(
+                    node.querySelectorAll<HTMLElement>(
+                        ':scope > .dv-split-view-container > .dv-sash-container > .dv-sash'
+                    )
+                );
+            const branches = Array.from(
+                gridview.element.querySelectorAll<HTMLElement>(
+                    '.dv-branch-node'
+                )
+            );
+            // [root, right column, its top row]
+            const [rowSash] = sashesOf(branches[1]);
+            const [innerColumnSash] = sashesOf(branches[2]);
+            setRect(rowSash, 200, 148, 200, 4);
+            setRect(innerColumnSash, 298, 0, 4, 150);
+
+            innerColumnSash.dispatchEvent(
+                new MouseEvent('pointerdown', { clientX: 300, clientY: 150 })
+            );
+            document.dispatchEvent(
+                new MouseEvent('pointermove', { clientX: 330, clientY: 180 })
+            );
+            expect([a.width, a.height]).toEqual([130, 180]);
+
+            document.dispatchEvent(
+                new MouseEvent('pointerup', { clientX: 330, clientY: 180 })
+            );
+            expect([a.width, a.height]).toEqual([130, 180]);
+        });
+
+        test('orthogonalSashMultidrag = false disables it', () => {
+            const { gridview, rowSash } = setup();
+            gridview.orthogonalSashMultidrag = false;
+            expect(gridview.orthogonalSashMultidrag).toBe(false);
+
+            hover(rowSash);
+
+            expect(rowSash.classList.contains('dv-sash-multidrag')).toBe(false);
+        });
+
+        test('sashes of a grid nested in a view are not linked', () => {
+            const { leaf, columnSash } = setup();
+            const inner = new Gridview(true, undefined, Orientation.VERTICAL);
+            leaf.element.appendChild(inner.element);
+            inner.layout(200, 150);
+            inner.addView(new MockGridview(), Sizing.Distribute, [0]);
+            inner.addView(new MockGridview(), Sizing.Distribute, [1]);
+            const innerSash =
+                inner.element.querySelector<HTMLElement>('.dv-sash')!;
+            setRect(innerSash, 0, 148, 200, 4);
+
+            hover(innerSash);
+
+            expect(innerSash.classList.contains('dv-sash-multidrag')).toBe(
+                false
+            );
+            expect(columnSash.classList.contains('dv-sash-multidrag')).toBe(
+                false
+            );
+        });
+    });
 });

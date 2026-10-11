@@ -11,11 +11,12 @@ import {
 } from '../splitview/splitview';
 import { tail } from '../array';
 import { LeafNode } from './leafNode';
-import { BranchNode } from './branchNode';
+import { BranchNode, MULTIDRAG_DISABLED_CLASS } from './branchNode';
 import { Node } from './types';
 import { Emitter, Event } from '../events';
 import { IDisposable, MutableDisposable } from '../lifecycle';
 import { Position } from '../dnd/droptarget';
+import { toggleClass } from '../dom';
 
 function findLeaf(candiateNode: Node, last: boolean): LeafNode {
     if (candiateNode instanceof LeafNode) {
@@ -422,6 +423,14 @@ export class Gridview implements IDisposable {
                 branch.push(...node.children);
             }
         }
+    }
+
+    get orthogonalSashMultidrag(): boolean {
+        return !this.element.classList.contains(MULTIDRAG_DISABLED_CLASS);
+    }
+
+    set orthogonalSashMultidrag(value: boolean) {
+        toggleClass(this.element, MULTIDRAG_DISABLED_CLASS, !value);
     }
 
     get margin(): number {

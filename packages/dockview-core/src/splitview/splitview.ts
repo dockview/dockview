@@ -79,6 +79,80 @@ function setSashPosition(sash: ISashItem, left: string, top: string): void {
     }
 }
 
+interface ISashDrag {
+    update(delta: number): void;
+    /** Saves proportions; returns the end notification to fire afterwards. */
+    end(): () => void;
+}
+
+const splitviewByElement = new WeakMap<HTMLElement, Splitview>();
+
+// px from the sash junction; touch matches the coarse-pointer overhang
+const MULTIDRAG_POINTER_REACH = 4;
+const MULTIDRAG_TOUCH_REACH = 10;
+
+interface IOrthogonalSashCandidate {
+    readonly splitview: Splitview;
+    readonly isOuter: boolean;
+}
+
+// owned by the sash that found it; only the owner clears it
+let activeMultidrag: { owner: HTMLElement; partner: HTMLElement } | undefined;
+
+function setActiveMultidrag(
+    pair: { owner: HTMLElement; partner: HTMLElement } | undefined
+): void {
+    if (
+        activeMultidrag?.owner === pair?.owner &&
+        activeMultidrag?.partner === pair?.partner
+    ) {
+        return;
+    }
+    activeMultidrag?.owner.classList.remove('dv-sash-multidrag');
+    activeMultidrag?.partner.classList.remove('dv-sash-multidrag');
+    activeMultidrag = pair;
+    pair?.owner.classList.add('dv-sash-multidrag');
+    pair?.partner.classList.add('dv-sash-multidrag');
+}
+
+function clearActiveMultidrag(owner: HTMLElement): void {
+    if (activeMultidrag?.owner === owner) {
+        setActiveMultidrag(undefined);
+    }
+}
+
+function isNearRect(rect: DOMRect, x: number, y: number, slack: number) {
+    return (
+        x >= rect.left - slack &&
+        x <= rect.right + slack &&
+        y >= rect.top - slack &&
+        y <= rect.bottom + slack
+    );
+}
+
+/** Where two orthogonal sashes meet, if they do (within `slack`). */
+function findSashJunction(
+    own: DOMRect,
+    other: DOMRect,
+    horizontal: boolean,
+    slack: number
+): { x: number; y: number } | undefined {
+    if (other.width === 0 && other.height === 0) {
+        return undefined;
+    }
+
+    const x = horizontal
+        ? own.left + own.width / 2
+        : other.left + other.width / 2;
+    const y = horizontal
+        ? other.top + other.height / 2
+        : own.top + own.height / 2;
+
+    return isNearRect(own, x, y, slack) && isNearRect(other, x, y, slack)
+        ? { x, y }
+        : undefined;
+}
+
 interface ISashDragSnapState {
     readonly index: number;
     readonly limitDelta: number;
@@ -127,6 +201,12 @@ export class Splitview {
     private _endSnappingEnabled = true;
     private _disabled = false;
     private _margin = 0;
+
+    /**
+     * Enables orthogonal sash multidrag with nested or enclosing splitviews
+     * that return the same scope. `undefined` disables it.
+     */
+    multidragScope: (() => object | undefined) | undefined;
 
     private readonly _onDidSashEnd = new Emitter<void>();
     readonly onDidSashEnd = this._onDidSashEnd.event;
@@ -280,6 +360,7 @@ export class Splitview {
         this.element.appendChild(this.viewContainer);
 
         this.container.appendChild(this.element);
+        splitviewByElement.set(this.element, this);
 
         this.style(options.styles);
 
@@ -477,147 +558,89 @@ export class Splitview {
             const sash = document.createElement('div');
             sash.className = 'dv-sash';
 
-            const onPointerStart = (event: PointerEvent) => {
-                for (const item of this.viewItems) {
-                    item.enabled = false;
+            let dragging = false;
+            // cached per hover
+            let candidates: IOrthogonalSashCandidate[] | undefined;
+
+            const findOrthogonal = (event: PointerEvent) => {
+                candidates ??= this.getOrthogonalSashCandidates();
+                const orthogonal = this.findOrthogonalSash(
+                    sash,
+                    event,
+                    candidates
+                );
+                if (orthogonal) {
+                    setActiveMultidrag({
+                        owner: sash,
+                        partner: orthogonal.sash.container,
+                    });
+                } else {
+                    clearActiveMultidrag(sash);
                 }
+                return orthogonal;
+            };
 
-                // The sash may live in a popout document; bind the drag to that
-                // document so pointermove/up are heard there, not on the opener.
-                const doc = sash.ownerDocument ?? document;
-                const iframes = disableIframePointEvents(doc);
+            const onPointerMove = (event: PointerEvent) => {
+                if (!dragging && event.buttons === 0) {
+                    findOrthogonal(event);
+                }
+            };
 
-                const start =
-                    this._orientation === Orientation.HORIZONTAL
-                        ? event.clientX
-                        : event.clientY;
+            const onPointerLeave = () => {
+                if (!dragging) {
+                    candidates = undefined;
+                    clearActiveMultidrag(sash);
+                }
+            };
 
+            const onPointerStart = (event: PointerEvent) => {
                 const sashIndex = firstIndex(
                     this.sashes,
                     (s) => s.container === sash
                 );
 
-                //
-                const sizes = this.viewItems.map((x) => x.size);
+                const orthogonal = findOrthogonal(event);
+                dragging = true;
 
-                //
-                let snapBefore: ISashDragSnapState | undefined;
-                let snapAfter: ISashDragSnapState | undefined;
-                const upIndexes = range(sashIndex, -1);
-                const downIndexes = range(sashIndex + 1, this.viewItems.length);
-                const minDeltaUp = upIndexes.reduce(
-                    (r, i) => r + (this.viewItems[i].minimumSize - sizes[i]),
-                    0
-                );
-                const maxDeltaUp = upIndexes.reduce(
-                    (r, i) =>
-                        r + (this.viewItems[i].viewMaximumSize - sizes[i]),
-                    0
-                );
-                const maxDeltaDown =
-                    downIndexes.length === 0
-                        ? Number.POSITIVE_INFINITY
-                        : downIndexes.reduce(
-                              (r, i) =>
-                                  r +
-                                  (sizes[i] - this.viewItems[i].minimumSize),
-                              0
-                          );
-                const minDeltaDown =
-                    downIndexes.length === 0
-                        ? Number.NEGATIVE_INFINITY
-                        : downIndexes.reduce(
-                              (r, i) =>
-                                  r +
-                                  (sizes[i] -
-                                      this.viewItems[i].viewMaximumSize),
-                              0
-                          );
-                const minDelta = Math.max(minDeltaUp, minDeltaDown);
-                const maxDelta = Math.min(maxDeltaDown, maxDeltaUp);
-                const snapBeforeIndex = this.findFirstSnapIndex(upIndexes);
-                const snapAfterIndex = this.findFirstSnapIndex(downIndexes);
-                if (typeof snapBeforeIndex === 'number') {
-                    const snappedViewItem = this.viewItems[snapBeforeIndex];
-                    const halfSize = Math.floor(
-                        snappedViewItem.viewMinimumSize / 2
-                    );
+                const targets: {
+                    splitview: Splitview;
+                    sashIndex: number;
+                }[] = [{ splitview: this, sashIndex }];
 
-                    snapBefore = {
-                        index: snapBeforeIndex,
-                        limitDelta: snappedViewItem.visible
-                            ? minDelta - halfSize
-                            : minDelta + halfSize,
-                        size: snappedViewItem.size,
+                if (orthogonal) {
+                    const orthogonalTarget = {
+                        splitview: orthogonal.splitview,
+                        sashIndex: orthogonal.splitview.sashes.indexOf(
+                            orthogonal.sash
+                        ),
                     };
-                }
-
-                if (typeof snapAfterIndex === 'number') {
-                    const snappedViewItem = this.viewItems[snapAfterIndex];
-                    const halfSize = Math.floor(
-                        snappedViewItem.viewMinimumSize / 2
-                    );
-
-                    snapAfter = {
-                        index: snapAfterIndex,
-                        limitDelta: snappedViewItem.visible
-                            ? maxDelta + halfSize
-                            : maxDelta - halfSize,
-                        size: snappedViewItem.size,
-                    };
-                }
-
-                const onPointerMove = (event: PointerEvent) => {
-                    const current =
-                        this._orientation === Orientation.HORIZONTAL
-                            ? event.clientX
-                            : event.clientY;
-                    const delta = current - start;
-
-                    this.resize(
-                        sashIndex,
-                        delta,
-                        sizes,
-                        undefined,
-                        undefined,
-                        minDelta,
-                        maxDelta,
-                        snapBefore,
-                        snapAfter
-                    );
-                    this.distributeEmptySpace();
-                    this.layoutViews();
-                };
-
-                const end = () => {
-                    for (const item of this.viewItems) {
-                        item.enabled = true;
+                    // the outer layout resets the inner from its proportions,
+                    // so the inner drag must update last
+                    if (orthogonal.isOuter) {
+                        targets.unshift(orthogonalTarget);
+                    } else {
+                        targets.push(orthogonalTarget);
                     }
+                }
 
-                    iframes.release();
-
-                    this.saveProportions();
-
-                    doc.removeEventListener('pointermove', onPointerMove);
-                    doc.removeEventListener('pointerup', end);
-                    doc.removeEventListener('pointercancel', end);
-                    doc.removeEventListener('contextmenu', end);
-
-                    this._onDidSashEnd.fire(undefined);
-                };
-
-                doc.addEventListener('pointermove', onPointerMove);
-                doc.addEventListener('pointerup', end);
-                doc.addEventListener('pointercancel', end);
-                doc.addEventListener('contextmenu', end);
+                this.startPointerDrag(sash, event, targets, () => {
+                    dragging = false;
+                    candidates = undefined;
+                    clearActiveMultidrag(sash);
+                });
             };
 
             sash.addEventListener('pointerdown', onPointerStart);
+            sash.addEventListener('pointermove', onPointerMove);
+            sash.addEventListener('pointerleave', onPointerLeave);
 
             const sashItem: ISashItem = {
                 container: sash,
                 disposable: () => {
+                    clearActiveMultidrag(sash);
                     sash.removeEventListener('pointerdown', onPointerStart);
+                    sash.removeEventListener('pointermove', onPointerMove);
+                    sash.removeEventListener('pointerleave', onPointerLeave);
                     sash.remove();
                 },
             };
@@ -988,6 +1011,251 @@ export class Splitview {
         }
 
         return undefined;
+    }
+
+    private beginSashDrag(sashIndex: number): ISashDrag {
+        for (const item of this.viewItems) {
+            item.enabled = false;
+        }
+
+        //
+        const sizes = this.viewItems.map((x) => x.size);
+
+        //
+        let snapBefore: ISashDragSnapState | undefined;
+        let snapAfter: ISashDragSnapState | undefined;
+        const upIndexes = range(sashIndex, -1);
+        const downIndexes = range(sashIndex + 1, this.viewItems.length);
+        const minDeltaUp = upIndexes.reduce(
+            (r, i) => r + (this.viewItems[i].minimumSize - sizes[i]),
+            0
+        );
+        const maxDeltaUp = upIndexes.reduce(
+            (r, i) => r + (this.viewItems[i].viewMaximumSize - sizes[i]),
+            0
+        );
+        const maxDeltaDown =
+            downIndexes.length === 0
+                ? Number.POSITIVE_INFINITY
+                : downIndexes.reduce(
+                      (r, i) => r + (sizes[i] - this.viewItems[i].minimumSize),
+                      0
+                  );
+        const minDeltaDown =
+            downIndexes.length === 0
+                ? Number.NEGATIVE_INFINITY
+                : downIndexes.reduce(
+                      (r, i) =>
+                          r + (sizes[i] - this.viewItems[i].viewMaximumSize),
+                      0
+                  );
+        const minDelta = Math.max(minDeltaUp, minDeltaDown);
+        const maxDelta = Math.min(maxDeltaDown, maxDeltaUp);
+        const snapBeforeIndex = this.findFirstSnapIndex(upIndexes);
+        const snapAfterIndex = this.findFirstSnapIndex(downIndexes);
+        if (typeof snapBeforeIndex === 'number') {
+            const snappedViewItem = this.viewItems[snapBeforeIndex];
+            const halfSize = Math.floor(snappedViewItem.viewMinimumSize / 2);
+
+            snapBefore = {
+                index: snapBeforeIndex,
+                limitDelta: snappedViewItem.visible
+                    ? minDelta - halfSize
+                    : minDelta + halfSize,
+                size: snappedViewItem.size,
+            };
+        }
+
+        if (typeof snapAfterIndex === 'number') {
+            const snappedViewItem = this.viewItems[snapAfterIndex];
+            const halfSize = Math.floor(snappedViewItem.viewMinimumSize / 2);
+
+            snapAfter = {
+                index: snapAfterIndex,
+                limitDelta: snappedViewItem.visible
+                    ? maxDelta + halfSize
+                    : maxDelta - halfSize,
+                size: snappedViewItem.size,
+            };
+        }
+
+        return {
+            update: (delta: number) => {
+                this.resize(
+                    sashIndex,
+                    delta,
+                    sizes,
+                    undefined,
+                    undefined,
+                    minDelta,
+                    maxDelta,
+                    snapBefore,
+                    snapAfter
+                );
+                this.distributeEmptySpace();
+                this.layoutViews();
+            },
+            end: () => {
+                for (const item of this.viewItems) {
+                    item.enabled = true;
+                }
+
+                this.saveProportions();
+
+                return () => this._onDidSashEnd.fire(undefined);
+            },
+        };
+    }
+
+    /** Drives each target's sash along its own axis, in order. */
+    private startPointerDrag(
+        sash: HTMLElement,
+        event: PointerEvent,
+        targets: { splitview: Splitview; sashIndex: number }[],
+        onEnd: () => void
+    ): void {
+        // The sash may live in a popout document; bind the drag to that
+        // document so pointermove/up are heard there, not on the opener.
+        const doc = sash.ownerDocument ?? document;
+        const iframes = disableIframePointEvents(doc);
+
+        const startX = event.clientX;
+        const startY = event.clientY;
+
+        const drags = targets.map(({ splitview, sashIndex }) => ({
+            horizontal: splitview._orientation === Orientation.HORIZONTAL,
+            drag: splitview.beginSashDrag(sashIndex),
+        }));
+
+        const onPointerMove = (event: PointerEvent) => {
+            for (const { horizontal, drag } of drags) {
+                drag.update(
+                    horizontal ? event.clientX - startX : event.clientY - startY
+                );
+            }
+        };
+
+        const end = () => {
+            iframes.release();
+
+            doc.removeEventListener('pointermove', onPointerMove);
+            doc.removeEventListener('pointerup', end);
+            doc.removeEventListener('pointercancel', end);
+            doc.removeEventListener('contextmenu', end);
+
+            const notifications = drags.map(({ drag }) => drag.end());
+            for (const notify of notifications) {
+                notify();
+            }
+
+            onEnd();
+        };
+
+        doc.addEventListener('pointermove', onPointerMove);
+        doc.addEventListener('pointerup', end);
+        doc.addEventListener('pointercancel', end);
+        doc.addEventListener('contextmenu', end);
+    }
+
+    /** Enclosing and nested orthogonal splitviews in the same scope. */
+    private getOrthogonalSashCandidates(): IOrthogonalSashCandidate[] {
+        const scope = this.multidragScope?.();
+        if (!scope) {
+            return [];
+        }
+
+        const candidates: IOrthogonalSashCandidate[] = [];
+        const add = (element: Element, isOuter: boolean) => {
+            const splitview = splitviewByElement.get(element as HTMLElement);
+            if (
+                splitview &&
+                splitview._orientation !== this._orientation &&
+                splitview.multidragScope?.() === scope
+            ) {
+                candidates.push({ splitview, isOuter });
+            }
+        };
+
+        for (
+            let element = this.element.parentElement?.closest(
+                '.dv-split-view-container'
+            );
+            element;
+            element = element.parentElement?.closest('.dv-split-view-container')
+        ) {
+            add(element, true);
+        }
+        for (const element of this.viewContainer.querySelectorAll(
+            '.dv-split-view-container'
+        )) {
+            add(element, false);
+        }
+
+        return candidates;
+    }
+
+    /** The orthogonal sash that `sash` meets nearest the pointer, if any. */
+    private findOrthogonalSash(
+        sash: HTMLElement,
+        event: PointerEvent,
+        candidates: IOrthogonalSashCandidate[]
+    ): { splitview: Splitview; sash: ISashItem; isOuter: boolean } | undefined {
+        if (
+            candidates.length === 0 ||
+            this._disabled ||
+            sash.classList.contains('dv-disabled') ||
+            !this.multidragScope?.()
+        ) {
+            return undefined;
+        }
+
+        const reach =
+            event.pointerType === 'touch'
+                ? MULTIDRAG_TOUCH_REACH
+                : MULTIDRAG_POINTER_REACH;
+        // with a margin, sashes stop short of the sash they meet
+        const gap = this._margin;
+        const horizontal = this._orientation === Orientation.HORIZONTAL;
+        const own = sash.getBoundingClientRect();
+
+        let best:
+            | { splitview: Splitview; sash: ISashItem; isOuter: boolean }
+            | undefined;
+        let bestDistance = Number.POSITIVE_INFINITY;
+
+        const others = candidates
+            .filter(({ splitview }) => !splitview._disabled)
+            .flatMap(({ splitview, isOuter }) =>
+                splitview.sashes
+                    .filter(
+                        (item) =>
+                            !item.container.classList.contains('dv-disabled')
+                    )
+                    .map((item) => ({ splitview, sash: item, isOuter }))
+            );
+
+        for (const other of others) {
+            const junction = findSashJunction(
+                own,
+                other.sash.container.getBoundingClientRect(),
+                horizontal,
+                gap + reach
+            );
+            if (!junction) {
+                continue;
+            }
+
+            const distance = Math.max(
+                Math.abs(event.clientX - junction.x),
+                Math.abs(event.clientY - junction.y)
+            );
+            if (distance <= reach + gap / 2 && distance < bestDistance) {
+                bestDistance = distance;
+                best = other;
+            }
+        }
+
+        return best;
     }
 
     private updateSashEnablement(): void {
