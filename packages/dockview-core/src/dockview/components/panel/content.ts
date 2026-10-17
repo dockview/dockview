@@ -11,6 +11,7 @@ import { DockviewComponent } from '../../dockviewComponent';
 import { Droptarget, IDropTarget, Position } from '../../../dnd/droptarget';
 import { pointerBackend } from '../../../dnd/backend';
 import { DockviewGroupPanelModel } from '../../dockviewGroupPanelModel';
+import { Size } from '../../../types';
 
 let _contentId = 0;
 /** Stable DOM id so each tab's `aria-controls` can reference its tabpanel. */
@@ -24,6 +25,13 @@ export interface IContentContainer extends IDisposable {
     readonly pointerDropTarget: IDropTarget;
     onDidFocus: Event<void>;
     onDidBlur: Event<void>;
+    /**
+     * The content box most recently handed to `layout()` (group box minus
+     * header extent), `undefined` until the group has been laid out. The
+     * overlay render container sizes `renderer: 'always'` content from it.
+     */
+    readonly dimensions: Size | undefined;
+    readonly onDidDimensionsChange: Event<Size>;
     element: HTMLElement;
     layout(width: number, height: number): void;
     openPanel: (panel: IDockviewPanel) => void;
@@ -50,8 +58,17 @@ export class ContentContainer
     private readonly _onDidBlur = new Emitter<void>();
     readonly onDidBlur: Event<void> = this._onDidBlur.event;
 
+    private _dimensions: Size | undefined;
+    private readonly _onDidDimensionsChange = new Emitter<Size>();
+    readonly onDidDimensionsChange: Event<Size> =
+        this._onDidDimensionsChange.event;
+
     get element(): HTMLElement {
         return this._element;
+    }
+
+    get dimensions(): Size | undefined {
+        return this._dimensions;
     }
 
     readonly dropTarget: Droptarget;
@@ -71,7 +88,11 @@ export class ContentContainer
         this._element.id = nextContentId();
         this._element.setAttribute('role', 'tabpanel');
 
-        this.addDisposables(this._onDidFocus, this._onDidBlur);
+        this.addDisposables(
+            this._onDidFocus,
+            this._onDidBlur,
+            this._onDidDimensionsChange
+        );
 
         // Resolve the override anchor dynamically: a group can be relocated
         // between roots (grid / floating / popout) after construction, and the
@@ -213,8 +234,17 @@ export class ContentContainer
         this.renderPanel(panel);
     }
 
-    public layout(_width: number, _height: number): void {
-        // noop
+    public layout(width: number, height: number): void {
+        // The element is sized by CSS (a flex child of the group); only the
+        // numbers are recorded, and a change broadcast, for overlay sizing.
+        if (
+            this._dimensions?.width === width &&
+            this._dimensions.height === height
+        ) {
+            return;
+        }
+        this._dimensions = { width, height };
+        this._onDidDimensionsChange.fire(this._dimensions);
     }
 
     public closePanel(): void {

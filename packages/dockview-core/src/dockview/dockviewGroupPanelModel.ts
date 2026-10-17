@@ -508,11 +508,10 @@ export class DockviewGroupPanelModel
         this.tabsContainer.direction = direction;
         this.header.direction = direction;
 
-        // resize the active panel to fit the new header direction
+        // resize the content to fit the new header direction
         // if not, the panel will overflow the tabs container
-        if (this._activePanel?.layout) {
-            const { width, height } = this.contentDimensions();
-            this._activePanel.layout(width, height);
+        if (this.panels.length > 0) {
+            this.layoutContent();
         }
 
         this.updateHeaderActions();
@@ -1301,12 +1300,11 @@ export class DockviewGroupPanelModel
             this.rerender(panel);
         });
 
-        // Re-run layout() so the active content is sized after the container
+        // Re-run layout() so the content is sized after the container
         // switch — matching doSetActivePanel(). Without it the content keeps
         // stale dimensions when a group is moved back from a popout.
-        if (this._activePanel) {
-            const { width, height } = this.contentDimensions();
-            this._activePanel.layout(width, height);
+        if (this.panels.length > 0) {
+            this.layoutContent();
         }
     }
 
@@ -1619,13 +1617,25 @@ export class DockviewGroupPanelModel
         this._width = width;
         this._height = height;
 
-        const { width: contentWidth, height: contentHeight } =
-            this.contentDimensions();
+        this.layoutContent();
+    }
 
-        this.contentContainer.layout(contentWidth, contentHeight);
+    /**
+     * Apply the current content box (group box minus header extent) to the
+     * content container and the active panel. Every path that can change that
+     * box goes through here so the container's recorded dimensions, which size
+     * overlay-rendered panels, never lag the active panel's. Callers other
+     * than `layout()` skip it for a group with no panels: there is nothing to
+     * size, and measuring the header of a group that is not in the document
+     * yet (the constructor sets `headerPosition`) would cache a zero extent.
+     */
+    private layoutContent(): void {
+        const { width, height } = this.contentDimensions();
+
+        this.contentContainer.layout(width, height);
 
         if (this._activePanel?.layout) {
-            this._activePanel.layout(contentWidth, contentHeight);
+            this._activePanel.layout(width, height);
         }
     }
 
@@ -1804,8 +1814,7 @@ export class DockviewGroupPanelModel
 
             this.contentContainer.openPanel(panel);
 
-            const { width, height } = this.contentDimensions();
-            panel.layout(width, height);
+            this.layoutContent();
 
             this.updateMru(panel);
 

@@ -220,6 +220,97 @@ describe('group content sizing (header-aware)', () => {
         cut.dispose();
     });
 
+    test('always-rendered panels, hidden ones included, are sized from the content box on every path that changes it', () => {
+        const cut = createComponent();
+        cut.layout(400, 300);
+
+        // Settle the header extent before any overlay exists: the fake frame
+        // flush below must not run an overlay frame pass against jsdom's
+        // unmeasurable boxes.
+        const group = cut.addGroup();
+        const header = getHeaderElement(group);
+        stubOffset(header, 'offsetHeight', 35);
+        stubOffset(header, 'offsetWidth', 40);
+        fireResizeFor(header);
+
+        const active = cut.addPanel({
+            id: 'panel1',
+            component: 'component',
+            renderer: 'always',
+            position: { referenceGroup: group },
+        });
+        const hidden = cut.addPanel({
+            id: 'panel2',
+            component: 'component',
+            renderer: 'always',
+            position: { referenceGroup: group },
+            inactive: true,
+        });
+        expect(active.group).toBe(group);
+        expect(hidden.group).toBe(group);
+
+        const overlayOf = (panel: {
+            view: { content: { element: HTMLElement } };
+        }) => panel.view.content.element.parentElement!;
+
+        group.layout(400, 300);
+
+        // Group layout: both overlays take the content box (no frame has run).
+        expect(overlayOf(active).style.height).toBe('265px');
+        expect(overlayOf(active).style.width).toBe('400px');
+        expect(overlayOf(hidden).style.height).toBe('265px');
+        expect(overlayOf(hidden).style.width).toBe('400px');
+
+        // Header axis flip, without the header observer firing: the setter
+        // itself must propagate the new content box.
+        group.model.headerPosition = 'left';
+        expect(overlayOf(active).style.width).toBe('360px');
+        expect(overlayOf(active).style.height).toBe('300px');
+        expect(overlayOf(hidden).style.width).toBe('360px');
+        expect(overlayOf(hidden).style.height).toBe('300px');
+
+        // Activating the hidden panel re-applies the same box; nothing drifts.
+        hidden.api.setActive();
+        expect(overlayOf(hidden).style.width).toBe('360px');
+        expect(overlayOf(hidden).style.height).toBe('300px');
+
+        cut.dispose();
+    });
+
+    test('a group with no panels does not measure its header, so a detached header cannot poison the cache', () => {
+        const cut = createComponent();
+        document.body.appendChild(cut.element);
+        cut.layout(400, 300);
+
+        // Measures like a browser: a header that is not in the document yet
+        // has no extent; once inserted it has its real one.
+        jest.spyOn(
+            HTMLElement.prototype,
+            'offsetHeight',
+            'get'
+        ).mockImplementation(function (this: HTMLElement) {
+            return this.isConnected ? 35 : 0;
+        });
+
+        // Construction sets `headerPosition` before the group is inserted.
+        const group = cut.addGroup();
+        const contentContainer = (group.model as any).contentContainer;
+
+        // The first layout, after insertion, measured the attached header.
+        expect(contentContainer.dimensions).toEqual({
+            width: 400,
+            height: 265,
+        });
+
+        // Flipping the header of an empty group measures nothing either.
+        const reads = jest.spyOn(HTMLElement.prototype, 'offsetWidth', 'get');
+        group.model.headerPosition = 'left';
+        expect(reads).not.toHaveBeenCalled();
+
+        cut.dispose();
+        cut.element.remove();
+    });
+
     test('relayout() re-applies current dimensions with the latest header size', () => {
         const cut = createComponent();
         const panel = cut.addPanel({ id: 'panel1', component: 'component' });

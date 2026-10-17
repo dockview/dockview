@@ -132,6 +132,44 @@ describe('contentContainer', () => {
         disposable.dispose();
     });
 
+    test('layout(...) records the content box and announces only real changes (#1686)', () => {
+        const overlayRenderContainer = fromPartial<OverlayRenderContainer>({
+            detatch: jest.fn(),
+        });
+
+        const cut = new ContentContainer(
+            fromPartial<DockviewComponent>({
+                overlayRenderContainer,
+            }),
+            fromPartial<DockviewGroupPanelModel>({
+                renderContainer: overlayRenderContainer,
+            })
+        );
+
+        const events: { width: number; height: number }[] = [];
+        cut.onDidDimensionsChange((event) => events.push(event));
+
+        expect(cut.dimensions).toBeUndefined();
+
+        cut.layout(800, 365);
+        expect(cut.dimensions).toEqual({ width: 800, height: 365 });
+        expect(events).toEqual([{ width: 800, height: 365 }]);
+
+        // Same box again: no event, so overlay sizing is not churned by
+        // the many group layouts that leave the content area unchanged.
+        cut.layout(800, 365);
+        expect(events).toHaveLength(1);
+
+        cut.layout(600, 365);
+        expect(cut.dimensions).toEqual({ width: 600, height: 365 });
+        expect(events).toEqual([
+            { width: 800, height: 365 },
+            { width: 600, height: 365 },
+        ]);
+
+        cut.dispose();
+    });
+
     test('that onShow and onHide are called when switching panels with onlyWhenVisible renderer', () => {
         const overlayRenderContainer = fromPartial<OverlayRenderContainer>({
             detatch: jest.fn(),

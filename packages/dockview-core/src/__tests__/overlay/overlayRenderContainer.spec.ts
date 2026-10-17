@@ -14,17 +14,39 @@ import {
 import { DockviewComponent } from '../../dockview/dockviewComponent';
 import { DockviewGroupPanel } from '../../dockview/dockviewGroupPanel';
 
+/**
+ * A reference container whose laid-out size is unknown (`dimensions`
+ * undefined) unless a test supplies one, so by default geometry only ever
+ * comes from the measured frame pass, as the pre-existing tests assume.
+ */
+function createReferenceContainer(dimensions?: {
+    width: number;
+    height: number;
+}): IRenderable & {
+    onDidDimensionsChangeEmitter: Emitter<{ width: number; height: number }>;
+    dimensions: { width: number; height: number } | undefined;
+} {
+    const onDidDimensionsChangeEmitter = new Emitter<{
+        width: number;
+        height: number;
+    }>();
+    return {
+        element: document.createElement('div'),
+        dropTarget: fromPartial<Droptarget>({}),
+        dimensions,
+        onDidDimensionsChange: onDidDimensionsChangeEmitter.event,
+        onDidDimensionsChangeEmitter,
+    };
+}
+
 describe('overlayRenderContainer', () => {
-    let referenceContainer: IRenderable;
+    let referenceContainer: ReturnType<typeof createReferenceContainer>;
     let parentContainer: HTMLElement;
 
     beforeEach(() => {
         parentContainer = document.createElement('div');
 
-        referenceContainer = {
-            element: document.createElement('div'),
-            dropTarget: fromPartial<Droptarget>({}),
-        };
+        referenceContainer = createReferenceContainer();
     });
 
     test('that attach(...) and detach(...) mutate the DOM as expected', () => {
@@ -527,10 +549,7 @@ describe('overlayRenderContainer', () => {
         expect(overlay.style.width).toBe('300px');
         expect(overlay.style.height).toBe('400px');
 
-        const replacementContainer: IRenderable = {
-            element: document.createElement('div'),
-            dropTarget: fromPartial<Droptarget>({}),
-        };
+        const replacementContainer = createReferenceContainer();
         const replacementRect = jest
             .spyOn(replacementContainer.element, 'getBoundingClientRect')
             .mockReturnValue(
@@ -604,10 +623,7 @@ describe('overlayRenderContainer', () => {
             fromPartial<DOMRect>({ left: 0, top: 0, width: 1000, height: 1000 })
         );
 
-        const replacementContainer: IRenderable = {
-            element: document.createElement('div'),
-            dropTarget: fromPartial<Droptarget>({}),
-        };
+        const replacementContainer = createReferenceContainer();
         // Both containers measure 0x0 — nothing has been laid out yet.
         jest.spyOn(
             replacementContainer.element,
@@ -688,10 +704,7 @@ describe('overlayRenderContainer', () => {
         onDidDimensionsChange.fire({});
 
         // ...and the panel is then re-attached over its real container.
-        const replacementContainer: IRenderable = {
-            element: document.createElement('div'),
-            dropTarget: fromPartial<Droptarget>({}),
-        };
+        const replacementContainer = createReferenceContainer();
         jest.spyOn(
             replacementContainer.element,
             'getBoundingClientRect'
@@ -761,10 +774,7 @@ describe('overlayRenderContainer', () => {
             })
         );
 
-        const replacementContainer: IRenderable = {
-            element: document.createElement('div'),
-            dropTarget: fromPartial<Droptarget>({}),
-        };
+        const replacementContainer = createReferenceContainer();
         jest.spyOn(
             replacementContainer.element,
             'getBoundingClientRect'
@@ -1142,6 +1152,542 @@ describe('overlayRenderContainer', () => {
 
         expect(container.style.visibility).toBe('hidden');
         expect(container.style.pointerEvents).toBe('none');
+    });
+
+    describe('sizing from the layout engine (#1686)', () => {
+        function createPanel(isVisible: boolean) {
+            const onDidVisibilityChange = new Emitter<any>();
+            const onDidDimensionsChange = new Emitter<any>();
+            const onDidLocationChange = new Emitter<any>();
+            const api = {
+                id: 'test_panel_id',
+                onDidVisibilityChange: onDidVisibilityChange.event,
+                onDidDimensionsChange: onDidDimensionsChange.event,
+                onDidLocationChange: onDidLocationChange.event,
+                isVisible,
+                location: { type: 'grid' },
+            };
+            const panel = fromPartial<IDockviewPanel>({
+                api,
+                view: { content: { element: document.createElement('div') } },
+                group: { api: { location: { type: 'grid' } } },
+            });
+            return { panel, api, onDidVisibilityChange };
+        }
+
+        test('the overlay has its real size synchronously on attach, before any measurement', async () => {
+            const cut = new OverlayRenderContainer(
+                parentContainer,
+                fromPartial<DockviewComponent>({})
+            );
+            const reference = createReferenceContainer({
+                width: 800,
+                height: 365,
+            });
+            const referenceRect = jest
+                .spyOn(reference.element, 'getBoundingClientRect')
+                .mockReturnValue(
+                    fromPartial<DOMRect>({
+                        left: 0,
+                        top: 35,
+                        width: 800,
+                        height: 365,
+                    })
+                );
+            const rootRect = jest
+                .spyOn(parentContainer, 'getBoundingClientRect')
+                .mockReturnValue(
+                    fromPartial<DOMRect>({
+                        left: 0,
+                        top: 0,
+                        width: 800,
+                        height: 400,
+                    })
+                );
+
+            const { panel } = createPanel(true);
+            const container = cut.attach({
+                panel,
+                referenceContainer: reference,
+            });
+
+            // Size comes from the engine's numbers, written in `attach` itself:
+            // nothing mounting into the overlay can observe the stylesheet's
+            // 100%/100% box, and nothing has been measured to get there.
+            expect(container.style.width).toBe('800px');
+            expect(container.style.height).toBe('365px');
+            expect(container.style.visibility).toBe('hidden');
+            expect(referenceRect).not.toHaveBeenCalled();
+            expect(rootRect).not.toHaveBeenCalled();
+
+            await exhaustMicrotaskQueue();
+
+            // Still no measurement before the frame pass.
+            expect(referenceRect).not.toHaveBeenCalled();
+            expect(rootRect).not.toHaveBeenCalled();
+
+            await exhaustAnimationFrame();
+
+            // The frame pass positions and shows; the size is unchanged.
+            expect(container.style.left).toBe('0px');
+            expect(container.style.top).toBe('35px');
+            expect(container.style.width).toBe('800px');
+            expect(container.style.height).toBe('365px');
+            expect(container.style.visibility).toBe('');
+        });
+
+        test('a hidden panel is sized on attach and tracks the group across layouts without being measured', async () => {
+            const cut = new OverlayRenderContainer(
+                parentContainer,
+                fromPartial<DockviewComponent>({})
+            );
+            const reference = createReferenceContainer({
+                width: 800,
+                height: 365,
+            });
+            const referenceRect = jest
+                .spyOn(reference.element, 'getBoundingClientRect')
+                .mockReturnValue(
+                    fromPartial<DOMRect>({
+                        left: 0,
+                        top: 35,
+                        width: 600,
+                        height: 300,
+                    })
+                );
+            jest.spyOn(
+                parentContainer,
+                'getBoundingClientRect'
+            ).mockReturnValue(
+                fromPartial<DOMRect>({
+                    left: 0,
+                    top: 0,
+                    width: 600,
+                    height: 335,
+                })
+            );
+
+            const { panel, api, onDidVisibilityChange } = createPanel(false);
+            const container = cut.attach({
+                panel,
+                referenceContainer: reference,
+            });
+
+            expect(container.style.width).toBe('800px');
+            expect(container.style.height).toBe('365px');
+            expect(container.style.visibility).toBe('hidden');
+
+            await exhaustMicrotaskQueue();
+            await exhaustAnimationFrame();
+
+            // Hidden: the frame pass does not run for it...
+            expect(referenceRect).not.toHaveBeenCalled();
+            expect(container.style.left).toBe('');
+
+            // ...but a group layout while hidden still sizes it.
+            reference.dimensions = { width: 600, height: 300 };
+            reference.onDidDimensionsChangeEmitter.fire({
+                width: 600,
+                height: 300,
+            });
+            expect(container.style.width).toBe('600px');
+            expect(container.style.height).toBe('300px');
+            expect(container.style.visibility).toBe('hidden');
+            expect(referenceRect).not.toHaveBeenCalled();
+
+            // First show: already the right size, the frame pass only positions.
+            api.isVisible = true;
+            onDidVisibilityChange.fire({ isVisible: true });
+            await exhaustAnimationFrame();
+
+            expect(container.style.left).toBe('0px');
+            expect(container.style.top).toBe('35px');
+            expect(container.style.width).toBe('600px');
+            expect(container.style.height).toBe('300px');
+            expect(container.style.visibility).toBe('');
+        });
+
+        test('a zero or unknown size from the reference container is not written', async () => {
+            const cut = new OverlayRenderContainer(
+                parentContainer,
+                fromPartial<DockviewComponent>({})
+            );
+            const reference = createReferenceContainer({ width: 0, height: 0 });
+
+            const { panel } = createPanel(false);
+            const container = cut.attach({
+                panel,
+                referenceContainer: reference,
+            });
+
+            expect(container.style.width).toBe('');
+            expect(container.style.height).toBe('');
+
+            reference.onDidDimensionsChangeEmitter.fire({
+                width: 300,
+                height: 0,
+            });
+            expect(container.style.width).toBe('');
+            expect(container.style.height).toBe('');
+
+            reference.onDidDimensionsChangeEmitter.fire({
+                width: 300,
+                height: 200,
+            });
+            expect(container.style.width).toBe('300px');
+            expect(container.style.height).toBe('200px');
+        });
+
+        test('re-attaching over a new container sizes from that container', () => {
+            const cut = new OverlayRenderContainer(
+                parentContainer,
+                fromPartial<DockviewComponent>({})
+            );
+            const { panel } = createPanel(true);
+
+            const first = createReferenceContainer({ width: 400, height: 200 });
+            const container = cut.attach({
+                panel,
+                referenceContainer: first,
+            });
+            expect(container.style.width).toBe('400px');
+
+            // A staging container with no layout yet leaves the size alone...
+            const staging = createReferenceContainer();
+            cut.attach({ panel, referenceContainer: staging });
+            expect(container.style.width).toBe('400px');
+            expect(container.style.height).toBe('200px');
+
+            // ...and the real one replaces it.
+            const second = createReferenceContainer({
+                width: 500,
+                height: 250,
+            });
+            cut.attach({ panel, referenceContainer: second });
+            expect(container.style.width).toBe('500px');
+            expect(container.style.height).toBe('250px');
+
+            // The superseded container's layouts no longer reach the overlay.
+            first.onDidDimensionsChangeEmitter.fire({ width: 1, height: 1 });
+            expect(container.style.width).toBe('500px');
+        });
+
+        test('a force-shown (peeked) overlay keeps its measured size through group layouts', async () => {
+            const cut = new OverlayRenderContainer(
+                parentContainer,
+                fromPartial<DockviewComponent>({})
+            );
+            const reference = createReferenceContainer({
+                width: 35,
+                height: 565,
+            });
+            // The peek has moved the reference container into its own frame,
+            // so measuring it yields the peek's box, not the strip's.
+            jest.spyOn(
+                reference.element,
+                'getBoundingClientRect'
+            ).mockReturnValue(
+                fromPartial<DOMRect>({
+                    left: 35,
+                    top: 0,
+                    width: 300,
+                    height: 600,
+                })
+            );
+            jest.spyOn(
+                parentContainer,
+                'getBoundingClientRect'
+            ).mockReturnValue(
+                fromPartial<DOMRect>({
+                    left: 0,
+                    top: 0,
+                    width: 800,
+                    height: 600,
+                })
+            );
+
+            const { panel } = createPanel(false);
+            const container = cut.attach({
+                panel,
+                referenceContainer: reference,
+            });
+            await exhaustMicrotaskQueue();
+
+            cut.repositionPanelOverlay('test_panel_id', true);
+            await exhaustAnimationFrame();
+            expect(container.style.width).toBe('300px');
+            expect(container.style.height).toBe('600px');
+            expect(container.style.visibility).toBe('');
+
+            // The collapsed group is laid out at its strip size (a window
+            // resize): that must not touch the peeked overlay.
+            reference.onDidDimensionsChangeEmitter.fire({
+                width: 35,
+                height: 565,
+            });
+            expect(container.style.width).toBe('300px');
+            expect(container.style.height).toBe('600px');
+
+            // Once the peek releases the overlay, group layouts size it again.
+            cut.repositionPanelOverlay('test_panel_id', false);
+            reference.onDidDimensionsChangeEmitter.fire({
+                width: 36,
+                height: 565,
+            });
+            expect(container.style.width).toBe('36px');
+            expect(container.style.height).toBe('565px');
+        });
+
+        test('a visibly positioned overlay leaves group layouts to the frame pass', async () => {
+            const cut = new OverlayRenderContainer(
+                parentContainer,
+                fromPartial<DockviewComponent>({})
+            );
+            const reference = createReferenceContainer({
+                width: 400,
+                height: 265,
+            });
+            const referenceRect = jest
+                .spyOn(reference.element, 'getBoundingClientRect')
+                .mockReturnValue(
+                    fromPartial<DOMRect>({
+                        left: 0,
+                        top: 35,
+                        width: 400,
+                        height: 265,
+                    })
+                );
+            jest.spyOn(
+                parentContainer,
+                'getBoundingClientRect'
+            ).mockReturnValue(
+                fromPartial<DOMRect>({
+                    left: 0,
+                    top: 0,
+                    width: 800,
+                    height: 300,
+                })
+            );
+
+            const { panel } = createPanel(true);
+            const container = cut.attach({
+                panel,
+                referenceContainer: reference,
+            });
+            await exhaustMicrotaskQueue();
+            await exhaustAnimationFrame();
+            expect(container.style.visibility).toBe('');
+            expect(container.style.width).toBe('400px');
+
+            // The group widens (a window resize): size and position must land
+            // together in the frame pass, so nothing changes synchronously...
+            referenceRect.mockReturnValue(
+                fromPartial<DOMRect>({
+                    left: 100,
+                    top: 35,
+                    width: 500,
+                    height: 265,
+                })
+            );
+            reference.onDidDimensionsChangeEmitter.fire({
+                width: 500,
+                height: 265,
+            });
+            expect(container.style.width).toBe('400px');
+            expect(container.style.left).toBe('0px');
+
+            // ...and the frame pass writes both.
+            cut.updateAllPositions();
+            await exhaustAnimationFrame();
+            expect(container.style.width).toBe('500px');
+            expect(container.style.left).toBe('100px');
+        });
+
+        test('retained geometry stays coherent until the replacement container is laid out', async () => {
+            const cut = new OverlayRenderContainer(
+                parentContainer,
+                fromPartial<DockviewComponent>({})
+            );
+            const first = createReferenceContainer({ width: 400, height: 265 });
+            jest.spyOn(first.element, 'getBoundingClientRect').mockReturnValue(
+                fromPartial<DOMRect>({
+                    left: 0,
+                    top: 35,
+                    width: 400,
+                    height: 265,
+                })
+            );
+            jest.spyOn(
+                parentContainer,
+                'getBoundingClientRect'
+            ).mockReturnValue(
+                fromPartial<DOMRect>({
+                    left: 0,
+                    top: 0,
+                    width: 400,
+                    height: 300,
+                })
+            );
+
+            const { panel } = createPanel(true);
+            const container = cut.attach({ panel, referenceContainer: first });
+            await exhaustMicrotaskQueue();
+            await exhaustAnimationFrame();
+            expect(container.style.width).toBe('400px');
+            expect(container.style.visibility).toBe('');
+
+            // A replacement container that was laid out at another size and is
+            // not in the document yet: its numbers are stale and it measures 0x0.
+            const second = createReferenceContainer({
+                width: 900,
+                height: 700,
+            });
+            const secondRect = jest
+                .spyOn(second.element, 'getBoundingClientRect')
+                .mockReturnValue(
+                    fromPartial<DOMRect>({
+                        left: 0,
+                        top: 0,
+                        width: 0,
+                        height: 0,
+                    })
+                );
+            cut.attach({ panel, referenceContainer: second });
+            await exhaustMicrotaskQueue();
+            await exhaustAnimationFrame();
+
+            // The last good box is retained as a whole...
+            expect(container.style.left).toBe('0px');
+            expect(container.style.top).toBe('35px');
+            expect(container.style.width).toBe('400px');
+            expect(container.style.height).toBe('265px');
+
+            // ...also through the replacement's layouts while it is unmeasurable.
+            second.onDidDimensionsChangeEmitter.fire({
+                width: 500,
+                height: 250,
+            });
+            expect(container.style.width).toBe('400px');
+            expect(container.style.height).toBe('265px');
+
+            // Once measurable, the frame pass moves the whole box.
+            secondRect.mockReturnValue(
+                fromPartial<DOMRect>({
+                    left: 50,
+                    top: 35,
+                    width: 500,
+                    height: 250,
+                })
+            );
+            cut.updateAllPositions();
+            await exhaustAnimationFrame();
+            expect(container.style.left).toBe('50px');
+            expect(container.style.width).toBe('500px');
+            expect(container.style.height).toBe('250px');
+        });
+
+        test('a hidden panel moved to a group of unchanged size is sized from it on attach', async () => {
+            const cut = new OverlayRenderContainer(
+                parentContainer,
+                fromPartial<DockviewComponent>({})
+            );
+            const first = createReferenceContainer({ width: 400, height: 265 });
+            jest.spyOn(first.element, 'getBoundingClientRect').mockReturnValue(
+                fromPartial<DOMRect>({
+                    left: 0,
+                    top: 35,
+                    width: 400,
+                    height: 265,
+                })
+            );
+            jest.spyOn(
+                parentContainer,
+                'getBoundingClientRect'
+            ).mockReturnValue(
+                fromPartial<DOMRect>({
+                    left: 0,
+                    top: 0,
+                    width: 1000,
+                    height: 300,
+                })
+            );
+
+            const { panel, api } = createPanel(true);
+            const container = cut.attach({ panel, referenceContainer: first });
+            await exhaustMicrotaskQueue();
+            await exhaustAnimationFrame();
+            expect(container.style.width).toBe('400px');
+
+            // Moved, as a background tab, into a group already laid out at
+            // 600x300 that will not lay out again (so no size event follows).
+            api.isVisible = false;
+            const second = createReferenceContainer({
+                width: 600,
+                height: 300,
+            });
+            cut.attach({ panel, referenceContainer: second });
+            expect(container.style.width).toBe('600px');
+            expect(container.style.height).toBe('300px');
+        });
+
+        test('the frame pass does not rewrite geometry that is already set', async () => {
+            const cut = new OverlayRenderContainer(
+                parentContainer,
+                fromPartial<DockviewComponent>({})
+            );
+            const reference = createReferenceContainer({
+                width: 800,
+                height: 365,
+            });
+            jest.spyOn(
+                reference.element,
+                'getBoundingClientRect'
+            ).mockReturnValue(
+                fromPartial<DOMRect>({
+                    left: 0,
+                    top: 35,
+                    width: 800,
+                    height: 365,
+                })
+            );
+            jest.spyOn(
+                parentContainer,
+                'getBoundingClientRect'
+            ).mockReturnValue(
+                fromPartial<DOMRect>({
+                    left: 0,
+                    top: 0,
+                    width: 800,
+                    height: 400,
+                })
+            );
+
+            const { panel } = createPanel(true);
+            const container = cut.attach({
+                panel,
+                referenceContainer: reference,
+            });
+
+            const widthSetter = jest.spyOn(container.style, 'width', 'set');
+            const heightSetter = jest.spyOn(container.style, 'height', 'set');
+            const leftSetter = jest.spyOn(container.style, 'left', 'set');
+
+            await exhaustMicrotaskQueue();
+            await exhaustAnimationFrame();
+
+            // Position was unset, so it is written once; the size the attach
+            // already wrote is not touched.
+            expect(leftSetter).toHaveBeenCalledTimes(1);
+            expect(widthSetter).not.toHaveBeenCalled();
+            expect(heightSetter).not.toHaveBeenCalled();
+
+            // A second frame pass with the same measurements writes nothing.
+            cut.updateAllPositions();
+            await exhaustAnimationFrame();
+            expect(leftSetter).toHaveBeenCalledTimes(1);
+            expect(widthSetter).not.toHaveBeenCalled();
+            expect(heightSetter).not.toHaveBeenCalled();
+        });
     });
 
     test('updateAllPositions forces position recalculation for visible panels', async () => {

@@ -9,6 +9,8 @@ import {
 } from '../lifecycle';
 import { IDockviewPanel } from '../dockview/dockviewPanel';
 import { DockviewComponent } from '../dockview/dockviewComponent';
+import { Event } from '../events';
+import { Size } from '../types';
 
 class PositionCache {
     /**
@@ -64,6 +66,13 @@ export type DockviewPanelRenderer = 'onlyWhenVisible' | 'always';
 export interface IRenderable {
     readonly element: HTMLElement;
     readonly dropTarget: Droptarget;
+    /**
+     * The container's content box as computed by the layout engine, or
+     * `undefined` before its first layout. Overlays take their size from these
+     * numbers (a style write, no DOM read); only their position is measured.
+     */
+    readonly dimensions: Size | undefined;
+    readonly onDidDimensionsChange: Event<Size>;
 }
 
 /**
@@ -78,6 +87,22 @@ function createFocusableElement(): HTMLDivElement {
     const element = document.createElement('div');
     element.tabIndex = -1;
     return element;
+}
+
+/**
+ * Write an inline pixel length only when it differs from what is already set,
+ * so a pass that re-derives geometry already in place leaves the element's
+ * style clean and the next measurement does not relayout the overlay subtree.
+ */
+function setPixels(
+    style: CSSStyleDeclaration,
+    property: 'left' | 'top' | 'width' | 'height',
+    value: number
+): void {
+    const next = `${value}px`;
+    if (style[property] !== next) {
+        style[property] = next;
+    }
 }
 
 export class OverlayRenderContainer extends CompositeDisposable {
@@ -223,6 +248,8 @@ export class OverlayRenderContainer extends CompositeDisposable {
             element.className = 'dv-render-overlay';
             // Hide until the first RAF-based position is applied to prevent a
             // one-frame flash at position 0,0 when the element is first attached.
+            // The size is written synchronously (`applySize`), so while hidden
+            // the content is still laid out at its real box.
             element.style.visibility = 'hidden';
 
             this.map[panel.api.id] = {
@@ -286,6 +313,44 @@ export class OverlayRenderContainer extends CompositeDisposable {
         // backing renderer before this disposable fires; reading through the
         // getter at that point can throw.
         const contentElement = panel.view.content.element;
+
+        /**
+         * Size the overlay from the layout engine's numbers (the content box
+         * the group model also hands to `panel.layout()`): a style write with
+         * no forced layout, so the content has its real box before anything
+         * can measure it, and `.dv-render-overlay`'s 100%/100% default is never
+         * observed. Hidden panels are sized too: their content is laid out
+         * (hidden by `visibility`) and must not keep the root's box.
+         *
+         * Only while the overlay is not on screen at a measured position,
+         * i.e. hidden or not yet positioned. Once it is, the frame pass owns
+         * the whole box: size and position must change together, and group
+         * layouts driven from an animation frame would otherwise paint one
+         * frame at the new size and the old position. Likewise not while the
+         * peek force-shows the overlay, whose geometry belongs to
+         * `repositionPanelOverlay`: the collapsed group's own layouts describe
+         * the strip, not the peek. A zero box (a container awaiting layout) is
+         * skipped too: whether 0x0 is a real collapse is the frame pass's call.
+         */
+        const applySize = (size: Size | undefined): void => {
+            if (!size || size.width <= 0 || size.height <= 0) {
+                return;
+            }
+            const entry = this.map[panel.api.id];
+            if (
+                !entry ||
+                entry.forceVisible ||
+                (entry.positioned && panel.api.isVisible)
+            ) {
+                return;
+            }
+            setPixels(focusContainer.style, 'width', size.width);
+            setPixels(focusContainer.style, 'height', size.height);
+        };
+
+        // Before the content is (re)parented, so a consumer that measures
+        // synchronously on insertion already sees the right box.
+        applySize(referenceContainer.dimensions);
 
         if (contentElement.parentElement !== focusContainer) {
             focusContainer.appendChild(contentElement);
@@ -360,10 +425,10 @@ export class OverlayRenderContainer extends CompositeDisposable {
                 entry.retainPreviousGeometry = false;
                 entry.positioned = true;
 
-                focusContainer.style.left = `${left}px`;
-                focusContainer.style.top = `${top}px`;
-                focusContainer.style.width = `${width}px`;
-                focusContainer.style.height = `${height}px`;
+                setPixels(focusContainer.style, 'left', left);
+                setPixels(focusContainer.style, 'top', top);
+                setPixels(focusContainer.style, 'width', width);
+                setPixels(focusContainer.style, 'height', height);
                 // Sync visibility/pointer-events with the panel's current
                 // visibility at paint time. visibilityChanged() may have
                 // flipped to hidden between scheduling this rAF and now;
@@ -559,6 +624,12 @@ export class OverlayRenderContainer extends CompositeDisposable {
                 }
 
                 resize();
+            }),
+            // Keeps hidden panels sized across group layouts (the panel's
+            // own dimension events above cover only the active panel): a style
+            // write per layout, so nothing to save by skipping them.
+            referenceContainer.onDidDimensionsChange((size) => {
+                applySize(size);
             }),
             panel.api.onDidLocationChange(() => {
                 correctLayerPosition();
