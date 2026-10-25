@@ -178,10 +178,8 @@ export async function installShellMultiWindow(
     };
 
     const transport = observed(await createTauriTransport(), counters, log);
-    const multiWindow = installMultiWindow(api, transport, {
-        ...options,
-        history: { bindKeys: true },
-    });
+    const multiWindow = installMultiWindow(api, transport, options);
+    bindUndoKeys(multiWindow);
     void multiWindow.ready.then(({ restored }) => {
         log(
             restored
@@ -198,6 +196,31 @@ export async function installShellMultiWindow(
             return () => listeners.delete(listener);
         },
     };
+}
+
+/**
+ * Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y (Cmd on macOS) undo and redo across every
+ * window. Text undo in an input or editor stays with it.
+ */
+function bindUndoKeys(multiWindow: MultiWindow): void {
+    document.addEventListener('keydown', (event) => {
+        const target = event.target as HTMLElement;
+        if (
+            !(event.ctrlKey || event.metaKey) ||
+            event.altKey ||
+            target.closest?.('input, textarea, select, [contenteditable]')
+        ) {
+            return;
+        }
+        const key = event.key.toLowerCase();
+        if (key === 'z' && !event.shiftKey) {
+            event.preventDefault();
+            multiWindow.undo();
+        } else if (key === 'z' || key === 'y') {
+            event.preventDefault();
+            multiWindow.redo();
+        }
+    });
 }
 
 /** The transport, with what passes through it counted and logged. */

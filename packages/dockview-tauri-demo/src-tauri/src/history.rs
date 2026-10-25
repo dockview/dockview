@@ -18,10 +18,9 @@
 //! step.
 
 use std::fmt;
-use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// How many steps are kept: dockview's own `layoutHistory.depth` default,
@@ -35,7 +34,7 @@ pub const DEPTH: usize = 25;
 pub const ABANDONED_MOVE: Duration = Duration::from_secs(10);
 
 /// Which end of a move a window reported.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     From,
@@ -160,7 +159,6 @@ pub enum HistoryError {
     /// The top step was a move one window never finished reporting; it and
     /// the history before it are gone.
     Abandoned(String),
-    Poisoned,
 }
 
 impl fmt::Display for HistoryError {
@@ -174,34 +172,23 @@ impl fmt::Display for HistoryError {
                 f,
                 "move {session} was never completed; the history before it is dropped"
             ),
-            HistoryError::Poisoned => write!(f, "the history's state is poisoned"),
         }
     }
 }
 
 impl std::error::Error for HistoryError {}
 
-impl<T> From<PoisonError<T>> for HistoryError {
-    fn from(_: PoisonError<T>) -> Self {
-        HistoryError::Poisoned
-    }
-}
-
-#[derive(Default)]
-struct Stacks {
+pub struct History {
     undo: Vec<Entry>,
     redo: Vec<Entry>,
-}
-
-pub struct History {
-    stacks: Mutex<Stacks>,
     abandon_after: Duration,
 }
 
 impl Default for History {
     fn default() -> Self {
         History {
-            stacks: Mutex::default(),
+            undo: Vec::new(),
+            redo: Vec::new(),
             abandon_after: ABANDONED_MOVE,
         }
     }
@@ -209,28 +196,16 @@ impl Default for History {
 
 impl History {
     /// A window recorded a step of its own. Clears redo, as any new step does.
-    pub fn push_local(&self, window: &str) -> Result<(), HistoryError> {
-        let mut stacks = self.stacks.lock()?;
-        stacks.undo.push(Entry::Local {
+    pub fn push_local(&mut self, window: &str) {
+        self.push(Entry::Local {
             window: window.to_string(),
         });
-        stacks.redo.clear();
-        trim(&mut stacks.undo);
-        Ok(())
     }
 
     /// One window reports its half of a move. The first half to arrive
     /// places the move in the order; the second completes it.
-    pub fn record_move(
-        &self,
-        session: &str,
-        panels: &[String],
-        role: Role,
-        half: Half,
-    ) -> Result<(), HistoryError> {
-        let mut stacks = self.stacks.lock()?;
-
-        let existing = stacks.undo.iter_mut().find(
+    pub fn record_move(&mut self, session: &str, panels: &[String], role: Role, half: Half) {
+        let existing = self.undo.iter_mut().find(
             |entry| matches!(entry, Entry::Move { session: recorded, .. } if recorded == session),
         );
 
@@ -244,39 +219,35 @@ impl History {
                     Role::From => (Some(half), None),
                     Role::To => (None, Some(half)),
                 };
-                stacks.undo.push(Entry::Move {
+                self.push(Entry::Move {
                     session: session.to_string(),
                     panels: panels.to_vec(),
                     opened: Instant::now(),
                     from,
                     to,
                 });
-                stacks.redo.clear();
-                trim(&mut stacks.undo);
             }
         }
-        Ok(())
     }
 
-    pub fn undo(&self) -> Result<Step, HistoryError> {
-        let mut stacks = self.stacks.lock()?;
+    pub fn undo(&mut self) -> Result<Step, HistoryError> {
         if let Some(Entry::Move {
             session,
             opened,
             from,
             to,
             ..
-        }) = stacks.undo.last()
+        }) = self.undo.last()
         {
             if (from.is_none() || to.is_none()) && opened.elapsed() >= self.abandon_after {
                 // It will never complete. Everything before it goes too:
                 // those steps restore layouts from before the move.
                 let session = session.clone();
-                stacks.undo.clear();
+                self.undo.clear();
                 return Err(HistoryError::Abandoned(session));
             }
         }
-        let entry = stacks.undo.last().ok_or(HistoryError::Nothing)?;
+        let entry = self.undo.last().ok_or(HistoryError::Nothing)?;
         let step = match entry {
             Entry::Local { window } => Step {
                 actions: vec![Action {
@@ -310,14 +281,13 @@ impl History {
                 }
             }
         };
-        let entry = stacks.undo.pop().expect("checked above");
-        stacks.redo.push(entry);
+        let entry = self.undo.pop().expect("checked above");
+        self.redo.push(entry);
         Ok(step)
     }
 
-    pub fn redo(&self) -> Result<Step, HistoryError> {
-        let mut stacks = self.stacks.lock()?;
-        let entry = stacks.redo.last().ok_or(HistoryError::Nothing)?;
+    pub fn redo(&mut self) -> Result<Step, HistoryError> {
+        let entry = self.redo.last().ok_or(HistoryError::Nothing)?;
         let step = match entry {
             Entry::Local { window } => Step {
                 actions: vec![Action {
@@ -348,21 +318,20 @@ impl History {
                 }
             }
         };
-        let entry = stacks.redo.pop().expect("checked above");
-        stacks.undo.push(entry);
+        let entry = self.redo.pop().expect("checked above");
+        self.undo.push(entry);
         Ok(step)
     }
 
-    pub fn info(&self) -> Result<Info, HistoryError> {
-        let stacks = self.stacks.lock()?;
-        Ok(Info {
-            can_undo: !stacks.undo.is_empty(),
-            can_redo: !stacks.redo.is_empty(),
-            undo_count: stacks.undo.len(),
-            redo_count: stacks.redo.len(),
-            next_undo: stacks.undo.last().map(Entry::summarize),
-            next_redo: stacks.redo.last().map(Entry::summarize),
-        })
+    pub fn info(&self) -> Info {
+        Info {
+            can_undo: !self.undo.is_empty(),
+            can_redo: !self.redo.is_empty(),
+            undo_count: self.undo.len(),
+            redo_count: self.redo.len(),
+            next_undo: self.undo.last().map(Entry::summarize),
+            next_redo: self.redo.last().map(Entry::summarize),
+        }
     }
 
     /// Forget a window's steps, when it closes.
@@ -371,8 +340,7 @@ impl History {
     /// everything beyond it with it: the other window's earlier steps
     /// restore layouts from before the move, which are only safe once the
     /// move itself has been undone.
-    pub fn forget_window(&self, window: &str) -> Result<(), HistoryError> {
-        let mut stacks = self.stacks.lock()?;
+    pub fn forget_window(&mut self, window: &str) {
         let involves = |entry: &Entry| match entry {
             Entry::Local { window: w } => w == window,
             Entry::Move { from, to, .. } => match (from, to) {
@@ -381,8 +349,7 @@ impl History {
             },
         };
         // Both stacks hold the entry furthest from the present first.
-        let stacks = &mut *stacks;
-        for stack in [&mut stacks.undo, &mut stacks.redo] {
+        for stack in [&mut self.undo, &mut self.redo] {
             let cut = stack
                 .iter()
                 .rposition(|entry| matches!(entry, Entry::Move { .. }) && involves(entry))
@@ -394,7 +361,16 @@ impl History {
                 .collect();
             *stack = kept;
         }
-        Ok(())
+    }
+
+    /// A new step. Clears redo, as any new step does, and keeps at most
+    /// `DEPTH`.
+    fn push(&mut self, entry: Entry) {
+        self.undo.push(entry);
+        self.redo.clear();
+        if self.undo.len() > DEPTH {
+            self.undo.remove(0);
+        }
     }
 }
 
@@ -418,12 +394,6 @@ fn complete<'a>(
     }
 }
 
-fn trim(stack: &mut Vec<Entry>) {
-    while stack.len() > DEPTH {
-        stack.remove(0);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -437,19 +407,15 @@ mod tests {
         }
     }
 
-    fn moved(history: &History) {
-        history
-            .record_move("s1", &["p".into()], Role::From, half("main", "A0", "A1"))
-            .unwrap();
-        history
-            .record_move("s1", &["p".into()], Role::To, half("dock-2", "B0", "B1"))
-            .unwrap();
+    fn moved(history: &mut History) {
+        history.record_move("s1", &["p".into()], Role::From, half("main", "A0", "A1"));
+        history.record_move("s1", &["p".into()], Role::To, half("dock-2", "B0", "B1"));
     }
 
     #[test]
     fn a_local_step_undoes_and_redoes_in_its_window() {
-        let history = History::default();
-        history.push_local("main").unwrap();
+        let mut history = History::default();
+        history.push_local("main");
 
         assert_eq!(
             history.undo().unwrap().actions,
@@ -469,8 +435,8 @@ mod tests {
 
     #[test]
     fn a_move_undoes_destination_first_then_source_with_before_layouts() {
-        let history = History::default();
-        moved(&history);
+        let mut history = History::default();
+        moved(&mut history);
 
         let step = history.undo().unwrap();
 
@@ -494,8 +460,8 @@ mod tests {
 
     #[test]
     fn a_move_redoes_source_first_then_destination_with_after_layouts() {
-        let history = History::default();
-        moved(&history);
+        let mut history = History::default();
+        moved(&mut history);
         history.undo().unwrap();
 
         let step = history.redo().unwrap();
@@ -512,36 +478,30 @@ mod tests {
 
     #[test]
     fn the_halves_may_arrive_in_either_order() {
-        let history = History::default();
-        history
-            .record_move("s1", &["p".into()], Role::To, half("dock-2", "B0", "B1"))
-            .unwrap();
-        history
-            .record_move("s1", &["p".into()], Role::From, half("main", "A0", "A1"))
-            .unwrap();
+        let mut history = History::default();
+        history.record_move("s1", &["p".into()], Role::To, half("dock-2", "B0", "B1"));
+        history.record_move("s1", &["p".into()], Role::From, half("main", "A0", "A1"));
 
-        assert_eq!(history.info().unwrap().undo_count, 1);
+        assert_eq!(history.info().undo_count, 1);
         assert!(history.undo().is_ok());
     }
 
     #[test]
     fn an_incomplete_move_cannot_be_undone_yet() {
-        let history = History::default();
-        history
-            .record_move("s1", &["p".into()], Role::From, half("main", "A0", "A1"))
-            .unwrap();
+        let mut history = History::default();
+        history.record_move("s1", &["p".into()], Role::From, half("main", "A0", "A1"));
 
         assert_eq!(history.undo(), Err(HistoryError::Incomplete("s1".into())));
         // Still on the stack for when the other half arrives.
-        assert_eq!(history.info().unwrap().undo_count, 1);
+        assert_eq!(history.info().undo_count, 1);
     }
 
     #[test]
     fn steps_unwind_in_the_order_they_happened_across_windows() {
-        let history = History::default();
-        history.push_local("main").unwrap();
-        moved(&history);
-        history.push_local("dock-2").unwrap();
+        let mut history = History::default();
+        history.push_local("main");
+        moved(&mut history);
+        history.push_local("dock-2");
 
         assert_eq!(
             history.undo().unwrap().actions,
@@ -563,45 +523,45 @@ mod tests {
 
     #[test]
     fn a_new_step_clears_redo() {
-        let history = History::default();
-        history.push_local("main").unwrap();
+        let mut history = History::default();
+        history.push_local("main");
         history.undo().unwrap();
-        assert_eq!(history.info().unwrap().redo_count, 1);
+        assert_eq!(history.info().redo_count, 1);
 
-        history.push_local("dock-2").unwrap();
+        history.push_local("dock-2");
 
-        assert_eq!(history.info().unwrap().redo_count, 0);
+        assert_eq!(history.info().redo_count, 0);
         assert_eq!(history.redo(), Err(HistoryError::Nothing));
     }
 
     #[test]
     fn the_stack_is_bounded() {
-        let history = History::default();
+        let mut history = History::default();
         for _ in 0..(DEPTH + 10) {
-            history.push_local("main").unwrap();
+            history.push_local("main");
         }
-        assert_eq!(history.info().unwrap().undo_count, DEPTH);
+        assert_eq!(history.info().undo_count, DEPTH);
     }
 
     #[test]
     fn a_closed_window_takes_its_steps_with_it() {
-        let history = History::default();
-        history.push_local("main").unwrap();
-        moved(&history);
-        history.push_local("dock-2").unwrap();
+        let mut history = History::default();
+        history.push_local("main");
+        moved(&mut history);
+        history.push_local("dock-2");
 
-        history.forget_window("dock-2").unwrap();
+        history.forget_window("dock-2");
 
         // main's step predates the move into dock-2, so it goes too: undoing
         // it would restore a layout that still holds p.
-        let info = history.info().unwrap();
+        let info = history.info();
         assert_eq!(info.undo_count, 0);
         assert_eq!(info.next_undo, None);
 
-        history.push_local("main").unwrap();
-        history.forget_window("dock-2").unwrap();
+        history.push_local("main");
+        history.forget_window("dock-2");
         assert_eq!(
-            history.info().unwrap().next_undo,
+            history.info().next_undo,
             Some(StepInfo::Local {
                 window_id: "main".into()
             })
@@ -610,16 +570,16 @@ mod tests {
 
     #[test]
     fn info_summarizes_the_next_steps_in_the_frontend_shape() {
-        let history = History::default();
-        moved(&history);
+        let mut history = History::default();
+        moved(&mut history);
         let summary = StepInfo::Move {
             panels: vec!["p".into()],
             from: Some("main".into()),
             to: Some("dock-2".into()),
         };
-        assert_eq!(history.info().unwrap().next_undo, Some(summary.clone()));
+        assert_eq!(history.info().next_undo, Some(summary.clone()));
         history.undo().unwrap();
-        let info = history.info().unwrap();
+        let info = history.info();
         assert_eq!(info.next_redo, Some(summary));
         assert_eq!(
             serde_json::to_value(&info).unwrap(),
@@ -644,16 +604,14 @@ mod tests {
 
     #[test]
     fn a_move_missing_a_half_is_dropped_with_any_window() {
-        let history = History::default();
-        history
-            .record_move("s1", &["p".into()], Role::From, half("main", "A0", "A1"))
-            .unwrap();
+        let mut history = History::default();
+        history.record_move("s1", &["p".into()], Role::From, half("main", "A0", "A1"));
         // The destination closed before reporting its half.
-        history.push_local("main").unwrap();
+        history.push_local("main");
         history.undo().unwrap();
         assert_eq!(history.undo(), Err(HistoryError::Incomplete("s1".into())));
 
-        history.forget_window("dock-2").unwrap();
+        history.forget_window("dock-2");
 
         assert_eq!(history.undo(), Err(HistoryError::Nothing));
         assert_eq!(
@@ -667,18 +625,14 @@ mod tests {
 
     #[test]
     fn a_dropped_move_takes_the_steps_beyond_it() {
-        let history = History::default();
+        let mut history = History::default();
         // dock-3 closes a tab while it holds p, then p moves to dock-2.
-        history.push_local("dock-3").unwrap();
-        history
-            .record_move("s1", &["p".into()], Role::From, half("dock-3", "C0", "C1"))
-            .unwrap();
-        history
-            .record_move("s1", &["p".into()], Role::To, half("dock-2", "B0", "B1"))
-            .unwrap();
-        history.push_local("main").unwrap();
+        history.push_local("dock-3");
+        history.record_move("s1", &["p".into()], Role::From, half("dock-3", "C0", "C1"));
+        history.record_move("s1", &["p".into()], Role::To, half("dock-2", "B0", "B1"));
+        history.push_local("main");
 
-        history.forget_window("dock-2").unwrap();
+        history.forget_window("dock-2");
 
         assert_eq!(
             history.undo().unwrap().actions,
@@ -692,16 +646,14 @@ mod tests {
 
     #[test]
     fn a_move_never_completed_is_dropped_once_abandoned() {
-        let history = History {
+        let mut history = History {
             abandon_after: Duration::ZERO,
             ..History::default()
         };
-        history.push_local("main").unwrap();
-        history
-            .record_move("s1", &["p".into()], Role::To, half("dock-2", "B0", "B1"))
-            .unwrap();
+        history.push_local("main");
+        history.record_move("s1", &["p".into()], Role::To, half("dock-2", "B0", "B1"));
 
         assert_eq!(history.undo(), Err(HistoryError::Abandoned("s1".into())));
-        assert_eq!(history.info().unwrap().undo_count, 0);
+        assert_eq!(history.info().undo_count, 0);
     }
 }

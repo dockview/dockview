@@ -4,10 +4,10 @@ mod workspace;
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::{
     webview::{NewWindowFeatures, NewWindowResponse},
     AppHandle, Emitter, Manager, RunEvent, State, Url, WebviewUrl, WebviewWindow,
@@ -16,7 +16,26 @@ use tauri::{
 
 use drags::{DragEnd, DragSession, DragSessions, Release};
 use history::{History, Request, Role, Step};
-use workspace::{FileStore, Geometry, Store, Workspace, WorkspaceState};
+use workspace::{FileStore, Geometry, Workspace, WorkspaceState};
+
+/// The orchestrator's three pieces, each behind one lock. None of them
+/// panics while it is held, so a lock poisoned elsewhere still guards
+/// consistent state.
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+fn drags(app: &AppHandle) -> MutexGuard<'_, DragSessions> {
+    lock(app.state::<Mutex<DragSessions>>().inner())
+}
+
+fn workspace(app: &AppHandle) -> MutexGuard<'_, Workspace> {
+    lock(app.state::<Mutex<Workspace>>().inner())
+}
+
+fn history(app: &AppHandle) -> MutexGuard<'_, History> {
+    lock(app.state::<Mutex<History>>().inner())
+}
 
 /// Event carrying a serialized dockview layout between native windows.
 const LAYOUT_EVENT: &str = "dockview:layout";
@@ -41,7 +60,7 @@ static DETACH_COUNT: AtomicUsize = AtomicUsize::new(0);
 /// the workspace and come back on the next start, so the count alone is not
 /// enough: skip any label already recorded or open.
 fn new_detach_label(app: &AppHandle) -> String {
-    let recorded = app.state::<Workspace>().window_ids().unwrap_or_default();
+    let recorded = workspace(app).window_ids();
     loop {
         let label = format!(
             "dock-detached-{}",
@@ -89,35 +108,26 @@ struct MovedNotice {
 }
 
 fn broadcast_history(app: &AppHandle) {
-    match app.state::<History>().info() {
-        Ok(info) => {
-            if let Err(err) = app.emit(HISTORY_EVENT, info) {
-                eprintln!("history: could not broadcast: {err}");
-            }
-        }
-        Err(err) => eprintln!("history: {err}"),
+    let info = history(app).info();
+    if let Err(err) = app.emit(HISTORY_EVENT, info) {
+        eprintln!("history: could not broadcast: {err}");
     }
 }
 
 /// Carries out an undo or redo step the history handed back.
 fn carry_out(app: &AppHandle, step: Step, reason: &'static str) -> Result<(), String> {
     // Every layout the step applies is stored before any window is told, so
-    // a window's own report afterwards never reads as a duplicate, and all
-    // of them at once, so a stale report arriving meanwhile is checked
-    // against the whole step rather than half of it.
-    let layouts: Vec<(String, serde_json::Value)> = step
-        .actions
-        .iter()
-        .filter_map(|action| match &action.request {
-            Request::ApplyLayout { layout } => Some((action.window.clone(), layout.clone())),
-            _ => None,
-        })
-        .collect();
-    if !layouts.is_empty() {
-        app.state::<Workspace>()
-            .set_layouts_unchecked(layouts)
-            .map_err(|err| err.to_string())?;
-        app.state::<Persistence>().mark_dirty();
+    // a window's own report afterwards never reads as a duplicate, and under
+    // one lock, so a stale report arriving meanwhile is checked against the
+    // whole step rather than half of it.
+    {
+        let mut workspace = workspace(app);
+        for action in &step.actions {
+            if let Request::ApplyLayout { layout } = &action.request {
+                workspace.set_layout_unchecked(&action.window, layout.clone());
+                app.state::<Persistence>().mark_dirty();
+            }
+        }
     }
     for action in step.actions {
         // The payload names its window: a listener registered for "any"
@@ -148,18 +158,12 @@ fn carry_out(app: &AppHandle, step: Step, reason: &'static str) -> Result<(), St
 }
 
 fn perform_undo(app: &AppHandle) -> Result<(), String> {
-    let step = app
-        .state::<History>()
-        .undo()
-        .map_err(|err| err.to_string())?;
+    let step = history(app).undo().map_err(|err| err.to_string())?;
     carry_out(app, step, "undo")
 }
 
 fn perform_redo(app: &AppHandle) -> Result<(), String> {
-    let step = app
-        .state::<History>()
-        .redo()
-        .map_err(|err| err.to_string())?;
+    let step = history(app).redo().map_err(|err| err.to_string())?;
     carry_out(app, step, "redo")
 }
 
@@ -169,23 +173,9 @@ fn perform_redo(app: &AppHandle) -> Result<(), String> {
 
 /// A window recorded a step in its own history.
 #[tauri::command]
-fn report_local_step(
-    app: AppHandle,
-    window: tauri::Window,
-    history: State<History>,
-) -> Result<(), String> {
-    history
-        .push_local(window.label())
-        .map_err(|err| err.to_string())?;
+fn report_local_step(app: AppHandle, window: tauri::Window) {
+    history(&app).push_local(window.label());
     broadcast_history(&app);
-    Ok(())
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "lowercase")]
-enum MoveRole {
-    From,
-    To,
 }
 
 /// A window reports its half of a move: its layout before and after.
@@ -193,31 +183,23 @@ enum MoveRole {
 fn report_move(
     app: AppHandle,
     window: tauri::Window,
-    history: State<History>,
     session: String,
-    role: MoveRole,
+    role: Role,
     panels: Vec<String>,
     before: serde_json::Value,
     after: serde_json::Value,
-) -> Result<(), String> {
-    let role = match role {
-        MoveRole::From => Role::From,
-        MoveRole::To => Role::To,
-    };
-    history
-        .record_move(
-            &session,
-            &panels,
-            role,
-            history::Half {
-                window: window.label().to_string(),
-                before,
-                after,
-            },
-        )
-        .map_err(|err| err.to_string())?;
+) {
+    history(&app).record_move(
+        &session,
+        &panels,
+        role,
+        history::Half {
+            window: window.label().to_string(),
+            before,
+            after,
+        },
+    );
     broadcast_history(&app);
-    Ok(())
 }
 
 /// Undo the most recent step anywhere.
@@ -233,8 +215,8 @@ fn redo(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn get_history(history: State<History>) -> Result<history::Info, String> {
-    history.info().map_err(|err| err.to_string())
+fn get_history(app: AppHandle) -> history::Info {
+    history(&app).info()
 }
 
 /// Set in the environment to run the measurement harness: a second window
@@ -295,26 +277,20 @@ impl Persistence {
     }
 
     /// Writes the workspace if anything changed since the last write.
-    fn save_if_dirty(&self, workspace: &Workspace) {
+    fn save_if_dirty(&self, app: &AppHandle) {
         if !self.dirty.swap(false, Ordering::Relaxed) {
             return;
         }
-        match workspace.snapshot() {
-            Ok(snapshot) => match self.store.save(&snapshot) {
-                Ok(()) => {
-                    if let Ok(mut last) = self.last_saved.lock() {
-                        *last = Some(SystemTime::now());
-                    }
-                }
-                Err(err) => {
-                    eprintln!(
-                        "workspace: could not save {}: {err}",
-                        self.store.path().display()
-                    );
-                    self.dirty.store(true, Ordering::Relaxed);
-                }
-            },
-            Err(err) => eprintln!("workspace: {err}"),
+        let snapshot = workspace(app).snapshot();
+        match self.store.save(&snapshot) {
+            Ok(()) => *lock(&self.last_saved) = Some(SystemTime::now()),
+            Err(err) => {
+                eprintln!(
+                    "workspace: could not save {}: {err}",
+                    self.store.path().display()
+                );
+                self.dirty.store(true, Ordering::Relaxed);
+            }
         }
     }
 }
@@ -337,13 +313,7 @@ fn record_geometry(app: &AppHandle, window: &tauri::Window) {
         width: size.width.round() as u32,
         height: size.height.round() as u32,
     };
-    if let Err(err) = app
-        .state::<Workspace>()
-        .set_geometry(window.label(), geometry)
-    {
-        eprintln!("workspace: {err}");
-        return;
-    }
+    workspace(app).set_geometry(window.label(), geometry);
     app.state::<Persistence>().mark_dirty();
 }
 
@@ -352,12 +322,12 @@ fn record_geometry(app: &AppHandle, window: &tauri::Window) {
 /// layout names a panel another window holds.
 #[tauri::command]
 fn report_layout(
+    app: AppHandle,
     window: tauri::Window,
-    workspace: State<Workspace>,
     persistence: State<Persistence>,
     layout: serde_json::Value,
 ) -> Result<(), String> {
-    workspace
+    workspace(&app)
         .set_layout(window.label(), layout)
         .map_err(|err| err.to_string())?;
     persistence.mark_dirty();
@@ -368,13 +338,8 @@ fn report_layout(
 /// reported, or the one the workspace file held for it. `None` means build
 /// the defaults.
 #[tauri::command]
-fn load_layout(
-    window: tauri::Window,
-    workspace: State<Workspace>,
-) -> Result<Option<serde_json::Value>, String> {
-    workspace
-        .load_layout(window.label())
-        .map_err(|err| err.to_string())
+fn load_layout(app: AppHandle, window: tauri::Window) -> Option<serde_json::Value> {
+    workspace(&app).load_layout(window.label())
 }
 
 #[derive(Serialize)]
@@ -396,18 +361,12 @@ struct WorkspaceInfo {
 
 /// What the Workspace panel shows.
 #[tauri::command]
-fn workspace_info(
-    workspace: State<Workspace>,
-    persistence: State<Persistence>,
-) -> Result<WorkspaceInfo, String> {
-    let snapshot = workspace.snapshot().map_err(|err| err.to_string())?;
-    let last_saved = persistence
-        .last_saved
-        .lock()
-        .map_err(|err| err.to_string())?
+fn workspace_info(app: AppHandle, persistence: State<Persistence>) -> WorkspaceInfo {
+    let snapshot = workspace(&app).snapshot();
+    let last_saved = lock(&persistence.last_saved)
         .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
         .map(|since| since.as_millis() as u64);
-    Ok(WorkspaceInfo {
+    WorkspaceInfo {
         path: persistence.store.path().display().to_string(),
         last_saved,
         windows: snapshot
@@ -419,7 +378,7 @@ fn workspace_info(
                 has_layout: window.layout.is_some(),
             })
             .collect(),
-    })
+    }
 }
 
 /// Labels for the windows `window.open` creates; a label must be unique for
@@ -453,50 +412,36 @@ fn deliver(app: &AppHandle, release: Release) -> Result<(), String> {
 /// The source window announces a drag. Called from `onWillDragPanel` /
 /// `onWillDragGroup`, before the pointer can have left the window.
 #[tauri::command]
-fn start_drag(
-    window: tauri::Window,
-    drags: State<DragSessions>,
-    session: String,
-    payload: serde_json::Value,
-) -> Result<(), String> {
-    drags
-        .start(
-            session,
-            DragSession {
-                from: window.label().to_string(),
-                payload,
-            },
-        )
-        .map_err(|err| err.to_string())
+fn start_drag(app: AppHandle, window: tauri::Window, session: String, payload: serde_json::Value) {
+    drags(&app).start(
+        session,
+        DragSession {
+            from: window.label().to_string(),
+            payload,
+        },
+    );
 }
 
 /// The destination window looks at a drag before accepting it, to refuse a
 /// payload whose panel ids it already holds without taking it from the
 /// source.
 #[tauri::command]
-fn peek_drag(drags: State<DragSessions>, session: String) -> Result<serde_json::Value, String> {
-    drags.peek(&session).map_err(|err| err.to_string())
+fn peek_drag(app: AppHandle, session: String) -> Result<serde_json::Value, String> {
+    drags(&app).peek(&session).map_err(|err| err.to_string())
 }
 
 /// The destination window accepts the drag it just received a drop for. The
 /// first accept wins: the source is told to release its copy. A second
 /// accept, or an accept for a drag the shell never saw, is refused.
 #[tauri::command]
-fn accept_drag(
-    app: AppHandle,
-    window: tauri::Window,
-    drags: State<DragSessions>,
-    session: String,
-) -> Result<(), String> {
+fn accept_drag(app: AppHandle, window: tauri::Window, session: String) -> Result<(), String> {
     let to = window.label().to_string();
-    let accept = drags
+    let accept = drags(&app)
         .accept(&session, to.clone())
         .map_err(|err| err.to_string())?;
     let panels = payload_panels(&accept.payload);
     let from = accept.release.from.clone();
-    app.state::<Workspace>()
-        .expect_move(&panels, &from, &to)
-        .map_err(|err| err.to_string())?;
+    workspace(&app).expect_move(&panels, &from, &to);
     deliver(&app, accept.release)?;
     // The source has let go: from here the accept has happened, whatever
     // becomes of the announcement.
@@ -528,35 +473,22 @@ const DRAG_END_GRACE: std::time::Duration = std::time::Duration::from_millis(150
 /// the payload: the shell's replacement for a popout. The source learns
 /// either outcome through the release event, or through silence.
 #[tauri::command]
-fn end_drag(
-    app: AppHandle,
-    drags: State<DragSessions>,
-    session: String,
-    detach: bool,
-) -> Result<(), String> {
-    let in_flight = drags.end(&session, detach).map_err(|err| err.to_string())?;
-    if !in_flight {
-        return Ok(());
+fn end_drag(app: AppHandle, session: String, detach: bool) {
+    if !drags(&app).end(&session, detach) {
+        return;
     }
 
     std::thread::spawn(move || {
         std::thread::sleep(DRAG_END_GRACE);
-        let ended = app
-            .state::<DragSessions>()
-            .expire(&session, || new_detach_label(&app));
+        let ended = drags(&app).expire(&session, || new_detach_label(&app));
         match ended {
-            Ok(DragEnd::Detached {
+            DragEnd::Detached {
                 window_id: label,
+                payload,
                 release,
-            }) => {
+            } => {
                 let handle = app.clone();
-                let panels = app
-                    .state::<DragSessions>()
-                    .peek_detached_drag(&label)
-                    .ok()
-                    .flatten()
-                    .map(|payload| payload_panels(&payload))
-                    .unwrap_or_default();
+                let panels = payload_panels(&payload);
                 let result = app.run_on_main_thread(move || {
                     match build_dock_window(
                         &handle,
@@ -568,13 +500,7 @@ fn end_drag(
                         Ok(_) => {
                             // As for an accept: the new window may report the
                             // panels before the source reports them gone.
-                            if let Err(err) = handle.state::<Workspace>().expect_move(
-                                &panels,
-                                &release.from,
-                                &label,
-                            ) {
-                                eprintln!("detach: {err}");
-                            }
+                            workspace(&handle).expect_move(&panels, &release.from, &label);
                             let moved = MovedNotice {
                                 session: release.session.clone(),
                                 panels,
@@ -586,10 +512,7 @@ fn end_drag(
                             // earlier steps hold the panels it gave away:
                             // undoing one would bring them back while the new
                             // window holds them too. They end here.
-                            if let Err(err) = handle.state::<History>().forget_window(&release.from)
-                            {
-                                eprintln!("detach: {err}");
-                            }
+                            history(&handle).forget_window(&release.from);
                             if let Err(err) = deliver(&handle, release) {
                                 eprintln!("detach: could not release the source: {err}");
                             }
@@ -605,25 +528,17 @@ fn end_drag(
                     eprintln!("detach: {err}");
                 }
             }
-            Ok(DragEnd::Settled | DragEnd::Discarded) => {}
-            Err(err) => eprintln!("end_drag: {err}"),
+            DragEnd::Settled | DragEnd::Discarded => {}
         }
     });
-
-    Ok(())
 }
 
 /// A freshly loaded window asks whether a detached drag is waiting for it;
 /// the window's frontend collects it once dockview is ready, since nothing
 /// can be pushed into a webview before it has loaded.
 #[tauri::command]
-fn take_detached_drag(
-    window: tauri::Window,
-    drags: State<DragSessions>,
-) -> Result<Option<serde_json::Value>, String> {
-    drags
-        .take_detached_drag(window.label())
-        .map_err(|err| err.to_string())
+fn take_detached_drag(app: AppHandle, window: tauri::Window) -> Option<serde_json::Value> {
+    drags(&app).take_detached_drag(window.label())
 }
 
 #[tauri::command]
@@ -765,9 +680,7 @@ fn build_dock_window(
     // On record from the moment it exists, frame included, so a workspace
     // saved before the window reports a layout, or before the user moves
     // it, still brings the window back where it was.
-    if let Err(err) = app.state::<Workspace>().ensure_window(label) {
-        eprintln!("workspace: {err}");
-    }
+    workspace(app).ensure_window(label);
     record_geometry(app, &window.as_ref().window());
 
     Ok(window)
@@ -812,8 +725,8 @@ fn broadcast_layout(app: AppHandle, from: String, layout: serde_json::Value) -> 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
-        .manage(DragSessions::default())
-        .manage(History::default())
+        .manage(Mutex::new(DragSessions::default()))
+        .manage(Mutex::new(History::default()))
         .setup(|app| {
             let handle = app.handle().clone();
 
@@ -837,7 +750,7 @@ pub fn run() {
                 .filter(|window| is_dock_window(&window.id))
                 .map(|window| (window.id.clone(), window.geometry))
                 .collect();
-            app.manage(Workspace::restore(restored));
+            app.manage(Mutex::new(Workspace::restore(restored)));
             app.manage(Persistence {
                 store,
                 dirty: AtomicBool::new(false),
@@ -905,9 +818,7 @@ pub fn run() {
             // Writes coalesce here rather than on every event.
             std::thread::spawn(move || loop {
                 std::thread::sleep(SAVE_DEBOUNCE);
-                handle
-                    .state::<Persistence>()
-                    .save_if_dirty(&handle.state::<Workspace>());
+                handle.state::<Persistence>().save_if_dirty(&handle);
             });
 
             Ok(())
@@ -936,12 +847,8 @@ pub fn run() {
                     if label != "main" && !persistence.exiting.load(Ordering::Relaxed) {
                         // The user closed one window: it, and the panels it
                         // held, leave the workspace.
-                        if let Err(err) = app.state::<Workspace>().remove_window(&label) {
-                            eprintln!("workspace: {err}");
-                        }
-                        if let Err(err) = app.state::<History>().forget_window(&label) {
-                            eprintln!("history: {err}");
-                        }
+                        workspace(app).remove_window(&label);
+                        history(app).forget_window(&label);
                         persistence.mark_dirty();
                         broadcast_history(app);
                     }
@@ -981,8 +888,7 @@ pub fn run() {
         RunEvent::Exit => {
             // The last write: everything is already in memory, so nothing
             // has to be collected from the closing windows.
-            app.state::<Persistence>()
-                .save_if_dirty(&app.state::<Workspace>());
+            app.state::<Persistence>().save_if_dirty(app);
         }
         _ => {}
     });
