@@ -45,7 +45,6 @@ const transport = connectToYourOrchestrator(); // a MultiWindowTransport
 
 const multiWindow = installMultiWindow(api, transport, {
     buildDefaults: (windowId) => api.addPanel({ id: `${windowId}-home`, component: 'home' }),
-    history: { bindKeys: true },
 });
 ```
 
@@ -137,19 +136,39 @@ two windows hold the panels at once. Ordering is what makes it safe: an older
 local step is only reachable after the move that followed it has been undone.
 
 ```ts
-// history: { bindKeys: true } binds Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y on the
-// document (Cmd on macOS). Off by default, as dockview's own history binds
-// no key either.
 multiWindow.undo();
 multiWindow.redo();
 multiWindow.history; // { canUndo, canRedo, undoCount, redoCount, nextUndo?, nextRedo? }
 multiWindow.onDidChangeHistory((info) => { /* ... */ });
 ```
 
-Use `multiWindow.undo()` rather than `api.undo()` for an undo button: the
-api's undo is this window's own stack, which bypasses the order across
-windows. Pass `history: false` to keep undo local to each window; the handle's
-`undo` and `redo` then fall back to the api's.
+Use `multiWindow.undo()` rather than `api.undo()` for an undo button or
+shortcut: the api's undo is this window's own stack, which bypasses the order
+across windows. Pass `history: false` to keep undo local to each window; the
+handle's `undo` and `redo` then fall back to the api's.
+
+As with the [layout history](/docs/core/state/history), dockview binds no
+keyboard shortcuts itself. To route Ctrl+Z to the shared history:
+
+```ts
+document.addEventListener('keydown', (event) => {
+    const target = event.target as HTMLElement;
+    if (
+        !(event.ctrlKey || event.metaKey) ||
+        event.key.toLowerCase() !== 'z' ||
+        // Text undo in an input or editor belongs to it.
+        target.closest?.('input, textarea, select, [contenteditable]')
+    ) {
+        return;
+    }
+    event.preventDefault();
+    if (event.shiftKey) {
+        multiWindow.redo();
+    } else {
+        multiWindow.undo();
+    }
+});
+```
 
 The shared history relies on each window's own history keeping in step with
 the markers the orchestrator holds for it, which needs these `layoutHistory`
@@ -166,6 +185,33 @@ options. Each one left on is reported once on the console.
   removes panels through the api; those must not become steps of their own.
 - `depth` at least the orchestrator's history depth (25 for both by default),
   so every marker still has its step.
+
+## The orchestrator
+
+`MemoryOrchestrator` is the shipped orchestrator, for windows that share one JavaScript heap:
+several dockviews on one page, a test, or a host with a JavaScript process of
+its own, such as an Electron main process, which runs it as is (it has no DOM
+dependency) and bridges each window's transport over IPC. A shell in another
+language mirrors its rules instead, see
+[Writing an orchestrator](#writing-an-orchestrator).
+
+```ts
+import { MemoryOrchestrator } from 'dockview-enterprise';
+
+const orchestrator = new MemoryOrchestrator({
+    workspace: JSON.parse(localStorage.getItem('workspace') ?? 'null') ?? undefined,
+});
+orchestrator.onDidChangeWorkspace((state) =>
+    localStorage.setItem('workspace', JSON.stringify(state))
+);
+
+// One transport per window.
+const transport = orchestrator.connect('main');
+
+orchestrator.undo();
+orchestrator.history;
+orchestrator.disconnect('main'); // the window closed
+```
 
 ## The transport
 
@@ -351,72 +397,24 @@ what `peekDrag`, `acceptDrag` and `reportLayout` rely on. Persist
 ## Writing an orchestrator
 
 When the orchestrator cannot be JavaScript, mirror the three pieces
-`MemoryOrchestrator` is built from. Each is small, pure state, and unit
-tested in the package; the Tauri demo's Rust modules are a second
-implementation of the same three.
+`MemoryOrchestrator` is built from: `dragSessions.ts`, `workspaceRegistry.ts`
+and `historySequencer.ts` under `multiWindow/orchestrator/` in the package
+source. Each is small, pure state and unit tested; the
+[Tauri demo](https://github.com/dockview/dockview/tree/master/packages/dockview-tauri-demo)
+in the repository ports them to Rust. Beyond the contract above, the history
+keeps three rules:
 
-- **Drag sessions.** A map from session id to `{ from, payload, ended? }`.
-  `start` inserts; `peek` reads; `accept` removes and returns the payload with
-  a release addressed to `from`; `end` marks the session ended with the
-  detach flag but leaves it acceptable; an expiry after the grace period
-  removes an ended session, discarding it or parking the payload under a new
-  window id. An accept that arrives during the grace period wins over the end.
-- **The workspace.** A record per window: id, frame, and the layout as opaque
-  JSON. The one thing read out of a layout is the keys of its `panels`. A
-  reported layout is refused when it names a panel another window's stored
-  layout holds, unless a pending move (recorded at accept or detach as
-  panel, from, to) explains it; a source reporting without the panel clears
-  the pending move. A layout the orchestrator applies itself (undo, redo) is
-  stored without that check, before the window is told.
-- **The history.** One ordered stack of entries: a marker (`step in window
-  X`) or a move (session, panel ids, and a half per window holding its layout
-  before and after). A local step pushes a marker and clears redo; a half
-  arriving for a session already on the stack completes it in place,
-  otherwise it opens a new entry. Undo and redo pop and push between the two
-  stacks and yield the actions in the table above. Bound the stack (25 in the
-  shipped orchestrators, dockview's own default depth) and drop every entry
-  that involves a window that closed, together with every entry before a
-  move it drops. A move still missing a half long after its first arrived
-  (10 s in the shipped orchestrators) will never complete; drop it the same
-  way rather than let it block undo.
+- Bound the stack (25 in the shipped orchestrators, dockview's own default
+  depth).
+- When a window closes, or panels detach from it, drop every entry that
+  involves it, every move still missing a half, and every entry before a move
+  it drops.
+- A move still missing a half 10 s after its first arrived will never
+  complete; undo drops it and the entries before it rather than block.
 
 The orchestrator also owns what no window can: creating and placing windows,
 and persisting the workspace. Record a window's frame when the host moves it,
 and write the workspace on a debounce and on exit.
-
-## The orchestrator
-
-`MemoryOrchestrator` is the shipped orchestrator, for windows that share one JavaScript heap:
-several dockviews on one page, a test, or a host with a JavaScript process of
-its own, such as an Electron main process, which runs it as is (it has no DOM
-dependency) and bridges each window's transport over IPC. A shell in another
-language mirrors its rules instead; the
-[Tauri demo](https://github.com/dockview/dockview/tree/master/packages/dockview-tauri-demo)
-in the repository does that in Rust, from the three pieces the orchestrator is
-built from (`dragSessions.ts`, `workspaceRegistry.ts` and `historySequencer.ts`
-under `multiWindow/orchestrator/` in the package source).
-
-```ts
-import { MemoryOrchestrator } from 'dockview-enterprise';
-
-const orchestrator = new MemoryOrchestrator({
-    workspace: JSON.parse(localStorage.getItem('workspace') ?? 'null') ?? undefined,
-});
-orchestrator.onDidChangeWorkspace((state) =>
-    localStorage.setItem('workspace', JSON.stringify(state))
-);
-
-// One transport per window.
-const transport = orchestrator.connect('main');
-
-orchestrator.undo();
-orchestrator.history;
-orchestrator.disconnect('main'); // the window closed
-```
-
-Every notice an orchestrator sends arrives on a later microtask, never inside
-the call that caused it, so a window's handlers run as they would with a real
-message bus.
 
 ## Limitations
 

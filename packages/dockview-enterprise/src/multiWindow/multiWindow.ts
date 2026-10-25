@@ -32,12 +32,10 @@ export interface MultiWindowOptions {
     /** How long after a change the layout is reported. Default 300 ms. */
     debounceMs?: number;
     /**
-     * One undo across windows, sequenced by the orchestrator. Default on,
-     * with no key bound; `{ bindKeys: true }` routes Ctrl+Z / Ctrl+Shift+Z /
-     * Ctrl+Y (Cmd on macOS) on the document to it. `false` keeps undo local
-     * to each window.
+     * One undo across windows, sequenced by the orchestrator. Default true;
+     * `false` keeps undo local to each window.
      */
-    history?: boolean | { bindKeys?: boolean };
+    history?: boolean;
     /**
      * Turn an unaccepted drag into a new window, where the orchestrator
      * supports it. Off by default: an HTML5 drag cannot tell a drop on the
@@ -156,10 +154,7 @@ export function installMultiWindow(
 
     let history: SharedHistory | undefined;
     if (options.history !== false) {
-        history = new SharedHistory(api, transport, {
-            bindKeys:
-                typeof options.history === 'object' && options.history.bindKeys,
-        });
+        history = new SharedHistory(api, transport);
         history.connect();
     }
 

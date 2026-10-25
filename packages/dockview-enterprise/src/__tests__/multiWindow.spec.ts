@@ -17,6 +17,7 @@ import type {
     MultiWindowTransport,
 } from '../multiWindow';
 import {
+    DRAG_END_GRACE_MS,
     installMultiWindow,
     MemoryOrchestrator,
     MULTI_WINDOW_DRAG_TYPE,
@@ -69,6 +70,25 @@ function fireDrag(
 
 /** Let every promise continuation and queued microtask run. */
 const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+/**
+ * End a drag nobody accepted and let the orchestrator's grace period run
+ * out, so an unaccepted drag settles: discarded, or detached.
+ */
+async function endUnaccepted(
+    element: HTMLElement,
+    dataTransfer: DataTransfer
+): Promise<void> {
+    jest.useFakeTimers();
+    try {
+        fireEvent.dragEnd(element, { dataTransfer });
+        await jest.advanceTimersByTimeAsync(DRAG_END_GRACE_MS);
+    } finally {
+        jest.useRealTimers();
+    }
+    await flush();
+    await flush();
+}
 
 /**
  * jsdom has no `DataTransfer`; this carries what the HTML5 backend and the
@@ -146,11 +166,9 @@ describe('multi-window: DragSessions', () => {
         expect(sessions.expire('s2', () => 'detached-1')).toEqual({
             outcome: 'detached',
             windowId: 'detached-1',
+            payload: panelPayload('q'),
             release: { from: 'main', session: 's2', to: 'detached-1' },
         });
-        expect(sessions.peekDetachedDrag('detached-1')).toEqual(
-            panelPayload('q')
-        );
         expect(sessions.takeDetachedDrag('detached-1')).toEqual(
             panelPayload('q')
         );
@@ -487,7 +505,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('a tab dropped on another window moves there, with undo and redo through the orchestrator', async () => {
-        const orchestrator = new MemoryOrchestrator({ dragEndGraceMs: 0 });
+        const orchestrator = new MemoryOrchestrator();
         const moves: MoveEvent[] = [];
         orchestrator.onDidMove((notice) => moves.push(notice));
         const main = open(orchestrator, 'main');
@@ -573,7 +591,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('a drop is refused, and nothing released, when the window already holds the panel', async () => {
-        const orchestrator = new MemoryOrchestrator({ dragEndGraceMs: 0 });
+        const orchestrator = new MemoryOrchestrator();
         const main = open(orchestrator, 'main');
         const other = open(orchestrator, 'other');
         await flush();
@@ -591,7 +609,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('a group drag carries every tab of the group', async () => {
-        const orchestrator = new MemoryOrchestrator({ dragEndGraceMs: 0 });
+        const orchestrator = new MemoryOrchestrator();
         const main = open(orchestrator, 'main');
         const other = open(orchestrator, 'other');
         await flush();
@@ -628,7 +646,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('a drop on a tab lands at that tab, through the drop index', async () => {
-        const orchestrator = new MemoryOrchestrator({ dragEndGraceMs: 0 });
+        const orchestrator = new MemoryOrchestrator();
         const main = open(orchestrator, 'main');
         const other = open(orchestrator, 'other');
         await flush();
@@ -653,7 +671,6 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
         const created: string[] = [];
         const defaultsBuilt: string[] = [];
         const orchestrator = new MemoryOrchestrator({
-            dragEndGraceMs: 0,
             createWindow: (label) => {
                 created.push(label);
                 open(orchestrator, label, {
@@ -673,9 +690,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
         fireEvent.dragStart(tab, { dataTransfer });
         await flush();
         // No drop anywhere: the drag ends with nothing dropped.
-        fireEvent.dragEnd(tab, { dataTransfer });
-        await flush();
-        await flush();
+        await endUnaccepted(tab, dataTransfer);
 
         expect(created).toEqual(['detached-1']);
         const detached = windows.find(
@@ -689,7 +704,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('a local step is ordered against a move, and undone through the window', async () => {
-        const orchestrator = new MemoryOrchestrator({ dragEndGraceMs: 0 });
+        const orchestrator = new MemoryOrchestrator();
         const main = open(orchestrator, 'main');
         const other = open(orchestrator, 'other');
         await flush();
@@ -764,34 +779,6 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
         );
     });
 
-    test('key bindings route to the orchestrator only when asked', async () => {
-        const orchestrator = new MemoryOrchestrator();
-        const transport = orchestrator.connect('main');
-        const undo = jest.fn(async () => undefined);
-        const redo = jest.fn(async () => undefined);
-        const main = open(orchestrator, 'main');
-        const bound = installMultiWindow(
-            main.api,
-            { ...transport, undo, redo },
-            { history: { bindKeys: true }, workspace: false }
-        );
-        await flush();
-
-        const press = (init: KeyboardEventInit) =>
-            fireEvent.keyDown(document, init);
-        press({ key: 'z', ctrlKey: true });
-        press({ key: 'Z', metaKey: true, shiftKey: true });
-        press({ key: 'y', ctrlKey: true });
-        press({ key: 'z', ctrlKey: true, altKey: true });
-        press({ key: 'z' });
-        expect(undo).toHaveBeenCalledTimes(1);
-        expect(redo).toHaveBeenCalledTimes(2);
-
-        bound.dispose();
-        press({ key: 'z', ctrlKey: true });
-        expect(undo).toHaveBeenCalledTimes(1);
-    });
-
     test('with history off, undo stays local to the window', async () => {
         const orchestrator = new MemoryOrchestrator();
         const main = open(orchestrator, 'main');
@@ -857,7 +844,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('a drop at a layout edge opens a new group there', async () => {
-        const orchestrator = new MemoryOrchestrator({ dragEndGraceMs: 0 });
+        const orchestrator = new MemoryOrchestrator();
         const main = open(orchestrator, 'main');
         const other = open(orchestrator, 'other');
         await flush();
@@ -889,7 +876,6 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
 
     test('a detached group starts the new window with every tab', async () => {
         const orchestrator = new MemoryOrchestrator({
-            dragEndGraceMs: 0,
             createWindow: (label) => {
                 open(orchestrator, label);
             },
@@ -905,9 +891,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
         ) as HTMLElement;
         fireEvent.dragStart(voidContainer, { dataTransfer });
         await flush();
-        fireEvent.dragEnd(voidContainer, { dataTransfer });
-        await flush();
-        await flush();
+        await endUnaccepted(voidContainer, dataTransfer);
 
         const detached = windows.find(
             (window) => window.label === 'detached-1'
@@ -919,7 +903,6 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
 
     test('a detach is not a move the shared history records, and the new window reports cleanly', async () => {
         const orchestrator = new MemoryOrchestrator({
-            dragEndGraceMs: 0,
             createWindow: (label) => {
                 open(orchestrator, label);
             },
@@ -936,9 +919,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
         const tab = main.api.getPanel('b')?.view.tab.element as HTMLElement;
         fireEvent.dragStart(tab, { dataTransfer });
         await flush();
-        fireEvent.dragEnd(tab, { dataTransfer });
-        await flush();
-        await flush();
+        await endUnaccepted(tab, dataTransfer);
 
         const detached = windows.find(
             (window) => window.label === 'detached-1'
@@ -968,7 +949,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('a transport written as a class keeps its methods and its this', async () => {
-        const orchestrator = new MemoryOrchestrator({ dragEndGraceMs: 0 });
+        const orchestrator = new MemoryOrchestrator();
         type Transport = MultiWindowTransport;
         class Bridge implements MultiWindowTransport {
             calls = 0;
@@ -1072,35 +1053,6 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
         expect(unlisten).toHaveBeenCalledTimes(1);
     });
 
-    test('key bindings leave text editing alone', async () => {
-        const orchestrator = new MemoryOrchestrator();
-        const transport = orchestrator.connect('main');
-        const undo = jest.fn(async () => undefined);
-        const main = open(orchestrator, 'main');
-        const handle = installMultiWindow(
-            main.api,
-            { ...transport, undo },
-            { history: { bindKeys: true }, workspace: false }
-        );
-        await flush();
-        const textarea = document.createElement('textarea');
-        document.body.appendChild(textarea);
-        fireEvent.keyDown(textarea, { key: 'z', ctrlKey: true });
-        const prevented = new KeyboardEvent('keydown', {
-            key: 'z',
-            ctrlKey: true,
-            cancelable: true,
-            bubbles: true,
-        });
-        prevented.preventDefault();
-        document.dispatchEvent(prevented);
-        expect(undo).not.toHaveBeenCalled();
-        fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true });
-        expect(undo).toHaveBeenCalledTimes(1);
-        textarea.remove();
-        handle.dispose();
-    });
-
     test('an orchestrator that cannot be reached at start still gets the defaults', async () => {
         const orchestrator = new MemoryOrchestrator();
         const transport = orchestrator.connect('main');
@@ -1198,7 +1150,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('an applied layout that clears the local history is reported once', async () => {
-        const orchestrator = new MemoryOrchestrator({ dragEndGraceMs: 0 });
+        const orchestrator = new MemoryOrchestrator();
         const main = open(orchestrator, 'main', {
             layoutHistory: { clearOnFromJSON: true },
         });
@@ -1221,7 +1173,6 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
 
     test("a detach ends the source window's earlier steps", async () => {
         const orchestrator = new MemoryOrchestrator({
-            dragEndGraceMs: 0,
             createWindow: (label) => {
                 open(orchestrator, label);
             },
@@ -1239,9 +1190,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
         const tab = main.api.getPanel('b')?.view.tab.element as HTMLElement;
         fireEvent.dragStart(tab, { dataTransfer });
         await flush();
-        fireEvent.dragEnd(tab, { dataTransfer });
-        await flush();
-        await flush();
+        await endUnaccepted(tab, dataTransfer);
 
         // Undoing the close would restore a layout that still holds b.
         expect(orchestrator.history.undoCount).toBe(0);
@@ -1251,7 +1200,6 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     test('a detached window never takes the id of a window on record', async () => {
         const created: string[] = [];
         const orchestrator = new MemoryOrchestrator({
-            dragEndGraceMs: 0,
             workspace: { version: 1, windows: [{ id: 'detached-1' }] },
             createWindow: (label) => {
                 created.push(label);
@@ -1266,9 +1214,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
         const tab = main.api.getPanel('b')?.view.tab.element as HTMLElement;
         fireEvent.dragStart(tab, { dataTransfer });
         await flush();
-        fireEvent.dragEnd(tab, { dataTransfer });
-        await flush();
-        await flush();
+        await endUnaccepted(tab, dataTransfer);
 
         expect(created).toEqual(['detached-2']);
     });
