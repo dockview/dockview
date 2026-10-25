@@ -40,8 +40,6 @@ import {
 export interface MemoryOrchestratorOptions {
     /** The workspace to start from, as a previous {@link MemoryOrchestrator.snapshot}. */
     workspace?: WorkspaceState;
-    /** How long a drag stays acceptable after its source reported it over. Default {@link DRAG_END_GRACE_MS}. */
-    dragEndGraceMs?: number;
     /**
      * How many steps the shared history keeps. Default 25, as dockview's own
      * `layoutHistory.depth`; no window's depth should be lower.
@@ -72,7 +70,6 @@ export class MemoryOrchestrator extends CompositeDisposable {
     private readonly _workspace: WorkspaceRegistry;
     private readonly _history: HistorySequencer;
     private readonly _channels = new Map<string, WindowChannel>();
-    private readonly _dragEndGraceMs: number;
     private readonly _createWindow: MemoryOrchestratorOptions['createWindow'];
     private _detachedCount = 0;
 
@@ -102,7 +99,6 @@ export class MemoryOrchestrator extends CompositeDisposable {
         super();
         this._workspace = new WorkspaceRegistry(options.workspace);
         this._history = new HistorySequencer(options.historyDepth);
-        this._dragEndGraceMs = options.dragEndGraceMs ?? DRAG_END_GRACE_MS;
         this._createWindow = options.createWindow;
         this.addDisposables(
             this._onDidMove,
@@ -224,7 +220,7 @@ export class MemoryOrchestrator extends CompositeDisposable {
 
     private _endDrag(session: string, detach: boolean): void {
         if (this._drags.end(session, detach)) {
-            setTimeout(() => this._expire(session), this._dragEndGraceMs);
+            setTimeout(() => this._expire(session), DRAG_END_GRACE_MS);
         }
     }
 
@@ -233,18 +229,17 @@ export class MemoryOrchestrator extends CompositeDisposable {
         if (ended.outcome !== 'detached') {
             return;
         }
-        const payload = this._drags.peekDetachedDrag(ended.windowId);
-        if (!this._createWindow || !payload) {
+        if (!this._createWindow) {
             // Nobody to open a window: the parked payload is dropped.
             this._drags.takeDetachedDrag(ended.windowId);
             return;
         }
-        this._createWindow(ended.windowId, payload);
+        this._createWindow(ended.windowId, ended.payload);
         this._moved(
             ended.release.from,
             ended.windowId,
             session,
-            payloadPanels(payload),
+            payloadPanels(ended.payload),
             'detach'
         );
         // A detach is no step to undo, and the source's earlier steps hold

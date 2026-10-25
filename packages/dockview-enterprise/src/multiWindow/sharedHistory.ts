@@ -22,7 +22,6 @@
 import {
     type DockviewApi,
     DockviewCompositeDisposable as CompositeDisposable,
-    DockviewDisposable as Disposable,
     DockviewEmitter as Emitter,
     type DockviewEvent as Event,
 } from 'dockview';
@@ -58,11 +57,7 @@ export class SharedHistory extends CompositeDisposable {
         return this._info;
     }
 
-    constructor(
-        api: DockviewApi,
-        transport: MultiWindowTransport,
-        options: { bindKeys?: boolean } = {}
-    ) {
+    constructor(api: DockviewApi, transport: MultiWindowTransport) {
         super();
         this._api = api;
         this._transport = transport;
@@ -98,16 +93,6 @@ export class SharedHistory extends CompositeDisposable {
                 }
             })
         );
-
-        if (options.bindKeys) {
-            const onKeyDown = (event: KeyboardEvent) => this._onKeyDown(event);
-            document.addEventListener('keydown', onKeyDown);
-            this.addDisposables(
-                Disposable.from(() =>
-                    document.removeEventListener('keydown', onKeyDown)
-                )
-            );
-        }
     }
 
     /** Carry out the orchestrator's requests and follow its history. */
@@ -193,35 +178,4 @@ export class SharedHistory extends CompositeDisposable {
             );
         }
     }
-
-    private _onKeyDown(event: KeyboardEvent): void {
-        const modifier = event.ctrlKey || event.metaKey;
-        if (
-            !modifier ||
-            event.altKey ||
-            event.defaultPrevented ||
-            // Text undo in an editor inside a panel is the editor's.
-            isEditable(event.target)
-        ) {
-            return;
-        }
-        const key = event.key.toLowerCase();
-        if (key === 'z' && !event.shiftKey) {
-            event.preventDefault();
-            this.undo();
-        } else if ((key === 'z' && event.shiftKey) || key === 'y') {
-            event.preventDefault();
-            this.redo();
-        }
-    }
-}
-
-/** Whether a key event's target takes text, so its undo is not the layout's. */
-function isEditable(target: EventTarget | null): boolean {
-    return (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement ||
-        (target instanceof HTMLElement && target.isContentEditable)
-    );
 }

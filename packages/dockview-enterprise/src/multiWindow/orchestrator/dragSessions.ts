@@ -34,6 +34,7 @@ export type DragEnd =
     | {
           readonly outcome: 'detached';
           readonly windowId: string;
+          readonly payload: DragPayload;
           readonly release: Release;
       };
 
@@ -94,13 +95,9 @@ export class DragSessions {
         return {
             outcome: 'detached',
             windowId,
+            payload: tracked.payload,
             release: { from: tracked.from, session, to: windowId },
         };
-    }
-
-    /** The payload parked for a detached window, left in place. */
-    peekDetachedDrag(windowId: string): DragPayload | null {
-        return this._detached.get(windowId) ?? null;
     }
 
     takeDetachedDrag(windowId: string): DragPayload | null {
