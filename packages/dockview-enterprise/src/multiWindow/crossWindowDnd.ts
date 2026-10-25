@@ -109,14 +109,17 @@ export class CrossWindowDnd extends CompositeDisposable {
                 }
             })
         );
+    }
 
+    /** Listen for the orchestrator's releases and moves. */
+    connect(): void {
         retainSubscription(
             this,
-            transport.onDidRelease((event) => this._release(event))
+            this._transport.onDidRelease((event) => this._release(event))
         );
         retainSubscription(
             this,
-            transport.onDidMove((event) => this._onDidMove.fire(event))
+            this._transport.onDidMove((event) => this._onDidMove.fire(event))
         );
     }
 
