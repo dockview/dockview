@@ -74,41 +74,26 @@ export class MultiWindow extends CompositeDisposable {
     constructor(
         api: DockviewApi,
         transport: MultiWindowTransport,
-        options: MultiWindowOptions = {}
+        parts: {
+            dnd: CrossWindowDnd;
+            workspace?: WindowWorkspace;
+            history?: SharedHistory;
+            ready: Promise<{ restored: boolean }>;
+        }
     ) {
         super();
         this._api = api;
         this._transport = transport;
-
-        this._dnd = new CrossWindowDnd(api, transport, {
-            detach: options.detach,
-        });
+        this._dnd = parts.dnd;
+        this._history = parts.history;
+        this.ready = parts.ready;
         this.onDidMoveAcrossWindows = this._dnd.onDidMove;
+
         this.addDisposables(this._onDidChangeHistory, this._dnd);
-
-        if (options.workspace === false) {
-            this.ready = this._dnd
-                .placeDetachedDrag()
-                .then(() => ({ restored: false }));
-        } else {
-            const workspace = new WindowWorkspace(api, transport, {
-                buildDefaults: async (windowId) => {
-                    if (!(await this._dnd.placeDetachedDrag())) {
-                        options.buildDefaults?.(windowId);
-                    }
-                },
-                debounceMs: options.debounceMs,
-            });
-            this.ready = workspace.ready;
-            this.addDisposables(workspace);
+        if (parts.workspace) {
+            this.addDisposables(parts.workspace);
         }
-
-        if (options.history !== false) {
-            this._history = new SharedHistory(api, transport, {
-                bindKeys:
-                    typeof options.history === 'object' &&
-                    options.history.bindKeys,
-            });
+        if (this._history) {
             this.addDisposables(
                 this._history,
                 this._history.onDidChange((info) =>
@@ -148,7 +133,35 @@ export class MultiWindow extends CompositeDisposable {
 export function installMultiWindow(
     api: DockviewApi,
     transport: MultiWindowTransport,
-    options?: MultiWindowOptions
+    options: MultiWindowOptions = {}
 ): MultiWindow {
-    return new MultiWindow(api, transport, options);
+    const dnd = new CrossWindowDnd(api, transport, { detach: options.detach });
+    dnd.connect();
+
+    let workspace: WindowWorkspace | undefined;
+    let ready: Promise<{ restored: boolean }>;
+    if (options.workspace === false) {
+        ready = dnd.placeDetachedDrag().then(() => ({ restored: false }));
+    } else {
+        workspace = new WindowWorkspace(api, transport, {
+            buildDefaults: async (windowId) => {
+                if (!(await dnd.placeDetachedDrag())) {
+                    options.buildDefaults?.(windowId);
+                }
+            },
+            debounceMs: options.debounceMs,
+        });
+        ready = workspace.restore();
+    }
+
+    let history: SharedHistory | undefined;
+    if (options.history !== false) {
+        history = new SharedHistory(api, transport, {
+            bindKeys:
+                typeof options.history === 'object' && options.history.bindKeys,
+        });
+        history.connect();
+    }
+
+    return new MultiWindow(api, transport, { dnd, workspace, history, ready });
 }

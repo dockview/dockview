@@ -99,25 +99,6 @@ export class SharedHistory extends CompositeDisposable {
             })
         );
 
-        retainSubscription(
-            this,
-            transport.onDidRequestHistory((request) => this._carryOut(request))
-        );
-        retainSubscription(
-            this,
-            transport.onDidChangeHistory((info) => this._setInfo(info))
-        );
-        transport.getHistory().then(
-            (info) => {
-                if (!this.isDisposed) {
-                    this._setInfo(info);
-                }
-            },
-            (err: unknown) => {
-                console.error('dockview: could not read the history.', err);
-            }
-        );
-
         if (options.bindKeys) {
             const onKeyDown = (event: KeyboardEvent) => this._onKeyDown(event);
             document.addEventListener('keydown', onKeyDown);
@@ -127,6 +108,30 @@ export class SharedHistory extends CompositeDisposable {
                 )
             );
         }
+    }
+
+    /** Carry out the orchestrator's requests and follow its history. */
+    connect(): void {
+        retainSubscription(
+            this,
+            this._transport.onDidRequestHistory((request) =>
+                this._carryOut(request)
+            )
+        );
+        retainSubscription(
+            this,
+            this._transport.onDidChangeHistory((info) => this._setInfo(info))
+        );
+        this._transport.getHistory().then(
+            (info) => {
+                if (!this.isDisposed) {
+                    this._setInfo(info);
+                }
+            },
+            (err: unknown) => {
+                console.error('dockview: could not read the history.', err);
+            }
+        );
     }
 
     /** Undo the most recent step in any window. */

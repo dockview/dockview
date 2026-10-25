@@ -26,10 +26,8 @@ export class WindowWorkspace extends CompositeDisposable {
     private readonly _api: DockviewApi;
     private readonly _transport: MultiWindowTransport;
     private readonly _debounceMs: number;
+    private readonly _buildDefaults: WindowWorkspaceOptions['buildDefaults'];
     private _timer: ReturnType<typeof setTimeout> | undefined;
-
-    /** Resolves once the window holds its initial layout, restored or default. */
-    readonly ready: Promise<{ restored: boolean }>;
 
     constructor(
         api: DockviewApi,
@@ -40,13 +38,16 @@ export class WindowWorkspace extends CompositeDisposable {
         this._api = api;
         this._transport = transport;
         this._debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
+        this._buildDefaults = options.buildDefaults;
         this.addDisposables(Disposable.from(() => clearTimeout(this._timer)));
-        this.ready = this._restore(options.buildDefaults);
     }
 
-    private async _restore(
-        buildDefaults: WindowWorkspaceOptions['buildDefaults']
-    ): Promise<{ restored: boolean }> {
+    /**
+     * Load the window's layout from the orchestrator, or build its defaults,
+     * then report every change. Resolves once the window holds its initial
+     * layout.
+     */
+    async restore(): Promise<{ restored: boolean }> {
         const windowId = this._transport.windowId;
         let layout: SerializedDockview | null = null;
         try {
@@ -74,10 +75,10 @@ export class WindowWorkspace extends CompositeDisposable {
                     err
                 );
                 this._api.clear();
-                await buildDefaults(windowId);
+                await this._buildDefaults(windowId);
             }
         } else {
-            await buildDefaults(windowId);
+            await this._buildDefaults(windowId);
         }
 
         // Only report from here on, so a half-built default layout and the
