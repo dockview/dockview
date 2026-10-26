@@ -39,6 +39,52 @@
     margin: 0 auto;
 }
 
+// ─── Hero release pill ────────────────────────────────────────────────────────
+
+.hero-release {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 13px 4px 4px;
+    border-radius: 999px;
+    // Deliberately borderless and shadowless, unlike .hero-fw-btn directly
+    // below it, so the row of framework buttons stays the obvious call to
+    // action and this reads as a notice rather than a fourth button.
+    background: var(--dv-accent-soft);
+    color: var(--ifm-color-content-secondary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.15s;
+
+    &:hover {
+        color: var(--ifm-color-content);
+        text-decoration: none;
+
+        .hero-release-arrow {
+            transform: translateX(2px);
+        }
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--ifm-color-primary);
+        outline-offset: 2px;
+    }
+}
+
+.hero-release-chip {
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--ifm-color-primary);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.hero-release-arrow {
+    transition: transform 0.15s ease;
+}
+
 // ─── Hero stats ───────────────────────────────────────────────────────────────
 
 .hero-stats {
@@ -349,6 +395,15 @@
     .hero-fw-btn,
     .framework-item {
         transition: none;
+    }
+
+    .hero-release,
+    .hero-release-arrow {
+        transition: none;
+    }
+
+    .hero-release:hover .hero-release-arrow {
+        transform: none;
     }
 
     .hero-preview,

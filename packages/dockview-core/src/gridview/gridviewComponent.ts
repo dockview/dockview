@@ -140,6 +140,11 @@ export class GridviewComponent
                 this._onDidActiveGroupChange.fire(event);
             })
         );
+
+        // Seed the layout from the element now that construction is complete,
+        // so anything built before the ResizeObserver first reports sizes
+        // against the real dimensions rather than zero.
+        this.layoutFromElement();
     }
 
     override updateOptions(options: Partial<GridviewComponentOptions>): void {
@@ -203,7 +208,6 @@ export class GridviewComponent
         try {
             const queue: Function[] = [];
 
-            // take note of the existing dimensions
             const width = this.width;
             const height = this.height;
 
@@ -259,7 +263,6 @@ export class GridviewComponent
                 this._onDidRemoveGroup.fire(group);
             }
 
-            // fires clean-up events and clears the underlying HTML gridview.
             this.clear();
 
             /**

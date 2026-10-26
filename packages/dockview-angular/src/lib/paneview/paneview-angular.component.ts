@@ -93,7 +93,6 @@ export class PaneviewAngularComponent implements OnInit, OnDestroy, OnChanges {
             const coreChanges: Partial<PaneviewOptions> = {};
             let hasChanges = false;
 
-            // Check for changes in core paneview properties
             PROPERTY_KEYS_PANEVIEW.forEach((key) => {
                 if (changes[key] && !changes[key].isFirstChange()) {
                     (coreChanges as any)[key] = changes[key].currentValue;
@@ -126,10 +125,8 @@ export class PaneviewAngularComponent implements OnInit, OnDestroy, OnChanges {
             ...frameworkOptions,
         });
 
-        // Set up event listeners
         this.setupEventListeners();
 
-        // Emit ready event
         this.ready.emit({ api: this.paneviewApi });
     }
 
@@ -175,7 +172,6 @@ export class PaneviewAngularComponent implements OnInit, OnDestroy, OnChanges {
             return;
         }
 
-        // Set up event subscriptions using lifecycle manager
         const api = this.paneviewApi;
 
         if (this.drop.observers.length > 0) {

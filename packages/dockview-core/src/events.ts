@@ -1,5 +1,7 @@
 import { Disposable, IDisposable } from './lifecycle';
 
+// Must stay an interface (not a function-type alias): it is declaration-merged
+// with the `Event` namespace below.
 export interface Event<T> {
     (listener: (e: T) => any): IDisposable;
 }
@@ -105,8 +107,9 @@ export class Emitter<T> implements IDisposable {
     private _listeners: Listener<any>[] = [];
     private _disposed = false;
 
-    private readonly _pauseTokens = new Set<object>();
+    private _pauseTokens?: Set<object>;
 
+    // Reassigned by setLeakageMonitorEnabled below, so it cannot be readonly.
     static ENABLE_TRACKING = false;
     static readonly MEMORY_LEAK_WATCHER = new LeakageMonitor();
 
@@ -162,7 +165,7 @@ export class Emitter<T> implements IDisposable {
     }
 
     public fire(e: T): void {
-        if (this._pauseTokens.size > 0) {
+        if (this._pauseTokens !== undefined && this._pauseTokens.size > 0) {
             // while paused, the event is dropped entirely: `_last` is not
             // updated, so replay subscribers won't see values fired during a pause
             return;
@@ -170,18 +173,35 @@ export class Emitter<T> implements IDisposable {
         if (this.options?.replay) {
             this._last = e;
         }
-        // iterate over a snapshot so that a listener disposing its own (or a
-        // sibling's) subscription during dispatch doesn't cause the live array
-        // to shift underneath the loop and skip the following listener
-        for (const listener of this._listeners.slice()) {
+
+        const listeners = this._listeners;
+        const length = listeners.length;
+        // fast paths for the common 0- and 1-listener cases avoid the
+        // per-fire array allocation of `.slice()`. `fire()` is the hottest
+        // method in the library (dimensions/visibility/scroll/dnd all flow
+        // through emitters, several firing per resize frame) and most
+        // emitters have exactly zero or one subscriber.
+        if (length === 0) {
+            return;
+        }
+        if (length === 1) {
+            listeners[0].callback(e);
+            return;
+        }
+        // for 2+ listeners iterate over a snapshot so that a listener disposing
+        // its own (or a sibling's) subscription during dispatch doesn't cause
+        // the live array to shift underneath the loop and skip the following
+        // listener
+        for (const listener of listeners.slice()) {
             listener.callback(e);
         }
     }
 
     public pause(): IDisposable {
         const token = {};
+        this._pauseTokens ??= new Set<object>();
         this._pauseTokens.add(token);
-        return Disposable.from(() => this._pauseTokens.delete(token));
+        return Disposable.from(() => this._pauseTokens?.delete(token));
     }
 
     public dispose(): void {

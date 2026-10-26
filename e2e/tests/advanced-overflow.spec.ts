@@ -41,13 +41,11 @@ test.describe('advanced overflow dropdown', () => {
         const search = popover.locator('.dv-tabs-overflow-search');
         await expect(search).toBeFocused();
 
-        // A discriminating substring narrows the list; a nonsense one empties it.
         await search.fill('long-title-1');
         await expect(popover.locator('[role="option"]')).not.toHaveCount(0);
         await search.fill('zzz-no-match');
         await expect(popover.locator('[role="option"]')).toHaveCount(0);
 
-        // Escape dismisses.
         await search.press('Escape');
         await expect(popover).toHaveCount(0);
     });

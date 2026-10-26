@@ -32,7 +32,6 @@ test.describe('cross-window layout history', () => {
             await page.evaluate(() => (window as any).__dv.popoutCount())
         ).toBe(1);
 
-        // Undo the popout → the window closes and the group goes back.
         await Promise.all([
             (win as Page).waitForEvent('close'),
             page.evaluate(() => (window as any).__dv.undo()),
@@ -45,7 +44,6 @@ test.describe('cross-window layout history', () => {
     test('undo re-opens a closed popout window', async ({ page, context }) => {
         await ready(page);
 
-        // pop the active group out
         const [win1] = await Promise.all([
             context.waitForEvent('page'),
             page.evaluate(() => (window as any).__dv.popoutActiveGroup()),

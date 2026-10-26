@@ -3,6 +3,7 @@ import { BranchNode } from '../../gridview/branchNode';
 import {
     Gridview,
     IGridView,
+    ISerializedBranchNode,
     IViewSize,
     SerializedGridview,
     getGridLocation,
@@ -84,6 +85,32 @@ describe('gridview', () => {
         expect(gridview.maximumHeight).toBe(Number.MAX_VALUE);
     });
 
+    test('a hidden view is laid out at zero under a margin', () => {
+        const gridview = new Gridview(
+            false,
+            { separatorBorder: '' },
+            Orientation.HORIZONTAL
+        );
+        gridview.margin = 10;
+        gridview.layout(1000, 1000);
+
+        const views = [
+            new MockGridview(),
+            new MockGridview(),
+            new MockGridview(),
+        ];
+        gridview.addView(views[0], Sizing.Distribute, [0]);
+        gridview.addView(views[1], Sizing.Distribute, [1]);
+        gridview.addView(views[2], Sizing.Distribute, [2]);
+
+        gridview.setViewVisible([1], false);
+
+        expect(views[1].width).toBe(0);
+        // the two visible views share the one margin left between them
+        expect(views[0].width + views[2].width).toBe(1000 - 10);
+        gridview.dispose();
+    });
+
     test('a nested branch with all children hidden round-trips hidden, not visible at size 0', () => {
         const gridview = new Gridview(
             false,
@@ -104,7 +131,7 @@ describe('gridview', () => {
         const serialized = gridview.serialize();
         const branch = (serialized.root as any).data[1];
         expect(branch.type).toBe('branch');
-        // the fix: branch carries its visibility + cached size (was undefined)
+        // branch carries its visibility + cached size
         expect(branch.visible).toBe(false);
         expect(branch.size).toBeGreaterThan(0);
 
@@ -126,6 +153,152 @@ describe('gridview', () => {
         expect(restoredBranch.type).toBe('branch');
         expect(restoredBranch.visible).toBe(false);
         expect(restoredBranch.size).toBeGreaterThan(0);
+    });
+
+    describe('hidden views survive tree restructuring', () => {
+        function createGridview(): Gridview {
+            const gridview = new Gridview(
+                false,
+                { separatorBorder: '' },
+                Orientation.HORIZONTAL
+            );
+            gridview.layout(1000, 1000);
+            return gridview;
+        }
+
+        function isVisible(gridview: Gridview, view: MockGridview): boolean {
+            return gridview.isViewVisible(getGridLocation(view.element));
+        }
+
+        test('flipping the orientation keeps a hidden view hidden', () => {
+            const gridview = createGridview();
+            const views = [
+                new MockGridview(),
+                new MockGridview(),
+                new MockGridview(),
+            ];
+            gridview.addView(views[0], Sizing.Distribute, [0]);
+            gridview.addView(views[1], Sizing.Distribute, [1]);
+            gridview.addView(views[2], Sizing.Distribute, [2]);
+
+            gridview.setViewVisible([1], false);
+            gridview.orientation = Orientation.VERTICAL;
+
+            expect(isVisible(gridview, views[1])).toBe(false);
+
+            gridview.setViewVisible(getGridLocation(views[1].element), true);
+            expect(views[1].height).toBeGreaterThan(0);
+        });
+
+        test('normalize() keeps a hidden view hidden', () => {
+            const gridview = createGridview();
+            const views = [new MockGridview(), new MockGridview()];
+            gridview.addView(views[0], Sizing.Distribute, [0]);
+            gridview.addView(views[1], Sizing.Distribute, [1]);
+            gridview.insertOrthogonalSplitviewAtRoot();
+
+            gridview.setViewVisible([0, 1], false);
+            gridview.normalize();
+
+            expect(isVisible(gridview, views[1])).toBe(false);
+
+            gridview.setViewVisible(getGridLocation(views[1].element), true);
+            expect(views[1].width).toBeGreaterThan(0);
+        });
+
+        test('removing a view keeps a hidden view hidden when its branch is merged into the grandparent', () => {
+            const gridview = createGridview();
+            const [first, removed, hidden, last] = [
+                new MockGridview(),
+                new MockGridview(),
+                new MockGridview(),
+                new MockGridview(),
+            ];
+            gridview.addView(first, Sizing.Distribute, [0]);
+            gridview.addView(removed, Sizing.Distribute, [1]);
+            gridview.addView(hidden, Sizing.Distribute, [1, 1]);
+            gridview.addView(last, Sizing.Distribute, [1, 1, 1]);
+
+            gridview.setViewVisible(getGridLocation(hidden.element), false);
+            gridview.removeView(getGridLocation(removed.element));
+
+            expect(isVisible(gridview, hidden)).toBe(false);
+
+            gridview.setViewVisible(getGridLocation(hidden.element), true);
+            expect(hidden.width).toBeGreaterThan(0);
+        });
+
+        test('flipping the orientation keeps the cached size of a view nested under a hidden branch', () => {
+            const gridview = createGridview();
+            const [a, b, c, d] = [
+                new MockGridview(),
+                new MockGridview(),
+                new MockGridview(),
+                new MockGridview(),
+            ];
+            // root(H) -> [a, P(V) -> [b, Q(H) -> [c, d]]]
+            gridview.addView(a, Sizing.Distribute, [0]);
+            gridview.addView(b, Sizing.Distribute, [1]);
+            gridview.addView(c, Sizing.Distribute, [1, 1]);
+            gridview.addView(d, Sizing.Distribute, [1, 1, 1]);
+
+            // hiding every child of P hides P itself, so Q is laid out at 0
+            gridview.setViewVisible(getGridLocation(c.element), false);
+            gridview.setViewVisible(getGridLocation(d.element), false);
+            gridview.setViewVisible(getGridLocation(b.element), false);
+            expect(isVisible(gridview, c)).toBe(false);
+
+            gridview.orientation = Orientation.VERTICAL;
+
+            expect(isVisible(gridview, b)).toBe(false);
+            expect(isVisible(gridview, c)).toBe(false);
+            expect(isVisible(gridview, d)).toBe(false);
+
+            // the cached sizes must survive the flip rather than being scaled to 0
+            const root = gridview.serialize().root as ISerializedBranchNode;
+            const q = root.data[1] as ISerializedBranchNode;
+            const qChildren = (q.data[1] as ISerializedBranchNode).data;
+            expect(qChildren[0].size).toBeGreaterThan(0);
+            expect(qChildren[1].size).toBeGreaterThan(0);
+
+            // show a sibling first so `c` cannot be rescued by filling empty space
+            gridview.setViewVisible(getGridLocation(b.element), true);
+            gridview.setViewVisible(getGridLocation(d.element), true);
+            gridview.setViewVisible(getGridLocation(c.element), true);
+
+            expect(c.width).toBeGreaterThan(0);
+            expect(c.height).toBeGreaterThan(0);
+        });
+
+        test('removing a view keeps the children of a hidden sibling branch hidden when merged into the grandparent', () => {
+            const gridview = createGridview();
+            const [a, removed, x, y] = [
+                new MockGridview(),
+                new MockGridview(),
+                new MockGridview(),
+                new MockGridview(),
+            ];
+            // root(H) -> [a, P(V) -> [removed, S(H) -> [x, y]]]
+            gridview.addView(a, Sizing.Distribute, [0]);
+            gridview.addView(removed, Sizing.Distribute, [1]);
+            gridview.addView(x, Sizing.Distribute, [1, 1]);
+            gridview.addView(y, Sizing.Distribute, [1, 1, 1]);
+
+            // hide the branch S as a whole, its children stay visible within it
+            gridview.setViewVisible([1, 1], false);
+            expect(gridview.isViewVisible([1, 1])).toBe(false);
+
+            gridview.removeView(getGridLocation(removed.element));
+
+            // S is flattened into the root; x and y must not reappear
+            expect(isVisible(gridview, x)).toBe(false);
+            expect(isVisible(gridview, y)).toBe(false);
+            expect(a.width).toBe(1000);
+
+            gridview.setViewVisible(getGridLocation(x.element), true);
+            expect(isVisible(gridview, x)).toBe(true);
+            expect(x.width).toBeGreaterThan(0);
+        });
     });
 
     test('insertOrthogonalSplitviewAtRoot #1', () => {
@@ -658,7 +831,7 @@ describe('gridview', () => {
         ).toHaveLength(4);
     });
 
-    test('removeView: remove leaf where parent is root', () => {
+    test('removeView: remove nested leaf collapsing its parent branch', () => {
         const gridview = new Gridview(
             false,
             { separatorBorder: '' },
@@ -956,7 +1129,6 @@ describe('gridview', () => {
             ).toEqual(dimensions);
         }
 
-        // base case assertions
         assertLayout();
         expect(gridview.hasMaximizedView()).toBeFalsy();
         expect(counter).toBe(0);
@@ -1224,8 +1396,6 @@ describe('gridview', () => {
             );
         }
 
-        // hide each view one by one
-
         assertVisibility([true, true, true, true, true, true]);
 
         gridview.setViewVisible(getGridLocation(view5.element), false);
@@ -1245,8 +1415,6 @@ describe('gridview', () => {
 
         gridview.setViewVisible(getGridLocation(view6.element), false);
         assertVisibility([false, false, false, false, false, false]);
-
-        // un-hide each view one by one
 
         gridview.setViewVisible(getGridLocation(view1.element), true);
         assertVisibility([true, false, false, false, false, false]);
@@ -1268,8 +1436,69 @@ describe('gridview', () => {
     });
 
     describe('normalize', () => {
+        test('the promoted branch keeps its proportions (#1692)', () => {
+            const gridview = new Gridview(
+                true,
+                { separatorBorder: '' },
+                Orientation.VERTICAL
+            );
+            gridview.layout(900, 600);
+
+            const view1 = new MockGridview('1');
+            const view2 = new MockGridview('2');
+            const view3 = new MockGridview('3');
+
+            // a vertical root whose only child is a horizontal row of three
+            gridview.addView(view1, Sizing.Distribute, [0]);
+            gridview.addView(view2, Sizing.Distribute, [0, 1]);
+            gridview.addView(view3, Sizing.Distribute, [0, 2]);
+
+            const views = [view1, view2, view3];
+            expect(views.map((v) => v.width)).toEqual([300, 300, 300]);
+
+            // the row is cloned into the root position
+            gridview.normalize();
+            expect(gridview.orientation).toBe(Orientation.HORIZONTAL);
+            expect(gridview).toHaveLength(3);
+
+            gridview.layout(600, 600);
+            expect(views.map((v) => v.width)).toEqual([200, 200, 200]);
+
+            gridview.layout(900, 600);
+            expect(views.map((v) => v.width)).toEqual([300, 300, 300]);
+        });
+
+        test('a flipped grid keeps the proportions of its rebuilt branches (#1692)', () => {
+            const gridview = new Gridview(
+                true,
+                { separatorBorder: '' },
+                Orientation.HORIZONTAL
+            );
+            gridview.layout(900, 600);
+
+            const view1 = new MockGridview('1');
+            const view2 = new MockGridview('2');
+            const view3 = new MockGridview('3');
+
+            gridview.addView(view1, Sizing.Distribute, [0]);
+            gridview.addView(view2, Sizing.Distribute, [1]);
+            gridview.addView(view3, Sizing.Distribute, [2]);
+
+            const views = [view1, view2, view3];
+            expect(views.map((v) => v.width)).toEqual([300, 300, 300]);
+
+            // the whole tree is rebuilt with the axes transposed
+            gridview.orientation = Orientation.VERTICAL;
+            expect(views.map((v) => v.height)).toEqual([200, 200, 200]);
+
+            gridview.layout(900, 300);
+            expect(views.map((v) => v.height)).toEqual([100, 100, 100]);
+
+            gridview.layout(900, 600);
+            expect(views.map((v) => v.height)).toEqual([200, 200, 200]);
+        });
+
         test('should normalize after structure correctly', () => {
-            // This test verifies that the normalize method works correctly
             // Since gridview already normalizes during remove operations,
             // we'll test the method directly with known scenarios
             const gridview = new Gridview(
@@ -1279,7 +1508,6 @@ describe('gridview', () => {
             );
             gridview.layout(1000, 1000);
 
-            // Create a simple structure and test that normalize doesn't break anything
             const view1 = new MockGridview('1');
             const view2 = new MockGridview('2');
 
@@ -1315,7 +1543,6 @@ describe('gridview', () => {
 
             const afterNormalize = gridview.serialize();
 
-            // Structure should remain unchanged
             expect(afterNormalize).toEqual(beforeNormalize);
         });
 
@@ -1353,7 +1580,6 @@ describe('gridview', () => {
             );
             gridview.layout(1000, 1000);
 
-            // Call normalize on empty gridview
             expect(() => gridview.normalize()).not.toThrow();
 
             // Should still be able to add views after normalizing empty gridview
@@ -1373,7 +1599,6 @@ describe('gridview', () => {
             );
             gridview.layout(1000, 1000);
 
-            // Verify the normalize method exists and can be called
             expect(typeof gridview.normalize).toBe('function');
             expect(() => gridview.normalize()).not.toThrow();
         });

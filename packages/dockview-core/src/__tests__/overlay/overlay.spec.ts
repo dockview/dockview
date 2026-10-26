@@ -437,7 +437,6 @@ describe('overlay', () => {
 
             const element = overlay.element;
 
-            // Mock container bounds (400x400 viewport)
             jest.spyOn(container, 'getBoundingClientRect').mockImplementation(
                 () =>
                     mockGetBoundingClientRect({
@@ -464,7 +463,6 @@ describe('overlay', () => {
             ) as HTMLElement;
             expect(leftHandle).toBeTruthy();
 
-            // Simulate mousedown on left handle
             const pointerDownEvent = new MouseEvent('pointerdown', {
                 clientX: 350, // Start position at left edge of overlay
                 clientY: 100,
@@ -485,7 +483,7 @@ describe('overlay', () => {
             // Check that overlay didn't snap to full container width (400px)
             const bounds = overlay.toJSON();
             expect(bounds.width).toBeLessThan(400);
-            // After the fix, left position should be constrained to >= 0 (not negative)
+            // left position must be constrained to >= 0 (not negative)
             expect('left' in bounds ? bounds.left : 0).toBeGreaterThanOrEqual(
                 0
             );
@@ -513,7 +511,6 @@ describe('overlay', () => {
 
             const element = overlay.element;
 
-            // Mock container bounds (400x400 viewport)
             jest.spyOn(container, 'getBoundingClientRect').mockImplementation(
                 () =>
                     mockGetBoundingClientRect({
@@ -540,7 +537,6 @@ describe('overlay', () => {
             ) as HTMLElement;
             expect(topHandle).toBeTruthy();
 
-            // Simulate mousedown on top handle
             const pointerDownEvent = new MouseEvent('pointerdown', {
                 clientX: 100,
                 clientY: 350, // Start position at top edge of overlay
@@ -561,7 +557,7 @@ describe('overlay', () => {
             // Check that overlay didn't snap to full container height (400px)
             const bounds = overlay.toJSON();
             expect(bounds.height).toBeLessThan(400);
-            // After the fix, top position should be constrained to >= 0 (not negative)
+            // top position must be constrained to >= 0 (not negative)
             expect('top' in bounds ? bounds.top : 0).toBeGreaterThanOrEqual(0);
 
             overlay.dispose();
@@ -587,7 +583,6 @@ describe('overlay', () => {
 
             const element = overlay.element;
 
-            // Mock container bounds (200x200 viewport)
             jest.spyOn(container, 'getBoundingClientRect').mockImplementation(
                 () =>
                     mockGetBoundingClientRect({
@@ -598,7 +593,6 @@ describe('overlay', () => {
                     })
             );
 
-            // Mock overlay bounds
             jest.spyOn(element, 'getBoundingClientRect').mockImplementation(
                 () =>
                     mockGetBoundingClientRect({
@@ -614,7 +608,6 @@ describe('overlay', () => {
             ) as HTMLElement;
             expect(leftHandle).toBeTruthy();
 
-            // Simulate mousedown on left handle
             const pointerDownEvent = new MouseEvent('pointerdown', {
                 clientX: 20,
                 clientY: 70,
@@ -632,7 +625,6 @@ describe('overlay', () => {
             pointerMoveEvent.pointerId = 1;
             window.dispatchEvent(pointerMoveEvent);
 
-            // Check that left position is constrained to >= 0
             const bounds = overlay.toJSON();
             expect('left' in bounds ? bounds.left : 0).toBeGreaterThanOrEqual(
                 0
@@ -661,7 +653,6 @@ describe('overlay', () => {
 
             const element = overlay.element;
 
-            // Mock small container bounds (100x100 viewport)
             jest.spyOn(container, 'getBoundingClientRect').mockImplementation(
                 () =>
                     mockGetBoundingClientRect({
@@ -672,7 +663,6 @@ describe('overlay', () => {
                     })
             );
 
-            // Mock overlay bounds
             jest.spyOn(element, 'getBoundingClientRect').mockImplementation(
                 () =>
                     mockGetBoundingClientRect({
@@ -688,7 +678,6 @@ describe('overlay', () => {
             ) as HTMLElement;
             expect(rightHandle).toBeTruthy();
 
-            // Simulate mousedown on right handle
             const pointerDownEvent = new MouseEvent('pointerdown', {
                 clientX: 60,
                 clientY: 35,
@@ -706,7 +695,6 @@ describe('overlay', () => {
             pointerMoveEvent.pointerId = 1;
             window.dispatchEvent(pointerMoveEvent);
 
-            // Check that width is constrained to fit within container
             const bounds = overlay.toJSON();
             expect(bounds.width).toBeLessThanOrEqual(90); // 100 - 10 (left position)
 

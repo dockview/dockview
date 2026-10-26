@@ -211,6 +211,7 @@ export class FloatingGroupService implements IFloatingGroupService {
     }
 
     disposeAll(): void {
+        // Iterate a copy: dispose removes entries from _floatingGroups as it goes.
         for (const floating of [...this._floatingGroups]) {
             floating.dispose();
         }

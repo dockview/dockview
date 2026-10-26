@@ -30,6 +30,22 @@ function findLeaf(candiateNode: Node, last: boolean): LeafNode {
     throw new Error('invalid node');
 }
 
+/**
+ * The sizing to re-add a branch's child with, so a hidden child stays hidden
+ * (with its cached size) instead of coming back visible at size 0.
+ */
+function childSizing(
+    node: BranchNode,
+    index: number,
+    size: number,
+    scale = 1
+): number | Sizing {
+    const cachedVisibleSize = node.getChildCachedVisibleSize(index);
+    return cachedVisibleSize === undefined
+        ? size
+        : Sizing.Invisible(Math.round(cachedVisibleSize * scale));
+}
+
 function cloneNode<T extends Node>(
     node: T,
     size: number,
@@ -51,7 +67,7 @@ function cloneNode<T extends Node>(
 
             result.addChild(
                 cloneNode(child, child.size, child.orthogonalSize),
-                child.size,
+                childSizing(node, i, child.size),
                 0,
                 true
             );
@@ -81,6 +97,11 @@ function flipNode<T extends Node>(
 
         let totalSize = 0;
 
+        // A hidden branch is laid out at size 0, so its children have nothing
+        // to scale against. Keep their cached sizes as they are rather than
+        // collapsing them to 0.
+        const cachedSizeScale = node.size === 0 ? 1 : size / node.size;
+
         for (let i = node.children.length - 1; i >= 0; i--) {
             const child = node.children[i];
             const childSize =
@@ -99,7 +120,7 @@ function flipNode<T extends Node>(
 
             result.addChild(
                 flipNode(child, orthogonalSize, newSize),
-                newSize,
+                childSizing(node, i, newSize, cachedSizeScale),
                 0,
                 true
             );
@@ -370,6 +391,8 @@ export class Gridview implements IDisposable {
         }
 
         const { size, orthogonalSize } = this.root;
+        // Flipping orientation transposes the axes, so the swapped argument
+        // order into flipNode is intentional.
         this.root = flipNode(this.root, orthogonalSize, size);
         this.root.layout(size, orthogonalSize);
     }
@@ -729,8 +752,8 @@ export class Gridview implements IDisposable {
         oldRoot.element.remove();
 
         const child = oldRoot.removeChild(0); // Remove child to prevent double disposal
-        oldRoot.dispose(); // Dispose old root (won't dispose removed child)
-        child.dispose(); // Dispose the removed child
+        oldRoot.dispose(); // won't dispose the removed child
+        child.dispose();
 
         this._root = cloneNode(
             childReference,
@@ -867,8 +890,16 @@ export class Gridview implements IDisposable {
         return findLeaf(this.root, reverse);
     }
 
+    get proportionalLayout(): boolean {
+        return this.root.proportionalLayout;
+    }
+
+    set proportionalLayout(value: boolean) {
+        this.root.proportionalLayout = value;
+    }
+
     constructor(
-        readonly proportionalLayout: boolean,
+        proportionalLayout: boolean,
         readonly styles: ISplitviewStyles | undefined,
         orientation: Orientation,
         locked?: boolean,
@@ -965,6 +996,8 @@ export class Gridview implements IDisposable {
                 newSiblingSize = Sizing.Invisible(newSiblingCachedVisibleSize);
             }
 
+            // BranchNode.removeChild(index) is a domain method, not the DOM
+            // Node.removeChild.
             const child = grandParent.removeChild(parentIndex);
             child.dispose();
 
@@ -1084,10 +1117,19 @@ export class Gridview implements IDisposable {
                 ...sibling.children.map((c) => c.size)
             );
 
-            // and add those siblings to the grandparent
+            // and add those siblings to the grandparent. If the sibling branch
+            // itself was hidden its children must stay hidden too, otherwise
+            // they come back visible once the branch is flattened away.
             for (let i = 0; i < sibling.children.length; i++) {
                 const child = sibling.children[i];
-                grandParent.addChild(child, child.size, parentIndex + i);
+                const childSize = childSizing(sibling, i, child.size);
+                grandParent.addChild(
+                    child,
+                    !isSiblingVisible && typeof childSize === 'number'
+                        ? Sizing.Invisible(childSize)
+                        : childSize,
+                    parentIndex + i
+                );
             }
 
             /**

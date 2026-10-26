@@ -43,6 +43,63 @@ api.addPanel({
 });
 ```
 
+## Serializing a single group
+
+`api.serializeGroup()` captures one group together with the state of every panel it holds, as a self-contained object. `api.addGroupFromJSON()` rebuilds that group into a live layout, positioned as for `addGroup`, without touching the rest of the layout. Together they move a group between two layouts, or between two Dockview instances, where `fromJSON` would replace the whole layout.
+
+<DocRef declaration="DockviewApi" methods={['serializeGroup', 'addGroupFromJSON']} />
+
+```ts
+// In the source instance
+const data = sourceApi.serializeGroup(group);
+sourceApi.removeGroup(group);
+
+// In the target instance, which may live in another window or process
+const moved = targetApi.addGroupFromJSON(data, {
+    referenceGroup: targetApi.activeGroup,
+    direction: 'right',
+});
+```
+
+The serialized object carries the group's tab order, active tab, locked state, header position and tab groups, plus each panel's component, title, parameters, renderer and size constraints. It does not carry the group's size, which only has meaning in the grid it came from: the placement decides the size in the new layout.
+
+A reference group or panel with `direction: 'within'`, or with no direction, merges the serialized panels into that group instead of creating one, in their order and at `index` if given, as `addPanel` does. The serialized group's own shape does not apply then. This is what a drop on a group's centre or tab bar calls for (both report `position: 'center'`), and the only form that works against a floating or edge group, which has no grid neighbours:
+
+```ts
+targetApi.onDidDrop((event) => {
+    if (event.group && event.position === 'center') {
+        targetApi.addGroupFromJSON(data, {
+            referenceGroup: event.group,
+            direction: 'within',
+            index: event.index,
+        });
+    }
+});
+```
+
+A single tab travels as `panel.toJSON()` and lands with `addPanelFromJSON`, which places it as `addPanel` would (a `position`, or `floating`) and takes the drop index the same way:
+
+```ts
+targetApi.addPanelFromJSON(state, {
+    position: { referenceGroup: event.group, index: event.index },
+});
+```
+
+<DocRef declaration="DockviewApi" methods={['addPanelFromJSON']} />
+
+Panel ids must be unique within the receiving instance. `addGroupFromJSON` throws before changing anything if a panel id is already in use, as `addPanel` does. A group id that is already in use is reassigned with a warning, as `addGroup` does, so give groups unique ids when they move between instances.
+
+By default every instance numbers its groups from `"1"`, so two instances collide on nearly every move. The `groupIdGenerator` option replaces that counter for every group Dockview creates on its own, so ids can be unique across instances. Dockview only asks for a fresh id and retries one that is already in use; how the id is made is yours to choose:
+
+```ts
+const api = createDockview(element, {
+    groupIdGenerator: () => crypto.randomUUID(),
+    // ...
+});
+```
+
+Panel ids are always yours to choose, so the same generator serves there too.
+
 ## Removing a group
 
 `api.removeGroup()` removes a group and all panels it contains.

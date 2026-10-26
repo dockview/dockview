@@ -5,6 +5,7 @@ import {
     createGridview,
 } from 'dockview';
 import { useViewComponent } from '../composables/useViewComponent';
+import { undefinedDefaults } from '../props';
 import { VueGridviewPanelView } from './view';
 import DockviewPortals from '../dockviewPortals.vue';
 import type { IGridviewVueProps, GridviewVueEvents } from './types';
@@ -33,7 +34,10 @@ function extractCoreOptions(props: IGridviewVueProps): GridviewOptions {
 defineOptions({ inheritAttrs: false });
 
 const emit = defineEmits<GridviewVueEvents>();
-const props = defineProps<IGridviewVueProps>();
+const props = withDefaults(
+    defineProps<IGridviewVueProps>(),
+    undefinedDefaults(PROPERTY_KEYS_GRIDVIEW)
+);
 
 const { el, registry } = useViewComponent(
     {

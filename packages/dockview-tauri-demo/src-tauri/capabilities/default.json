@@ -1,0 +1,7 @@
+{
+    "$schema": "../gen/schemas/desktop-schema.json",
+    "identifier": "default",
+    "description": "Baseline permissions for the demo's windows.",
+    "windows": ["main", "dock-*"],
+    "permissions": ["core:default"]
+}

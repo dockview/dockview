@@ -5,7 +5,7 @@ import {
     watchElementResize,
 } from './dom';
 import { addDisposableListener } from './events';
-import { CompositeDisposable } from './lifecycle';
+import { CompositeDisposable, Disposable } from './lifecycle';
 import { clamp } from './math';
 
 export class Scrollbar extends CompositeDisposable {
@@ -13,6 +13,7 @@ export class Scrollbar extends CompositeDisposable {
     private readonly _scrollbar: HTMLElement;
     private _scrollOffset: number = 0;
     private _animationTimer: any;
+    private _pendingStyleFrame: number | undefined;
     private _orientation: 'horizontal' | 'vertical' = 'horizontal';
     public static readonly MouseWheelSpeed = 1;
 
@@ -56,7 +57,7 @@ export class Scrollbar extends CompositeDisposable {
         this.addDisposables(
             addDisposableListener(this.element, 'wheel', (event) => {
                 this._scrollOffset += event.deltaY * Scrollbar.MouseWheelSpeed;
-                this.calculateScrollbarStyles();
+                this.scheduleStyleUpdate();
             }),
             addDisposableListener(this._scrollbar, 'pointerdown', (event) => {
                 event.preventDefault();
@@ -90,7 +91,7 @@ export class Scrollbar extends CompositeDisposable {
                     const p = clientSize / scrollSize;
 
                     this._scrollOffset = originalScrollOffset + delta / p;
-                    this.calculateScrollbarStyles();
+                    this.scheduleStyleUpdate();
                 };
 
                 const onEnd = () => {
@@ -106,14 +107,14 @@ export class Scrollbar extends CompositeDisposable {
                 doc.addEventListener('pointercancel', onEnd);
             }),
             addDisposableListener(this.element, 'scroll', () => {
-                this.calculateScrollbarStyles();
+                this.scheduleStyleUpdate();
             }),
             addDisposableListener(this.scrollableElement, 'scroll', () => {
                 this._scrollOffset =
                     this._orientation === 'horizontal'
                         ? this.scrollableElement.scrollLeft
                         : this.scrollableElement.scrollTop;
-                this.calculateScrollbarStyles();
+                this.scheduleStyleUpdate();
             }),
             watchElementResize(this.element, () => {
                 toggleClass(this.element, 'dv-scrollable-resizing', true);
@@ -127,9 +128,33 @@ export class Scrollbar extends CompositeDisposable {
                     toggleClass(this.element, 'dv-scrollable-resizing', false);
                 }, 500);
 
-                this.calculateScrollbarStyles();
+                this.scheduleStyleUpdate();
+            }),
+            Disposable.from(() => {
+                if (this._pendingStyleFrame !== undefined) {
+                    cancelAnimationFrame(this._pendingStyleFrame);
+                    this._pendingStyleFrame = undefined;
+                }
             })
         );
+    }
+
+    /**
+     * Coalesce the scrollbar restyle to one pass per animation frame. The
+     * wheel / scroll / pointermove handlers can each fire many times per frame,
+     * and `calculateScrollbarStyles` both reads layout (`clientWidth`/
+     * `scrollWidth`) and writes styles + `scrollLeft`/`scrollTop`; running it
+     * synchronously per event caused repeated read→write→read reflow. Batching
+     * to a frame keeps a burst of events to a single measure+write.
+     */
+    private scheduleStyleUpdate(): void {
+        if (this._pendingStyleFrame !== undefined) {
+            return;
+        }
+        this._pendingStyleFrame = requestAnimationFrame(() => {
+            this._pendingStyleFrame = undefined;
+            this.calculateScrollbarStyles();
+        });
     }
 
     private calculateScrollbarStyles(): void {

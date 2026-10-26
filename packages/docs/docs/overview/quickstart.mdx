@@ -123,12 +123,13 @@ export default function App() {
     };
 
     return (
-        <DockviewReact
-            className="dockview-theme-abyss"
-            style={{ width: '100%', height: '100%' }}
-            onReady={onReady}
-            components={components}
-        />
+        <div style={{ height: '100dvh' }}>
+            <DockviewReact
+                className="dockview-theme-abyss"
+                onReady={onReady}
+                components={components}
+            />
+        </div>
     );
 }
 ```
@@ -175,12 +176,72 @@ function onReady(event: DockviewReadyEvent) {
 </script>
 
 <template>
-    <DockviewVue
-        style="width:100%;height:100%"
-        class="dockview-theme-abyss"
-        :components="{ 'my-panel': MyPanel }"
-        @ready="onReady"
-    />
+    <div style="height:100dvh">
+        <DockviewVue
+            style="width:100%;height:100%"
+            class="dockview-theme-abyss"
+            :components="{ 'my-panel': MyPanel }"
+            @ready="onReady"
+        />
+    </div>
+</template>
+```
+
+Alternatively, declare panels, tabs, header actions and the watermark as scoped
+slots. Slot content is part of your template, so it can use your component's
+state and event handlers directly. A slot takes precedence over the matching
+component prop.
+
+Slot props are the same objects a component receives as its `params` prop,
+and the slot re-renders when they change: after `api.updateParameters(...)`,
+when a panel's title changes (so `api.title` stays current), and for header
+actions when a group's panels or active panel change. Other values read from
+the `api` objects are not tracked; listen to the api for those, just as a
+component would.
+
+| Slot | Renders | Slot props |
+| --- | --- | --- |
+| `#panel-<name>` | panels added with `component: '<name>'` | `IDockviewPanelProps` |
+| `#tab-<name>` | tabs added with `tabComponent: '<name>'` | `IDockviewPanelHeaderProps` |
+| `#defaultTab` | tabs without a `tabComponent` | `IDockviewPanelHeaderProps` |
+| `#rightHeaderActions`, `#leftHeaderActions`, `#prefixHeaderActions` | group header actions | `IDockviewHeaderActionsProps` |
+| `#watermark` | the watermark shown when there are no panels | `IWatermarkPanelProps` |
+
+```vue
+<script setup lang="ts">
+import 'dockview-vue/dist/styles/dockview.css';
+import { DockviewVue, type DockviewReadyEvent } from 'dockview-vue';
+import { ref } from 'vue';
+
+const saved = ref(0);
+
+function onReady(event: DockviewReadyEvent) {
+    event.api.addPanel({
+        id: 'panel_1',
+        component: 'my-panel',
+        title: 'Panel 1',
+    });
+}
+</script>
+
+<template>
+    <div style="height:100dvh">
+        <DockviewVue
+            style="width:100%;height:100%"
+            class="dockview-theme-abyss"
+            @ready="onReady"
+        >
+            <template #panel-my-panel="{ api }">
+                <div style="padding: 16px">
+                    {{ api.title }}: saved {{ saved }} times
+                    <button @click="saved++">Save</button>
+                </div>
+            </template>
+            <template #rightHeaderActions="{ group }">
+                <button @click="group.api.maximize()">Maximize</button>
+            </template>
+        </DockviewVue>
+    </div>
 </template>
 ```
 
@@ -206,12 +267,14 @@ export class MyPanelComponent {
 @Component({
     selector: 'app-root',
     template: `
-        <dv-dockview
-            [components]="components"
-            class="dockview-theme-abyss"
-            (ready)="onReady($event)"
-        >
-        </dv-dockview>
+        <div style="height:100dvh">
+            <dv-dockview
+                [components]="components"
+                class="dockview-theme-abyss"
+                (ready)="onReady($event)"
+            >
+            </dv-dockview>
+        </div>
     `,
 })
 export class AppComponent {
@@ -241,6 +304,15 @@ export class AppModule {}
 ```
 
 </FrameworkSpecific>
+
+:::info Dockview fills its container
+Dockview sizes itself to the element it is mounted into, so that element needs a
+height of its own. The example above takes the full viewport, which suits a
+full-page layout. Inside an app shell, give the ancestor chain a definite height
+instead: `height: 100%` on every ancestor up to the root, or a flex parent with
+`flex: 1; min-height: 0`. A container left at auto height collapses to zero and
+renders a blank page with no error.
+:::
 
 ## Next steps
 

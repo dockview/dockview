@@ -106,8 +106,8 @@ export class LiveRegionService
         const mainDoc = host.element.ownerDocument;
         this._mainWindow = mainDoc.defaultView ?? window;
 
-        // The main window's region lives inside the dockview element (existing
-        // behaviour). Popout windows get their own pair in their own document.
+        // The main window's region lives inside the dockview element. Popout
+        // windows get their own pair in their own document.
         const mainPair: RegionPair = {
             polite: createLiveRegion(mainDoc, 'polite'),
             assertive: createLiveRegion(mainDoc, 'assertive'),
@@ -236,12 +236,18 @@ export class LiveRegionService
             if (!panel) {
                 return;
             }
-            const kind =
-                next === 'floating'
-                    ? 'float'
-                    : next === 'popout'
-                      ? 'popout'
-                      : 'dock';
+            let kind: LiveRegionEvent['kind'];
+            switch (next) {
+                case 'floating':
+                    kind = 'float';
+                    break;
+                case 'popout':
+                    kind = 'popout';
+                    break;
+                default:
+                    kind = 'dock';
+                    break;
+            }
             this._announce(panel, kind);
         });
         this._locationSubs.set(group.id, sub);

@@ -2,9 +2,6 @@
 title: 'Context menus'
 description: Right-click menus for tabs and tab group chips, with built-in item shortcuts, custom label and component items, and per-case suppression.
 sidebar_position: 14
-enterprise: true
-sidebar_custom_props:
-    enterprise: true
 ---
 
 import { CodeRunner } from '@site/src/components/ui/codeRunner';
@@ -14,14 +11,6 @@ Dockview can show a context menu when you right-click a tab or a tab group chip.
 Menus are opt-in: nothing is shown unless you supply a builder function. Each
 builder returns a list mixing built-in string shortcuts with your own custom
 items.
-
-:::info Enterprise feature
-Context menus are an enterprise feature, available in the
-[`dockview-enterprise`](/docs/overview/enterprise-setup) package. Importing
-`dockview-enterprise` enables them for every Dockview instance in the
-process. Without it, `getTabContextMenuItems` and
-`getTabGroupChipContextMenuItems` are ignored and no menu appears.
-:::
 
 <CodeRunner id="dockview/context-menu" height={400} />
 
@@ -203,8 +192,14 @@ getTabContextMenuItems: (params) => [
 ```
 </FrameworkSpecific>
 
-Pass extra data to a component item with `componentProps`; it is forwarded to
-the component as `props.componentProps`.
+Pass extra data to a component item with `componentProps`. How your component
+reads it depends on the framework, matching how that framework surfaces the
+other renderer props:
+
+- **React**: a direct prop, `props.componentProps`.
+- **Vue**: nested under the single `params` prop, `params.componentProps`
+  (the same place `params.api`, `params.panel` and the rest live).
+- **Angular**: a `@Input() componentProps` on the component.
 
 ### Raw element items
 
@@ -283,6 +278,13 @@ getTabGroupChipContextMenuItems: (params) => [
 ];
 ```
 
+A `component` item on the chip menu receives
+`IChipContextMenuItemComponentProps`. It mirrors the tab menu's
+`IContextMenuItemComponentProps` but carries the `tabGroup` the chip represents
+in place of a single `panel`, since a chip spans several panels. The `group`,
+`api`, `close` and `componentProps` fields are the same, surfaced per framework
+as described above for tabs.
+
 See [Tab groups](/docs/core/panels/tabGroups#chip-context-menu) for the full
 chip API.
 
@@ -298,3 +300,11 @@ getTabContextMenuItems: (params) =>
 
 Omitting the builder entirely disables the menu everywhere and lets the native
 browser context menu through.
+
+:::info Pinning adds an item even without a builder
+When `pinnedTabs` is enabled (and `pinnedTabs.contextMenuItem` is left at its
+default), a built-in `'pin'` item is prepended to the tab menu automatically, so
+the menu still opens even when the builder returns an empty array or is omitted.
+Set `pinnedTabs.contextMenuItem: false` to drop it and restore full suppression.
+This applies to the tab menu only; the chip menu is unaffected.
+:::

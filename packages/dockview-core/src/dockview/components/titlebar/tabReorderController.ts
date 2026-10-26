@@ -1,5 +1,5 @@
 import { getPanelData, PanelTransfer } from '../../../dnd/dataTransfer';
-import { toggleClass } from '../../../dom';
+import { getHitTestRoot, toggleClass } from '../../../dom';
 import { CompositeDisposable, IValueDisposable } from '../../../lifecycle';
 import { DockviewComponent } from '../../dockviewComponent';
 import { DockviewGroupPanel } from '../../dockviewGroupPanel';
@@ -16,22 +16,51 @@ export interface TabAnimationState {
     sourceTabId: string;
     sourceIndex: number;
     tabPositions: Map<string, DOMRect>;
-    /** Group-chip widths keyed by group ID, captured before collapse */
-    chipPositions: Map<string, number>;
+    /** Group-chip main-axis sizes keyed by group ID, captured before collapse */
+    chipSizes: Map<string, number>;
     currentInsertionIndex: number | null;
     targetTabGroupId: string | null;
     /** When set, the drag source is a group chip (entire group drag) */
     sourceTabGroupId: string | null;
     /** Cached panel IDs of the source group (avoids repeated lookups during drag) */
     sourceGroupPanelIds: Set<string> | null;
-    /** Width of the group chip, captured before collapse */
-    sourceChipWidth: number;
-    /** Distance from cursor to the left edge of the drag image */
-    cursorOffsetFromDragLeft: number;
-    /** Total width of the dragged content (chip + tabs for groups, tab width for singles) */
-    sourceGapWidth: number;
-    /** Left edge of the tabs container at drag start */
-    containerLeft: number;
+    /** Main-axis size of the group chip, captured before collapse */
+    sourceChipSize: number;
+    /** Distance from the cursor to the leading edge of the drag image */
+    cursorOffsetFromDragStart: number;
+    /** Total main-axis size of the dragged content (chip + tabs for groups,
+     *  the tab's own size for singles) */
+    sourceGapSize: number;
+    /** Leading edge of the tabs container at drag start */
+    containerStart: number;
+}
+
+/**
+ * Main-axis extent of a rect. Tabs flow along x in a horizontal header
+ * (top/bottom) and along y in a vertical one (the left/right edge groups),
+ * so the reorder math reads every size through this.
+ */
+export function mainAxisSize(
+    rect: { width: number; height: number },
+    direction: DockviewHeaderDirection
+): number {
+    return direction === 'vertical' ? rect.height : rect.width;
+}
+
+/** Leading edge of a rect along the main axis. */
+export function mainAxisStart(
+    rect: { left: number; top: number },
+    direction: DockviewHeaderDirection
+): number {
+    return direction === 'vertical' ? rect.top : rect.left;
+}
+
+/** A cursor position projected onto the main axis. */
+export function mainAxisCursor(
+    event: { clientX: number; clientY: number },
+    direction: DockviewHeaderDirection
+): number {
+    return direction === 'vertical' ? event.clientY : event.clientX;
 }
 
 /**
@@ -196,15 +225,36 @@ export class TabReorderController extends CompositeDisposable {
         return positions;
     }
 
-    private getAverageTabWidth(): number {
+    /** Main-axis extent of a rect for this header's orientation. */
+    private _mainAxisSize(rect: { width: number; height: number }): number {
+        return mainAxisSize(rect, this._direction);
+    }
+
+    /** Main-axis leading edge of a rect for this header's orientation. */
+    private _mainAxisStart(rect: { left: number; top: number }): number {
+        return mainAxisStart(rect, this._direction);
+    }
+
+    /** The cursor coordinate along the main axis. */
+    private _mainAxisCoord(clientX: number, clientY: number): number {
+        return mainAxisCursor({ clientX, clientY }, this._direction);
+    }
+
+    /** The margin that opens the insertion gap. It must run along the main
+     *  axis, so a vertical header pushes tabs down rather than sideways. */
+    private get _gapMarginProperty(): 'margin-left' | 'margin-top' {
+        return this._direction === 'vertical' ? 'margin-top' : 'margin-left';
+    }
+
+    private getAverageTabSize(): number {
         if (this._tabs.length === 0) {
             return 0;
         }
-        const isVertical = this._direction === 'vertical';
         let total = 0;
         for (const tab of this._tabs) {
-            const rect = tab.value.element.getBoundingClientRect();
-            total += isVertical ? rect.height : rect.width;
+            total += this._mainAxisSize(
+                tab.value.element.getBoundingClientRect()
+            );
         }
         return total / this._tabs.length;
     }
@@ -216,8 +266,10 @@ export class TabReorderController extends CompositeDisposable {
      * `processDragOver` / `processDragLeave` helpers.
      */
     handlePointerDragMove(clientX: number, clientY: number): void {
-        const sourceDoc = this._tabsList.ownerDocument ?? document;
-        const elAtPoint = sourceDoc.elementFromPoint(clientX, clientY);
+        const elAtPoint = getHitTestRoot(this._tabsList).elementFromPoint(
+            clientX,
+            clientY
+        );
         const inside =
             !!elAtPoint &&
             (this._tabsList.contains(elAtPoint) ||
@@ -246,40 +298,41 @@ export class TabReorderController extends CompositeDisposable {
         clientY: number;
         pointerEvent: PointerEvent;
     }): void {
-        // Smooth-mode intra-group reorder: the pointer-backend analog of the
-        // HTML5 tabs-list `drop` commit. In smooth mode the per-tab pointer
-        // drop target doesn't latch a drop state for the intra-group drag, so
-        // its `onDrop` never fires; commit the reorder from the computed
-        // insertion index when the drag ends over the strip. This covers both
-        // single-row and multi-row wrap layouts (single-row previously had no
-        // pointer commit path at all, so the tab snapped back on release). It
-        // can't double-commit: `tab.onDrop` nulls `_animState` before this runs
-        // (the backend calls `handleDrop` before `onDragEnd`), so if the per-tab
-        // path *did* fire, `_animState` is already null and this is skipped; in
-        // default (non-smooth) mode `_animState` is never set for an intra-group
-        // drag, so this path is inert there too.
+        // The pointer-backend analog of the HTML5 tabs-list `drop` commit: in
+        // smooth mode the per-element drop targets don't latch a state for an
+        // internal drag, so nothing else commits a release over the strip.
+        // The strip's own targets null `_animState` before this runs and the
+        // void container is outside the strip, so neither double-commits.
+        // The layout-edge target (`dndEdges`) is the exception: it knows
+        // nothing of tabs, so a release inside both it and the strip docks
+        // the group and reorders it.
         if (
             e &&
             this._animState &&
-            // intra-group single-tab reorder only: `sourceIndex === -1` is a
-            // cross-group drag (handled by the cross-group machinery), and
-            // `sourceTabGroupId` is a group-chip drag (handled by the chip drop
-            // target, which does not null `_animState`, so committing here too
-            // would double-commit).
+            // A cross-group drag has no insertion index of ours to commit.
             this._animState.sourceIndex !== -1 &&
-            !this._animState.sourceTabGroupId &&
             this._animState.currentInsertionIndex !== null &&
             this.isPointInsideTabsList(e.clientX, e.clientY)
         ) {
-            this.commitPointerReorder(e.pointerEvent);
+            const sourceTabGroupId = this._animState.sourceTabGroupId;
+
+            if (sourceTabGroupId) {
+                const insertionIndex = this._animState.currentInsertionIndex;
+                this._animState = null;
+                this.commitGroupMove(sourceTabGroupId, insertionIndex);
+            } else {
+                this.commitPointerReorder(e.pointerEvent);
+            }
         }
         this._pointerInsideTabsList = false;
         this.resetDragAnimation();
     }
 
     private isPointInsideTabsList(clientX: number, clientY: number): boolean {
-        const doc = this._tabsList.ownerDocument ?? document;
-        const el = doc.elementFromPoint(clientX, clientY);
+        const el = getHitTestRoot(this._tabsList).elementFromPoint(
+            clientX,
+            clientY
+        );
         return !!el && this._tabsList.contains(el);
     }
 
@@ -388,17 +441,17 @@ export class TabReorderController extends CompositeDisposable {
         ) {
             return false;
         }
-        const avgWidth = this.getAverageTabWidth();
+        const avgSize = this.getAverageTabSize();
         this._animState = data.tabGroupId
-            ? this._makeGroupDragAnimState(data, avgWidth)
-            : this._makeTabDragAnimState(data, avgWidth);
+            ? this._makeGroupDragAnimState(data, avgSize)
+            : this._makeTabDragAnimState(data, avgSize);
         return true;
     }
 
     /** Anim state for an external group-chip drag (gap sized to the group). */
     private _makeGroupDragAnimState(
         data: PanelTransfer,
-        avgWidth: number
+        avgSize: number
     ): TabAnimationState {
         // External group drag: look up the source group to size the gap.
         const sourceGroup = this.accessor.getPanel(data.groupId);
@@ -406,43 +459,47 @@ export class TabReorderController extends CompositeDisposable {
             .getTabGroups()
             .find((tg) => tg.id === data.tabGroupId);
         const panelCount = sourceTg?.panelIds.length ?? 1;
-        const groupGapWidth = avgWidth * panelCount + avgWidth;
+        const groupGapSize = avgSize * panelCount + avgSize;
         return {
             sourceTabId: '',
             sourceIndex: -1,
             tabPositions: this.snapshotTabPositions(),
-            chipPositions: this._tabGroupManager.snapshotChipWidths(),
+            chipSizes: this._tabGroupManager.snapshotChipSizes(),
             currentInsertionIndex: null,
             targetTabGroupId: null,
             sourceTabGroupId: data.tabGroupId!,
             sourceGroupPanelIds: sourceTg
                 ? new Set(sourceTg.panelIds)
                 : new Set<string>(),
-            sourceChipWidth: avgWidth,
-            cursorOffsetFromDragLeft: groupGapWidth / 2,
-            sourceGapWidth: groupGapWidth,
-            containerLeft: this._tabsList.getBoundingClientRect().left,
+            sourceChipSize: avgSize,
+            cursorOffsetFromDragStart: groupGapSize / 2,
+            sourceGapSize: groupGapSize,
+            containerStart: this._mainAxisStart(
+                this._tabsList.getBoundingClientRect()
+            ),
         };
     }
 
     /** Anim state for an external single-tab drag. */
     private _makeTabDragAnimState(
         data: PanelTransfer,
-        avgWidth: number
+        avgSize: number
     ): TabAnimationState {
         return {
             sourceTabId: data.panelId!,
             sourceIndex: -1,
             tabPositions: this.snapshotTabPositions(),
-            chipPositions: this._tabGroupManager.snapshotChipWidths(),
+            chipSizes: this._tabGroupManager.snapshotChipSizes(),
             currentInsertionIndex: null,
             targetTabGroupId: null,
             sourceTabGroupId: null,
             sourceGroupPanelIds: null,
-            sourceChipWidth: 0,
-            cursorOffsetFromDragLeft: avgWidth / 2,
-            sourceGapWidth: avgWidth,
-            containerLeft: this._tabsList.getBoundingClientRect().left,
+            sourceChipSize: 0,
+            cursorOffsetFromDragStart: avgSize / 2,
+            sourceGapSize: avgSize,
+            containerStart: this._mainAxisStart(
+                this._tabsList.getBoundingClientRect()
+            ),
         };
     }
 
@@ -479,11 +536,34 @@ export class TabReorderController extends CompositeDisposable {
         }
         this.resetTabTransforms();
         if (this._animState.sourceIndex === -1) {
-            this.group.model.dropTargetContainer?.model?.clear();
+            this.clearHeaderAnchorOverlay();
             this._animState = null;
         } else {
             this._animState.currentInsertionIndex = null;
         }
+    }
+
+    /**
+     * Clear the anchored overlay only when this header is what rendered it.
+     * The container is shared with the group's content drop target, which
+     * renders into it on the same frame the cursor leaves the strip: the
+     * pointer backend calls `handleDragOver` on the new target before the
+     * global `onDragMove` that reaches us (#1612).
+     */
+    private clearHeaderAnchorOverlay(): void {
+        const container = this.group.model.dropTargetContainer;
+        const outline = container?.renderedOutline;
+
+        if (
+            outline &&
+            ![this._tabsList, this._voidContainer, this._extendedDropZone].some(
+                (scope) => scope?.contains(outline)
+            )
+        ) {
+            return; // someone else's overlay
+        }
+
+        container?.model?.clear();
     }
 
     handleDragOver(event: { clientX: number; clientY?: number }): void {
@@ -503,15 +583,17 @@ export class TabReorderController extends CompositeDisposable {
             return;
         }
 
-        const mouseX = event.clientX;
+        // Tabs flow along x in a horizontal header and along y in a vertical
+        // one, so the walk below follows whichever coordinate is the main axis.
+        const mousePos = this._mainAxisCoord(event.clientX, event.clientY ?? 0);
         const firstPanelToGroup = this._buildFirstPanelToGroupMap();
 
-        // Accumulation approach: compute where the drag image's left edge
-        // would be, then walk tabs left-to-right using their original widths.
-        // A tab fits to the left of the gap if the cumulative width of all
-        // preceding non-source tabs <= available space.
+        // Accumulation approach: compute where the drag image's leading edge
+        // would be, then walk tabs in flow order using their original sizes.
+        // A tab fits before the gap if the cumulative size of all preceding
+        // non-source tabs <= available space.
         let insertionIndex = this._computeDragOverInsertionIndex(
-            mouseX,
+            mousePos,
             firstPanelToGroup
         );
         let targetTabGroupId: string | null = null;
@@ -527,7 +609,7 @@ export class TabReorderController extends CompositeDisposable {
             this._tabGroupManager.chipRenderers.size > 0
         ) {
             const resolved = this._resolveInsertionAgainstTabGroups(
-                mouseX,
+                mousePos,
                 insertionIndex,
                 firstPanelToGroup
             );
@@ -572,18 +654,19 @@ export class TabReorderController extends CompositeDisposable {
     }
 
     /**
-     * Walk the tabs left-to-right by their original widths and return the
-     * insertion slot for the drag image's left edge (null if no slot fits).
+     * Walk the tabs in flow order by their original main-axis sizes and return
+     * the insertion slot for the drag image's leading edge (null if no slot
+     * fits).
      */
     private _computeDragOverInsertionIndex(
-        mouseX: number,
+        mousePos: number,
         firstPanelToGroup: Map<string, string>
     ): number | null {
         const animState = this._animState!;
         const sourceGroupPanelIds = animState.sourceGroupPanelIds;
-        const dragLeftEdge = mouseX - animState.cursorOffsetFromDragLeft;
-        const availableSpace = dragLeftEdge - animState.containerLeft;
-        let accWidth = 0;
+        const dragLeadingEdge = mousePos - animState.cursorOffsetFromDragStart;
+        const availableSpace = dragLeadingEdge - animState.containerStart;
+        let accSize = 0;
         let insertionIndex: number | null = null;
 
         for (let i = 0; i < this._tabs.length; i++) {
@@ -596,28 +679,28 @@ export class TabReorderController extends CompositeDisposable {
             }
 
             // If this tab is the first of a non-source group, include
-            // the chip width (which sits before it in the DOM).
+            // the chip size (the chip sits before it in the DOM).
             const groupId = firstPanelToGroup.get(tab.panel.id);
             if (groupId) {
-                const chipWidth = animState.chipPositions.get(groupId) ?? 0;
-                if (accWidth + chipWidth > availableSpace) {
+                const chipSize = animState.chipSizes.get(groupId) ?? 0;
+                if (accSize + chipSize > availableSpace) {
                     // Chip alone overflows, so the gap goes before this group
                     insertionIndex ??= i;
                     break;
                 }
-                accWidth += chipWidth;
+                accSize += chipSize;
             }
 
-            // Use original width (before collapse/transforms)
+            // Use the original size (before collapse/transforms)
             const origRect = animState.tabPositions.get(tab.panel.id);
-            const tabWidth = origRect
-                ? origRect.width
-                : tab.element.getBoundingClientRect().width;
+            const tabSize = this._mainAxisSize(
+                origRect ?? tab.element.getBoundingClientRect()
+            );
 
-            // Shift at the midpoint: a tab moves left once the drag image
+            // Shift at the midpoint: a tab moves back once the drag image
             // covers half of it (like Chrome's tab drag behavior).
-            if (accWidth + tabWidth / 2 <= availableSpace) {
-                accWidth += tabWidth;
+            if (accSize + tabSize / 2 <= availableSpace) {
+                accSize += tabSize;
                 insertionIndex = i + 1;
             } else {
                 insertionIndex ??= i;
@@ -628,11 +711,12 @@ export class TabReorderController extends CompositeDisposable {
     }
 
     /**
-     * Rebuild the accumulated original width up to `insertionIndex`, walking the
-     * tabs exactly the way the accumulation loop does, so callers know the
-     * original right edge of the chip (if any) that precedes the insertion slot.
+     * Rebuild the accumulated original main-axis size up to `insertionIndex`,
+     * walking the tabs exactly the way the accumulation loop does, so callers
+     * know the original trailing edge of the chip (if any) that precedes the
+     * insertion slot.
      */
-    private _accumulatedWidthUpTo(
+    private _accumulatedSizeUpTo(
         insertionIndex: number,
         firstPanelToGroup: Map<string, string>
     ): number {
@@ -652,12 +736,12 @@ export class TabReorderController extends CompositeDisposable {
             }
             const gid = firstPanelToGroup.get(tab.panel.id);
             if (gid) {
-                accUpTo += animState.chipPositions.get(gid) ?? 0;
+                accUpTo += animState.chipSizes.get(gid) ?? 0;
             }
             const origRect = animState.tabPositions.get(tab.panel.id);
-            accUpTo += origRect
-                ? origRect.width
-                : tab.element.getBoundingClientRect().width;
+            accUpTo += this._mainAxisSize(
+                origRect ?? tab.element.getBoundingClientRect()
+            );
         }
         return accUpTo;
     }
@@ -667,12 +751,12 @@ export class TabReorderController extends CompositeDisposable {
      * within and resolve the target group (if the drop should merge into one).
      */
     private _resolveInsertionAgainstTabGroups(
-        mouseX: number,
+        mousePos: number,
         insertionIndex: number,
         firstPanelToGroup: Map<string, string>
     ): { insertionIndex: number; targetTabGroupId: string | null } {
         const isGroupDrag = !!this._animState!.sourceTabGroupId;
-        const accUpTo = this._accumulatedWidthUpTo(
+        const accUpTo = this._accumulatedSizeUpTo(
             insertionIndex,
             firstPanelToGroup
         );
@@ -680,7 +764,7 @@ export class TabReorderController extends CompositeDisposable {
         for (const tg of this.group.model.getTabGroups()) {
             const resolved = this._evaluateTabGroupForInsertion(
                 tg,
-                mouseX,
+                mousePos,
                 insertionIndex,
                 accUpTo,
                 isGroupDrag
@@ -700,7 +784,7 @@ export class TabReorderController extends CompositeDisposable {
      */
     private _evaluateTabGroupForInsertion(
         tg: ITabGroup,
-        mouseX: number,
+        mousePos: number,
         insertionIndex: number,
         accUpTo: number,
         isGroupDrag: boolean
@@ -730,7 +814,7 @@ export class TabReorderController extends CompositeDisposable {
         }
         return this._resolveTabDragTarget(
             tg,
-            mouseX,
+            mousePos,
             insertionIndex,
             accUpTo,
             firstIdx,
@@ -799,14 +883,14 @@ export class TabReorderController extends CompositeDisposable {
      *  the drop merges into the group based on the cursor vs the chip edge. */
     private _resolveTabDragTarget(
         tg: ITabGroup,
-        mouseX: number,
+        mousePos: number,
         insertionIndex: number,
         accUpTo: number,
         firstIdx: number,
         isJustBeforeGroup: boolean
     ): { insertionIndex: number; targetTabGroupId: string | null } | null {
         const animState = this._animState!;
-        const chipWidth = animState.chipPositions.get(tg.id) ?? 0;
+        const chipSize = animState.chipSizes.get(tg.id) ?? 0;
 
         if (isJustBeforeGroup) {
             // Only allow dropping into position 0 when just the source tab (or
@@ -817,20 +901,20 @@ export class TabReorderController extends CompositeDisposable {
                 return null;
             }
             const threshold = tg.collapsed
-                ? animState.containerLeft + accUpTo + chipWidth / 2
-                : animState.containerLeft + accUpTo + chipWidth;
-            if (mouseX >= threshold) {
+                ? animState.containerStart + accUpTo + chipSize / 2
+                : animState.containerStart + accUpTo + chipSize;
+            if (mousePos >= threshold) {
                 return { insertionIndex: firstIdx, targetTabGroupId: tg.id };
             }
             return { insertionIndex, targetTabGroupId: null };
         }
 
         // isInsideRange, single-tab drag.
-        const chipOriginalRight = animState.containerLeft + accUpTo + chipWidth;
+        const chipOriginalEnd = animState.containerStart + accUpTo + chipSize;
         if (insertionIndex === firstIdx) {
             return {
                 insertionIndex,
-                targetTabGroupId: mouseX >= chipOriginalRight ? tg.id : null,
+                targetTabGroupId: mousePos >= chipOriginalEnd ? tg.id : null,
             };
         }
         return { insertionIndex, targetTabGroupId: tg.id };
@@ -1093,25 +1177,27 @@ export class TabReorderController extends CompositeDisposable {
         }
 
         const insertionIndex = this._animState.currentInsertionIndex;
-        const gapWidth = this._computeGapWidth();
+        const gapSize = this._computeGapSize();
         const chipToShift = this._computeChipToShift(insertionIndex);
         this._applyGapMargins(
             insertionIndex,
-            gapWidth,
+            gapSize,
             chipToShift,
             skipTransition
         );
     }
 
-    /** Gap width for the current drag: the whole group's span for a group
-     *  drag, otherwise the source tab's own width. */
-    private _computeGapWidth(): number {
+    /** Gap size for the current drag: the whole group's span for a group
+     *  drag, otherwise the source tab's own main-axis size. */
+    private _computeGapSize(): number {
         const animState = this._animState!;
         if (animState.sourceTabGroupId && animState.sourceGroupPanelIds) {
-            return animState.sourceGapWidth;
+            return animState.sourceGapSize;
         }
         const sourceRect = animState.tabPositions.get(animState.sourceTabId);
-        return sourceRect ? sourceRect.width : this.getAverageTabWidth();
+        return sourceRect
+            ? this._mainAxisSize(sourceRect)
+            : this.getAverageTabSize();
     }
 
     /**
@@ -1184,7 +1270,7 @@ export class TabReorderController extends CompositeDisposable {
      *  the first tab at/after the insertion index. */
     private _applyGapMargins(
         insertionIndex: number,
-        gapWidth: number,
+        gapSize: number,
         chipToShift: HTMLElement | null,
         skipTransition: boolean
     ): void {
@@ -1200,7 +1286,7 @@ export class TabReorderController extends CompositeDisposable {
 
         // Apply gap to chip if insertion is before a group
         if (chipToShift) {
-            this._setMargin(chipToShift, `${gapWidth}px`, skipTransition);
+            this._setMargin(chipToShift, `${gapSize}px`, skipTransition);
             gapApplied = true;
         }
 
@@ -1214,7 +1300,7 @@ export class TabReorderController extends CompositeDisposable {
             }
 
             if (!gapApplied && i >= insertionIndex) {
-                this._setMargin(tab.element, `${gapWidth}px`, skipTransition);
+                this._setMargin(tab.element, `${gapSize}px`, skipTransition);
                 gapApplied = true;
             } else {
                 this._clearMargin(tab.element, skipTransition);
@@ -1232,20 +1318,21 @@ export class TabReorderController extends CompositeDisposable {
             : 'dv-tab--shifting';
     }
 
-    /** Apply a margin-left value to an element, optionally bypassing CSS
+    /** Apply the main-axis gap margin to an element, optionally bypassing CSS
      *  transitions for instant positioning. */
     private _setMargin(
         el: HTMLElement,
         value: string,
         skipTransition: boolean
     ): void {
+        const property = this._gapMarginProperty;
         if (skipTransition) {
             el.style.transition = 'none';
-            el.style.marginLeft = value;
+            el.style.setProperty(property, value);
             el.getBoundingClientRect(); // force reflow before re-enabling
             el.style.removeProperty('transition');
         } else {
-            el.style.marginLeft = value;
+            el.style.setProperty(property, value);
         }
         toggleClass(el, this._shiftingClass(el), true);
     }
@@ -1254,6 +1341,7 @@ export class TabReorderController extends CompositeDisposable {
      *  transitions are skipped. */
     private _clearMargin(el: HTMLElement, skipTransition: boolean): void {
         const cls = this._shiftingClass(el);
+        const property = this._gapMarginProperty;
 
         // Remove any previous pending listener for this element
         const prev = this._pendingMarginCleanups.get(el);
@@ -1261,14 +1349,14 @@ export class TabReorderController extends CompositeDisposable {
             prev();
         }
 
-        if (skipTransition || !el.style.marginLeft) {
-            el.style.removeProperty('margin-left');
+        if (skipTransition || !el.style.getPropertyValue(property)) {
+            el.style.removeProperty(property);
             toggleClass(el, cls, false);
         } else {
-            el.style.marginLeft = '0px';
+            el.style.setProperty(property, '0px');
             toggleClass(el, cls, true);
             const onEnd = () => {
-                el.style.removeProperty('margin-left');
+                el.style.removeProperty(property);
                 toggleClass(el, cls, false);
                 el.removeEventListener('transitionend', onEnd);
                 clearTimeout(fallbackTimer);
@@ -1301,6 +1389,7 @@ export class TabReorderController extends CompositeDisposable {
         }
         for (const [, entry] of this._tabGroupManager.chipRenderers) {
             entry.chip.element.style.removeProperty('margin-left');
+            entry.chip.element.style.removeProperty('margin-top');
             toggleClass(
                 entry.chip.element,
                 'dv-tab-group-chip--shifting',
@@ -1325,6 +1414,7 @@ export class TabReorderController extends CompositeDisposable {
         // sibling dragover handler firing in the same tick) would
         // otherwise see stale data still referencing the old tabGroupId.
         this._tabGroupManager.disposeChipDrag(sourceTabGroupId);
+        this._tabGroupManager.clearChipDropOverlays();
 
         // Check if the tab group exists in this group (within-group reorder)
         // or in another group (cross-group move).

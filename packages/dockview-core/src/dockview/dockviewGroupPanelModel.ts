@@ -2,7 +2,14 @@ import { DockviewApi } from '../api/component.api';
 import { getPanelData, PanelTransfer } from '../dnd/dataTransfer';
 import { Droptarget, Position } from '../dnd/droptarget';
 import { DockviewComponent, DockviewOrigin } from './dockviewComponent';
-import { addClasses, isAncestor, removeClasses, toggleClass } from '../dom';
+import {
+    addClasses,
+    getActiveElement,
+    isAncestor,
+    removeClasses,
+    toggleClass,
+    watchElementResize,
+} from '../dom';
 import {
     addDisposableListener,
     DockviewEvent,
@@ -119,6 +126,16 @@ export class DockviewDidDropEvent extends DockviewEvent {
         return this.options.panel;
     }
 
+    /**
+     * For a drop on a group's tab bar, the tab index the drop landed at:
+     * where a panel added in response belongs (`addPanel`'s `index`, or
+     * `addGroupFromJSON` with `direction: 'within'`). `undefined` for a
+     * drop on a group's content or a layout edge.
+     */
+    get index(): number | undefined {
+        return this.options.index;
+    }
+
     get group(): DockviewGroupPanel | undefined {
         return this.options.group;
     }
@@ -132,6 +149,7 @@ export class DockviewDidDropEvent extends DockviewEvent {
             readonly nativeEvent: DragEvent | PointerEvent;
             readonly position: Position;
             readonly panel?: IDockviewPanel;
+            readonly index?: number;
             getData(): PanelTransfer | undefined;
             group?: DockviewGroupPanel;
             api: DockviewApi;
@@ -156,6 +174,7 @@ export class DockviewWillDropEvent extends DockviewDidDropEvent {
         readonly nativeEvent: DragEvent | PointerEvent;
         readonly position: Position;
         readonly panel?: IDockviewPanel;
+        readonly index?: number;
         getData(): PanelTransfer | undefined;
         kind: DockviewGroupDropLocation;
         group?: DockviewGroupPanel;
@@ -268,6 +287,22 @@ export class DockviewGroupPanelModel
     private _headerPosition: DockviewHeaderPosition | undefined;
     private _headerDirection: DockviewHeaderDirection | undefined;
     private _location: DockviewGroupLocation = { type: 'grid' };
+    /**
+     * The header (`dv-tabs-and-actions-container`) extent along its occupied
+     * axis — `offsetHeight` for a top/bottom header, `offsetWidth` for a
+     * left/right one — which `contentDimensions` subtracts from the group box.
+     *
+     * This was read via `offset*` on *every* `layout()`. Because the read comes
+     * after the group's container styles were written, it forces a synchronous
+     * reflow, and with N groups a single window-resize frame flushed layout N
+     * times (measured: 24 forced reflows/frame at 24 groups, ~68% of resize
+     * cost). The extent only changes when the header's tabs change (add/remove/
+     * wrap), its axis flips, or it's hidden/shown — never during a plain
+     * resize — so we cache it and invalidate on exactly those signals (plus a
+     * `ResizeObserver` that also catches CSS/theme-driven height changes and
+     * display:none transitions). `undefined` means "dirty; measure on read".
+     */
+    private _cachedHeaderSize: number | undefined;
 
     private mostRecentlyUsed: IDockviewPanel[] = [];
     private _overwriteRenderContainer: OverlayRenderContainer | null = null;
@@ -452,13 +487,12 @@ export class DockviewGroupPanelModel
     }
 
     get isContentFocused(): boolean {
-        if (!document.activeElement) {
+        const element = this.contentContainer.element;
+        const activeElement = getActiveElement(element);
+        if (!activeElement) {
             return false;
         }
-        return isAncestor(
-            document.activeElement,
-            this.contentContainer.element
-        );
+        return isAncestor(activeElement, element);
     }
 
     get headerPosition(): DockviewHeaderPosition {
@@ -467,6 +501,9 @@ export class DockviewGroupPanelModel
 
     set headerPosition(value: DockviewHeaderPosition) {
         this._headerPosition = value;
+        // the header may have flipped axis (top/bottom <-> left/right), so the
+        // cached extent (measured along the old axis) no longer applies
+        this.invalidateHeaderSize();
         removeClasses(
             this.container,
             'dv-groupview-header-top',
@@ -483,11 +520,10 @@ export class DockviewGroupPanelModel
         this.tabsContainer.direction = direction;
         this.header.direction = direction;
 
-        // resize the active panel to fit the new header direction
+        // resize the content to fit the new header direction
         // if not, the panel will overflow the tabs container
-        if (this._activePanel?.layout) {
-            const { width, height } = this.contentDimensions();
-            this._activePanel.layout(width, height);
+        if (this.panels.length > 0) {
+            this.layoutContent();
         }
 
         this.updateHeaderActions();
@@ -588,6 +624,24 @@ export class DockviewGroupPanelModel
             options.headerPosition ?? accessor.defaultHeaderPosition;
 
         this.addDisposables(
+            // Keep the cached header extent fresh without reading `offset*` on
+            // every layout: re-measure only when the header element actually
+            // changes size (tabs wrapping, hide/show — ResizeObserver fires on
+            // display:none transitions too — theme-driven height), and relayout
+            // the content if the extent moved.
+            watchElementResize(this.tabsContainer.element, () => {
+                // `watchElementResize` defers via requestAnimationFrame, so a
+                // frame queued just before disposal can still fire; don't run
+                // layout on a disposed group (mirrors `Resizable`).
+                if (this.isDisposed) {
+                    return;
+                }
+                const size = this.measureHeaderSize();
+                if (size !== this._cachedHeaderSize) {
+                    this._cachedHeaderSize = size;
+                    this.layout(this._width, this._height);
+                }
+            }),
             // Keep the region's accessible name in sync when the active
             // panel's title changes (no-op when a non-active title changes).
             this._onDidPanelTitleChange.event(() =>
@@ -890,7 +944,6 @@ export class DockviewGroupPanelModel
             return;
         }
 
-        // Remove and re-add at new index within the group
         tabGroup.removePanel(panelId);
         tabGroup.addPanel(panelId, newIndex);
 
@@ -1259,15 +1312,11 @@ export class DockviewGroupPanelModel
             this.rerender(panel);
         });
 
-        // rerender() re-attaches each panel with asActive:false; for the default
-        // onlyWhenVisible renderer that loop leaves the active panel's content
-        // detached. Re-show it so swapping the render container on an
-        // already-populated group (e.g. restoring a popout group from JSON)
-        // keeps the active content mounted.
-        if (this._activePanel) {
-            this.contentContainer.renderPanel(this._activePanel, {
-                asActive: true,
-            });
+        // Re-run layout() so the content is sized after the container
+        // switch — matching doSetActivePanel(). Without it the content keeps
+        // stale dimensions when a group is moved back from a popout.
+        if (this.panels.length > 0) {
+            this.layoutContent();
         }
     }
 
@@ -1452,13 +1501,6 @@ export class DockviewGroupPanelModel
             skipSetGroupActive?: boolean;
         } = {}
     ): void {
-        /**
-         * set the panel group
-         * add the panel
-         * check if group active
-         * check if panel active
-         */
-
         if (
             typeof options.index !== 'number' ||
             options.index > this.panels.length
@@ -1476,6 +1518,9 @@ export class DockviewGroupPanelModel
         this.doAddPanel(panel, options.index, {
             skipSetActive: skipSetActive,
         });
+
+        // a new tab can change the header's extent (e.g. push it to wrap)
+        this.invalidateHeaderSize();
 
         if (this._activePanel === panel) {
             this.contentContainer.renderPanel(panel, { asActive: true });
@@ -1553,6 +1598,9 @@ export class DockviewGroupPanelModel
     }
 
     public setActive(isGroupActive: boolean, force = false): void {
+        if (this.isDisposed) {
+            return;
+        }
         if (!force && this.isActive === isGroupActive) {
             return;
         }
@@ -1581,13 +1629,25 @@ export class DockviewGroupPanelModel
         this._width = width;
         this._height = height;
 
-        const { width: contentWidth, height: contentHeight } =
-            this.contentDimensions();
+        this.layoutContent();
+    }
 
-        this.contentContainer.layout(contentWidth, contentHeight);
+    /**
+     * Apply the current content box (group box minus header extent) to the
+     * content container and the active panel. Every path that can change that
+     * box goes through here so the container's recorded dimensions, which size
+     * overlay-rendered panels, never lag the active panel's. Callers other
+     * than `layout()` skip it for a group with no panels: there is nothing to
+     * size, and measuring the header of a group that is not in the document
+     * yet (the constructor sets `headerPosition`) would cache a zero extent.
+     */
+    private layoutContent(): void {
+        const { width, height } = this.contentDimensions();
+
+        this.contentContainer.layout(width, height);
 
         if (this._activePanel?.layout) {
-            this._activePanel.layout(contentWidth, contentHeight);
+            this._activePanel.layout(width, height);
         }
     }
 
@@ -1597,6 +1657,10 @@ export class DockviewGroupPanelModel
      * changing) down to the content + active panel.
      */
     public relayout(): void {
+        // `relayout` exists to propagate a header-size change (e.g. tabs
+        // wrapping to a second row) into the content, so drop the cached extent
+        // and re-measure on the next `contentDimensions`.
+        this.invalidateHeaderSize();
         this.layout(this._width, this._height);
     }
 
@@ -1607,17 +1671,36 @@ export class DockviewGroupPanelModel
      * width); a hidden header has `display:none` so its `offset*` is 0 and
      * nothing is subtracted.
      */
-    private contentDimensions(): { width: number; height: number } {
+    /**
+     * Measure the header's extent along its occupied axis. This is the single
+     * forced-reflow read; it now runs only on a cache miss (first layout after
+     * a header change) and inside the header's ResizeObserver — not on every
+     * layout frame.
+     */
+    private measureHeaderSize(): number {
         const headerEl = this.tabsContainer.element;
         const horizontal =
             this.headerPosition === 'top' || this.headerPosition === 'bottom';
+        return horizontal ? headerEl.offsetHeight : headerEl.offsetWidth;
+    }
+
+    private invalidateHeaderSize(): void {
+        this._cachedHeaderSize = undefined;
+    }
+
+    private contentDimensions(): { width: number; height: number } {
+        const horizontal =
+            this.headerPosition === 'top' || this.headerPosition === 'bottom';
+
+        const headerSize = (this._cachedHeaderSize ??=
+            this.measureHeaderSize());
 
         return {
             width: horizontal
                 ? this._width
-                : Math.max(0, this._width - headerEl.offsetWidth),
+                : Math.max(0, this._width - headerSize),
             height: horizontal
-                ? Math.max(0, this._height - headerEl.offsetHeight)
+                ? Math.max(0, this._height - headerSize)
                 : this._height,
         };
     }
@@ -1632,6 +1715,9 @@ export class DockviewGroupPanelModel
         const isActivePanel = this._activePanel === panel;
 
         this.doRemovePanel(panel);
+
+        // removing a tab can change the header's extent (e.g. drop a wrap row)
+        this.invalidateHeaderSize();
 
         if (isActivePanel && this.panels.length > 0) {
             const nextPanel = this.mostRecentlyUsed[0];
@@ -1740,8 +1826,7 @@ export class DockviewGroupPanelModel
 
             this.contentContainer.openPanel(panel);
 
-            const { width, height } = this.contentDimensions();
-            panel.layout(width, height);
+            this.layoutContent();
 
             this.updateMru(panel);
 
@@ -1889,6 +1974,7 @@ export class DockviewGroupPanelModel
             nativeEvent: event,
             position,
             panel,
+            index,
             getData: () => getPanelData(),
             kind: getKind(),
             group: this.groupPanel,
@@ -1942,10 +2028,19 @@ export class DockviewGroupPanelModel
                 return;
             }
 
+            // ITabsContainer.indexOf(id) is a domain method with no `includes`
+            // counterpart.
             const fromSameGroup =
                 this.tabsContainer.indexOf(data.panelId) !== -1;
 
-            if (fromSameGroup && this.tabsContainer.size === 1) {
+            // a lone panel cannot split its own group when the emptied
+            // group would be removed; with `closeEmptyGroups: false` the
+            // group stays, so the split is allowed
+            if (
+                fromSameGroup &&
+                this.tabsContainer.size === 1 &&
+                this.accessor.options.closeEmptyGroups !== false
+            ) {
                 return;
             }
 
@@ -1970,6 +2065,7 @@ export class DockviewGroupPanelModel
                     nativeEvent: event,
                     position,
                     panel,
+                    index,
                     getData: () => getPanelData(),
                     group: this.groupPanel,
                     api: this._api,
@@ -1989,7 +2085,7 @@ export class DockviewGroupPanelModel
         this.watermark?.dispose?.();
         this.watermark = undefined;
 
-        // Dispose all tab groups
+        // Iterate a copy: dispose removes entries from _tabGroups as it goes.
         for (const tabGroup of [...this._tabGroups]) {
             tabGroup.dispose();
         }

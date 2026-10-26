@@ -24,7 +24,7 @@ jobs:
                       ${{ runner.os }}-node-
 
             - run: yarn install
-            - run: npx nx run-many -t build,build:bundle --projects=dockview-core,dockview,dockview-vue,dockview-react,dockview-angular
+            - run: npx nx run-many -t build,build:bundle --projects=dockview-core,dockview,dockview-enterprise,dockview-vue,dockview-react,dockview-angular
             - run: npm run build
               working-directory: packages/docs
             - run: npm run docs

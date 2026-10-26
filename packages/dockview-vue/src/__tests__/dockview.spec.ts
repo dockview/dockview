@@ -66,6 +66,17 @@ describe('DockviewVue Component', () => {
         expect(readyEvent.api).toBeInstanceOf(DockviewApi);
     });
 
+    test('forwards dropSizing on mount and when the prop changes', async () => {
+        wrapper = mountDockview({ dropSizing: 'distribute' });
+        await flushPromises();
+        const api = (wrapper.emitted('ready')![0][0] as any).api as DockviewApi;
+        expect((api as any).component.options.dropSizing).toBe('distribute');
+        const update = vi.spyOn(api, 'updateOptions');
+        await wrapper.setProps({ dropSizing: 'split' });
+        await nextTick();
+        expect(update).toHaveBeenCalledWith({ dropSizing: 'split' });
+    });
+
     test('forwards fallthrough style/class attributes to the root container', async () => {
         // Regression test for #1510: the SFC renders multiple root nodes
         // (the host element plus <DockviewPortals>), so Vue cannot
@@ -321,9 +332,52 @@ describe('DockviewVue Component', () => {
         expect(emitted).toBeTruthy();
         expect(emitted![0][0]).toBe(fakeEvent);
     });
+
+    test.each([
+        'always',
+        'onlyWhenVisible',
+    ] as const)('closing a panel and re-adding it re-renders content and tab (renderer=%s, #1300)', async (renderer) => {
+        wrapper = mountDockview();
+        await flushPromises();
+
+        const api = (wrapper.emitted('ready')![0][0] as any).api as DockviewApi;
+
+        const panel = api.addPanel({
+            id: 'panel1',
+            component: 'MockPanel',
+            tabComponent: 'MockTab',
+            renderer,
+        });
+        await flushPromises();
+        await nextTick();
+
+        expect(document.querySelectorAll('.mock-panel')).toHaveLength(1);
+        expect(document.querySelectorAll('.mock-tab')).toHaveLength(1);
+
+        panel.api.close();
+        await flushPromises();
+        await nextTick();
+
+        expect(api.panels).toHaveLength(0);
+        expect(document.querySelectorAll('.mock-tab')).toHaveLength(0);
+
+        const panelAgain = api.addPanel({
+            id: 'panel1',
+            component: 'MockPanel',
+            tabComponent: 'MockTab',
+            renderer,
+        });
+        await flushPromises();
+        await nextTick();
+
+        expect(api.panels).toHaveLength(1);
+        expect(panelAgain.api.renderer).toBe(renderer);
+        expect(document.querySelectorAll('.mock-panel')).toHaveLength(1);
+        expect(document.querySelectorAll('.mock-tab')).toHaveLength(1);
+    });
 });
 
-// Regression coverage for https://github.com/mathuo/dockview/issues/1301
+// Regression coverage for https://github.com/dockview/dockview/issues/1301
 // `<script setup>` users (and anyone not using the Options API) need to be
 // able to supply panel components without registering globally in main.ts.
 describe('DockviewVue components prop (issue #1301)', () => {

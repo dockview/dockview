@@ -31,7 +31,6 @@ describe('lifecycle', () => {
     test('that MutableDisposable.value exposes the current disposable', () => {
         const mutableDisposable = new MutableDisposable();
 
-        // nothing set yet
         expect(mutableDisposable.value).toBeUndefined();
 
         const disposable = { dispose: () => {} };

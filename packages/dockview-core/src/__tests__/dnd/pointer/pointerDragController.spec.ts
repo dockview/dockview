@@ -107,6 +107,49 @@ describe('PointerDragController', () => {
         document.body.removeChild(targetEl);
     });
 
+    test('hit-tests through the shadow root when the source is inside one', () => {
+        const controller = PointerDragController.getInstance();
+
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        const shadowRoot = host.attachShadow({ mode: 'open' });
+        const source = document.createElement('div');
+        const targetEl = document.createElement('div');
+        shadowRoot.append(source, targetEl);
+
+        // Hit-testing on the document stops at the shadow host; only the
+        // shadow root sees the target. (jsdom lacks the method on shadow
+        // roots, so define it.)
+        const documentSpy = jest
+            .spyOn(document, 'elementsFromPoint')
+            .mockReturnValue([host, document.body]);
+        Object.assign(shadowRoot, {
+            elementsFromPoint: jest
+                .fn()
+                .mockReturnValue([targetEl, host, document.body]),
+        });
+
+        const { target, handleDragOver } = makeTarget(targetEl);
+        const reg = controller.registerTarget(target);
+
+        controller.beginDrag({
+            pointerEvent: makePointerEvent('pointermove'),
+            source,
+            getData: () => ({ dispose: jest.fn() }),
+        });
+
+        window.dispatchEvent(
+            makePointerEvent('pointermove', { clientX: 50, clientY: 50 })
+        );
+
+        expect(handleDragOver).toHaveBeenCalledTimes(1);
+
+        controller.cancel();
+        reg.dispose();
+        documentSpy.mockRestore();
+        host.remove();
+    });
+
     test('drag-leave fires when the pointer moves off the target', () => {
         const controller = PointerDragController.getInstance();
 
@@ -285,10 +328,10 @@ describe('PointerDragController', () => {
     });
 
     test('hit-testing prefers the inner / more-specific target when nested targets overlap', () => {
-        // Regression: previously `_findTargetUnder` accepted any registered
-        // target whose element contains the cursor element. Because the
-        // layout-root drop target is registered first and contains every
-        // tab, it always won the race and per-tab targets were unreachable.
+        // `_findTargetUnder` must prefer the inner / more-specific target. The
+        // layout-root drop target is registered first and contains every tab,
+        // so a naive "first registered target that contains the cursor" lets
+        // root eclipse every per-tab target.
         const controller = PointerDragController.getInstance();
 
         const root = document.createElement('div');
@@ -296,7 +339,8 @@ describe('PointerDragController', () => {
         root.appendChild(inner);
         document.body.appendChild(root);
 
-        // Order matters: register OUTER first to recreate the original bug.
+        // Order matters: register OUTER first, the ordering under which root
+        // would eclipse inner in a naive containment check.
         const rootHandle = makeTarget(root);
         const innerHandle = makeTarget(inner);
         const r1 = controller.registerTarget(rootHandle.target);
@@ -316,8 +360,6 @@ describe('PointerDragController', () => {
             makePointerEvent('pointermove', { clientX: 10, clientY: 10 })
         );
 
-        // Inner target should have received the drag-over; root must not
-        // have received it (it'd have eclipsed inner under the old logic).
         expect(innerHandle.handleDragOver).toHaveBeenCalled();
         expect(rootHandle.handleDragOver).not.toHaveBeenCalled();
 
@@ -345,7 +387,6 @@ describe('PointerDragController', () => {
             document.body.appendChild(span);
             document.body.appendChild(source);
 
-            // pre-condition
             expect(iframe.style.pointerEvents).toBeFalsy();
             expect(webview.style.pointerEvents).toBeFalsy();
             expect(span.style.pointerEvents).toBeFalsy();
@@ -390,6 +431,54 @@ describe('PointerDragController', () => {
             expect(iframe.style.pointerEvents).toBe('');
 
             document.body.removeChild(iframe);
+            document.body.removeChild(source);
+        });
+    });
+
+    describe('text selection shielding', () => {
+        test('beginDrag refuses selection until the drag ends', () => {
+            const controller = PointerDragController.getInstance();
+            const source = document.createElement('div');
+            document.body.appendChild(source);
+            const root = document.documentElement;
+
+            controller.beginDrag({
+                pointerEvent: makePointerEvent('pointermove'),
+                source,
+                getData: () => ({ dispose: jest.fn() }),
+            });
+
+            expect(root.style.getPropertyValue('user-select')).toBe('none');
+            const during = new Event('selectstart', { cancelable: true });
+            document.dispatchEvent(during);
+            expect(during.defaultPrevented).toBe(true);
+
+            window.dispatchEvent(makePointerEvent('pointerup'));
+
+            expect(root.style.getPropertyValue('user-select')).toBe('');
+            const after = new Event('selectstart', { cancelable: true });
+            document.dispatchEvent(after);
+            expect(after.defaultPrevented).toBe(false);
+
+            document.body.removeChild(source);
+        });
+
+        test('cancel() also releases the shield', () => {
+            const controller = PointerDragController.getInstance();
+            const source = document.createElement('div');
+            document.body.appendChild(source);
+            const root = document.documentElement;
+
+            controller.beginDrag({
+                pointerEvent: makePointerEvent('pointermove'),
+                source,
+                getData: () => ({ dispose: jest.fn() }),
+            });
+            expect(root.style.getPropertyValue('user-select')).toBe('none');
+
+            controller.cancel();
+            expect(root.style.getPropertyValue('user-select')).toBe('');
+
             document.body.removeChild(source);
         });
     });

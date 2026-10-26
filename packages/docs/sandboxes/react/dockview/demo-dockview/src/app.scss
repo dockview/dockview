@@ -164,7 +164,14 @@
         }
     }
 
-    button {
+    // Dockview renders the tab close control as a real <button> (it was a div
+    // before v8), so it matches this bare selector and picks up the accent
+    // outline and the fixed height meant for the demo's own chrome. The dock
+    // styles its own controls, so exclude them. The demo's controls are
+    // unclassed buttons and rely on the rule, which is why this excludes the
+    // one dock control rather than everything carrying a dv- class: the side
+    // panel kit uses dv-sb- names of its own.
+    button:not(.dv-default-tab-action) {
         height: 25px;
         display: flex;
         align-items: center;

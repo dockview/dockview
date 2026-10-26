@@ -46,8 +46,7 @@ export const TabGroupChipsModule = defineModule<
     serviceKey: 'tabGroupChipsService',
     create: (host) => new TabGroupChipsService(host),
     init: (host, service) => {
-        // Self-attach to existing and future groups; tear down when groups
-        // are removed. Component doesn't need to know about this wiring.
+        // Self-attach so the component doesn't need to know about this wiring.
         const perGroupDisposables = new Map<DockviewGroupPanel, IDisposable>();
         return new CompositeDisposable(
             host.onDidAddGroup((group) => {

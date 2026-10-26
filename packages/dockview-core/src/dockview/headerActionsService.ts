@@ -89,6 +89,7 @@ export class HeaderActionsService implements IHeaderActionsService {
     }
 
     dispose(): void {
+        // Iterate a copy of the keys: disposeGroup deletes from _perGroup as it goes.
         for (const group of [...this._perGroup.keys()]) {
             this.disposeGroup(group);
         }

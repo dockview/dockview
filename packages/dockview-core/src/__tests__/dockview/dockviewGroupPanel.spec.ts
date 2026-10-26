@@ -95,8 +95,6 @@ describe('dockviewGroupPanel', () => {
             maximumWidth: 200,
         });
 
-        // initial constraints
-
         expect(cut.minimumWidth).toBe(20);
         expect(cut.minimumHeight).toBe(10);
         expect(cut.maximumHeight).toBe(100);
@@ -134,10 +132,10 @@ describe('dockviewGroupPanel', () => {
 
         // explicit group constraints now override panel constraints
 
-        expect(cut.minimumWidth).toBe(20); // group constraint overrides panel constraint
-        expect(cut.minimumHeight).toBe(10); // group constraint overrides panel constraint
-        expect(cut.maximumHeight).toBe(100); // group constraint overrides panel constraint
-        expect(cut.maximumWidth).toBe(200); // group constraint overrides panel constraint
+        expect(cut.minimumWidth).toBe(20);
+        expect(cut.minimumHeight).toBe(10);
+        expect(cut.maximumHeight).toBe(100);
+        expect(cut.maximumWidth).toBe(200);
 
         const panel2 = new DockviewPanel(
             'panel_id',
@@ -160,10 +158,10 @@ describe('dockviewGroupPanel', () => {
 
         // explicit group constraints still override panel constraints
 
-        expect(cut.minimumWidth).toBe(20); // group constraint overrides panel constraint
-        expect(cut.minimumHeight).toBe(10); // group constraint overrides panel constraint
-        expect(cut.maximumHeight).toBe(100); // group constraint overrides panel constraint
-        expect(cut.maximumWidth).toBe(200); // group constraint overrides panel constraint
+        expect(cut.minimumWidth).toBe(20);
+        expect(cut.minimumHeight).toBe(10);
+        expect(cut.maximumHeight).toBe(100);
+        expect(cut.maximumWidth).toBe(200);
 
         const panel3 = new DockviewPanel(
             'panel_id',

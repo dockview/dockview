@@ -12,9 +12,15 @@ import {
     PopoutGroupChangePositionEvent,
     PopoutGroupChangeSizeEvent,
     SerializedDockview,
+    SerializedDockviewGroup,
 } from '../dockview/dockviewComponent';
+import { PopoutWindowEvent, PopoutWindowFailure } from '../popoutWindow';
+import { DndCapabilities } from '../dockview/dndCapabilities';
+import { GroupviewPanelState } from '../dockview/types';
 import {
     AddGroupOptions,
+    AddGroupFromJSONOptions,
+    AddPanelFromJSONOptions,
     AddPanelOptions,
     DockviewComponentOptions,
     DockviewDndOverlayEvent,
@@ -807,6 +813,16 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
         return this.component.onUnhandledDragOver;
     }
 
+    /**
+     * The drag-and-drop backends currently live: `dndStrategy` resolved against
+     * this device, which `'auto'` reads from the primary input device. Only an
+     * HTML5 drag can leave the window it started in, so check `html5` before
+     * relying on a drag between a popout window and the main window.
+     */
+    get dndCapabilities(): DndCapabilities {
+        return this.component.dndCapabilities;
+    }
+
     get onDidPopoutGroupSizeChange(): Event<PopoutGroupChangeSizeEvent> {
         return this.component.onDidPopoutGroupSizeChange;
     }
@@ -833,8 +849,27 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
         return this.component.onDidRemovePopoutGroup;
     }
 
-    get onDidOpenPopoutWindowFail(): Event<void> {
+    /**
+     * Fires when a popout window could not be used, carrying which way it
+     * failed: the URL was refused, the browser blocked the window, the host
+     * returned a window whose document the opener cannot reach, or it closed
+     * before loading. The group stays in (or returns to) the main grid.
+     */
+    get onDidOpenPopoutWindowFail(): Event<PopoutWindowFailure> {
         return this.component.onDidOpenPopoutWindowFail;
+    }
+
+    /**
+     * Fires as dockview lets go of a popout window, while that window is still
+     * open, carrying its live `Window` handle. Covers every popout the component
+     * opened and every reason for closing one, disposal included;
+     * {@link onDidAddPopoutGroup} is the opening half.
+     *
+     * For hosts that own their windows: in a desktop webview the page's own
+     * `close()` can be a no-op, so the shell has to be told.
+     */
+    get onWillClosePopoutWindow(): Event<PopoutWindowEvent> {
+        return this.component.onWillClosePopoutWindow;
     }
 
     /** Enumerate the popout groups currently open in their own windows. */
@@ -974,10 +1009,17 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
 
     /**
      * Remove a panel given the panel object.
+     *
+     * `removeEmptyGroup` overrides the `closeEmptyGroups` option for this
+     * call: `false` keeps the group if the panel was its last one, `true`
+     * removes it.
      */
-    removePanel(panel: IDockviewPanel): void {
+    removePanel(
+        panel: IDockviewPanel,
+        options?: { removeEmptyGroup?: boolean }
+    ): void {
         this.component.withOrigin('api', () =>
-            this.component.removePanel(panel)
+            this.component.removePanel(panel, options)
         );
     }
 
@@ -985,7 +1027,49 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
      * Add a group and return the created object.
      */
     addGroup(options?: AddGroupOptions): DockviewGroupPanel {
-        return this.component.addGroup(options);
+        return this.component.withOrigin('api', () =>
+            this.component.addGroup(options)
+        );
+    }
+
+    /**
+     * Serialize one group together with the state of every panel it holds.
+     * The result is self-contained and can be rehydrated with
+     * `addGroupFromJSON`, on this instance or another one.
+     */
+    serializeGroup(group: IDockviewGroupPanel): SerializedDockviewGroup {
+        return this.component.serializeGroup(<DockviewGroupPanel>group);
+    }
+
+    /**
+     * Rebuild a group from `serializeGroup` output and add it to the live
+     * layout, positioned as for `addGroup`, leaving the rest of the layout
+     * untouched. Throws before changing anything if a panel id is already in
+     * use.
+     */
+    addGroupFromJSON(
+        data: SerializedDockviewGroup,
+        options?: AddGroupFromJSONOptions
+    ): DockviewGroupPanel {
+        return this.component.withOrigin('api', () =>
+            this.component.addGroupFromJSON(data, options)
+        );
+    }
+
+    /**
+     * Add a panel from its `toJSON()` state, placed as `addPanel` places
+     * one: the counterpart to `panel.toJSON()` for a single tab moving
+     * between layouts or instances, as `addGroupFromJSON` is to
+     * `serializeGroup`. Throws before changing anything if the panel id is
+     * already in use.
+     */
+    addPanelFromJSON(
+        state: GroupviewPanelState,
+        options?: AddPanelFromJSONOptions
+    ): IDockviewPanel {
+        return this.component.withOrigin('api', () =>
+            this.component.addPanelFromJSON(state, options)
+        );
     }
 
     /**
@@ -1161,7 +1245,9 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
     }
 
     maximizeGroup(panel: IDockviewPanel): void {
-        this.component.maximizeGroup(panel.group);
+        this.component.withOrigin('api', () =>
+            this.component.maximizeGroup(panel.group)
+        );
     }
 
     hasMaximizedGroup(): boolean {
@@ -1169,7 +1255,9 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
     }
 
     exitMaximizedGroup(): void {
-        this.component.exitMaximizedGroup();
+        this.component.withOrigin('api', () =>
+            this.component.exitMaximizedGroup()
+        );
     }
 
     get onDidMaximizedGroupChange(): Event<DockviewMaximizedGroupChangeEvent> {

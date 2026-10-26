@@ -29,7 +29,12 @@ import { ITabGroup } from '../../tabGroup';
 import { applyTabGroupAccent } from '../../tabGroupAccent';
 import { TabGroupChip } from './tabGroupChip';
 import { ITabGroupChipRenderer } from '../../framework';
-import { Droptarget, DroptargetEvent } from '../../../dnd/droptarget';
+import {
+    DroptargetEvent,
+    DroptargetOptions,
+    IDropTarget,
+    Position,
+} from '../../../dnd/droptarget';
 import {
     ITabGroupIndicator,
     NoneTabGroupIndicator,
@@ -80,7 +85,8 @@ interface ChipRendererEntry {
     /** Disposes the two drag sources + their shared dragend listener. */
     dragSourcesDisposable: IDisposable | undefined;
     disposable: IDisposable;
-    dropTarget: Droptarget;
+    dropTarget: IDropTarget;
+    pointerDropTarget: IDropTarget;
 }
 
 export class TabGroupManager {
@@ -129,7 +135,6 @@ export class TabGroupManager {
         const model = this._ctx.group.model;
         const tabGroups = model.getTabGroups();
 
-        // Track which group IDs are still active
         const activeGroupIds = new Set<string>();
 
         for (const tabGroup of tabGroups) {
@@ -149,7 +154,6 @@ export class TabGroupManager {
             }
         }
 
-        // Update CSS classes on all tabs
         this._updateTabGroupClasses();
     }
 
@@ -178,19 +182,36 @@ export class TabGroupManager {
     updateDirection(): void {
         const isVertical = this._ctx.getDirection() === 'vertical';
         for (const [, entry] of this._chipRenderers) {
-            entry.dropTarget.setTargetZones(isVertical ? ['top'] : ['left']);
+            const zones: Position[] = isVertical ? ['top'] : ['left'];
+            entry.dropTarget.setTargetZones(zones);
+            entry.pointerDropTarget.setTargetZones(zones);
         }
     }
 
-    snapshotChipWidths(): Map<string, number> {
-        const widths = new Map<string, number>();
-        for (const [groupId, entry] of this._chipRenderers) {
-            widths.set(
-                groupId,
-                entry.chip.element.getBoundingClientRect().width
-            );
+    /**
+     * Drop any overlay the chips are showing. A group move is committed by a
+     * capturing listener on the tabs list that stops the event, so the chip
+     * target under the cursor never sees the drop that would clear its own.
+     */
+    clearChipDropOverlays(): void {
+        for (const [, entry] of this._chipRenderers) {
+            // Optional-chained because tests may inject minimal entries that
+            // skip the manager's normal `_ensureChipForGroup` flow.
+            entry.dropTarget?.clearOverlay();
+            entry.pointerDropTarget?.clearOverlay();
         }
-        return widths;
+    }
+
+    /** Each chip's extent along the strip's main axis: width for a horizontal
+     *  header, height for a vertical one. */
+    snapshotChipSizes(): Map<string, number> {
+        const isVertical = this._ctx.getDirection() === 'vertical';
+        const sizes = new Map<string, number>();
+        for (const [groupId, entry] of this._chipRenderers) {
+            const rect = entry.chip.element.getBoundingClientRect();
+            sizes.set(groupId, isVertical ? rect.height : rect.width);
+        }
+        return sizes;
     }
 
     positionUnderlines(): void {
@@ -593,15 +614,12 @@ export class TabGroupManager {
             );
         }
 
-        // The chip sits before its group's first tab in the DOM, so it
-        // covers the "drop before the group" position. Without a drop
-        // target here, dropping a tab over the chip is a dead zone,
-        // particularly visible when the group is first in the tabs list
-        // and there's no preceding tab whose right zone covers position 0.
-        // The smooth animation path already shifts the chip's margin to
-        // open a gap, so suppress the overlay in that mode.
+        // The chip sits before its group's first tab in the DOM, so it covers
+        // the "drop before the group" position — no preceding tab's right
+        // zone reaches it when the group leads the strip. One target per
+        // backend, as tabs have.
         const isVertical = this._ctx.getDirection() === 'vertical';
-        const dropTarget = new Droptarget(chip.element, {
+        const dropTargetOptions: DroptargetOptions = {
             acceptedTargetZones: isVertical ? ['top'] : ['left'],
             overlayModel: {
                 activationSize: { value: 100, type: 'percentage' },
@@ -615,9 +633,14 @@ export class TabGroupManager {
                 }
                 const data = getPanelData();
                 if (this._ctx.accessor.id === data?.viewId) {
+                    // Smooth-reorder owns the in-flight visual for a single
+                    // tab. A dragged group keeps the chip's overlay: its gap
+                    // is drawn by shifting this chip aside, which marks no
+                    // boundary of its own.
                     if (
                         this._ctx.accessor.options.theme?.tabAnimation ===
-                        'smooth'
+                            'smooth' &&
+                        !data.tabGroupId
                     ) {
                         return false;
                     }
@@ -629,12 +652,23 @@ export class TabGroupManager {
                     'tab'
                 );
             },
-        });
+        };
+        const dropTarget = html5Backend.createDropTarget(
+            chip.element,
+            dropTargetOptions
+        );
+        const pointerDropTarget = pointerBackend.createDropTarget(
+            chip.element,
+            dropTargetOptions
+        );
+        const onDrop = (event: DroptargetEvent) => {
+            this._callbacks.onChipDrop(tabGroup, event);
+        };
         disposables.push(
             dropTarget,
-            dropTarget.onDrop((event) => {
-                this._callbacks.onChipDrop(tabGroup, event);
-            })
+            dropTarget.onDrop(onDrop),
+            pointerDropTarget,
+            pointerDropTarget.onDrop(onDrop)
         );
 
         const disposable = new CompositeDisposable(...disposables);
@@ -645,6 +679,7 @@ export class TabGroupManager {
             dragSourcesDisposable: dragSources.disposable,
             disposable,
             dropTarget,
+            pointerDropTarget,
         });
 
         // Group is born collapsed (cross-group drop, layout restore, etc.):
@@ -670,7 +705,6 @@ export class TabGroupManager {
             return;
         }
 
-        // Find the first tab element of this group
         const firstPanelId = panelIds[0];
         const firstTabEntry = this._ctx.getTabMap().get(firstPanelId);
 
@@ -679,7 +713,6 @@ export class TabGroupManager {
             return;
         }
 
-        // Insert chip before the first tab of the group
         const firstTabEl = firstTabEntry.value.element;
         if (chipEl.nextSibling !== firstTabEl) {
             this._ctx.tabsList.insertBefore(chipEl, firstTabEl);
@@ -771,14 +804,12 @@ export class TabGroupManager {
             }
         }
 
-        // Track active group IDs for underline/collapse handling
         const activeGroupIds = new Set<string>();
 
         // Handle collapse animation per group
         for (const tg of tabGroups) {
             activeGroupIds.add(tg.id);
 
-            // Collapse animation
             const hasNewCollapse =
                 tg.collapsed &&
                 tg.panelIds.some((pid) => {
@@ -815,6 +846,8 @@ export class TabGroupManager {
                         }
                     }
                     if (affected.length > 0) {
+                        // `void` marks this offsetHeight read as an intentional
+                        // layout reflow, not a dead expression.
                         void affected[0].offsetHeight; // single reflow
                         for (const el of affected) {
                             el.style.removeProperty('transition');
@@ -844,7 +877,6 @@ export class TabGroupManager {
 
         this._skipNextCollapseAnimation = false;
 
-        // Sync indicator underlines and position them
         this._ensureIndicator();
         if (this._indicator) {
             this._indicator.syncUnderlineElements(activeGroupIds);

@@ -71,13 +71,20 @@ jobs:
                   echo "tag=v${v}" >> "$GITHUB_OUTPUT"
 
             - name: Show pending changes
+              id: changes
               run: |
                   git --no-pager diff --stat
                   echo "---"
                   git --no-pager diff --name-status
+                  if git diff --quiet HEAD; then
+                      echo "any=false" >> "$GITHUB_OUTPUT"
+                      echo "No pending changes: version files are already at the target version, so the release commit is skipped and the tag is placed on the current master HEAD."
+                  else
+                      echo "any=true" >> "$GITHUB_OUTPUT"
+                  fi
 
             - name: Create signed release commit on master
-              if: ${{ !inputs.dry-run }}
+              if: ${{ !inputs.dry-run && steps.changes.outputs.any == 'true' }}
               id: commit
               env:
                   GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -138,9 +145,14 @@ jobs:
               env:
                   GH_TOKEN: ${{ steps.app-token.outputs.token }}
                   TAG: ${{ steps.ver.outputs.tag }}
-                  COMMIT_SHA: ${{ steps.commit.outputs.sha }}
+                  COMMIT_SHA: ${{ steps.commit.outputs.sha || steps.head.outputs.sha }}
               run: |
                   set -euo pipefail
+
+                  if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" >/dev/null 2>&1; then
+                      echo "Tag ${TAG} already exists; refusing to move it." >&2
+                      exit 1
+                  fi
 
                   tag_resp=$(gh api -X POST "repos/${GITHUB_REPOSITORY}/git/tags" \
                       -f tag="${TAG}" \

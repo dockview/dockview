@@ -6,7 +6,7 @@ description: How to remove panels from the Dockview layout programmatically.
 
 import { DocRef } from '@site/src/components/ui/reference/docRef';
 
-A panel can be removed either from its own panel API or from the container API. Removing a panel destroys its instance; the group is removed too once its last panel is gone.
+A panel can be removed either from its own panel API or from the container API. Removing a panel destroys its instance; the group is removed too once its last panel is gone, unless the [`closeEmptyGroups`](/docs/core/watermark#keeping-empty-groups) option is `false`.
 
 ## Remove a panel using the Panel API
 
@@ -28,6 +28,9 @@ pass that reference into `removePanel` to remove the panel.
 ```ts
 const panel: IDockviewPanel = api.getPanel('myPanel');
 api.removePanel(panel);
+
+// keep the group even if this was its last panel
+api.removePanel(panel, { removeEmptyGroup: false });
 ```
 
 ## See also

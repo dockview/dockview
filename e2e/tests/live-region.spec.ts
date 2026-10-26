@@ -43,9 +43,8 @@ test.describe('cross-window live regions', () => {
         await win.locator('.dv-test-panel').first().focus();
         await page.evaluate(() => (window as any).__dv.closePanel('beta'));
 
-        // The close lands in the popout's region...
         await expect(win.locator('.dv-live-region')).toHaveText('beta closed');
-        // ...and never leaks into the opener's region. (The opener's region
+        // It must never leak into the opener's region. (The opener's region
         // still holds the earlier "opened in a new window" note, which routed
         // to it because the main window had focus at popout time.)
         await expect(page.locator('.dv-live-region')).not.toHaveText(

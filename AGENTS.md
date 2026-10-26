@@ -51,7 +51,12 @@ NX handles build ordering automatically via `dependsOn: ["^build"]`. The depende
 
 ### Documentation
 
--   `yarn docs` - Generate TypeDoc documentation
+-   `yarn docs` - Generate TypeDoc documentation, writing the docs site's API
+    reference to `packages/docs/src/generated/api.output.json`
+-   **Build first.** Run `yarn build` before `yarn docs`: typedoc resolves
+    cross-package types through each package's built `dist/cjs/*.d.ts`, so on an
+    unbuilt tree the generator quietly degrades - references collapse to
+    `unknown` / `any` and some declarations drop out of the reference entirely.
 
 ### Release
 
@@ -68,6 +73,7 @@ NX handles build ordering automatically via `dependsOn: ["^build"]`. The depende
 -   **packages/dockview-react** - Canonical React bindings package — what docs, READMEs, and examples point users at (`npm install dockview-react`). Holds the actual React source and depends on `dockview`.
 -   **packages/dockview-vue** - Vue 3 bindings and components
 -   **packages/dockview-angular** - Angular bindings and components
+-   **packages/dockview-tauri-demo** - Private Tauri desktop shell hosting dockview. A testbed for host-environment behaviour (popouts in a native webview, native window isolation, cross-process layout sync); not published, and not built by CI.
 -   **packages/docs** - Documentation website (Docusaurus v3)
 
 ### Key Components
@@ -138,7 +144,7 @@ NX handles build ordering automatically via `dependsOn: ["^build"]`. The depende
     the same PR. If Sonar reports a new issue, fix it (or, if genuinely a false
     positive, mark it Won't Fix / Accepted in SonarCloud with a justification)
     before merging. Fetch the exact findings from
-    `https://sonarcloud.io/api/issues/search?componentKeys=mathuo_dockview&pullRequest=<PR>&issueStatuses=OPEN,CONFIRMED&resolved=false`
+    `https://sonarcloud.io/api/issues/search?componentKeys=dockview_dockview&pullRequest=<PR>&issueStatuses=OPEN,CONFIRMED&resolved=false`
     rather than trusting the summary comment, which can lag a commit behind.
 
 ## Development Notes
@@ -195,43 +201,6 @@ NX handles build ordering automatically via `dependsOn: ["^build"]`. The depende
     dockview keeps working without a valid licence key, or describe the watermark.
     State that enterprise features are governed by a licence key and link to the
     enterprise page; don't present the key as optional.
-
-## Release Management
-
-### Creating Release Notes
-
-Release notes are stored in `packages/docs/blog/` with the naming format `YYYY-MM-DD-dockview-X.Y.Z.md`.
-
-To create release notes for a new version:
-
-1. Check git commits since the last release: `git log --oneline --since="YYYY-MM-DD"`
-2. Create a new markdown file following the established format:
-   - Front matter with slug, title, and tags
-   - Sections for Features, Miscs, and Breaking changes
-   - Reference GitHub PR numbers for significant changes
-   - Focus on user-facing changes, bug fixes, and new features
-
-Example format:
-```markdown
----
-slug: dockview-X.Y.Z-release
-title: Dockview X.Y.Z
-tags: [release]
----
-
-# Release Notes
-
-Please reference docs @ [dockview.dev](https://dockview.dev).
-
-## Features
-- Feature description [#PR](link)
-
-## Miscs
-- Bug: Fix description [#PR](link)
-- Chore: Maintenance description [#PR](link)
-
-## Breaking changes
-```
 
 ## Linear issue workflow
 

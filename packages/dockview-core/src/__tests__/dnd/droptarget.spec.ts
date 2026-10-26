@@ -605,7 +605,6 @@ describe('droptarget', () => {
                 height: string;
             }
         ) {
-            // Check positioning (back to top/left with GPU layer maintained)
             expect(element.style.top).toBe(box.top);
             expect(element.style.left).toBe(box.left);
             expect(element.style.width).toBe(box.width);

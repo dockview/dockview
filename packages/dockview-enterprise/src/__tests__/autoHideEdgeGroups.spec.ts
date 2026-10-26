@@ -251,6 +251,29 @@ describe('auto-hide edge groups', () => {
         d.dispose();
     });
 
+    test('the title bar takes the tab-bar colour, the backdrop the group frame', () => {
+        const d = make(true);
+        collapsedEdgeWithPanel(d);
+        // Distinct frame (group) vs tab-bar (tab strip) colours — in dark/spaced
+        // themes the frame is the near-black inter-group gap colour, so the title
+        // bar must take the lighter tab-bar colour rather than reading as black.
+        strip(d).style.backgroundColor = 'rgb(11, 6, 17)'; // frame
+        const stripBar = strip(d).querySelector(
+            '.dv-tabs-and-actions-container'
+        ) as HTMLElement;
+        expect(stripBar).toBeTruthy();
+        stripBar.style.backgroundColor = 'rgb(22, 18, 31)'; // tab bar
+
+        d.api.peekEdgeGroup('left', true);
+        const header = container.querySelector(
+            '.dv-edge-peek-header'
+        ) as HTMLElement;
+        expect(header.style.backgroundColor).toBe('rgb(22, 18, 31)'); // tab bar
+        expect(peek()!.style.backgroundColor).toBe('rgb(11, 6, 17)'); // frame
+
+        d.dispose();
+    });
+
     test('off (default): peeking is a no-op', () => {
         const d = make(undefined);
         collapsedEdgeWithPanel(d);
@@ -314,6 +337,31 @@ describe('auto-hide edge groups', () => {
             d.dispose();
         });
 
+        test('pinning tags the group as a tool window; auto-hiding untags it', () => {
+            const d = make(true);
+            collapsedEdgeWithPanel(d);
+            d.api.peekEdgeGroup('left', true);
+
+            // pin (dock) → the group is a tool window (spaced themes reshape its
+            // rounding off this class)
+            (
+                container.querySelector('.dv-edge-peek-pin') as HTMLElement
+            ).click();
+            expect(strip(d).classList.contains('dv-edge-tool-window')).toBe(
+                true
+            );
+
+            // the docked pushpin auto-hides → the tag is removed
+            (
+                strip(d).querySelector('.dv-edge-peek-pin') as HTMLElement
+            ).click();
+            expect(strip(d).classList.contains('dv-edge-tool-window')).toBe(
+                false
+            );
+
+            d.dispose();
+        });
+
         test('the docked close button closes the active panel', () => {
             const d = make(true);
             collapsedEdgeWithPanel(d);
@@ -364,6 +412,36 @@ describe('auto-hide edge groups', () => {
             expect(document.activeElement).toBe(tab);
 
             d.dispose();
+        });
+
+        test('Escape returns focus to the tab inside a shadow root', () => {
+            // `document.activeElement` is the shadow host here, so the close
+            // must read the shadow root's focus to see it was inside the peek.
+            const shadowHost = document.createElement('div');
+            document.body.appendChild(shadowHost);
+            const shadow = shadowHost.attachShadow({ mode: 'open' });
+            container = document.createElement('div');
+            shadow.appendChild(container);
+            const d = new DockviewComponent(container, {
+                createComponent: () => new TestPanel(),
+                autoHideEdgeGroups: true,
+            });
+            d.layout(1000, 1000);
+            collapsedEdgeWithPanel(d);
+            const tab = tabs(d)[0];
+            tab.focus();
+            fireEvent.keyDown(tab, { key: 'Enter' });
+            expect(peek()?.contains(shadow.activeElement)).toBe(true);
+
+            document.dispatchEvent(
+                new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
+            );
+
+            expect(peek()).toBeNull();
+            expect(shadow.activeElement).toBe(tab);
+
+            d.dispose();
+            shadowHost.remove();
         });
 
         test('focus landing outside the peek closes it (keyboard tab-away)', () => {

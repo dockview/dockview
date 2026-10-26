@@ -8,6 +8,9 @@ import { CompositeDisposable } from '../lifecycle';
  * a raw color literal (`'#abc123'`, `'rgb(0,0,0)'`), or `undefined` to inherit
  * the default. Resolution to a concrete CSS value is handled by the
  * dockview's `TabGroupColorPalette` (see `tabGroupAccent.ts`).
+ *
+ * This is a deliberate semantic alias for a public API type; inlining it to
+ * `string` would be a breaking API change and lose the documented meaning.
  */
 export type DockviewTabGroupColor = string;
 

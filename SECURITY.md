@@ -4,9 +4,9 @@
 
 Please **do not** open a public GitHub issue for security reports.
 
-Preferred: use [GitHub's private vulnerability reporting](https://github.com/mathuo/dockview/security/advisories/new) on this repository.
+Preferred: use [GitHub's private vulnerability reporting](https://github.com/dockview/dockview/security/advisories/new) on this repository.
 
-Alternative: email **contact@dockview.dev** or **github.mathuo@gmail.com**.
+Alternative: email **contact@dockview.dev**.
 
 When reporting, please include:
 
@@ -38,9 +38,9 @@ Out of scope:
 
 ## Build and release integrity
 
-- All build and publish workflows are public and live under [`.github/workflows`](https://github.com/mathuo/dockview/tree/master/.github/workflows).
+- All build and publish workflows are public and live under [`.github/workflows`](https://github.com/dockview/dockview/tree/master/.github/workflows).
 - npm releases are published with [provenance statements](https://docs.npmjs.com/generating-provenance-statements/) so the source commit and workflow run can be verified.
-- Code is statically analysed by [SonarCloud](https://sonarcloud.io/summary/overall?id=mathuo_dockview) on every pull request and by [CodeQL](https://github.com/mathuo/dockview/security/code-scanning) on a nightly schedule.
+- Code is statically analysed by [SonarCloud](https://sonarcloud.io/summary/overall?id=dockview_dockview) on every pull request and by [CodeQL](https://github.com/dockview/dockview/security/code-scanning) on a nightly schedule.
 
 ## Configuration guidance
 

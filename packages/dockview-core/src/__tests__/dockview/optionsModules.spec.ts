@@ -115,6 +115,19 @@ describe('validateOptionModules', () => {
         expect(consoleError).not.toHaveBeenCalled();
     });
 
+    test('the context menu options never demand enterprise', () => {
+        // ContextMenu is a built-in module, so none of these can go unserved.
+        validateOptionModules(
+            options({
+                getTabContextMenuItems: () => [],
+                getTabGroupChipContextMenuItems: () => [],
+                createContextMenuItemComponent: () => undefined,
+            }),
+            nothingRegistered
+        );
+        expect(consoleError).not.toHaveBeenCalled();
+    });
+
     test('an explicitly disabled feature is silent', () => {
         validateOptionModules(
             options({

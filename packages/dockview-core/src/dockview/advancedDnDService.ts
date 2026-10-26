@@ -14,30 +14,15 @@ import {
 import { defineModule } from './modules';
 import { IAdvancedDnDHost, IAdvancedDnDService } from './moduleContracts';
 
-/** Cursor offset of the group drag ghost, matched to the long-shipped default. */
+/** Cursor offset of the group drag ghost. */
 const GROUP_DRAG_GHOST_OFFSET_X = 30;
 const GROUP_DRAG_GHOST_OFFSET_Y = -10;
 
 /**
- * The narrow surface the {@link AdvancedDnDService} needs from the host
- * (the `DockviewComponent`).
- *
- * The `onWill*` emitters stay on the component so the public event shape is
- * unchanged whether or not this module is registered; the service is only the
- * dispatch point those fires are routed through. Engine policy (e.g. the
- * `disableDnd` guard) stays on the component, ahead of the dispatch.
- */
-/**
  * Owns the dispatch of the advanced drag-and-drop hooks: `onWillDragPanel`,
- * `onWillDragGroup`, `onWillDrop` and `onWillShowOverlay`.
- *
- * At this stage the service is a thin dispatcher that forwards to the host's
- * emitters; the customisation surface it gates (custom drop overlays, custom
- * group drag ghosts, hook veto/transform behaviour) is currently inlined in
- * core and is extracted into this service in later phases. Routing the
- * dispatch through a module slot is what lets that customisation layer move
- * into a separately-distributed package in a future major version without
- * changing the public event surface.
+ * `onWillDragGroup`, `onWillDrop` and `onWillShowOverlay`, forwarding each to
+ * the host's emitters so the public event shape is unchanged whether or not
+ * this module is registered.
  *
  * The service holds no drag state of its own. The gesture is driven by the
  * DnD backends, and the per-group subscriptions live on the component's group

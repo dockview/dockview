@@ -53,7 +53,6 @@ test.describe('DnD compass', () => {
         await expect
             .poll(() => page.evaluate(() => (window as any).__dv.groupCount()))
             .toBe(1);
-        // ...and the compass is gone
         await expect(page.locator('.dv-dnd-compass')).toHaveCount(0);
     });
 

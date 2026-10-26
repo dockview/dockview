@@ -1,4 +1,5 @@
 import {
+    getActiveElement,
     DockviewCompositeDisposable as CompositeDisposable,
     DockviewGroupPanel,
     DockviewKeybindings,
@@ -8,11 +9,15 @@ import {
     IKeyboardNavigationService,
 } from 'dockview';
 import {
-    bindDocumentListeners,
     KEYBOARD_MOVE_ATTRIBUTE,
     matchesBinding,
     readKeyboardNavigation,
 } from './keyboardShared';
+import {
+    bindDocumentListeners,
+    bindShadowRootListeners,
+    eventOrigin,
+} from './shadowDom';
 
 const DEFAULT_KEYMAP: DockviewKeybindings = {
     nextTab: 'ctrl+]',
@@ -73,7 +78,7 @@ export class KeyboardNavigationService
         // float) so Esc inside a floating group can return focus to its
         // invoking control. Observe-only; it never consumes.
         const onFocusIn = (e: Event): void => {
-            const t = (e as FocusEvent).target;
+            const t = eventOrigin(e, this.host.rootElement);
             if (
                 t instanceof HTMLElement &&
                 this.host.ownsElement(t) &&
@@ -82,6 +87,20 @@ export class KeyboardNavigationService
                 this._lastNonFloatFocus = t;
             }
         };
+        // A dock inside a shadow root: focus moves within the root never reach
+        // the document, so track them on the root too. `onFocusIn` is
+        // idempotent, so an event seen by both listeners is harmless.
+        const shadowFocus = bindShadowRootListeners(
+            () => host.rootElement,
+            [{ type: 'focusin', handler: onFocusIn, capture: true }]
+        );
+        // Focus entering the root from outside does reach the document, so
+        // re-check the root there (before any intra-root move) in case the
+        // dock was mounted into a shadow root after construction.
+        const onDocumentFocusIn = (e: Event): void => {
+            shadowFocus.sync();
+            onFocusIn(e);
+        };
 
         // Esc-from-float restore runs in the bubble phase and respects
         // defaultPrevented, so panel content that uses Esc keeps priority.
@@ -89,9 +108,10 @@ export class KeyboardNavigationService
             this._onFloatingEscape(e as KeyboardEvent);
 
         this.addDisposables(
+            shadowFocus,
             bindDocumentListeners(host, [
                 { type: 'keydown', handler: onKeyDown, capture: true },
-                { type: 'focusin', handler: onFocusIn, capture: true },
+                { type: 'focusin', handler: onDocumentFocusIn, capture: true },
                 { type: 'keydown', handler: onEscape, capture: false },
             ]),
             // When a structural change pulls focus out of the dock, return it to
@@ -137,6 +157,8 @@ export class KeyboardNavigationService
      * of whichever document currently holds focus (a popout, else the main
      * document). Each document tracks its own `activeElement` even when blurred,
      * so we must pick the focused one rather than trust the main document.
+     * In the main document, read the dock's own root node so a dock mounted in
+     * a shadow root sees the focused element rather than the shadow host.
      */
     private _activeElement(): Element | null {
         const mainDoc = this.host.rootElement.ownerDocument;
@@ -149,7 +171,7 @@ export class KeyboardNavigationService
                 // A closing / cross-origin window can throw on access, so ignore it.
             }
         }
-        return mainDoc.activeElement;
+        return getActiveElement(this.host.rootElement);
     }
 
     private _isFocusInside(): boolean {
@@ -166,7 +188,7 @@ export class KeyboardNavigationService
         ) {
             return;
         }
-        const target = e.target;
+        const target = eventOrigin(e, this.host.rootElement);
         if (!(target instanceof Element)) {
             return;
         }
@@ -187,7 +209,7 @@ export class KeyboardNavigationService
      * true if it handled the event. No-op outside a float.
      */
     private _trapFloatTab(e: KeyboardEvent): boolean {
-        const target = e.target;
+        const target = eventOrigin(e, this.host.rootElement);
         if (!(target instanceof Element)) {
             return false;
         }
@@ -205,7 +227,7 @@ export class KeyboardNavigationService
         if (tabbables.length === 0) {
             return true;
         }
-        const active = float.ownerDocument.activeElement;
+        const active = getActiveElement(float);
         const index =
             active instanceof HTMLElement ? tabbables.indexOf(active) : -1;
         const n = tabbables.length;
@@ -264,7 +286,8 @@ export class KeyboardNavigationService
             return;
         }
         // Only act on events originating inside *this* dockview (any window).
-        if (!(e.target instanceof Node) || !this.host.ownsElement(e.target)) {
+        const target = eventOrigin(e, this.host.rootElement);
+        if (!(target instanceof Node) || !this.host.ownsElement(target)) {
             return;
         }
         // Trap Tab within a floating group so focus doesn't leak to the grid

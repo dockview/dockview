@@ -1,3 +1,4 @@
+import { isEventWithin } from '../../dom';
 import { addDisposableListener } from '../../events';
 import { CompositeDisposable, IDisposable } from '../../lifecycle';
 
@@ -50,7 +51,6 @@ export class LongPressDetector extends CompositeDisposable {
             return;
         }
 
-        // Cancel any in-flight press first.
         this._cancelPending();
 
         this._pointerId = event.pointerId;
@@ -152,8 +152,7 @@ export class LongPressDetector extends CompositeDisposable {
                 // Only suppress clicks targeted at the long-pressed element
                 // or its descendants. A user tap on a context menu item (or
                 // anywhere else) still gets through unchanged.
-                const target = event.target as Node | null;
-                if (target && this.element.contains(target)) {
+                if (isEventWithin(event, [this.element])) {
                     event.preventDefault();
                     event.stopPropagation();
                 }

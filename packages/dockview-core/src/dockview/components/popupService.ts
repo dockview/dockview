@@ -48,7 +48,8 @@ export class PopupService extends CompositeDisposable {
 
     openPopover(
         element: HTMLElement,
-        position: { x: number; y: number; zIndex?: string }
+        position: { x: number; y: number; zIndex?: string },
+        options?: { onClose?: () => void }
     ): void {
         this.close();
 
@@ -78,14 +79,19 @@ export class PopupService extends CompositeDisposable {
         // (e.g. focusing a rename input) rather than intent to dismiss.
         const POINTERDOWN_GRACE_MS = 200;
 
-        this._activeDisposable.value = createDismissableLayer({
-            window: this._window,
-            onDismiss: () => this.close(),
-            elements: () => (this._active ? [this._active] : []),
-            keys: ['Enter'],
-            pointerDownGraceMs: POINTERDOWN_GRACE_MS,
-            resize: true,
-        });
+        this._activeDisposable.value = new CompositeDisposable(
+            createDismissableLayer({
+                window: this._window,
+                onDismiss: () => this.close(),
+                elements: () => (this._active ? [this._active] : []),
+                keys: ['Enter'],
+                pointerDownGraceMs: POINTERDOWN_GRACE_MS,
+                resize: true,
+            }),
+            options?.onClose
+                ? Disposable.from(options.onClose)
+                : Disposable.NONE
+        );
 
         this._window.requestAnimationFrame(() => {
             shiftAbsoluteElementIntoView(wrapper, this._root);

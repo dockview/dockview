@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>tab group indicator clipping</title>
+        <style>
+            html,
+            body {
+                margin: 0;
+                height: 100%;
+                width: 100%;
+                background: #0d1117;
+            }
+            /* Give the dock a fixed size so screenshots are stable. */
+            #app {
+                position: absolute;
+                top: 40px;
+                left: 40px;
+                width: 720px;
+                height: 420px;
+            }
+            .dv-test-panel {
+                height: 100%;
+                box-sizing: border-box;
+                padding: 8px;
+                color: #ddd;
+            }
+        </style>
+        <link
+            rel="stylesheet"
+            href="/packages/dockview-core/dist/styles/dockview.css"
+        />
+        <script src="/packages/dockview/dist/dockview.js"></script>
+    </head>
+    <body>
+        <div id="app"></div>
+        <script>
+            (function () {
+                const lib = window['dockview'];
+                const params = new URLSearchParams(location.search);
+                const headerPosition = params.get('header') || 'top';
+
+                const el = document.getElementById('app');
+                const dockview = new lib.DockviewComponent(el, {
+                    createComponent: (options) => {
+                        const element = document.createElement('div');
+                        element.className = 'dv-test-panel';
+                        element.textContent = options.name;
+                        return {
+                            element,
+                            init: () => {},
+                            dispose: () => {},
+                        };
+                    },
+                    // Default theme → the Chrome-style wrap-around indicator
+                    // (`tabGroupIndicator` defaults to 'wrap').
+                    theme: lib.themeDark,
+                    // Vivid palette so the accent line reads clearly at zoom.
+                    tabGroupColors: [{ id: 'brand', value: '#8b5cf6' }],
+                });
+
+                // One group holding four tabs.
+                const p1 = dockview.api.addPanel({
+                    id: 'test',
+                    component: 'default',
+                    params: { name: 'test' },
+                });
+                const groupId = p1.group.id;
+                const p2 = dockview.api.addPanel({
+                    id: 'orders',
+                    component: 'default',
+                    params: { name: 'Orders' },
+                    position: { referencePanel: 'test', direction: 'within' },
+                });
+                const p3 = dockview.api.addPanel({
+                    id: 'positions',
+                    component: 'default',
+                    params: { name: 'Positions' },
+                    position: { referencePanel: 'test', direction: 'within' },
+                });
+                const p4 = dockview.api.addPanel({
+                    id: 'history',
+                    component: 'default',
+                    params: { name: 'History' },
+                    position: { referencePanel: 'test', direction: 'within' },
+                });
+
+                // Colored tab group spanning Orders + Positions.
+                const tabGroup = dockview.api.createTabGroup({
+                    groupId,
+                    label: 'Trade',
+                    color: 'brand',
+                });
+                dockview.api.addPanelToTabGroup({
+                    groupId,
+                    tabGroupId: tabGroup.id,
+                    panelId: 'orders',
+                });
+                dockview.api.addPanelToTabGroup({
+                    groupId,
+                    tabGroupId: tabGroup.id,
+                    panelId: 'positions',
+                });
+
+                // Header orientation under test.
+                p1.group.api.setHeaderPosition(headerPosition);
+
+                // Activate a tab inside the colored group so the indicator
+                // arches over the active tab (the case that showed clipping).
+                p2.api.setActive();
+
+                // Signal readiness for the screenshot driver once the indicator
+                // has had a couple of frames to position itself.
+                requestAnimationFrame(() =>
+                    requestAnimationFrame(() => {
+                        document.body.setAttribute('data-ready', 'true');
+                    })
+                );
+            })();
+        </script>
+    </body>
+</html>

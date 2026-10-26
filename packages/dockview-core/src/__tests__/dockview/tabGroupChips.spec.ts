@@ -42,7 +42,6 @@ describe('tab group events (TabGroupChipsModule)', () => {
     test('fromJSON with tab groups fires correct events', () => {
         dockview.layout(1000, 1000);
 
-        // Set up panels and tab groups first
         const panel1 = dockview.addPanel({
             id: 'panel1',
             component: 'default',
@@ -71,7 +70,6 @@ describe('tab group events (TabGroupChipsModule)', () => {
 
         const state = dockview.toJSON();
 
-        // Now restore from JSON and track events on the new groups
         dockview.fromJSON(state);
 
         const restoredGroup = dockview.api.panels[0].group;
@@ -104,7 +102,6 @@ describe('tab group events (TabGroupChipsModule)', () => {
             dockview.api.onDidTabGroupChange((e) => changes.push(e.tabGroup.id))
         );
 
-        // Create a new tab group and verify events fire
         const newTg = dockview.api.createTabGroup({
             groupId: restoredGroup.id,
             label: 'New',
@@ -127,11 +124,9 @@ describe('tab group events (TabGroupChipsModule)', () => {
             panelId: 'panel1',
         });
 
-        // Change the group label; should fire change event
         newTg.setLabel('Updated');
         expect(changes).toContain(newTg.id);
 
-        // Remove the panel
         panelsRemoved.length = 0;
         dockview.api.removePanelFromTabGroup({
             groupId: restoredGroup.id,
@@ -195,7 +190,6 @@ describe('tab group events (TabGroupChipsModule)', () => {
             dockview.api.onDidTabGroupChange((e) => changes.push(e.tabGroup.id))
         );
 
-        // 1. Create
         const tg = dockview.api.createTabGroup({
             groupId,
             label: 'Test',
@@ -203,7 +197,6 @@ describe('tab group events (TabGroupChipsModule)', () => {
         });
         expect(created).toEqual([tg.id]);
 
-        // 2. Add panels
         dockview.api.addPanelToTabGroup({
             groupId,
             tabGroupId: tg.id,
@@ -225,17 +218,14 @@ describe('tab group events (TabGroupChipsModule)', () => {
             { tgId: tg.id, panelId: 'panel3' },
         ]);
 
-        // 3. Change label and color
         changes.length = 0;
         tg.setLabel('Updated');
         tg.setColor('red');
         expect(changes).toHaveLength(2);
 
-        // 4. Collapse and expand
         tg.collapse();
         tg.expand();
 
-        // 5. Remove one panel
         dockview.api.removePanelFromTabGroup({
             groupId,
             panelId: 'panel2',
@@ -332,7 +322,6 @@ describe('tab group events (TabGroupChipsModule)', () => {
         const didLayoutChangeHandler = jest.fn();
         dockview.onDidLayoutChange(didLayoutChangeHandler);
 
-        // create tab group
         const tg = dockview.api.createTabGroup({
             groupId: panel1.group.id,
             label: 'My Group',
@@ -341,7 +330,6 @@ describe('tab group events (TabGroupChipsModule)', () => {
         jest.runAllTimers();
         expect(didLayoutChangeHandler).toHaveBeenCalledTimes(1);
 
-        // add panels to tab group
         dockview.api.addPanelToTabGroup({
             groupId: panel1.group.id,
             tabGroupId: tg.id,
@@ -358,7 +346,6 @@ describe('tab group events (TabGroupChipsModule)', () => {
         jest.runAllTimers();
         expect(didLayoutChangeHandler).toHaveBeenCalledTimes(3);
 
-        // collapse tab group
         tg.collapse();
         jest.runAllTimers();
         expect(didLayoutChangeHandler).toHaveBeenCalledTimes(4);
@@ -372,7 +359,6 @@ describe('tab group events (TabGroupChipsModule)', () => {
         jest.runAllTimers();
         expect(didLayoutChangeHandler).toHaveBeenCalledTimes(5);
 
-        // explicitly dissolve the tab group
         dockview.api.dissolveTabGroup({
             groupId: panel1.group.id,
             tabGroupId: tg.id,

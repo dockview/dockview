@@ -24,6 +24,6 @@ type BottomLeft = { bottom: number; left: number };
 type BottomRight = { bottom: number; right: number };
 
 export type AnchorPosition = TopLeft | TopRight | BottomLeft | BottomRight;
-type Size = { width: number; height: number };
+export type Size = { width: number; height: number };
 
 export type AnchoredBox = Size & AnchorPosition;

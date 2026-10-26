@@ -19,6 +19,10 @@ You can intercept drag events to attach your own metadata using the `onWillDragP
 
 <CodeRunner id="dockview/dnd-external" />
 
+## Where the drop landed
+
+`onDidDrop` reports the group under the drop and the position within it, and for a drop on a group's tab bar, `index`: the tab index the drop landed at, which is where a panel added in response belongs (`addPanel`'s `index`, or `addGroupFromJSON` with `direction: 'within'`). `index` is `undefined` for a drop on a group's content or on a layout edge, where `group` is also `undefined`.
+
 ## `nativeEvent` narrowing
 
 `event.nativeEvent` on drag-related events (`onWillDragPanel`, `onWillDragGroup`, `onWillDrop`, `onWillShowOverlay`, `onUnhandledDragOver`) is typed as `DragEvent | PointerEvent` to cover both the HTML5 and pointer-event ([touch / pen](/docs/core/dnd/strategy)) backends.

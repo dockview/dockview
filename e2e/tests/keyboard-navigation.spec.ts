@@ -14,7 +14,6 @@ test.describe('keyboard navigation (F6)', () => {
         const ids = await page.evaluate(() =>
             (window as any).__dv.setupTwoGroups()
         );
-        // Two side-by-side groups exist.
         await expect(
             page.locator('.dv-tabs-and-actions-container')
         ).toHaveCount(2);
@@ -29,15 +28,12 @@ test.describe('keyboard navigation (F6)', () => {
     }) => {
         const ids = await setup(page);
 
-        // Focus the first group by clicking its tab, then make it active.
         await page.locator('.dv-tab', { hasText: 'one' }).click();
         await expect.poll(() => activeGroupId(page)).toBe(ids.first);
 
-        // F6 → next group becomes active.
         await page.keyboard.press('F6');
         await expect.poll(() => activeGroupId(page)).toBe(ids.second);
 
-        // Shift+F6 → back to the first group (round-trip).
         await page.keyboard.press('Shift+F6');
         await expect.poll(() => activeGroupId(page)).toBe(ids.first);
     });

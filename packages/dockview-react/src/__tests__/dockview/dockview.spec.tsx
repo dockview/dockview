@@ -45,6 +45,32 @@ describe('gridview react', () => {
         expect(api).toBeTruthy();
     });
 
+    test('forwards dropSizing on mount and when the prop changes', () => {
+        let api: DockviewApi;
+        const onReady = (event: DockviewReadyEvent) => {
+            api = event.api;
+        };
+        const wrapper = render(
+            <DockviewReact
+                components={components}
+                onReady={onReady}
+                dropSizing="distribute"
+            />
+        );
+        expect((api! as any).component.options.dropSizing).toBe('distribute');
+        const update = jest.spyOn(api!, 'updateOptions');
+        wrapper.rerender(
+            <DockviewReact
+                components={components}
+                onReady={onReady}
+                dropSizing="split"
+            />
+        );
+        expect(update).toHaveBeenCalledWith(
+            expect.objectContaining({ dropSizing: 'split' })
+        );
+    });
+
     test('that passing defaultTabComponent does not mutate the caller-owned tabComponents object', () => {
         const tabComponents: Record<string, React.FunctionComponent<any>> = {
             myTab: () => <div />,

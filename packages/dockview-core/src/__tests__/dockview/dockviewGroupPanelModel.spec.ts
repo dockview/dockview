@@ -898,6 +898,58 @@ describe('dockviewGroupPanelModel', () => {
         expect(contentContainer.item(0)).toBe(panel2.view.content.element);
     });
 
+    test('swapping renderContainer re-lays out the active panel', () => {
+        // Regression (#989): when a popout group is moved back into the main
+        // grid the render container is swapped via `set renderContainer`. That
+        // path re-attaches the active panel's content but, unlike
+        // `doSetActivePanel`, used to skip `layout()` — so the content element
+        // kept stale dimensions and rendered blank until another view change.
+        const dockviewComponent = new DockviewComponent(
+            document.createElement('div'),
+            {
+                createComponent(options) {
+                    switch (options.name) {
+                        case 'component':
+                            return new TestContentPart(options.id);
+                        default:
+                            throw new Error(`unsupported`);
+                    }
+                },
+            }
+        );
+
+        const groupviewContainer = document.createElement('div');
+        const cut = new DockviewGroupPanelModel(
+            groupviewContainer,
+            dockviewComponent,
+            'id',
+            {},
+            null as any
+        );
+
+        const panel1 = new TestPanel('id_1', panelApi);
+        const panel2 = new TestPanel('id_2', panelApi);
+        cut.openPanel(panel1);
+        cut.openPanel(panel2); // panel2 is the active panel
+
+        // Give the group real dimensions so contentDimensions() is meaningful.
+        cut.layout(300, 200);
+
+        // Only observe layout() calls caused by the container swap itself.
+        const layoutSpy = jest.spyOn(panel2, 'layout');
+        layoutSpy.mockClear();
+
+        cut.renderContainer = new OverlayRenderContainer(
+            document.createElement('div'),
+            dockviewComponent
+        );
+
+        // The active panel is re-laid out with the group's content dimensions
+        // (full width/height here since the header has no size in jsdom).
+        expect(layoutSpy).toHaveBeenCalledTimes(1);
+        expect(layoutSpy).toHaveBeenCalledWith(300, 200);
+    });
+
     test('that should not show drop target is external event', () => {
         const accessor = fromPartial<DockviewComponent>({
             id: 'testcomponentid',
@@ -1302,6 +1354,208 @@ describe('dockviewGroupPanelModel', () => {
         LocalSelectionTransfer.getInstance().clearData(PanelTransfer.prototype);
     });
 
+    test('that a lone panel dropped on its own edge does not fire onMove by default', () => {
+        const accessor = fromPartial<DockviewComponent>({
+            id: 'testcomponentid',
+            options: {},
+            getPanel: jest.fn(),
+            doSetGroupActive: jest.fn(),
+            onDidAddPanel: jest.fn(),
+            onDidRemovePanel: jest.fn(),
+            overlayRenderContainer: new OverlayRenderContainer(
+                document.createElement('div'),
+                fromPartial<DockviewComponent>({})
+            ),
+            onDidOptionsChange: jest.fn(),
+        });
+
+        const groupviewMock = jest.fn<Partial<DockviewGroupPanelModel>, []>(
+            () => {
+                return {
+                    canDisplayOverlay: jest.fn(),
+                };
+            }
+        );
+
+        const groupView = new groupviewMock() as DockviewGroupPanelModel;
+
+        const groupPanelMock = jest.fn<Partial<DockviewGroupPanel>, []>(() => {
+            return {
+                id: 'testgroupid',
+                model: groupView,
+            };
+        });
+
+        const container = document.createElement('div');
+        const cut = new DockviewGroupPanelModel(
+            container,
+            accessor,
+            'groupviewid',
+            {},
+            new groupPanelMock() as DockviewGroupPanel
+        );
+
+        cut.openPanel(new TestPanel('panel1', panelApi));
+
+        const element = container
+            .getElementsByClassName('dv-content-container')
+            .item(0) as HTMLElement;
+
+        jest.spyOn(element, 'offsetHeight', 'get').mockImplementation(
+            () => 100
+        );
+        jest.spyOn(element, 'offsetWidth', 'get').mockImplementation(() => 100);
+
+        // the group's only panel dragged onto its own edge
+        LocalSelectionTransfer.getInstance().setData(
+            [new PanelTransfer('testcomponentid', 'groupviewid', 'panel1')],
+            PanelTransfer.prototype
+        );
+
+        const moveEvents: Array<{
+            target: string;
+            tabGroupId?: string;
+            itemId?: string;
+        }> = [];
+        cut.onMove((e) => {
+            moveEvents.push({
+                target: e.target,
+                tabGroupId: e.tabGroupId,
+                itemId: e.itemId,
+            });
+        });
+
+        fireEvent.dragEnter(element);
+        // Position cursor near the right edge so the drop position
+        // resolves to 'right' (split).
+        fireEvent(
+            element,
+            createOffsetDragOverEvent({ clientX: 95, clientY: 50 })
+        );
+
+        const target = element.querySelector(
+            '.dv-drop-target-dropzone'
+        ) as HTMLElement;
+        expect(target).not.toBeNull();
+
+        jest.spyOn(target, 'clientHeight', 'get').mockImplementation(() => 100);
+        jest.spyOn(target, 'clientWidth', 'get').mockImplementation(() => 100);
+
+        // Re-fire with the dropzone target so the directional zone is
+        // computed against the dropzone's geometry.
+        fireEvent(
+            target,
+            createOffsetDragOverEvent({ clientX: 95, clientY: 50 })
+        );
+        fireEvent.drop(target);
+
+        expect(moveEvents).toHaveLength(0);
+
+        LocalSelectionTransfer.getInstance().clearData(PanelTransfer.prototype);
+    });
+
+    test('that a lone panel dropped on its own edge fires onMove with closeEmptyGroups false', () => {
+        const accessor = fromPartial<DockviewComponent>({
+            id: 'testcomponentid',
+            options: { closeEmptyGroups: false },
+            getPanel: jest.fn(),
+            doSetGroupActive: jest.fn(),
+            onDidAddPanel: jest.fn(),
+            onDidRemovePanel: jest.fn(),
+            overlayRenderContainer: new OverlayRenderContainer(
+                document.createElement('div'),
+                fromPartial<DockviewComponent>({})
+            ),
+            onDidOptionsChange: jest.fn(),
+        });
+
+        const groupviewMock = jest.fn<Partial<DockviewGroupPanelModel>, []>(
+            () => {
+                return {
+                    canDisplayOverlay: jest.fn(),
+                };
+            }
+        );
+
+        const groupView = new groupviewMock() as DockviewGroupPanelModel;
+
+        const groupPanelMock = jest.fn<Partial<DockviewGroupPanel>, []>(() => {
+            return {
+                id: 'testgroupid',
+                model: groupView,
+            };
+        });
+
+        const container = document.createElement('div');
+        const cut = new DockviewGroupPanelModel(
+            container,
+            accessor,
+            'groupviewid',
+            {},
+            new groupPanelMock() as DockviewGroupPanel
+        );
+
+        cut.openPanel(new TestPanel('panel1', panelApi));
+
+        const element = container
+            .getElementsByClassName('dv-content-container')
+            .item(0) as HTMLElement;
+
+        jest.spyOn(element, 'offsetHeight', 'get').mockImplementation(
+            () => 100
+        );
+        jest.spyOn(element, 'offsetWidth', 'get').mockImplementation(() => 100);
+
+        // the group's only panel dragged onto its own edge
+        LocalSelectionTransfer.getInstance().setData(
+            [new PanelTransfer('testcomponentid', 'groupviewid', 'panel1')],
+            PanelTransfer.prototype
+        );
+
+        const moveEvents: Array<{
+            target: string;
+            tabGroupId?: string;
+            itemId?: string;
+        }> = [];
+        cut.onMove((e) => {
+            moveEvents.push({
+                target: e.target,
+                tabGroupId: e.tabGroupId,
+                itemId: e.itemId,
+            });
+        });
+
+        fireEvent.dragEnter(element);
+        // Position cursor near the right edge so the drop position
+        // resolves to 'right' (split).
+        fireEvent(
+            element,
+            createOffsetDragOverEvent({ clientX: 95, clientY: 50 })
+        );
+
+        const target = element.querySelector(
+            '.dv-drop-target-dropzone'
+        ) as HTMLElement;
+        expect(target).not.toBeNull();
+
+        jest.spyOn(target, 'clientHeight', 'get').mockImplementation(() => 100);
+        jest.spyOn(target, 'clientWidth', 'get').mockImplementation(() => 100);
+
+        // Re-fire with the dropzone target so the directional zone is
+        // computed against the dropzone's geometry.
+        fireEvent(
+            target,
+            createOffsetDragOverEvent({ clientX: 95, clientY: 50 })
+        );
+        fireEvent.drop(target);
+
+        expect(moveEvents).toHaveLength(1);
+        expect(moveEvents[0].target).toBe('right');
+        expect(moveEvents[0].itemId).toBe('panel1');
+
+        LocalSelectionTransfer.getInstance().clearData(PanelTransfer.prototype);
+    });
+
     // Companion regression test: full-group drag on self (no tabGroupId)
     // must still be a no-op so we don't regress the original behavior.
     test('that full group drop on self at edge does not fire onMove', () => {
@@ -1391,6 +1645,77 @@ describe('dockviewGroupPanelModel', () => {
         }
 
         expect(moveEvents).toHaveLength(0);
+
+        LocalSelectionTransfer.getInstance().clearData(PanelTransfer.prototype);
+    });
+
+    test('an external drop on the tab bar reports the tab index it landed at', () => {
+        const accessor = fromPartial<DockviewComponent>({
+            id: 'testcomponentid',
+            options: {},
+            getPanel: jest.fn(),
+            doSetGroupActive: jest.fn(),
+            onDidAddPanel: jest.fn(),
+            onDidRemovePanel: jest.fn(),
+            overlayRenderContainer: new OverlayRenderContainer(
+                document.createElement('div'),
+                fromPartial<DockviewComponent>({})
+            ),
+            onDidOptionsChange: jest.fn(),
+        });
+
+        // The tab drop target consults the group's model through the group
+        // panel, so route that back to the model under test.
+        const groupView = {
+            canDisplayOverlay: (
+                ...args: Parameters<
+                    DockviewGroupPanelModel['canDisplayOverlay']
+                >
+            ) => cut.canDisplayOverlay(...args),
+            getTabGroupForPanel: () => undefined,
+        } as unknown as DockviewGroupPanelModel;
+
+        const groupPanelMock = jest.fn<Partial<DockviewGroupPanel>, []>(() => {
+            return {
+                id: 'testgroupid',
+                model: groupView,
+            };
+        });
+
+        const container = document.createElement('div');
+        const cut: DockviewGroupPanelModel = new DockviewGroupPanelModel(
+            container,
+            accessor,
+            'groupviewid',
+            {},
+            new groupPanelMock() as DockviewGroupPanel
+        );
+
+        cut.onUnhandledDragOver((event) => event.accept());
+        const drops: { index: number | undefined; panel?: string }[] = [];
+        cut.onDidDrop((event) => {
+            drops.push({ index: event.index, panel: event.panel?.id });
+        });
+
+        cut.openPanel(new TestPanel('panel1', panelApi));
+        cut.openPanel(new TestPanel('panel2', panelApi));
+
+        const tab = container
+            .getElementsByClassName('dv-tab')
+            .item(1) as HTMLElement;
+        jest.spyOn(tab, 'offsetHeight', 'get').mockImplementation(() => 20);
+        jest.spyOn(tab, 'offsetWidth', 'get').mockImplementation(() => 100);
+
+        LocalSelectionTransfer.getInstance().setData(
+            [new PanelTransfer('anothercomponentid', 'groupviewid', 'panel1')],
+            PanelTransfer.prototype
+        );
+
+        fireEvent.dragEnter(tab);
+        fireEvent.dragOver(tab);
+        fireEvent.drop(tab);
+
+        expect(drops).toEqual([{ index: 1, panel: 'panel2' }]);
 
         LocalSelectionTransfer.getInstance().clearData(PanelTransfer.prototype);
     });
@@ -2075,12 +2400,10 @@ describe('dockviewGroupPanelModel', () => {
             const json = groupview.model.toJSON();
             expect(json.tabGroups!).toHaveLength(2);
 
-            // Dissolve existing groups
             groupview.model.dissolveTabGroup(tg1.id);
             groupview.model.dissolveTabGroup(tg2.id);
             expect(groupview.model.getTabGroups()).toHaveLength(0);
 
-            // Restore from JSON
             groupview.model.restoreTabGroups(json.tabGroups!);
             const restored = groupview.model.getTabGroups();
             expect(restored).toHaveLength(2);

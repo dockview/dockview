@@ -1,8 +1,8 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/mathuo/dockview/blob/HEAD/static/img/dockview-lockup-dark.svg?raw=true">
-  <img src="https://github.com/mathuo/dockview/blob/HEAD/static/img/dockview-lockup-light.svg?raw=true" alt="Dockview" width="480">
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/dockview/dockview/blob/HEAD/static/img/dockview-lockup-dark.svg?raw=true">
+  <img src="https://github.com/dockview/dockview/blob/HEAD/static/img/dockview-lockup-light.svg?raw=true" alt="Dockview" width="480">
 </picture>
 
 <h1>dockview-vue</h1>
@@ -11,16 +11,16 @@
 
 [![npm version](https://img.shields.io/npm/v/dockview-vue)](https://www.npmjs.com/package/dockview-vue)
 [![npm downloads](https://img.shields.io/npm/dm/dockview-vue)](https://www.npmjs.com/package/dockview-vue)
-[![CI](https://img.shields.io/github/actions/workflow/status/mathuo/dockview/main.yml?branch=master&label=CI)](https://github.com/mathuo/dockview/actions?query=workflow%3ACI)
-[![Coverage](https://img.shields.io/sonar/coverage/mathuo_dockview?server=https%3A%2F%2Fsonarcloud.io)](https://sonarcloud.io/summary/overall?id=mathuo_dockview)
-[![Quality gate](https://img.shields.io/sonar/quality_gate/mathuo_dockview?server=https%3A%2F%2Fsonarcloud.io)](https://sonarcloud.io/summary/overall?id=mathuo_dockview)
+[![CI](https://img.shields.io/github/actions/workflow/status/dockview/dockview/main.yml?branch=master&label=CI)](https://github.com/dockview/dockview/actions?query=workflow%3ACI)
+[![Coverage](https://img.shields.io/sonar/coverage/dockview_dockview?server=https%3A%2F%2Fsonarcloud.io)](https://sonarcloud.io/summary/overall?id=dockview_dockview)
+[![Quality gate](https://img.shields.io/sonar/quality_gate/dockview_dockview?server=https%3A%2F%2Fsonarcloud.io)](https://sonarcloud.io/summary/overall?id=dockview_dockview)
 [![Bundle size](https://img.shields.io/bundlephobia/minzip/dockview-vue?label=size)](https://bundlephobia.com/result?p=dockview-vue)
 
 </div>
 
 ---
 
-![A Dockview layout showing docked, tabbed and split panels in a trading workbench](https://github.com/mathuo/dockview/blob/HEAD/static/img/demo-hero.webp?raw=true)
+![A Dockview layout showing docked, tabbed and split panels in a trading workbench](https://github.com/dockview/dockview/blob/HEAD/static/img/demo-hero.webp?raw=true)
 
 Please see the website: https://dockview.dev
 
@@ -62,8 +62,8 @@ Use the component in a Vue SFC:
 <template>
     <div style="height: 400px">
         <DockviewVue :theme="theme" @ready="onReady">
-            <template #myComponent="{ params }">
-                <div>Hello World</div>
+            <template #panel-myComponent="{ api }">
+                <div>Hello {{ api.title }}</div>
             </template>
         </DockviewVue>
     </div>
@@ -79,10 +79,16 @@ function onReady(event: DockviewReadyEvent) {
     event.api.addPanel({
         id: 'panel_1',
         component: 'myComponent',
+        title: 'World',
     });
 }
 </script>
 ```
+
+Panels, tabs (`#tab-<name>`, `#defaultTab`), header actions
+(`#rightHeaderActions`, `#leftHeaderActions`, `#prefixHeaderActions`) and the
+watermark (`#watermark`) can all be declared as scoped slots, or passed as
+components through the `components`, `tabComponents` and `*Component` props.
 
 See the [documentation](https://dockview.dev) for full examples.
 

@@ -9,9 +9,19 @@ import {
 } from '../lifecycle';
 import { IDockviewPanel } from '../dockview/dockviewPanel';
 import { DockviewComponent } from '../dockview/dockviewComponent';
+import { Event } from '../events';
+import { Size } from '../types';
 
 class PositionCache {
-    private readonly cache = new Map<
+    /**
+     * A WeakMap so an entry never extends the lifetime of its element: entries
+     * are only ever read back within the frame they were written (`frameId`
+     * guard below), so once an element is detached — `detatch()`, `fromJSON`,
+     * group disposal — its entry is garbage. A strong `Map` here retained the
+     * detached panel/group DOM (and, through parent pointers, the whole
+     * previous layout tree) for the lifetime of the component (#1596).
+     */
+    private readonly cache = new WeakMap<
         Element,
         {
             rect: { left: number; top: number; width: number; height: number };
@@ -56,12 +66,43 @@ export type DockviewPanelRenderer = 'onlyWhenVisible' | 'always';
 export interface IRenderable {
     readonly element: HTMLElement;
     readonly dropTarget: Droptarget;
+    /**
+     * The container's content box as computed by the layout engine, or
+     * `undefined` before its first layout. Overlays take their size from these
+     * numbers (a style write, no DOM read); only their position is measured.
+     */
+    readonly dimensions: Size | undefined;
+    readonly onDidDimensionsChange: Event<Size>;
 }
+
+/**
+ * Placeholder handle marking "a reposition frame has been requested but the
+ * real handle is not known yet". Never passed to `cancelAnimationFrame` in
+ * practice — it is replaced within the same synchronous block — and harmless
+ * if it were, since no frame carries this id.
+ */
+const SCHEDULED = -1;
 
 function createFocusableElement(): HTMLDivElement {
     const element = document.createElement('div');
     element.tabIndex = -1;
     return element;
+}
+
+/**
+ * Write an inline pixel length only when it differs from what is already set,
+ * so a pass that re-derives geometry already in place leaves the element's
+ * style clean and the next measurement does not relayout the overlay subtree.
+ */
+function setPixels(
+    style: CSSStyleDeclaration,
+    property: 'left' | 'top' | 'width' | 'height',
+    value: number
+): void {
+    const next = `${value}px`;
+    if (style[property] !== next) {
+        style[property] = next;
+    }
 }
 
 export class OverlayRenderContainer extends CompositeDisposable {
@@ -78,12 +119,39 @@ export class OverlayRenderContainer extends CompositeDisposable {
              *  the peek's reveal window. Preserved across internal resizes. */
             forceVisible?: boolean;
             clip?: DOMRect;
+            /** Keep a positioned overlay stable while a replacement reference awaits layout. */
+            retainPreviousGeometry: boolean;
+            /** Set once real geometry has been written to the overlay element. */
+            positioned: boolean;
+            /**
+             * The reference container the overlay currently tracks, used to
+             * decide whether an `attach` is pointing the overlay somewhere new.
+             */
+            referenceContainer?: IRenderable;
+            /**
+             * Identifies the `attach` a `resize` closure belongs to. Container
+             * identity is not enough on its own: after `detatch` deletes the
+             * entry, re-attaching to the *same* container would leave a stale
+             * closure's container matching the live one.
+             */
+            generation: number;
+            /**
+             * Handle of the queued reposition frame, so a burst of `resize()`
+             * calls collapses into one frame and a superseded `attach` can
+             * cancel work bound to the previous container.
+             */
+            pendingUpdate?: number;
         }
     > = {};
 
     private _disposed = false;
+    /**
+     * Monotonic for the container's lifetime, never per-entry: `detatch()`
+     * deletes the entry, so an entry-local counter would restart and let a
+     * superseded closure collide with a later `attach`.
+     */
+    private _generation = 0;
     private readonly positionCache = new PositionCache();
-    private readonly pendingUpdates = new Set<string>();
 
     constructor(
         readonly element: HTMLElement,
@@ -96,6 +164,7 @@ export class OverlayRenderContainer extends CompositeDisposable {
                 for (const value of Object.values(this.map)) {
                     value.disposable.dispose();
                     value.destroy.dispose();
+                    this.cancelPendingUpdate(value);
                 }
                 this._disposed = true;
             })
@@ -107,10 +176,8 @@ export class OverlayRenderContainer extends CompositeDisposable {
             return;
         }
 
-        // Invalidate position cache to force recalculation
         this.positionCache.invalidate();
 
-        // Call resize function directly for all visible panels
         for (const entry of Object.values(this.map)) {
             if (entry.panel.api.isVisible && entry.resize) {
                 entry.resize();
@@ -145,11 +212,25 @@ export class OverlayRenderContainer extends CompositeDisposable {
         entry.resize?.();
     }
 
+    /**
+     * Drop the reposition frame queued for a panel, if any. A queued frame is
+     * bound to the reference container that was current when it was scheduled,
+     * so it must be discarded whenever that container stops being the one the
+     * overlay should track.
+     */
+    private cancelPendingUpdate(entry: { pendingUpdate?: number }): void {
+        if (entry.pendingUpdate !== undefined) {
+            cancelAnimationFrame(entry.pendingUpdate);
+            entry.pendingUpdate = undefined;
+        }
+    }
+
     detatch(panel: IDockviewPanel): boolean {
         if (this.map[panel.api.id]) {
-            const { disposable, destroy } = this.map[panel.api.id];
-            disposable.dispose();
-            destroy.dispose();
+            const entry = this.map[panel.api.id];
+            entry.disposable.dispose();
+            entry.destroy.dispose();
+            this.cancelPendingUpdate(entry);
             delete this.map[panel.api.id];
             return true;
         }
@@ -167,6 +248,8 @@ export class OverlayRenderContainer extends CompositeDisposable {
             element.className = 'dv-render-overlay';
             // Hide until the first RAF-based position is applied to prevent a
             // one-frame flash at position 0,0 when the element is first attached.
+            // The size is written synchronously (`applySize`), so while hidden
+            // the content is still laid out at its real box.
             element.style.visibility = 'hidden';
 
             this.map[panel.api.id] = {
@@ -175,10 +258,54 @@ export class OverlayRenderContainer extends CompositeDisposable {
                 destroy: Disposable.NONE,
 
                 element,
+                retainPreviousGeometry: false,
+                positioned: false,
+                generation: ++this._generation,
             };
         }
 
-        const focusContainer = this.map[panel.api.id].element;
+        const mapEntry = this.map[panel.api.id];
+
+        /**
+         * A *change* of reference container supersedes the previous `attach`:
+         * take a fresh generation so its `resize` closure can no longer run,
+         * and drop the frame it queued against the old container. During
+         * `fromJSON({ reuseExistingPanels: true })` that old container is a
+         * detached staging group measuring 0x0, so leaving its frame in flight
+         * both wastes the update and delays the reposition against the real one.
+         *
+         * Re-attaching over the *same* container (re-open, active panel change)
+         * deliberately leaves scheduled work alone: `repositionPanelOverlay`
+         * (the auto-hide peek) schedules a frame carrying the sticky
+         * `forceVisible`/`clip` state which `attach` does not re-apply, and a
+         * peeked panel's `api.isVisible` is false — so discarding that frame
+         * leaves `visibilityChanged` to hide the overlay and the peek renders
+         * nothing. A newly created entry already holds a fresh generation, so
+         * the stale closures a `detatch` left behind are fenced off either way.
+         */
+        if (mapEntry.referenceContainer !== referenceContainer) {
+            mapEntry.generation = ++this._generation;
+            this.cancelPendingUpdate(mapEntry);
+            mapEntry.referenceContainer = referenceContainer;
+
+            /**
+             * Arm the retain flag only here: it means "a replacement reference
+             * container is awaiting layout", so the 0x0 early-return below
+             * holds the last good box rather than blanking the panel mid-move.
+             * Arming it on every re-attach instead would make a container that
+             * genuinely collapses to zero keep its stale geometry forever.
+             *
+             * Gated on `positioned` because an overlay that has never been
+             * positioned has no left/top/width/height, and `.dv-render-overlay`
+             * defaults to 100%/100% — retaining "previous" geometry there would
+             * pin the content over the whole container.
+             */
+            mapEntry.retainPreviousGeometry = mapEntry.positioned;
+        }
+
+        const generation = mapEntry.generation;
+
+        const focusContainer = mapEntry.element;
 
         // Capture the content element now so the destroy disposable below
         // does not re-query the renderer's `element` getter during teardown.
@@ -186,6 +313,44 @@ export class OverlayRenderContainer extends CompositeDisposable {
         // backing renderer before this disposable fires; reading through the
         // getter at that point can throw.
         const contentElement = panel.view.content.element;
+
+        /**
+         * Size the overlay from the layout engine's numbers (the content box
+         * the group model also hands to `panel.layout()`): a style write with
+         * no forced layout, so the content has its real box before anything
+         * can measure it, and `.dv-render-overlay`'s 100%/100% default is never
+         * observed. Hidden panels are sized too: their content is laid out
+         * (hidden by `visibility`) and must not keep the root's box.
+         *
+         * Only while the overlay is not on screen at a measured position,
+         * i.e. hidden or not yet positioned. Once it is, the frame pass owns
+         * the whole box: size and position must change together, and group
+         * layouts driven from an animation frame would otherwise paint one
+         * frame at the new size and the old position. Likewise not while the
+         * peek force-shows the overlay, whose geometry belongs to
+         * `repositionPanelOverlay`: the collapsed group's own layouts describe
+         * the strip, not the peek. A zero box (a container awaiting layout) is
+         * skipped too: whether 0x0 is a real collapse is the frame pass's call.
+         */
+        const applySize = (size: Size | undefined): void => {
+            if (!size || size.width <= 0 || size.height <= 0) {
+                return;
+            }
+            const entry = this.map[panel.api.id];
+            if (
+                !entry ||
+                entry.forceVisible ||
+                (entry.positioned && panel.api.isVisible)
+            ) {
+                return;
+            }
+            setPixels(focusContainer.style, 'width', size.width);
+            setPixels(focusContainer.style, 'height', size.height);
+        };
+
+        // Before the content is (re)parented, so a consumer that measures
+        // synchronously on insertion already sees the right box.
+        applySize(referenceContainer.dimensions);
 
         if (contentElement.parentElement !== focusContainer) {
             focusContainer.appendChild(contentElement);
@@ -197,18 +362,34 @@ export class OverlayRenderContainer extends CompositeDisposable {
 
         const resize = () => {
             const panelId = panel.api.id;
+            const scheduling = this.map[panelId];
 
-            if (this.pendingUpdates.has(panelId)) {
+            if (scheduling?.generation !== generation) {
+                return; // superseded by a later attach
+            }
+
+            if (scheduling.pendingUpdate !== undefined) {
                 return; // Update already scheduled
             }
 
-            this.pendingUpdates.add(panelId);
+            /**
+             * Claim the slot *before* scheduling. `requestAnimationFrame` is
+             * shimmed to run inline by some hosts (and by several suites here),
+             * in which case the callback below clears `pendingUpdate` while
+             * this call is still on the stack — assigning the handle afterwards
+             * would resurrect a slot that is already spent and block every
+             * later reposition. The sentinel is replaced by the real handle
+             * only if the frame has not already run.
+             */
+            scheduling.pendingUpdate = SCHEDULED;
 
-            requestAnimationFrame(() => {
-                this.pendingUpdates.delete(panelId);
-
+            const handle = requestAnimationFrame(() => {
                 const entry = this.map[panelId];
-                if (this.isDisposed || !entry) {
+                if (entry) {
+                    entry.pendingUpdate = undefined;
+                }
+
+                if (this.isDisposed || entry?.generation !== generation) {
                     return;
                 }
                 // `forceVisible` / `clip` are sticky per-panel state owned by
@@ -225,16 +406,29 @@ export class OverlayRenderContainer extends CompositeDisposable {
                 );
                 const box2 = this.positionCache.getPosition(this.element);
 
-                // Use traditional positioning for overlay containers
                 const left = box.left - box2.left;
                 const top = box.top - box2.top;
                 const width = box.width;
                 const height = box.height;
 
-                focusContainer.style.left = `${left}px`;
-                focusContainer.style.top = `${top}px`;
-                focusContainer.style.width = `${width}px`;
-                focusContainer.style.height = `${height}px`;
+                if (
+                    entry.retainPreviousGeometry &&
+                    (width === 0 || height === 0)
+                ) {
+                    if (!panel.api.isVisible && !forceVisible) {
+                        focusContainer.style.visibility = 'hidden';
+                        focusContainer.style.pointerEvents = 'none';
+                    }
+                    return;
+                }
+
+                entry.retainPreviousGeometry = false;
+                entry.positioned = true;
+
+                setPixels(focusContainer.style, 'left', left);
+                setPixels(focusContainer.style, 'top', top);
+                setPixels(focusContainer.style, 'width', width);
+                setPixels(focusContainer.style, 'height', height);
                 // Sync visibility/pointer-events with the panel's current
                 // visibility at paint time. visibilityChanged() may have
                 // flipped to hidden between scheduling this rAF and now;
@@ -296,12 +490,35 @@ export class OverlayRenderContainer extends CompositeDisposable {
                     panel.group.api.location.type === 'floating'
                 );
             });
+
+            if (scheduling.pendingUpdate === SCHEDULED) {
+                scheduling.pendingUpdate = handle;
+            }
         };
 
         const visibilityChanged = () => {
             if (panel.api.isVisible) {
                 this.positionCache.invalidate();
                 resize();
+                /**
+                 * Existing geometry is safe to show while its replacement lays
+                 * out. `retainPreviousGeometry` is only set when geometry has
+                 * actually been written (see `attach`), so this can never
+                 * un-hide an overlay whose left/top/width/height are unset —
+                 * `.dv-render-overlay` is 100%/100% by default and would
+                 * otherwise cover the whole dock.
+                 *
+                 * The retained geometry is the panel's position in the previous
+                 * layout, so restoring a layout that moves the panel does paint
+                 * it at stale coordinates until the reposition lands. That is
+                 * bounded to the next frame now that a superseded `attach` can
+                 * no longer swallow the reposition (see `attach`); showing
+                 * stale-but-real geometry for a frame is the deliberate
+                 * trade-off against blanking the panel for the whole rebuild.
+                 */
+                if (this.map[panel.api.id]?.retainPreviousGeometry) {
+                    focusContainer.style.visibility = '';
+                }
                 focusContainer.style.pointerEvents = '';
             } else {
                 focusContainer.style.visibility = 'hidden';
@@ -314,6 +531,11 @@ export class OverlayRenderContainer extends CompositeDisposable {
         const correctLayerPosition = () => {
             if (panel.api.location.type === 'floating') {
                 queueMicrotask(() => {
+                    // skip if detached before the microtask ran
+                    if (disposable.isDisposed) {
+                        return;
+                    }
+
                     // Resolve by membership, not anchor identity: a floating
                     // window can host a nested gridview, so a panel split into
                     // it lives in a non-anchor member group. Matching only the
@@ -403,6 +625,12 @@ export class OverlayRenderContainer extends CompositeDisposable {
 
                 resize();
             }),
+            // Keeps hidden panels sized across group layouts (the panel's
+            // own dimension events above cover only the active panel): a style
+            // write per layout, so nothing to save by skipping them.
+            referenceContainer.onDidDimensionsChange((size) => {
+                applySize(size);
+            }),
             panel.api.onDidLocationChange(() => {
                 correctLayerPosition();
             })
@@ -431,11 +659,8 @@ export class OverlayRenderContainer extends CompositeDisposable {
             visibilityChanged();
         });
 
-        // dispose of logic asoccciated with previous reference-container
         this.map[panel.api.id].disposable.dispose();
-        // and reset the disposable to the active reference-container
         this.map[panel.api.id].disposable = disposable;
-        // store the resize function for direct access
         this.map[panel.api.id].resize = resize;
 
         return focusContainer;

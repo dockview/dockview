@@ -1,5 +1,8 @@
+// Base type shared by the transfer objects below. The protected constructor
+// keeps it abstract in practice (only subclasses may construct it) without a
+// separate marker member.
 class TransferObject {
-    // intentionally empty class
+    protected constructor() {}
 }
 
 export class PanelTransfer extends TransferObject {

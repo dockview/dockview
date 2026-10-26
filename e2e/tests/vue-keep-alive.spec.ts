@@ -43,11 +43,9 @@ test.describe('dockview-vue <keep-alive>', () => {
         const before = await page.evaluate(() =>
             (window as any).__vue.counters('one')
         );
-        // Sanity: it mounted exactly once and hasn't been destroyed.
         expect(before.mounted).toBe(1);
         expect(before.unmounted).toBe(0);
 
-        // Switch away to `two`, then back to `one`.
         await page.evaluate(() => (window as any).__vue.setActive('two'));
         await expect(page.locator('[data-pid="two"] .field')).toBeVisible();
         // While cached, panel one's content is removed from the DOM.
@@ -92,7 +90,6 @@ test.describe('dockview-vue <keep-alive>', () => {
         expect(before.mounted).toBe(1);
         expect(before.unmounted).toBe(0);
 
-        // Pop the active group out into its own window and capture that window.
         const [win] = await Promise.all([
             context.waitForEvent('page'),
             page.evaluate(() => (window as any).__vue.popoutActiveGroup()),
@@ -206,7 +203,6 @@ test.describe('dockview-vue <keep-alive>', () => {
         );
         expect(beforeGamma).toMatchObject({ mounted: 1, unmounted: 0 });
 
-        // Close the popout window → BOTH groups evacuate back to the opener.
         await win.close({ runBeforeUnload: true });
 
         await expect

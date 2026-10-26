@@ -118,6 +118,26 @@ describe('splitview', () => {
         splitview.dispose();
     });
 
+    test('Sizing.Split halves the view it splits, not the branch (#1612)', () => {
+        const splitview = new Splitview(container, {
+            orientation: Orientation.HORIZONTAL,
+        });
+        splitview.layout(600, 100);
+
+        splitview.addView(new Testview(0, 1000), 400);
+        splitview.addView(new Testview(0, 1000), 200);
+
+        // Split the first view, inserting after it: the newcomer takes half
+        // of that view and the second view keeps its size.
+        splitview.addView(new Testview(0, 1000), Sizing.Split(0), 1);
+
+        expect(splitview.getViewSize(0)).toBe(200);
+        expect(splitview.getViewSize(1)).toBe(200);
+        expect(splitview.getViewSize(2)).toBe(200);
+
+        splitview.dispose();
+    });
+
     test('has views and sashes', () => {
         const splitview = new Splitview(container, {
             orientation: Orientation.HORIZONTAL,
@@ -437,6 +457,73 @@ describe('splitview', () => {
         splitview.dispose();
     });
 
+    test('setting proportionalLayout to its current value keeps the saved proportions', () => {
+        const splitview = new Splitview(container, {
+            orientation: Orientation.HORIZONTAL,
+        });
+
+        splitview.layout(200, 500);
+
+        const view1 = new Testview(20, Number.POSITIVE_INFINITY);
+        const view2 = new Testview(20, Number.POSITIVE_INFINITY);
+
+        splitview.addView(view1);
+        splitview.addView(view2);
+        splitview.resizeView(0, 150);
+
+        const proportions = splitview.proportions;
+        expect(proportions).toEqual([0.75, 0.25]);
+
+        // shrinking clamps view2 to its minimum, so the sizes no longer
+        // match the saved proportions
+        splitview.layout(50, 500);
+        expect([view1.size, view2.size]).toEqual([30, 20]);
+        expect(splitview.proportions).toEqual(proportions);
+
+        // a no-op assignment must not re-capture proportions from the
+        // current (clamped) sizes
+        splitview.proportionalLayout = true;
+        expect(splitview.proportionalLayout).toBe(true);
+        expect(splitview.proportions).toEqual(proportions);
+
+        splitview.layout(200, 500);
+        expect([view1.size, view2.size]).toEqual([150, 50]);
+
+        splitview.dispose();
+    });
+
+    test('views added with skipLayout adopt their proportions on the first layout (#1692)', () => {
+        const splitview = new Splitview(container, {
+            orientation: Orientation.HORIZONTAL,
+        });
+
+        splitview.layout(300, 500);
+
+        const view1 = new Testview(20, Number.POSITIVE_INFINITY);
+        const view2 = new Testview(20, Number.POSITIVE_INFINITY);
+        const view3 = new Testview(20, Number.POSITIVE_INFINITY);
+
+        // a batch add (as the gridview's clone/flip of a branch does) never
+        // runs the relayout that captures proportions
+        splitview.addView(view1, 100, 0, true);
+        splitview.addView(view2, 100, 1, true);
+        splitview.addView(view3, 100, 2, true);
+        expect(splitview.proportions).toBeUndefined();
+
+        splitview.layout(300, 500);
+        expect(splitview.proportions).toEqual([1 / 3, 1 / 3, 1 / 3]);
+
+        // shrinking and growing scales every view, rather than pushing the
+        // whole delta onto the last one
+        splitview.layout(600, 500);
+        expect([view1.size, view2.size, view3.size]).toEqual([200, 200, 200]);
+
+        splitview.layout(300, 500);
+        expect([view1.size, view2.size, view3.size]).toEqual([100, 100, 100]);
+
+        splitview.dispose();
+    });
+
     test('high priority', () => {
         const splitview = new Splitview(container, {
             orientation: Orientation.HORIZONTAL,
@@ -622,13 +709,11 @@ describe('splitview', () => {
             .getElementsByClassName('dv-sash')
             .item(0) as HTMLElement;
 
-        // validate the expected state before drag
         expect([view1.size, view2.size]).toEqual([200, 200]);
         expect(sashElement).toBeTruthy();
         expect(view1.element.parentElement!.style.pointerEvents).toBe('');
         expect(view2.element.parentElement!.style.pointerEvents).toBe('');
 
-        // start the drag event
         fireEvent(
             sashElement,
             new MouseEvent('pointerdown', { clientX: 50, clientY: 100 })
@@ -654,7 +739,6 @@ describe('splitview', () => {
         );
         expect([view1.size, view2.size]).toEqual([225, 175]);
 
-        // end the drag event
         fireEvent(
             document,
             new MouseEvent('pointerup', { clientX: 70, clientY: 110 })
@@ -754,12 +838,10 @@ describe('splitview', () => {
             .getElementsByClassName('dv-sash')
             .item(0) as HTMLElement;
 
-        // validate the expected state before drag
         expect([view1.size, view2.size]).toEqual([200, 200]);
         expect(view1.element.parentElement!.style.pointerEvents).toBe('');
         expect(view2.element.parentElement!.style.pointerEvents).toBe('');
 
-        // start the drag event
         fireEvent(
             sashElement,
             new MouseEvent('pointerdown', { clientX: 50, clientY: 100 })
@@ -779,7 +861,6 @@ describe('splitview', () => {
         expect(view1.element.parentElement!.style.pointerEvents).toBe('');
         expect(view2.element.parentElement!.style.pointerEvents).toBe('');
 
-        // cleanup
         addEventListenerSpy.mockRestore();
         removeEventListenerSpy.mockRestore();
     });
@@ -878,6 +959,42 @@ describe('splitview', () => {
 
         view1.fireChangeEvent({ size: 300 });
         expect([view1.size, view2.size, view3.size]).toEqual([300, 300, 300]);
+    });
+
+    test('marginShare is the margin each visible view gives up', () => {
+        const splitview = new Splitview(container, {
+            orientation: Orientation.HORIZONTAL,
+            proportionalLayout: false,
+            margin: 24,
+        });
+        splitview.layout(924, 500);
+        expect(splitview.marginShare).toBe(0);
+
+        const views = [
+            new Testview(0, 1000),
+            new Testview(0, 1000),
+            new Testview(0, 1000),
+            new Testview(0, 1000),
+        ];
+        splitview.addView(views[0]);
+        expect(splitview.marginShare).toBe(0);
+
+        splitview.addView(views[1]);
+        splitview.addView(views[2]);
+        splitview.addView(views[3]);
+        // four views, three margins
+        expect(splitview.marginShare).toBe(18);
+        expect(views[0].size).toBe(splitview.getViewSize(0) - 18);
+
+        splitview.setViewVisible(1, false);
+        // three visible views, two margins
+        expect(splitview.marginShare).toBe(16);
+        expect(views[0].size).toBe(splitview.getViewSize(0) - 16);
+        // a hidden view is laid out at zero, not at minus the share
+        expect(views[1].size).toBe(0);
+
+        splitview.setViewVisible(1, true);
+        expect(splitview.marginShare).toBe(18);
     });
 
     test('that margins are applied to view sizing', () => {

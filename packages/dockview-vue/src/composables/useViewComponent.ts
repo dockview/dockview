@@ -73,8 +73,8 @@ export function useViewComponent<
 ): UseViewComponentReturn<TApi> {
     const el = ref<HTMLElement | null>(null);
     // Pin the ref type: `ref<TApi>()` would infer `Ref<UnwrapRef<TApi>>`,
-    // which both widens the public type and is what triggered the
-    // non-portable declaration (TS2742) this composable used to emit.
+    // which both widens the public type and produces a non-portable
+    // declaration (TS2742).
     const instance = ref<TApi | null>(null) as Ref<TApi | null>;
     const eventDisposables: DockviewIDisposable[] = [];
 

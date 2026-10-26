@@ -225,73 +225,6 @@ describe('events', () => {
         );
     });
 
-    it('addDisposableListener with capture options', () => {
-        const element = {
-            addEventListener: jest.fn(),
-            removeEventListener: jest.fn(),
-        };
-
-        const handler = jest.fn();
-
-        const disposable = addDisposableListener(
-            element as any,
-            'pointerdown',
-            handler,
-            true
-        );
-
-        expect(element.addEventListener).toHaveBeenCalledTimes(1);
-        expect(element.addEventListener).toHaveBeenCalledWith(
-            'pointerdown',
-            handler,
-            true
-        );
-        expect(element.removeEventListener).toHaveBeenCalledTimes(0);
-
-        disposable.dispose();
-
-        expect(element.addEventListener).toHaveBeenCalledTimes(1);
-        expect(element.removeEventListener).toHaveBeenCalledTimes(1);
-        expect(element.removeEventListener).toHaveBeenCalledWith(
-            'pointerdown',
-            handler,
-            true
-        );
-    });
-
-    it('addDisposableListener without capture options', () => {
-        const element = {
-            addEventListener: jest.fn(),
-            removeEventListener: jest.fn(),
-        };
-
-        const handler = jest.fn();
-
-        const disposable = addDisposableListener(
-            element as any,
-            'pointerdown',
-            handler
-        );
-
-        expect(element.addEventListener).toHaveBeenCalledTimes(1);
-        expect(element.addEventListener).toHaveBeenCalledWith(
-            'pointerdown',
-            handler,
-            undefined
-        );
-        expect(element.removeEventListener).toHaveBeenCalledTimes(0);
-
-        disposable.dispose();
-
-        expect(element.addEventListener).toHaveBeenCalledTimes(1);
-        expect(element.removeEventListener).toHaveBeenCalledTimes(1);
-        expect(element.removeEventListener).toHaveBeenCalledWith(
-            'pointerdown',
-            handler,
-            undefined
-        );
-    });
-
     describe('pausing and resuming events', () => {
         it('should not fire events when paused', () => {
             const emitter = new Emitter<number>();
@@ -564,7 +497,6 @@ describe('events', () => {
             // flush any queued microtask
             await new Promise<void>((resolve) => queueMicrotask(resolve));
 
-            // the watcher entry for this emitter has been removed
             expect(Emitter.MEMORY_LEAK_WATCHER.size).toBe(0);
         });
 

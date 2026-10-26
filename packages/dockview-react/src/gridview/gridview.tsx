@@ -9,7 +9,11 @@ import {
     GridviewFrameworkOptions,
 } from 'dockview';
 import { ReactGridPanelView } from './view';
-import { usePortalsLifecycle } from '../react';
+import {
+    useAppliedOptions,
+    useKeptInstance,
+    usePortalsLifecycle,
+} from '../react';
 import { PanelParameters } from '../types';
 
 export interface GridviewReadyEvent {
@@ -46,6 +50,7 @@ export const GridviewReact = React.forwardRef(
         const domRef = React.useRef<HTMLDivElement>(null);
         const gridviewRef = React.useRef<GridviewApi | undefined>(undefined);
         const [portals, addPortal] = usePortalsLifecycle();
+        const isApplied = useAppliedOptions(gridviewRef);
 
         React.useImperativeHandle(ref, () => domRef.current!, []);
 
@@ -64,10 +69,8 @@ export const GridviewReact = React.forwardRef(
                     }
                 });
 
-                if (gridviewRef.current) {
+                if (gridviewRef.current && Object.keys(changes).length > 0) {
                     gridviewRef.current.updateOptions(changes);
-                } else {
-                    // not yet fully initialized
                 }
 
                 prevProps.current = props;
@@ -75,13 +78,7 @@ export const GridviewReact = React.forwardRef(
             PROPERTY_KEYS_GRIDVIEW.map((key) => props[key])
         );
 
-        React.useEffect(() => {
-            if (!domRef.current) {
-                return () => {
-                    // noop
-                };
-            }
-
+        useKeptInstance(domRef, gridviewRef, (element) => {
             const frameworkOptions: GridviewFrameworkOptions = {
                 createComponent: (options) => {
                     return new ReactGridPanelView(
@@ -93,28 +90,26 @@ export const GridviewReact = React.forwardRef(
                 },
             };
 
-            const api = createGridview(domRef.current, {
+            const api = createGridview(element, {
                 ...extractCoreOptions(props),
                 ...frameworkOptions,
             });
 
-            const { clientWidth, clientHeight } = domRef.current;
+            const { clientWidth, clientHeight } = element;
             api.layout(clientWidth, clientHeight);
 
             if (props.onReady) {
                 props.onReady({ api });
             }
 
-            gridviewRef.current = api;
-
-            return () => {
-                gridviewRef.current = undefined;
-                api.dispose();
-            };
-        }, []);
+            return api;
+        });
 
         React.useEffect(() => {
-            if (!gridviewRef.current) {
+            if (
+                !gridviewRef.current ||
+                isApplied({ components: props.components })
+            ) {
                 return;
             }
             gridviewRef.current.updateOptions({

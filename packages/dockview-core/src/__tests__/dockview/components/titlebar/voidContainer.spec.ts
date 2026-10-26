@@ -67,12 +67,10 @@ describe('voidContainer', () => {
 
             expect(cut.element.draggable).toBe(true);
 
-            // Simulate option change
             options.disableDnd = true;
             cut.updateDragAndDropState();
             expect(cut.element.draggable).toBe(false);
 
-            // Change back
             options.disableDnd = false;
             cut.updateDragAndDropState();
             expect(cut.element.draggable).toBe(true);
@@ -108,12 +106,10 @@ describe('voidContainer', () => {
 
             expect(cut.element.classList.contains('dv-draggable')).toBe(true);
 
-            // Simulate option change
             options.disableDnd = true;
             cut.updateDragAndDropState();
             expect(cut.element.classList.contains('dv-draggable')).toBe(false);
 
-            // Change back
             options.disableDnd = false;
             cut.updateDragAndDropState();
             expect(cut.element.classList.contains('dv-draggable')).toBe(true);
@@ -169,13 +165,11 @@ describe('voidContainer', () => {
             });
             const cut = new VoidContainer(accessor, group);
 
-            // Initially not disabled
             let event = new Event('dragstart');
             let spy = jest.spyOn(event, 'preventDefault');
             fireEvent(cut.element, event);
             expect(spy).toHaveBeenCalledTimes(0);
 
-            // Simulate option change to disabled
             options.disableDnd = true;
             cut.updateDragAndDropState();
             event = new Event('dragstart');
@@ -183,7 +177,6 @@ describe('voidContainer', () => {
             fireEvent(cut.element, event);
             expect(spy).toHaveBeenCalledTimes(1);
 
-            // Change back to enabled
             options.disableDnd = false;
             cut.updateDragAndDropState();
             event = new Event('dragstart');

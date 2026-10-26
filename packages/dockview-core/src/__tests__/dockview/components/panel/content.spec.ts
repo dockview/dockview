@@ -98,12 +98,10 @@ describe('contentContainer', () => {
         expect(focus).toBe(0);
         expect(blur).toBe(0);
 
-        // container has focus within
         fireEvent.focus(contentRenderer.element);
         expect(focus).toBe(1);
         expect(blur).toBe(0);
 
-        // container looses focus
         fireEvent.blur(contentRenderer.element);
         jest.runAllTimers();
         expect(focus).toBe(1);
@@ -122,18 +120,54 @@ describe('contentContainer', () => {
         // expect(focus).toBe(2);
         // expect(blur).toBe(1);
 
-        // new panel recieves focus
         fireEvent.focus(contentRenderer2.element);
         expect(focus).toBe(2);
         expect(blur).toBe(1);
 
-        // new panel looses focus
         fireEvent.blur(contentRenderer2.element);
         jest.runAllTimers();
         expect(focus).toBe(2);
         expect(blur).toBe(2);
 
         disposable.dispose();
+    });
+
+    test('layout(...) records the content box and announces only real changes (#1686)', () => {
+        const overlayRenderContainer = fromPartial<OverlayRenderContainer>({
+            detatch: jest.fn(),
+        });
+
+        const cut = new ContentContainer(
+            fromPartial<DockviewComponent>({
+                overlayRenderContainer,
+            }),
+            fromPartial<DockviewGroupPanelModel>({
+                renderContainer: overlayRenderContainer,
+            })
+        );
+
+        const events: { width: number; height: number }[] = [];
+        cut.onDidDimensionsChange((event) => events.push(event));
+
+        expect(cut.dimensions).toBeUndefined();
+
+        cut.layout(800, 365);
+        expect(cut.dimensions).toEqual({ width: 800, height: 365 });
+        expect(events).toEqual([{ width: 800, height: 365 }]);
+
+        // Same box again: no event, so overlay sizing is not churned by
+        // the many group layouts that leave the content area unchanged.
+        cut.layout(800, 365);
+        expect(events).toHaveLength(1);
+
+        cut.layout(600, 365);
+        expect(cut.dimensions).toEqual({ width: 600, height: 365 });
+        expect(events).toEqual([
+            { width: 800, height: 365 },
+            { width: 600, height: 365 },
+        ]);
+
+        cut.dispose();
     });
 
     test('that onShow and onHide are called when switching panels with onlyWhenVisible renderer', () => {

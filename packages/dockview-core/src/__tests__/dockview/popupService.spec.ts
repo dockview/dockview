@@ -125,7 +125,6 @@ describe('PopupService', () => {
 
         expect(root.contains(el2)).toBe(false);
 
-        // Firing Escape again should not throw
         expect(() =>
             fireEvent.keyDown(window, { key: 'Escape' })
         ).not.toThrow();

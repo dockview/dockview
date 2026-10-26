@@ -2,15 +2,26 @@ import {
     Classnames,
     addStyles,
     disableIframePointEvents,
+    disableTextSelection,
     findRelativeZIndexParent,
+    getActiveElement,
+    getOverlayParent,
+    getDockviewTheme,
+    getHitTestRoot,
     isChildEntirelyVisibleWithinParent,
+    isEventWithin,
     isInDocument,
+    isShadowRoot,
+    onDidWindowMoveEnd,
+    onDidWindowResizeEnd,
     parseCssTimeMs,
     prefersReducedMotion,
     quasiDefaultPrevented,
     quasiPreventDefault,
     resolveCssDurationMs,
     resolveOpaqueBackground,
+    trackFocus,
+    watchElementResize,
 } from '../dom';
 
 function stubRect(
@@ -73,6 +84,68 @@ describe('dom', () => {
         expect(isInDocument(el2)).toBeTruthy();
     });
 
+    describe('disableTextSelection', () => {
+        test('suppresses selection for the duration of a drag', () => {
+            const root = document.documentElement;
+            root.style.userSelect = 'text';
+
+            const shield = disableTextSelection();
+
+            expect(root.style.userSelect).toBe('none');
+
+            // a selection attempt during the drag is refused
+            const event = new Event('selectstart', { cancelable: true });
+            document.dispatchEvent(event);
+            expect(event.defaultPrevented).toBe(true);
+
+            shield.release();
+
+            expect(root.style.userSelect).toBe('text');
+
+            // and allowed again once released
+            const after = new Event('selectstart', { cancelable: true });
+            document.dispatchEvent(after);
+            expect(after.defaultPrevented).toBe(false);
+
+            root.style.userSelect = '';
+        });
+
+        test('restores an unset value rather than leaving none behind', () => {
+            const root = document.documentElement;
+            root.style.userSelect = '';
+
+            const shield = disableTextSelection();
+            expect(root.style.userSelect).toBe('none');
+
+            shield.release();
+            expect(root.style.userSelect).toBe('');
+        });
+
+        test('leaves an existing selection alone', () => {
+            const removeAllRanges = jest.fn();
+            jest.spyOn(window, 'getSelection').mockReturnValue({
+                removeAllRanges,
+            } as unknown as Selection);
+
+            disableTextSelection().release();
+
+            expect(removeAllRanges).not.toHaveBeenCalled();
+            jest.restoreAllMocks();
+        });
+
+        test('is inert for a node with no document', () => {
+            const orphan = document.createElement('div');
+            const detached = orphan.cloneNode() as HTMLElement;
+            Object.defineProperty(detached, 'ownerDocument', {
+                value: null,
+            });
+
+            expect(() =>
+                disableTextSelection(detached).release()
+            ).not.toThrow();
+        });
+    });
+
     test('disableIframePointEvents', () => {
         const el1 = document.createElement('iframe');
         const el2 = document.createElement('iframe');
@@ -108,9 +181,8 @@ describe('dom', () => {
     });
 
     test('disableIframePointEvents respects the rootNode parameter', () => {
-        // Iframes in a popout document must be shieldable independently
-        // of the main document. The rootNode parameter previously was
-        // ignored, so the function always walked the main document.
+        // Iframes in a popout document must be shieldable independently of
+        // the main document, which is what the rootNode parameter selects.
         const main = document.createElement('iframe');
         document.body.appendChild(main);
 
@@ -456,5 +528,434 @@ describe('resolveOpaqueBackground', () => {
         const el = document.createElement('div');
         el.style.backgroundColor = 'rgba(255, 255, 255, 0)';
         expect(resolveOpaqueBackground(el)).toBe('');
+    });
+});
+
+describe('onDidWindowMoveEnd', () => {
+    let rafCallbacks: Map<number, FrameRequestCallback>;
+    let nextHandle: number;
+    let cancelled: number[];
+    let origRaf: typeof requestAnimationFrame;
+    let origCancel: typeof cancelAnimationFrame;
+
+    beforeEach(() => {
+        rafCallbacks = new Map();
+        nextHandle = 1;
+        cancelled = [];
+        origRaf = global.requestAnimationFrame;
+        origCancel = global.cancelAnimationFrame;
+        global.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+            const handle = nextHandle++;
+            rafCallbacks.set(handle, cb);
+            return handle;
+        }) as typeof requestAnimationFrame;
+        global.cancelAnimationFrame = ((handle: number) => {
+            cancelled.push(handle);
+            rafCallbacks.delete(handle);
+        }) as typeof cancelAnimationFrame;
+    });
+
+    afterEach(() => {
+        global.requestAnimationFrame = origRaf;
+        global.cancelAnimationFrame = origCancel;
+    });
+
+    function makeWindow(): Window {
+        return { screenX: 0, screenY: 0, closed: false } as unknown as Window;
+    }
+
+    test('polls each frame while alive', () => {
+        const emitter = onDidWindowMoveEnd(makeWindow());
+
+        // the synchronous first tick scheduled one frame
+        expect(rafCallbacks.size).toBe(1);
+
+        // running the frame reschedules the next one (the poll keeps going)
+        const [[, cb]] = [...rafCallbacks.entries()];
+        rafCallbacks.clear();
+        cb(0);
+        expect(rafCallbacks.size).toBe(1);
+
+        emitter.dispose();
+    });
+
+    test('disposing the emitter cancels the frame loop and it does not reschedule', () => {
+        const emitter = onDidWindowMoveEnd(makeWindow());
+
+        // capture the pending frame callback before disposing
+        const [[, pending]] = [...rafCallbacks.entries()];
+
+        emitter.dispose();
+        expect(cancelled.length).toBeGreaterThan(0);
+
+        // a straggler frame that still fires after dispose must be a no-op
+        rafCallbacks.clear();
+        pending(0);
+        expect(rafCallbacks.size).toBe(0);
+    });
+});
+
+describe('onDidWindowResizeEnd', () => {
+    afterEach(() => {
+        jest.useRealTimers();
+    });
+
+    test('fires the callback once the resize events settle', () => {
+        jest.useFakeTimers();
+        const cb = jest.fn();
+        const disposable = onDidWindowResizeEnd(window, cb);
+
+        window.dispatchEvent(new Event('resize'));
+        window.dispatchEvent(new Event('resize'));
+        jest.runAllTimers();
+        expect(cb).toHaveBeenCalledTimes(1);
+
+        disposable.dispose();
+    });
+
+    test('disposing cancels a pending callback', () => {
+        jest.useFakeTimers();
+        const cb = jest.fn();
+        const disposable = onDidWindowResizeEnd(window, cb);
+
+        window.dispatchEvent(new Event('resize'));
+        disposable.dispose();
+        jest.runAllTimers();
+
+        expect(cb).not.toHaveBeenCalled();
+    });
+});
+
+describe('shadow-DOM-aware focus and overlay helpers', () => {
+    let host: HTMLElement;
+
+    beforeEach(() => {
+        host = document.createElement('div');
+        document.body.appendChild(host);
+    });
+
+    afterEach(() => {
+        host.remove();
+        jest.useRealTimers();
+    });
+
+    test('getActiveElement reaches into the shadow root the node lives in', () => {
+        const shadowRoot = host.attachShadow({ mode: 'open' });
+        const container = document.createElement('div');
+        const button = document.createElement('button');
+        container.appendChild(button);
+        shadowRoot.appendChild(container);
+
+        button.focus();
+
+        expect(document.activeElement).toBe(host);
+        expect(getActiveElement(container)).toBe(button);
+    });
+
+    test('getActiveElement resolves focus inside a nested web component to its host', () => {
+        const componentHost = document.createElement('div');
+        host.appendChild(componentHost);
+        const button = document.createElement('button');
+        componentHost.attachShadow({ mode: 'open' }).appendChild(button);
+
+        button.focus();
+
+        expect(getActiveElement(host)).toBe(componentHost);
+    });
+
+    test('getActiveElement ignores a document that does not have focus', () => {
+        const button = document.createElement('button');
+        host.appendChild(button);
+        button.focus();
+        expect(getActiveElement(button)).toBe(button);
+
+        // A background popout keeps its activeElement; reading it would let
+        // refreshState fire a focus the window never had.
+        const hasFocus = jest
+            .spyOn(document, 'hasFocus')
+            .mockReturnValue(false);
+        try {
+            expect(getActiveElement(button)).toBeNull();
+        } finally {
+            hasFocus.mockRestore();
+        }
+    });
+
+    test('getActiveElement is null for a detached node', () => {
+        expect(getActiveElement(document.createElement('div'))).toBeNull();
+    });
+
+    test('getOverlayParent is the shadow root, the body, or a popout body', () => {
+        const shadowRoot = host.attachShadow({ mode: 'open' });
+        const inShadow = document.createElement('div');
+        shadowRoot.appendChild(inShadow);
+        expect(getOverlayParent(inShadow)).toBe(shadowRoot);
+
+        const inLight = document.createElement('div');
+        document.body.appendChild(inLight);
+        expect(getOverlayParent(inLight)).toBe(document.body);
+        inLight.remove();
+
+        expect(getOverlayParent(document.createElement('div'))).toBe(
+            document.body
+        );
+
+        const otherDoc = document.implementation.createHTMLDocument('popout');
+        const inPopout = otherDoc.createElement('div');
+        otherDoc.body.appendChild(inPopout);
+        expect(getOverlayParent(inPopout)).toBe(otherDoc.body);
+    });
+
+    test('trackFocus keeps focus inside a shadow root on refreshState', () => {
+        jest.useFakeTimers();
+        const shadowRoot = host.attachShadow({ mode: 'open' });
+        const container = document.createElement('div');
+        const button = document.createElement('button');
+        container.appendChild(button);
+        shadowRoot.appendChild(container);
+
+        const tracker = trackFocus(container);
+        const onDidFocus = jest.fn();
+        const onDidBlur = jest.fn();
+        tracker.onDidFocus(onDidFocus);
+        tracker.onDidBlur(onDidBlur);
+
+        button.focus();
+        expect(onDidFocus).toHaveBeenCalledTimes(1);
+
+        // Seen from document.activeElement, focus sits on the shadow host,
+        // outside `container`; that must not read as a blur.
+        tracker.refreshState?.();
+        jest.runAllTimers();
+        expect(onDidBlur).not.toHaveBeenCalled();
+
+        tracker.dispose();
+    });
+});
+
+describe('isShadowRoot', () => {
+    test('true only for a shadow root', () => {
+        const host = document.createElement('div');
+        const shadowRoot = host.attachShadow({ mode: 'open' });
+
+        expect(isShadowRoot(shadowRoot)).toBe(true);
+        expect(isShadowRoot(document)).toBe(false);
+        expect(isShadowRoot(host)).toBe(false);
+        expect(isShadowRoot(document.createDocumentFragment())).toBe(false);
+        expect(isShadowRoot(null)).toBe(false);
+        expect(isShadowRoot(undefined)).toBe(false);
+    });
+});
+
+describe('addStyles and getDockviewTheme across a shadow boundary', () => {
+    test('a copied <link> carries the CSP nonce', () => {
+        const targetDoc = document.implementation.createHTMLDocument('popout');
+        addStyles(
+            targetDoc,
+            [
+                {
+                    href: 'https://example.test/app.css',
+                    type: 'text/css',
+                } as unknown as CSSStyleSheet,
+            ],
+            { nonce: 'abc123' }
+        );
+
+        const link = targetDoc.head.querySelector('link');
+        expect(link?.getAttribute('href')).toBe('https://example.test/app.css');
+        // Without it, `style-src 'nonce-…'` blocks the sheet.
+        expect(link?.getAttribute('nonce')).toBe('abc123');
+    });
+
+    test('getDockviewTheme finds a theme class on the shadow host', () => {
+        const host = document.createElement('div');
+        host.classList.add('dockview-theme-abyss');
+        document.body.appendChild(host);
+        const shadowRoot = host.attachShadow({ mode: 'open' });
+        const dock = document.createElement('div');
+        shadowRoot.appendChild(dock);
+
+        // `parentElement` is null at the boundary, so the walk has to step out
+        // through the host or the popout container gets no theme class.
+        expect(getDockviewTheme(dock)).toBe('dockview-theme-abyss');
+
+        host.remove();
+    });
+});
+
+describe('getHitTestRoot', () => {
+    test('returns the document for an attached light-DOM node', () => {
+        const el = document.createElement('div');
+        document.body.appendChild(el);
+
+        expect(getHitTestRoot(el)).toBe(document);
+
+        el.remove();
+    });
+
+    test('returns the shadow root for a node inside one', () => {
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        const shadowRoot = host.attachShadow({ mode: 'open' });
+        // jsdom lacks hit-testing on shadow roots; browsers have it.
+        Object.assign(shadowRoot, { elementsFromPoint: () => [] });
+        const el = document.createElement('div');
+        shadowRoot.appendChild(el);
+
+        expect(getHitTestRoot(el)).toBe(shadowRoot);
+
+        host.remove();
+    });
+
+    test('returns the owning document for a detached node', () => {
+        const parent = document.createElement('div');
+        const el = document.createElement('div');
+        parent.appendChild(el);
+
+        expect(getHitTestRoot(el)).toBe(document);
+        expect(getHitTestRoot(parent)).toBe(document);
+    });
+
+    test("returns a popout's own document", () => {
+        const iframe = document.createElement('iframe');
+        document.body.appendChild(iframe);
+        const otherDoc = iframe.contentDocument!;
+        const el = otherDoc.createElement('div');
+        otherDoc.body.appendChild(el);
+
+        expect(getHitTestRoot(el)).toBe(otherDoc);
+
+        iframe.remove();
+    });
+});
+
+describe('shadow-DOM-aware event targeting', () => {
+    let outer: HTMLElement;
+
+    beforeEach(() => {
+        outer = document.createElement('div');
+        document.body.appendChild(outer);
+    });
+
+    afterEach(() => {
+        outer.remove();
+    });
+
+    /** Dispatches a composed event from `from` and runs `fn` while a window
+     *  listener sees it, where the target has been retargeted. */
+    const observeOnWindow = <T>(from: Element, fn: (e: Event) => T): T => {
+        let result: T | undefined;
+        const listener = (e: Event) => {
+            result = fn(e);
+        };
+        window.addEventListener('pointerdown', listener);
+        from.dispatchEvent(
+            new Event('pointerdown', { bubbles: true, composed: true })
+        );
+        window.removeEventListener('pointerdown', listener);
+        return result as T;
+    };
+
+    const shadowChild = (host: HTMLElement): HTMLElement => {
+        const root = host.attachShadow({ mode: 'open' });
+        const child = document.createElement('button');
+        root.appendChild(child);
+        return child;
+    };
+
+    test('isEventWithin: element inside a shadow root', () => {
+        const container = document.createElement('div');
+        const root = outer.attachShadow({ mode: 'open' });
+        root.appendChild(container);
+        const child = document.createElement('button');
+        container.appendChild(child);
+        const other = document.createElement('div');
+        root.appendChild(other);
+
+        expect(
+            observeOnWindow(child, (e) => isEventWithin(e, [container]))
+        ).toBe(true);
+        expect(
+            observeOnWindow(other, (e) => isEventWithin(e, [container]))
+        ).toBe(false);
+    });
+
+    test('isEventWithin: element containing a web component', () => {
+        const host = document.createElement('div');
+        outer.appendChild(host);
+        const child = shadowChild(host);
+        const sibling = document.createElement('div');
+        document.body.appendChild(sibling);
+
+        expect(observeOnWindow(child, (e) => isEventWithin(e, [outer]))).toBe(
+            true
+        );
+        expect(observeOnWindow(child, (e) => isEventWithin(e, [sibling]))).toBe(
+            false
+        );
+
+        sibling.remove();
+    });
+
+    test('isEventWithin falls back to contains without a composed path', () => {
+        const child = document.createElement('span');
+        outer.appendChild(child);
+        const event = new Event('pointerdown');
+        Object.defineProperty(event, 'composedPath', { value: undefined });
+        Object.defineProperty(event, 'target', { value: child });
+
+        expect(isEventWithin(event, [outer])).toBe(true);
+        expect(isEventWithin(event, [document.createElement('div')])).toBe(
+            false
+        );
+    });
+});
+
+describe('watchElementResize', () => {
+    test('a resize pending when disposed never reaches the callback', () => {
+        const originalResizeObserver = window.ResizeObserver;
+        let notify: ((entries: ResizeObserverEntry[]) => void) | undefined;
+        window.ResizeObserver = class {
+            constructor(cb: (entries: ResizeObserverEntry[]) => void) {
+                notify = cb;
+            }
+            observe() {
+                /* noop */
+            }
+            unobserve() {
+                /* noop */
+            }
+            disconnect() {
+                /* noop */
+            }
+        } as unknown as typeof ResizeObserver;
+
+        const frames: FrameRequestCallback[] = [];
+        const raf = jest
+            .spyOn(window, 'requestAnimationFrame')
+            .mockImplementation((cb) => frames.push(cb));
+        const caf = jest
+            .spyOn(window, 'cancelAnimationFrame')
+            .mockImplementation((id) => {
+                frames[id - 1] = () => {
+                    /* cancelled */
+                };
+            });
+
+        try {
+            const cb = jest.fn();
+            const element = document.createElement('div');
+            const disposable = watchElementResize(element, cb);
+
+            notify!([{ target: element } as unknown as ResizeObserverEntry]);
+            disposable.dispose();
+            frames.forEach((frame) => frame(0));
+
+            expect(cb).not.toHaveBeenCalled();
+        } finally {
+            raf.mockRestore();
+            caf.mockRestore();
+            window.ResizeObserver = originalResizeObserver;
+        }
     });
 });

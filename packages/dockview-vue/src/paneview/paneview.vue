@@ -5,6 +5,7 @@ import {
     createPaneview,
 } from 'dockview';
 import { useViewComponent } from '../composables/useViewComponent';
+import { undefinedDefaults } from '../props';
 import { VuePaneviewPanelView } from './view';
 import DockviewPortals from '../dockviewPortals.vue';
 import type { IPaneviewVueProps, PaneviewVueEvents } from './types';
@@ -33,7 +34,10 @@ function extractCoreOptions(props: IPaneviewVueProps): PaneviewOptions {
 defineOptions({ inheritAttrs: false });
 
 const emit = defineEmits<PaneviewVueEvents>();
-const props = defineProps<IPaneviewVueProps>();
+const props = withDefaults(
+    defineProps<IPaneviewVueProps>(),
+    undefinedDefaults(PROPERTY_KEYS_PANEVIEW)
+);
 
 const { el, registry } = useViewComponent(
     {

@@ -112,7 +112,6 @@ export abstract class BasePanelView<T extends PanelApiImpl>
     }
 
     update(event: PanelUpdateEvent): void {
-        // merge the new parameters with the existing parameters
         this._params = {
             ...this._params,
             params: {
@@ -131,7 +130,6 @@ export abstract class BasePanelView<T extends PanelApiImpl>
             }
         }
 
-        // update the view with the updated props
         this.part?.update({ params: this._params.params });
     }
 

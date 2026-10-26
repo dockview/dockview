@@ -135,7 +135,6 @@ export const ENTERPRISE_MODULE_NAMES: ReadonlySet<string> = new Set([
     'AdvancedOverflow',
     'AutoEdgeGroup',
     'AutoHideEdgeGroup',
-    'ContextMenu',
     'DndCompass',
     'KeyboardDocking',
     'KeyboardNavigation',
@@ -248,8 +247,8 @@ export function logMissingModule(
  * case: calling `undo()` having never set the option at all.
  *
  * Interaction handlers are queries in this sense too: a right-click reaching an
- * absent ContextMenu module means the app never asked for one, so it stays
- * silent (`?.`) and the browser's own menu shows. Options are where intent is
+ * absent module means the app never asked for that feature, so it stays silent
+ * (`?.`) and the browser's own behaviour applies. Options are where intent is
  * declared; see `optionsModules.ts`.
  */
 export function assertModule<T>(

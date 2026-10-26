@@ -55,7 +55,6 @@ export class AngularFrameworkComponentFactory {
         this.defaultTabComponent = maps.defaultTabComponent;
     }
 
-    // For DockviewComponent
     createDockviewComponent(options: CreateComponentOptions): IContentRenderer {
         const component = this.components[options.name];
         if (!component) {
@@ -74,7 +73,6 @@ export class AngularFrameworkComponentFactory {
         return renderer;
     }
 
-    // For GridviewComponent
     createGridviewComponent(options: CreateComponentOptions): GridviewPanel {
         const component = this.components[options.name];
         if (!component) {
@@ -92,7 +90,6 @@ export class AngularFrameworkComponentFactory {
         );
     }
 
-    // For SplitviewComponent
     createSplitviewComponent(options: CreateComponentOptions): SplitviewPanel {
         const component = this.components[options.name];
         if (!component) {
@@ -110,7 +107,6 @@ export class AngularFrameworkComponentFactory {
         );
     }
 
-    // For PaneviewComponent
     createPaneviewComponent(options: CreateComponentOptions): IPanePart {
         const component = this.components[options.name];
         if (!component) {

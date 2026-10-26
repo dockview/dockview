@@ -94,6 +94,13 @@ export interface DockviewGroupPanelApi extends GridviewPanelApi {
     exitMaximized(): void;
     close(): void;
     /**
+     * Resize this group, clamped by its constraints and the space available.
+     * An edge group is sized along its own axis only - `width` for
+     * `left`/`right`, `height` for `top`/`bottom` - and that size is the one
+     * it expands to, so a collapsed group keeps its strip until expanded.
+     */
+    setSize(event: SizeEvent): void;
+    /**
      * Collapse this group (edge groups only). No-op for non-edge groups.
      */
     collapse(): void;
@@ -133,6 +140,8 @@ const NOT_INITIALIZED_MESSAGE =
 export class DockviewGroupPanelApiImpl extends GridviewPanelApiImpl {
     private _group: DockviewGroupPanel | undefined;
     private _pendingSize: SizeEvent | undefined;
+    private _isApplyingSize = false;
+    private _reportedSize: { width: number; height: number } | undefined;
 
     readonly _onDidLocationChange =
         new Emitter<DockviewGroupPanelLocationChangeEvent>();
@@ -212,9 +221,28 @@ export class DockviewGroupPanelApiImpl extends GridviewPanelApiImpl {
             this._onDidPeekChange,
             this._onDidHeaderDirectionChange,
             this._onDidVisibilityChange.event((event) => {
-                // When becoming visible, apply any pending size change
                 if (event.isVisible && this._pendingSize) {
-                    super.setSize(this._pendingSize);
+                    const pendingSize = this._pendingSize;
+                    this._pendingSize = undefined;
+                    super.setSize(pendingSize);
+                }
+            }),
+            this.onDidDimensionsChange((event) => {
+                const moved =
+                    event.width !== this._reportedSize?.width ||
+                    event.height !== this._reportedSize?.height;
+                this._reportedSize = {
+                    width: event.width,
+                    height: event.height,
+                };
+
+                // A resize the layout reports while the group is visible,
+                // other than the one our own setSize call produces, makes the
+                // pending request stale: a sash drag, a window resize or a
+                // setSize on another group has moved this group since. A
+                // layout pass that reports the same size again is not a
+                // resize, so a request the layout clamped stays pending.
+                if (moved && this.isVisible && !this._isApplyingSize) {
                     this._pendingSize = undefined;
                 }
             })
@@ -222,11 +250,22 @@ export class DockviewGroupPanelApiImpl extends GridviewPanelApiImpl {
     }
 
     public override setSize(event: SizeEvent): void {
-        // Always store the requested size
-        this._pendingSize = { ...event };
+        const hasDimension =
+            typeof event.width === 'number' || typeof event.height === 'number';
 
-        // Apply the size change immediately
-        super.setSize(event);
+        // an event without dimensions asks for nothing, so it must not
+        // replace a size still waiting to be applied
+        if (hasDimension) {
+            this._pendingSize = { ...event };
+        }
+
+        const wasApplyingSize = this._isApplyingSize;
+        this._isApplyingSize = true;
+        try {
+            super.setSize(event);
+        } finally {
+            this._isApplyingSize = wasApplyingSize;
+        }
     }
 
     close(): void {
@@ -261,23 +300,25 @@ export class DockviewGroupPanelApiImpl extends GridviewPanelApiImpl {
             throw new Error(NOT_INITIALIZED_MESSAGE);
         }
 
-        const group =
-            options.group ??
-            this.accessor.addGroup({
-                direction: positionToDirection(options.position ?? 'right'),
-                skipSetActive: options.skipSetActive ?? false,
-            });
+        this.accessor.withOrigin('api', () => {
+            const group =
+                options.group ??
+                this.accessor.addGroup({
+                    direction: positionToDirection(options.position ?? 'right'),
+                    skipSetActive: options.skipSetActive ?? false,
+                });
 
-        this.accessor.moveGroupOrPanel({
-            from: { groupId: this._group.id },
-            to: {
-                group,
-                position: options.group
-                    ? (options.position ?? 'center')
-                    : 'center',
-                index: options.index,
-            },
-            skipSetActive: options.skipSetActive,
+            this.accessor.moveGroupOrPanel({
+                from: { groupId: this._group!.id },
+                to: {
+                    group,
+                    position: options.group
+                        ? (options.position ?? 'center')
+                        : 'center',
+                    index: options.index,
+                },
+                skipSetActive: options.skipSetActive,
+            });
         });
     }
 

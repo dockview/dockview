@@ -222,11 +222,9 @@ describe('paneviewComponent', () => {
             })
         );
 
-        // give panel2 a specific expanded height
         panel2.api.setSize({ size: 150 });
         expect(panel2Dimensions?.height).toBe(150);
 
-        // collapse then re-expand it
         panel2.api.setExpanded(false);
         panel2.api.setExpanded(true);
 
@@ -747,5 +745,30 @@ describe('paneviewComponent', () => {
         paneview.updateOptions({ className: 'test-b test-c' });
 
         expect(paneview.element.className).toBe('test-b test-c');
+    });
+    test('that panels added after clear() are attached and listed', () => {
+        const paneview = new PaneviewComponent(container, {
+            createComponent: (options) =>
+                new TestPanel(options.id, options.name),
+        });
+        paneview.layout(300, 200);
+
+        paneview.addPanel({ id: 'panel1', component: 'default', title: 'a' });
+        paneview.clear();
+
+        expect(paneview.panels).toHaveLength(0);
+
+        paneview.addPanel({ id: 'panel2', component: 'default', title: 'b' });
+
+        expect(paneview.panels.map((panel) => panel.id)).toEqual(['panel2']);
+        expect(
+            paneview.element.contains(paneview.getPanel('panel2')!.element)
+        ).toBe(true);
+
+        // only the restored paneview is mounted
+        paneview.fromJSON(paneview.toJSON());
+        expect(paneview.element.children).toHaveLength(1);
+
+        paneview.dispose();
     });
 });

@@ -53,10 +53,6 @@ export interface IContentRenderer
     onHide?(): void;
 }
 
-// watermark component
-
-// constructors
-
 export interface IGroupPanelInitParameters
     extends PanelInitParameters,
         HeaderPartInitParameters {

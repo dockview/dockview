@@ -62,6 +62,21 @@ export interface IView extends IBaseView {
 interface ISashItem {
     container: HTMLElement;
     disposable: () => void;
+    // last `left`/`top` written by `layoutViews`, used to skip no-op style
+    // writes on frames where the sash didn't move
+    appliedLeft?: string;
+    appliedTop?: string;
+}
+
+function setSashPosition(sash: ISashItem, left: string, top: string): void {
+    if (sash.appliedLeft !== left) {
+        sash.appliedLeft = left;
+        sash.container.style.left = left;
+    }
+    if (sash.appliedTop !== top) {
+        sash.appliedTop = top;
+        sash.container.style.top = top;
+    }
 }
 
 interface ISashDragSnapState {
@@ -107,7 +122,7 @@ export class Splitview {
     private _orthogonalSize = 0;
     private _contentSize = 0;
     private _proportions: (number | undefined)[] | undefined = undefined;
-    private readonly proportionalLayout: boolean;
+    private _proportionalLayout: boolean;
     private _startSnappingEnabled = true;
     private _endSnappingEnabled = true;
     private _disabled = false;
@@ -146,6 +161,27 @@ export class Splitview {
 
     public get proportions(): (number | undefined)[] | undefined {
         return this._proportions ? [...this._proportions] : undefined;
+    }
+
+    get proportionalLayout(): boolean {
+        return this._proportionalLayout;
+    }
+
+    set proportionalLayout(value: boolean) {
+        if (this._proportionalLayout === value) {
+            return;
+        }
+
+        this._proportionalLayout = value;
+
+        // enabling adopts the current sizes as the proportions to preserve,
+        // rather than waiting for the next size-changing operation; disabling
+        // drops them so `layout` falls back to priority-based distribution
+        if (value) {
+            this.saveProportions();
+        } else {
+            this._proportions = undefined;
+        }
     }
 
     get orientation(): Orientation {
@@ -217,6 +253,20 @@ export class Splitview {
         return this._margin;
     }
 
+    /**
+     * The size each visible view gives up to the margins: `n` visible views
+     * are separated by `n - 1` margins, spread evenly over the `n`.
+     */
+    get marginShare(): number {
+        let visibleViewCount = 0;
+        for (const item of this.viewItems) {
+            if (item.visible) {
+                visibleViewCount++;
+            }
+        }
+        return this.marginShareFor(visibleViewCount);
+    }
+
     set margin(value: number) {
         this._margin = value;
 
@@ -232,7 +282,7 @@ export class Splitview {
 
         this.margin = options.margin ?? 0;
 
-        this.proportionalLayout =
+        this._proportionalLayout =
             options.proportionalLayout === undefined
                 ? true
                 : !!options.proportionalLayout;
@@ -247,7 +297,6 @@ export class Splitview {
 
         this.style(options.styles);
 
-        // We have an existing set of view, add them now
         if (options.descriptor) {
             this._size = options.descriptor.size;
             options.descriptor.views.forEach((viewDescriptor, index) => {
@@ -270,7 +319,6 @@ export class Splitview {
                 );
             });
 
-            // Initialize content size and proportions for first layout
             this._contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
             this.saveProportions();
         }
@@ -400,7 +448,17 @@ export class Splitview {
         if (typeof size === 'number') {
             viewSize = size;
         } else if (size.type === 'split') {
-            viewSize = this.getViewSize(size.index) / 2;
+            // Take the new view's room from the view being split. Halving it
+            // here keeps the branch total unchanged, so the relayout below has
+            // no deficit to claw back from a sibling with slack (#1612).
+            const splitTarget = this.viewItems[size.index];
+            if (splitTarget) {
+                const half = Math.floor(splitTarget.size / 2);
+                viewSize = splitTarget.size - half;
+                splitTarget.size = half;
+            } else {
+                viewSize = this.getViewSize(size.index) / 2;
+            }
         } else if (size.type === 'invisible') {
             viewSize = { cachedVisibleSize: size.cachedVisibleSize };
         } else {
@@ -430,7 +488,6 @@ export class Splitview {
         this.viewItems.splice(index, 0, viewItem);
 
         if (this.viewItems.length > 1) {
-            //add sash
             const sash = document.createElement('div');
             sash.className = 'dv-sash';
 
@@ -631,11 +688,9 @@ export class Splitview {
         sizing?: Sizing,
         skipLayout = false
     ): IView {
-        // Remove view
         const viewItem = this.viewItems.splice(index, 1)[0];
         viewItem.dispose();
 
-        // Remove sash
         if (this.viewItems.length >= 1) {
             const sashIndex = Math.max(index - 1, 0);
             const sashItem = this.sashes.splice(sashIndex, 1)[0];
@@ -678,6 +733,12 @@ export class Splitview {
         const previousSize = Math.max(this.size, this._contentSize);
         this.size = size;
         this.orthogonalSize = orthogonalSize;
+
+        // views added with `skipLayout` have no proportions yet; adopt their
+        // current sizes before laying out
+        if (!this._proportions) {
+            this.saveProportions();
+        }
 
         if (this.proportions) {
             let total = 0;
@@ -746,23 +807,51 @@ export class Splitview {
     }
 
     private distributeEmptySpace(lowPriorityIndex?: number): void {
-        const contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
+        let contentSize = 0;
+        for (const item of this.viewItems) {
+            contentSize += item.size;
+        }
         let emptyDelta = this.size - contentSize;
 
-        const indexes = range(this.viewItems.length - 1, -1);
-        const lowPriorityIndexes = indexes.filter(
-            (i) => this.viewItems[i].priority === LayoutPriority.Low
-        );
-        const highPriorityIndexes = indexes.filter(
-            (i) => this.viewItems[i].priority === LayoutPriority.High
-        );
-
-        for (const index of highPriorityIndexes) {
-            pushToStart(indexes, index);
+        // nothing to redistribute — bail before allocating any index bookkeeping
+        // (the loop below would no-op anyway). Common on frames where the
+        // content already fills the container exactly.
+        if (emptyDelta === 0) {
+            return;
         }
 
-        for (const index of lowPriorityIndexes) {
-            pushToEnd(indexes, index);
+        const indexes = range(this.viewItems.length - 1, -1);
+
+        // Only partition by priority when some view actually declares a
+        // non-Normal priority. The common case has none, so we skip the two
+        // `.filter` allocations and the reorder passes and keep `indexes` in
+        // its natural order — behaviourally identical to filtering out nothing.
+        let hasPriority = false;
+        for (const item of this.viewItems) {
+            if (
+                item.priority === LayoutPriority.Low ||
+                item.priority === LayoutPriority.High
+            ) {
+                hasPriority = true;
+                break;
+            }
+        }
+
+        if (hasPriority) {
+            const lowPriorityIndexes = indexes.filter(
+                (i) => this.viewItems[i].priority === LayoutPriority.Low
+            );
+            const highPriorityIndexes = indexes.filter(
+                (i) => this.viewItems[i].priority === LayoutPriority.High
+            );
+
+            for (const index of highPriorityIndexes) {
+                pushToStart(indexes, index);
+            }
+
+            for (const index of lowPriorityIndexes) {
+                pushToEnd(indexes, index);
+            }
         }
 
         if (typeof lowPriorityIndex === 'number') {
@@ -784,9 +873,20 @@ export class Splitview {
     }
 
     private saveProportions(): void {
-        if (this.proportionalLayout && this._contentSize > 0) {
+        if (!this.proportionalLayout) {
+            return;
+        }
+
+        // `_contentSize` is only refreshed by `layoutViews`, so it is stale
+        // for views added with `skipLayout` that are not yet laid out
+        let contentSize = 0;
+        for (const item of this.viewItems) {
+            contentSize += item.size;
+        }
+
+        if (contentSize > 0) {
             this._proportions = this.viewItems.map((i) =>
-                i.visible ? i.size / this._contentSize : undefined
+                i.visible ? i.size / contentSize : undefined
             );
         }
     }
@@ -801,7 +901,17 @@ export class Splitview {
      * For each view `i` the offet must be adjusted by `m * i/(n - 1)`.
      */
     private layoutViews(): void {
-        this._contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
+        // single pass to derive content size and the visible-view count,
+        // replacing a `reduce` + a `filter` + a `reduce`-built array
+        let contentSize = 0;
+        let visibleViewCount = 0;
+        for (const item of this.viewItems) {
+            contentSize += item.size;
+            if (item.visible) {
+                visibleViewCount++;
+            }
+        }
+        this._contentSize = contentSize;
 
         this.updateSashEnablement();
 
@@ -809,41 +919,30 @@ export class Splitview {
             return;
         }
 
-        const visibleViewItems = this.viewItems.filter((i) => i.visible);
-
-        const sashCount = Math.max(0, visibleViewItems.length - 1);
-        const marginReducedSize =
-            (this.margin * sashCount) / Math.max(1, visibleViewItems.length);
+        const sashCount = Math.max(0, visibleViewCount - 1);
+        const marginReducedSize = this.marginShareFor(visibleViewCount);
 
         let totalLeftOffset = 0;
         const viewLeftOffsets: number[] = [];
 
         const sashWidth = 4; // hardcoded in css
 
-        const runningVisiblePanelCount = this.viewItems.reduce(
-            (arr, viewItem, i) => {
-                const flag = viewItem.visible ? 1 : 0;
-                if (i === 0) {
-                    arr.push(flag);
-                } else {
-                    arr.push(arr[i - 1] + flag);
-                }
+        // running count of visible views up to and including the current index,
+        // maintained inline rather than pre-built into an array
+        let runningVisiblePanelCount = 0;
 
-                return arr;
-            },
-            [] as number[]
-        );
-
-        // calculate both view and cash positions
+        // calculate both view and sash positions
         this.viewItems.forEach((view, i) => {
             totalLeftOffset += this.viewItems[i].size;
             viewLeftOffsets.push(totalLeftOffset);
+
+            runningVisiblePanelCount += view.visible ? 1 : 0;
 
             const size = view.visible ? view.size - marginReducedSize : 0;
 
             const visiblePanelsBeforeThisView = Math.max(
                 0,
-                runningVisiblePanelCount[i] - 1
+                runningVisiblePanelCount - 1
             );
 
             const offset =
@@ -854,46 +953,45 @@ export class Splitview {
                           marginReducedSize;
 
             if (i < this.viewItems.length - 1) {
-                // calculate sash position
                 const newSize = view.visible
                     ? offset + size - sashWidth / 2 + this.margin / 2
                     : offset;
 
+                const sash = this.sashes[i];
+
                 if (this._orientation === Orientation.HORIZONTAL) {
-                    this.sashes[i].container.style.left = `${newSize}px`;
-                    this.sashes[i].container.style.top = `0px`;
+                    setSashPosition(sash, `${newSize}px`, `0px`);
                 }
                 if (this._orientation === Orientation.VERTICAL) {
-                    this.sashes[i].container.style.left = `0px`;
-                    this.sashes[i].container.style.top = `${newSize}px`;
+                    setSashPosition(sash, `0px`, `${newSize}px`);
                 }
             }
 
-            // calculate view position
-
+            // calculate view position (diffed against the last write — most
+            // views don't move on a given frame)
             if (this._orientation === Orientation.HORIZONTAL) {
-                view.container.style.width = `${size}px`;
-                view.container.style.left = `${offset}px`;
-                view.container.style.top = '';
-
-                view.container.style.height = '';
+                view.setContainerGeometry('width', `${size}px`);
+                view.setContainerGeometry('left', `${offset}px`);
+                view.setContainerGeometry('top', '');
+                view.setContainerGeometry('height', '');
             }
             if (this._orientation === Orientation.VERTICAL) {
-                view.container.style.height = `${size}px`;
-                view.container.style.top = `${offset}px`;
-                view.container.style.width = '';
-                view.container.style.left = '';
+                view.setContainerGeometry('height', `${size}px`);
+                view.setContainerGeometry('top', `${offset}px`);
+                view.setContainerGeometry('width', '');
+                view.setContainerGeometry('left', '');
             }
 
-            view.view.layout(
-                view.size - marginReducedSize,
-                this._orthogonalSize
-            );
+            view.view.layout(size, this._orthogonalSize);
         });
     }
 
+    private marginShareFor(visibleViewCount: number): number {
+        const sashCount = Math.max(0, visibleViewCount - 1);
+        return (this._margin * sashCount) / Math.max(1, visibleViewCount);
+    }
+
     private findFirstSnapIndex(indexes: number[]): number | undefined {
-        // visible views first
         for (const index of indexes) {
             const viewItem = this.viewItems[index];
 
@@ -906,7 +1004,6 @@ export class Splitview {
             }
         }
 
-        // then, hidden views
         for (const index of indexes) {
             const viewItem = this.viewItems[index];
 
@@ -926,6 +1023,13 @@ export class Splitview {
     }
 
     private updateSashEnablement(): void {
+        // nothing to enable/disable when there are no sashes (e.g. a splitview
+        // holding a single view — very common for single-tab groups). Bailing
+        // here avoids building the collapses/expands arrays every layout frame.
+        if (this.sashes.length === 0) {
+            return;
+        }
+
         let previous = false;
         const collapsesDown = this.viewItems.map(
             (i) => (previous = i.size - i.minimumSize > 0 || previous)
@@ -1036,13 +1140,11 @@ export class Splitview {
                 pushToEnd(downIndexes, i);
             }
         }
-        //
-        const upItems = upIndexes.map((i) => this.viewItems[i]);
-        const upSizes = upIndexes.map((i) => sizes[i]);
-        //
-        const downItems = downIndexes.map((i) => this.viewItems[i]);
-        const downSizes = downIndexes.map((i) => sizes[i]);
-        //
+        // The delta loops below index `viewItems`/`sizes` through
+        // `upIndexes`/`downIndexes` inline rather than materialising
+        // `upItems`/`upSizes`/`downItems`/`downSizes` as four parallel arrays —
+        // this runs on every sash-drag pointermove and resize frame, so it avoids
+        // four allocations per call.
         const minDeltaUp = upIndexes.reduce(
             (_, i) => _ + this.viewItems[i].minimumSize - sizes[i],
             0
@@ -1103,14 +1205,15 @@ export class Splitview {
         //
         let deltaUp = tentativeDelta;
 
-        for (let i = 0; i < upItems.length; i++) {
-            const item = upItems[i];
+        for (const upIndex of upIndexes) {
+            const item = this.viewItems[upIndex];
+            const priorSize = sizes[upIndex];
             const size = clamp(
-                upSizes[i] + deltaUp,
+                priorSize + deltaUp,
                 item.minimumSize,
                 item.maximumSize
             );
-            const viewDelta = size - upSizes[i];
+            const viewDelta = size - priorSize;
 
             actualDelta += viewDelta;
             deltaUp -= viewDelta;
@@ -1118,14 +1221,15 @@ export class Splitview {
         }
         //
         let deltaDown = actualDelta;
-        for (let i = 0; i < downItems.length; i++) {
-            const item = downItems[i];
+        for (const downIndex of downIndexes) {
+            const item = this.viewItems[downIndex];
+            const priorSize = sizes[downIndex];
             const size = clamp(
-                downSizes[i] - deltaDown,
+                priorSize - deltaDown,
                 item.minimumSize,
                 item.maximumSize
             );
-            const viewDelta = size - downSizes[i];
+            const viewDelta = size - priorSize;
 
             deltaDown += viewDelta;
             item.size = size;

@@ -56,4 +56,62 @@ test.describe('group resize (main-window sash)', () => {
         const after = await firstGroupWidth(page);
         expect(Math.abs(after - 700)).toBeLessThan(4);
     });
+
+    // A size set with `setSize` on a visible group applies at once. A sash
+    // drag after it is the newer intent, and hiding and showing the group
+    // (maximize/restore of another group does both) must keep the dragged
+    // width rather than resurrect the earlier request (#1688).
+    test.describe('a setSize on a visible group is not re-applied after hide/show', () => {
+        const setSizeThenDrag = async (page: Page) => {
+            await setup(page);
+            await page.evaluate(() =>
+                (window as any).__dv.setGroupSize('one', { width: 300 })
+            );
+            expect(Math.abs((await firstGroupWidth(page)) - 300)).toBeLessThan(
+                4
+            );
+
+            await dragSash(page, 200);
+
+            const dragged = await firstGroupWidth(page);
+            expect(Math.abs(dragged - 500)).toBeLessThan(8);
+            return dragged;
+        };
+
+        test('after maximizing and restoring the other group', async ({
+            page,
+        }) => {
+            const dragged = await setSizeThenDrag(page);
+
+            await page.evaluate(() => (window as any).__dv.maximizeGroup('two'));
+            await expect
+                .poll(() => page.evaluate(() => (window as any).__dv.groupWidth('one')))
+                .toBe(0);
+            await page.evaluate(() =>
+                (window as any).__dv.exitMaximizedGroup()
+            );
+
+            await expect
+                .poll(() => firstGroupWidth(page))
+                .toBeCloseTo(dragged, -1);
+        });
+
+        test('after hiding and showing the group', async ({ page }) => {
+            const dragged = await setSizeThenDrag(page);
+
+            await page.evaluate(() =>
+                (window as any).__dv.setGroupVisible('one', false)
+            );
+            await expect
+                .poll(() => page.evaluate(() => (window as any).__dv.groupWidth('one')))
+                .toBe(0);
+            await page.evaluate(() =>
+                (window as any).__dv.setGroupVisible('one', true)
+            );
+
+            await expect
+                .poll(() => firstGroupWidth(page))
+                .toBeCloseTo(dragged, -1);
+        });
+    });
 });

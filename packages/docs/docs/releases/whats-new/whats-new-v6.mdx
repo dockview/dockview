@@ -19,7 +19,7 @@ you need to be aware of when upgrading from v5.
 Panels inside a single Dockview group can now be sub-grouped by a coloured chip
 that sits in the tab bar. Tab groups support drag-and-drop reordering, collapse
 / expand, inline rename, and a 9-colour palette that can be customised or
-disabled entirely. ([#1154](https://github.com/mathuo/dockview/pull/1154))
+disabled entirely. ([#1154](https://github.com/dockview/dockview/pull/1154))
 
 ```ts
 api.createTabGroup({
@@ -42,8 +42,8 @@ Edge groups are persistent, single-purpose panels anchored to one edge of the
 Dockview shell, useful for activity bars, status panels, or output panes that
 shouldn't participate in normal layout drag-and-drop. They support collapse /
 expand with size memory and survive `toJSON` / `fromJSON`.
-([#1122](https://github.com/mathuo/dockview/pull/1122),
-[#1155](https://github.com/mathuo/dockview/pull/1155))
+([#1122](https://github.com/dockview/dockview/pull/1122),
+[#1155](https://github.com/dockview/dockview/pull/1155))
 
 ```ts
 const leftApi = api.addEdgeGroup('left', {
@@ -69,7 +69,7 @@ Right-click on a tab now invokes an opt-in context menu driven by the new
 `getTabContextMenuItems` option. Built-in shortcuts (`'close'`,
 `'closeOthers'`, `'closeAll'`, `'separator'`) are mixable with framework
 component renderers via `ContextMenuItemConfig`.
-([#1147](https://github.com/mathuo/dockview/pull/1147))
+([#1147](https://github.com/dockview/dockview/pull/1147))
 
 ```ts
 const options: DockviewOptions = {
@@ -93,7 +93,7 @@ chips, with `'colorPicker'` and `'rename'` shortcuts on top of the standard
 panels are attached to / detached from the DOM under
 `renderer: 'onlyWhenVisible'`. This matters for renderers
 that need to detach from a host framework's lifecycle (notably Angular
-`TemplateRef` views). ([#1158](https://github.com/mathuo/dockview/pull/1158))
+`TemplateRef` views). ([#1158](https://github.com/dockview/dockview/pull/1158))
 
 ### Tab group events on `DockviewApi`
 
@@ -107,7 +107,7 @@ Six new events make tab groups observable from anywhere in the layout:
 - `onDidTabGroupCollapsedChange`
 
 Edge group changes also flow through `onDidLayoutChange`, `onDidAddGroup`,
-and `onDidRemoveGroup`. ([#1212](https://github.com/mathuo/dockview/pull/1212))
+and `onDidRemoveGroup`. ([#1212](https://github.com/dockview/dockview/pull/1212))
 
 ## New theme system
 
@@ -126,7 +126,7 @@ control without touching SCSS:
 The pre-existing spaced themes (`abyssSpaced`, `lightSpaced`) have been
 migrated to the CSS-variable system, which is also what powers the new
 [interactive theme builder](/demo).
-([#1145](https://github.com/mathuo/dockview/pull/1145))
+([#1145](https://github.com/dockview/dockview/pull/1145))
 
 ### New built-in themes
 
@@ -145,7 +145,7 @@ Seven new themes ship in v6:
 
 `tabAnimation` is no longer a top-level `DockviewOptions` property; it now
 lives on the `DockviewTheme` object alongside `gap`, `dndPanelOverlay`, etc.
-([#1181](https://github.com/mathuo/dockview/pull/1181))
+([#1181](https://github.com/dockview/dockview/pull/1181))
 
 ```ts
 // v5
@@ -170,7 +170,7 @@ In v5.0–5.2 the cjs/esm bundles of `dockview-core`, `dockview`, and
 `inject: true`, so importing the JS entry would append `dockview.css` to
 `<head>` at module-load time. v6 removes that side-effect: you must import
 the stylesheet yourself, as documented in
-[Installation](/docs/overview/installation). ([#1206](https://github.com/mathuo/dockview/pull/1206))
+[Installation](/docs/overview/installation). ([#1206](https://github.com/dockview/dockview/pull/1206))
 
 ```ts
 import 'dockview/dist/styles/dockview.css';

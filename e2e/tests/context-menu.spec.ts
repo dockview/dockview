@@ -29,14 +29,12 @@ test.describe('tab context menu', () => {
         const menu = page.locator('.dv-context-menu');
         await expect(menu).toBeVisible();
         await expect(menu).toHaveAttribute('role', 'menu');
-        // The three configured built-ins render as clickable items.
         await expect(menu.locator('.dv-context-menu-item')).toHaveCount(3);
         await expect(menu).toContainText('Close');
     });
 
     test('clicking "Close" closes just that panel', async ({ page }) => {
         await setup(page);
-        // Right-click the "alpha" tab specifically.
         await page
             .locator('.dv-tab', { hasText: 'alpha' })
             .click({ button: 'right' });
@@ -47,7 +45,6 @@ test.describe('tab context menu', () => {
             .first()
             .click();
 
-        // The menu dismisses and only "alpha" is gone.
         await expect(page.locator('.dv-context-menu')).toHaveCount(0);
         await expect(page.locator('.dv-tab')).toHaveCount(2);
         await expect(page.locator('.dv-tab', { hasText: 'alpha' })).toHaveCount(
@@ -91,7 +88,6 @@ test.describe('tab context menu', () => {
             .locator('.dv-context-menu-item', { hasText: 'Close All' })
             .click();
 
-        // The whole group is emptied — no tabs remain.
         await expect(page.locator('.dv-context-menu')).toHaveCount(0);
         await expect(page.locator('.dv-tab')).toHaveCount(0);
     });

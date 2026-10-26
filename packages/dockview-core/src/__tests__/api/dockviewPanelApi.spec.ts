@@ -12,6 +12,9 @@ describe('groupPanelApi', () => {
             onDidRemovePanel: jest.fn(),
             options: {},
             onDidOptionsChange: jest.fn(),
+            // no transaction is in flight in these fixtures, so location
+            // changes report straight away
+            deferLocationChange: (_key: object, fire: () => void) => fire(),
         });
 
         const panelMock = jest.fn<DockviewPanel, []>(() => {
@@ -53,6 +56,9 @@ describe('groupPanelApi', () => {
             onDidRemovePanel: jest.fn(),
             options: {},
             onDidOptionsChange: jest.fn(),
+            // no transaction is in flight in these fixtures, so location
+            // changes report straight away
+            deferLocationChange: (_key: object, fire: () => void) => fire(),
         });
 
         const groupViewPanel = new DockviewGroupPanel(
@@ -86,6 +92,9 @@ describe('groupPanelApi', () => {
             onDidRemovePanel: jest.fn(),
             options: {},
             onDidOptionsChange: jest.fn(),
+            // no transaction is in flight in these fixtures, so location
+            // changes report straight away
+            deferLocationChange: (_key: object, fire: () => void) => fire(),
         });
 
         const groupViewPanel = new DockviewGroupPanel(
@@ -179,6 +188,9 @@ describe('groupPanelApi', () => {
             onDidRemovePanel: jest.fn(),
             options: {},
             onDidOptionsChange: jest.fn(),
+            // no transaction is in flight in these fixtures, so location
+            // changes report straight away
+            deferLocationChange: (_key: object, fire: () => void) => fire(),
             moveGroupOrPanel: jest.fn(),
             setPanelPinned: jest.fn(),
             withOrigin: jest.fn((_origin: string, cb: () => void) => cb()),
@@ -423,17 +435,21 @@ describe('groupPanelApi', () => {
     });
 
     test('group location change fires onDidLocationChange when group is the panel group', () => {
-        const { cut, emitters } = createFixture();
+        const { cut, groupApi, emitters } = createFixture();
 
         const events: any[] = [];
         const disposable = cut.onDidLocationChange((e) => {
             events.push(e);
         });
 
-        const event = { location: { type: 'floating' } };
-        emitters.onDidLocationChange.fire(event);
+        // the panel reports where its group is when the event is delivered
+        // rather than forwarding the payload it was signalled with: the signal
+        // may be coalesced to the end of a layout mutation, by which point only
+        // the settled location is meaningful
+        groupApi.location = { type: 'floating' };
+        emitters.onDidLocationChange.fire({ location: groupApi.location });
 
-        expect(events).toEqual([event]);
+        expect(events).toEqual([{ location: { type: 'floating' } }]);
 
         disposable.dispose();
     });

@@ -48,7 +48,31 @@ test.describe('cross-window popout lifecycle', () => {
             .poll(() => page.evaluate(() => (window as any).__dv.popoutCount()))
             .toBe(0);
 
-        // Both tabs are back in the opener's single group, beta still rendered.
+        await expect(page.locator('.dv-tab')).toHaveCount(2);
+        await expect(page.locator('.dv-test-panel')).toContainText('beta');
+        expect(
+            await page.evaluate(() => (window as any).__dv.groupCount())
+        ).toBe(1);
+    });
+
+    /**
+     * A window can go away without its unload handlers running: a native shell
+     * destroying its webview, or a browser discarding the page. Playwright's
+     * default close does the same, which is why the test above has to opt in.
+     */
+    test('a popout closed without running unload handlers still re-docks', async ({
+        page,
+        context,
+    }) => {
+        const win = await twoPanelPopout(page, context);
+        await expect(win.locator('.dv-test-panel')).toContainText('beta');
+
+        await win.close();
+
+        await expect
+            .poll(() => page.evaluate(() => (window as any).__dv.popoutCount()))
+            .toBe(0);
+
         await expect(page.locator('.dv-tab')).toHaveCount(2);
         await expect(page.locator('.dv-test-panel')).toContainText('beta');
         expect(
@@ -88,13 +112,11 @@ test.describe('cross-window popout lifecycle', () => {
         await win.locator('.dv-sash').first().waitFor();
         await expect(win.locator('.dv-groupview')).toHaveCount(2);
 
-        // Close the popout window → both of its groups return to the opener.
         await win.close({ runBeforeUnload: true });
 
         await expect
             .poll(() => page.evaluate(() => (window as any).__dv.popoutCount()))
             .toBe(0);
-        // Two groups re-docked, all three tabs present, active content rendered.
         await expect
             .poll(() => page.evaluate(() => (window as any).__dv.groupCount()))
             .toBe(2);
@@ -119,7 +141,6 @@ test.describe('cross-window popout lifecycle', () => {
         context: BrowserContext
     ): Promise<Page> => {
         const win = await twoPanelPopout(page, context);
-        // The serialized layout must carry the popout group.
         const json = await page.evaluate(() =>
             JSON.stringify((window as any).__dv.snapshot())
         );
@@ -147,7 +168,6 @@ test.describe('cross-window popout lifecycle', () => {
     }) => {
         const restored = await snapshotThenReloadAndRestore(page, context);
 
-        // The popout window is back, with the group's tab strip and both tabs.
         await expect
             .poll(() => page.evaluate(() => (window as any).__dv.popoutCount()))
             .toBe(1);

@@ -44,7 +44,7 @@ describe('api', () => {
         expect(api.isActive).toBeFalsy();
     });
 
-    test('should update isActive getter', () => {
+    test('should update isVisible getter', () => {
         expect(api.isVisible).toBeTruthy();
 
         api._onDidVisibilityChange.fire({ isVisible: false });

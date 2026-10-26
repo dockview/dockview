@@ -50,7 +50,6 @@ test.describe('dockview-vue fallthrough attribute forwarding', () => {
         expect(rect.width).toBeGreaterThan(100);
         expect(rect.height).toBeGreaterThan(100);
 
-        // The panel content is visible, end to end.
         await expect(page.locator('.vue-panel')).toBeVisible();
     });
 });

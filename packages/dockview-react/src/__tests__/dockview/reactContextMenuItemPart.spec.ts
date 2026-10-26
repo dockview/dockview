@@ -1,5 +1,8 @@
 import { fromPartial } from '@total-typescript/shoehorn';
-import { IContextMenuItemComponentProps } from 'dockview';
+import {
+    IChipContextMenuItemComponentProps,
+    IContextMenuItemComponentProps,
+} from 'dockview';
 import { ReactContextMenuItemPart } from '../../dockview/reactContextMenuItemPart';
 import { ReactPortalStore } from '../../react';
 
@@ -72,6 +75,24 @@ describe('ReactContextMenuItemPart', () => {
         const parameters = (cut.part as any)
             .parameters as IContextMenuItemComponentProps;
         expect(parameters.componentProps).toBe(componentProps);
+    });
+
+    test('init forwards chip props (tabGroup) to the ReactPart parameters', () => {
+        // The same renderer serves the tab group chip context menu, whose props
+        // carry a `tabGroup` instead of a `panel`; the componentProps test above
+        // already covers the pass-through, so this only checks the tabGroup key.
+        const cut = new ReactContextMenuItemPart(
+            'id-1',
+            jest.fn(),
+            fromPartial<ReactPortalStore>({
+                addPortal: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+            })
+        );
+        const tabGroup = {} as any;
+
+        cut.init(fromPartial<IChipContextMenuItemComponentProps>({ tabGroup }));
+
+        expect((cut.part as any).parameters.tabGroup).toBe(tabGroup);
     });
 
     test('dispose cleans up the part', () => {

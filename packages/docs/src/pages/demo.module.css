@@ -36,7 +36,13 @@
     pointer-events: none;
 }
 
-.loaderHidden {
+/* Compounded with .loader on purpose. cssnano (Docusaurus's production CSS
+   minifier) merges rules that share a declaration, and it hoists this
+   `opacity: 0` into a rule far earlier in the bundle than .loader's
+   `opacity: 1`. At equal specificity the later rule wins, so a plain
+   .loaderHidden leaves the overlay opaque forever and the demo never appears.
+   The extra class outranks .loader whatever order the two end up in. */
+.loader.loaderHidden {
     opacity: 0;
 }
 

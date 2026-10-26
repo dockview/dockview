@@ -76,7 +76,6 @@ test.describe('auto edge groups (drag reveal)', () => {
                 (window as any).__dv.edgeGroupPanelIds('left')
             )
         ).toContain('side');
-        // the indicator line is cleared after the drop
         await expect(page.locator('.dv-auto-edge-band')).toHaveCount(0);
     });
 

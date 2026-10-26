@@ -9,6 +9,7 @@ import {
     createCloseButton,
     createDismissableLayer,
     createPinButton,
+    getActiveElement,
     prefersReducedMotion,
     resolveOpaqueBackground,
     IAutoHideEdgeGroupHost,
@@ -180,6 +181,19 @@ class EdgeGroupController extends CompositeDisposable {
         return location.type === 'edge' ? location.position : undefined;
     }
 
+    /** The opaque backdrop for the tool-window title bars (peek + docked).
+     *  Resolved from the group's tab strip so the bar adopts the theme's tab-bar
+     *  colour rather than the group-view *frame* colour — the latter is the
+     *  near-black inter-group gap colour in dark (and spaced) themes, which made
+     *  the header read as a plain black band. Falls back to the group element
+     *  when the strip has no opaque background of its own. */
+    private _titleBarBackground(): string {
+        const strip = this.group.element.querySelector<HTMLElement>(
+            '.dv-tabs-and-actions-container'
+        );
+        return resolveOpaqueBackground(strip ?? this.group.element);
+    }
+
     /** Map a pointer/keyboard target to the panel of the strip tab under it, or
      *  `undefined` for non-tab regions. Uses the core's authoritative tab→panel
      *  lookup (no DOM-order assumptions). */
@@ -290,10 +304,16 @@ class EdgeGroupController extends CompositeDisposable {
             closeLabel: 'Close',
             onPin: () => this.host.setEdgeGroupCollapsed(this.group, true),
             onClose: () => this.group.activePanel?.api.close(),
-            background: resolveOpaqueBackground(this.group.element),
+            background: this._titleBarBackground(),
         });
         element.style.flexShrink = '0';
         element.style.height = `${TITLEBAR_HEIGHT}px`;
+        // Mark the group as a docked tool window so the spaced themes can
+        // reshape its rounding (title bar caps the top; tab strip caps the
+        // bottom; the content-container's default bottom rounding — which would
+        // otherwise carve notches mid-card now the header is at the bottom — is
+        // dropped). Removed on teardown.
+        this.group.element.classList.add('dv-edge-tool-window');
         // Appended last → under the group's `column-reverse` (header-bottom)
         // flow it lands at the visual top, above the content, with the tab
         // strip at the bottom.
@@ -307,6 +327,7 @@ class EdgeGroupController extends CompositeDisposable {
         }
         this._docked.bar.remove();
         this._docked = undefined;
+        this.group.element.classList.remove('dv-edge-tool-window');
         // Restore the strip's edge orientation (left/right/top/bottom).
         this.group.api.setHeaderPosition(this._position ?? 'top');
     }
@@ -347,7 +368,11 @@ class EdgeGroupController extends CompositeDisposable {
         }
 
         const doc = this.group.element.ownerDocument;
+        // Backdrop = the group *frame* colour (it only shows at the sliding
+        // edges); the title bar uses the tab-bar colour so it doesn't read as a
+        // black band in dark/spaced themes.
         const background = resolveOpaqueBackground(this.group.element);
+        const titleBarBackground = this._titleBarBackground();
 
         // --- peek backdrop (slides inside the clip frame) ---
         const overlay = doc.createElement('div');
@@ -373,7 +398,7 @@ class EdgeGroupController extends CompositeDisposable {
             closeLabel: 'Close',
             onPin: () => this.pin(),
             onClose: () => this.close(),
-            background,
+            background: titleBarBackground,
         });
         header.style.position = 'absolute';
         header.style.zIndex = '1001';
@@ -583,6 +608,11 @@ class EdgeGroupController extends CompositeDisposable {
                 resize: true,
                 focusOut: true,
                 isFocusInside: withinCentre,
+                // The peek decides inside/outside by geometry, so it has no
+                // `elements` to locate its shadow roots from. Without this a
+                // focus move within a shadow-hosted dock never reaches the
+                // window and the peek stays open.
+                anchor: () => this.group.element,
             })
         );
     }
@@ -597,11 +627,12 @@ class EdgeGroupController extends CompositeDisposable {
         }
         // If focus is inside the peek (a keyboard close: Esc / pin / close),
         // return it to the strip tab so it isn't dropped onto <body>.
-        const doc = this.group.element.ownerDocument;
+        // (Read via the strip's root node so a shadow-hosted dock sees the
+        // focused element, not the shadow host.)
+        const active = getActiveElement(this.group.element);
         const restoreFocus =
-            doc.activeElement instanceof Node &&
-            (peek.overlay.contains(doc.activeElement) ||
-                peek.header.contains(doc.activeElement));
+            active instanceof Node &&
+            (peek.overlay.contains(active) || peek.header.contains(active));
         // Restore the content container before removing the overlay.
         peek.content.style.width = '';
         peek.content.style.height = '';

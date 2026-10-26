@@ -1,5 +1,10 @@
 import { resolveDndCapabilities } from '../../dockview/dndCapabilities';
+import {
+    DockviewComponent,
+    DockviewComponentOptions,
+} from '../../dockview/dockviewComponent';
 import { PROPERTY_KEYS_DOCKVIEW } from '../../dockview/options';
+import { IContentRenderer } from '../../dockview/types';
 
 function mockMatchMedia(byQuery: Record<string, boolean>): () => void {
     const original = window.matchMedia;
@@ -119,6 +124,71 @@ describe('resolveDndCapabilities', () => {
                     expect(caps.pointer).toBe(true);
                 }
             }
+        }
+    });
+});
+
+/**
+ * `'auto'` resolves against the device, and the choice is load-bearing: only an
+ * HTML5 drag can leave the window it started in, and an embedded webview
+ * reporting a coarse pointer is where that bites.
+ */
+describe('api.dndCapabilities', () => {
+    class TestPanel implements IContentRenderer {
+        element = document.createElement('div');
+        init(): void {
+            // noop
+        }
+    }
+
+    function componentWith(options: Partial<DockviewComponentOptions>) {
+        const component = new DockviewComponent(document.createElement('div'), {
+            createComponent: () => new TestPanel(),
+            ...options,
+        } as DockviewComponentOptions);
+        component.layout(500, 500);
+        return component;
+    }
+
+    test('reports the resolved strategy, not the configured one', () => {
+        const component = componentWith({ dndStrategy: 'auto' });
+        try {
+            // jsdom has no matchMedia, so 'auto' resolves to the desktop shape
+            expect(component.api.dndCapabilities).toEqual({
+                html5: true,
+                pointer: true,
+                pointerHandlesMouse: false,
+            });
+        } finally {
+            component.dispose();
+        }
+    });
+
+    test('follows updateOptions', () => {
+        const component = componentWith({ dndStrategy: 'auto' });
+        try {
+            component.updateOptions({ dndStrategy: 'pointer' });
+
+            expect(component.api.dndCapabilities).toEqual({
+                html5: false,
+                pointer: true,
+                pointerHandlesMouse: true,
+            });
+        } finally {
+            component.dispose();
+        }
+    });
+
+    test('reports both backends off when dnd is disabled', () => {
+        const component = componentWith({ disableDnd: true });
+        try {
+            expect(component.api.dndCapabilities).toEqual({
+                html5: false,
+                pointer: false,
+                pointerHandlesMouse: false,
+            });
+        } finally {
+            component.dispose();
         }
     });
 });

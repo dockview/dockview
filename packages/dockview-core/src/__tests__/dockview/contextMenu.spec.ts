@@ -1,12 +1,19 @@
 import { fireEvent } from '@testing-library/dom';
 import { fromPartial } from '@total-typescript/shoehorn';
-import { ContextMenuController, ContextMenuModule } from '../contextMenu';
-import { DockviewComponent } from 'dockview-core';
-import { DockviewGroupPanel } from 'dockview-core';
-import { IDockviewPanel } from 'dockview-core';
-import { PopupService } from 'dockview-core';
-import { DEFAULT_TAB_GROUP_COLORS, TabGroupColorPalette } from 'dockview-core';
-import { ITabGroup } from 'dockview-core';
+import {
+    ContextMenuController,
+    ContextMenuModule,
+} from '../../dockview/contextMenuService';
+import { DockviewComponent } from '../../dockview/dockviewComponent';
+import { DockviewGroupPanel } from '../../dockview/dockviewGroupPanel';
+import { IDockviewPanel } from '../../dockview/dockviewPanel';
+import { PopupService } from '../../dockview/components/popupService';
+import {
+    DEFAULT_TAB_GROUP_COLORS,
+    TabGroupColorPalette,
+} from '../../dockview/tabGroupAccent';
+import { ITabGroup } from '../../dockview/tabGroup';
+import { DockviewComponentOptions } from '../../dockview/options';
 
 function makeAccessor(
     overrides: {
@@ -105,6 +112,26 @@ describe('ContextMenuController', () => {
             expect(spy).not.toHaveBeenCalled();
         });
 
+        test('renders nothing for an unrecognised built-in item', () => {
+            const { accessor, openPopover } = makeAccessor({
+                getTabContextMenuItems: jest
+                    .fn()
+                    .mockReturnValue(['close', 'someFutureItem']),
+            });
+            const controller = new ContextMenuController(accessor);
+
+            controller.show(
+                makePanel(),
+                makeGroup(),
+                new MouseEvent('contextmenu')
+            );
+
+            const menuEl = openPopover.mock.calls[0][0] as HTMLElement;
+            expect(
+                menuEl.querySelectorAll('.dv-context-menu-item')
+            ).toHaveLength(1);
+        });
+
         test('calls popupService.openPopover with correct coordinates', () => {
             const { accessor, openPopover } = makeAccessor({
                 getTabContextMenuItems: jest.fn().mockReturnValue(['close']),
@@ -117,10 +144,14 @@ describe('ContextMenuController', () => {
 
             controller.show(makePanel(), makeGroup(), event);
 
-            expect(openPopover).toHaveBeenCalledWith(expect.any(HTMLElement), {
-                x: 150,
-                y: 300,
-            });
+            expect(openPopover).toHaveBeenCalledWith(
+                expect.any(HTMLElement),
+                {
+                    x: 150,
+                    y: 300,
+                },
+                expect.anything()
+            );
         });
 
         test('does not call openPopover when getTabContextMenuItems returns empty array', () => {
@@ -218,7 +249,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(1001 * 2)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(floating);
@@ -269,7 +301,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(999 * 2)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(floating);
@@ -299,7 +332,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(1003 * 2)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(outer);
@@ -348,7 +382,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(var(--dv-overlay-z-index, 999) + 100)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(tab);
@@ -375,7 +410,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(var(--dv-overlay-z-index, 999) + 100)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(floating);
@@ -401,7 +437,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(var(--dv-overlay-z-index, 999) + 100)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(chip);
@@ -1205,6 +1242,118 @@ describe('ContextMenuController', () => {
         });
     });
 
+    describe('component item renderers', () => {
+        function makeRenderer() {
+            return {
+                element: document.createElement('div'),
+                init: jest.fn(),
+                dispose: jest.fn(),
+            };
+        }
+
+        test('tab menu disposes its renderers on close', () => {
+            const renderer = makeRenderer();
+            const { accessor, openPopover } = makeAccessor({
+                getTabContextMenuItems: jest
+                    .fn()
+                    .mockReturnValue([{ component: {} }]),
+                createContextMenuItemComponent: jest
+                    .fn()
+                    .mockReturnValue(renderer),
+            });
+
+            new ContextMenuController(accessor).show(
+                makePanel(),
+                makeGroup(),
+                new MouseEvent('contextmenu')
+            );
+            expect(renderer.dispose).not.toHaveBeenCalled();
+
+            openPopover.mock.calls[0][2].onClose();
+            expect(renderer.dispose).toHaveBeenCalledTimes(1);
+        });
+
+        test('disposes the renderers built so far when an item init throws', () => {
+            const first = makeRenderer();
+            const second = makeRenderer();
+            second.init.mockImplementation(() => {
+                throw new Error('init failed');
+            });
+            const { accessor, openPopover } = makeAccessor({
+                getTabContextMenuItems: jest
+                    .fn()
+                    .mockReturnValue([{ component: 'a' }, { component: 'b' }]),
+                createContextMenuItemComponent: jest
+                    .fn()
+                    .mockReturnValueOnce(first)
+                    .mockReturnValueOnce(second),
+            });
+
+            expect(() =>
+                new ContextMenuController(accessor).show(
+                    makePanel(),
+                    makeGroup(),
+                    new MouseEvent('contextmenu')
+                )
+            ).toThrow('init failed');
+
+            expect(openPopover).not.toHaveBeenCalled();
+            expect(first.dispose).toHaveBeenCalledTimes(1);
+            expect(second.dispose).toHaveBeenCalledTimes(1);
+        });
+
+        test('chip menu disposes the renderers built so far when an item init throws', () => {
+            const first = makeRenderer();
+            const second = makeRenderer();
+            second.init.mockImplementation(() => {
+                throw new Error('init failed');
+            });
+            const { accessor, openPopover } = makeAccessor({
+                getTabGroupChipContextMenuItems: jest
+                    .fn()
+                    .mockReturnValue([{ component: 'a' }, { component: 'b' }]),
+                createContextMenuItemComponent: jest
+                    .fn()
+                    .mockReturnValueOnce(first)
+                    .mockReturnValueOnce(second),
+            });
+
+            expect(() =>
+                new ContextMenuController(accessor).showForChip(
+                    fromPartial<ITabGroup>({}),
+                    makeGroup(),
+                    new MouseEvent('contextmenu', { cancelable: true })
+                )
+            ).toThrow('init failed');
+
+            expect(openPopover).not.toHaveBeenCalled();
+            expect(first.dispose).toHaveBeenCalledTimes(1);
+            expect(second.dispose).toHaveBeenCalledTimes(1);
+        });
+
+        test('chip menu disposes its renderers on close', () => {
+            const renderer = makeRenderer();
+            const { accessor, openPopover } = makeAccessor({
+                getTabGroupChipContextMenuItems: jest
+                    .fn()
+                    .mockReturnValue([{ component: {} }]),
+                createContextMenuItemComponent: jest
+                    .fn()
+                    .mockReturnValue(renderer),
+            });
+
+            new ContextMenuController(accessor).showForChip(
+                fromPartial<ITabGroup>({}),
+                makeGroup(),
+                new MouseEvent('contextmenu', { cancelable: true })
+            );
+            expect(renderer.dispose).not.toHaveBeenCalled();
+
+            openPopover.mock.calls[0][2].onClose();
+            expect(renderer.dispose).toHaveBeenCalledTimes(1);
+        });
+    });
+
     describe("built-in chip 'collapse' item", () => {
         function makeChipAccessor(items: unknown[]) {
             const openPopover = jest.fn();
@@ -1225,6 +1374,25 @@ describe('ContextMenuController', () => {
             });
             return { accessor, openPopover };
         }
+
+        test('renders nothing for an unrecognised chip item', () => {
+            const { accessor, openPopover } = makeChipAccessor([
+                'collapse',
+                'someFutureItem',
+            ]);
+            const controller = new ContextMenuController(accessor);
+
+            controller.showForChip(
+                fromPartial<ITabGroup>({ collapsed: false, toggle: jest.fn() }),
+                makeGroup(),
+                new MouseEvent('contextmenu', { cancelable: true })
+            );
+
+            const menuEl = openPopover.mock.calls[0][0] as HTMLElement;
+            expect(
+                menuEl.querySelectorAll('.dv-context-menu-item')
+            ).toHaveLength(1);
+        });
 
         test('renders "Collapse" and toggles when expanded', () => {
             const toggle = jest.fn();
@@ -1328,7 +1496,8 @@ describe('ContextMenuController', () => {
                     expect.any(HTMLElement),
                     expect.objectContaining({
                         zIndex: 'calc(1001 * 2)',
-                    })
+                    }),
+                    expect.anything()
                 );
             } finally {
                 document.body.removeChild(floating);
@@ -1840,6 +2009,105 @@ describe('ContextMenuController', () => {
         });
     });
 
+    describe('showForChip() component items', () => {
+        // A renderer stub whose element and init spy the test can inspect.
+        const rendererStub = (initMock: jest.Mock) => ({
+            element: document.createElement('div'),
+            init: initMock,
+            dispose: jest.fn(),
+        });
+
+        // Drive showForChip with a single chip `component` item. Reuses the
+        // top-level makeAccessor (which already wires the chip callback, the
+        // component factory and the api), then returns the rendered menu plus
+        // the tabGroup/group references so assertions can match them.
+        function showChipComponent(
+            item: object,
+            createContextMenuItemComponent?: jest.Mock,
+            api: any = {}
+        ) {
+            const { accessor, openPopover, close } = makeAccessor({
+                getTabGroupChipContextMenuItems: jest
+                    .fn()
+                    .mockReturnValue([item]),
+                createContextMenuItemComponent,
+                api,
+            });
+            const tabGroup = fromPartial<ITabGroup>({ label: 'Monitoring' });
+            const group = makeGroup();
+            new ContextMenuController(accessor).showForChip(
+                tabGroup,
+                group,
+                new MouseEvent('contextmenu', { cancelable: true })
+            );
+            const menuEl = openPopover.mock.calls[0][0] as HTMLElement;
+            return { menuEl, close, tabGroup, group };
+        }
+
+        test('calls createContextMenuItemComponent and inits with the chip params', () => {
+            const componentRef = { type: 'my-chip-component' };
+            const initMock = jest.fn();
+            const stub = rendererStub(initMock);
+            const factory = jest.fn().mockReturnValue(stub);
+            const api = {} as any;
+
+            const { menuEl, tabGroup, group } = showChipComponent(
+                { component: componentRef },
+                factory,
+                api
+            );
+
+            expect(factory).toHaveBeenCalledWith(
+                expect.objectContaining({ component: componentRef })
+            );
+            // The chip menu hands over the tab group (not a panel) plus the
+            // group and api.
+            expect(initMock).toHaveBeenCalledWith(
+                expect.objectContaining({ tabGroup, group, api })
+            );
+            expect(menuEl.contains(stub.element)).toBe(true);
+        });
+
+        test('forwards componentProps to renderer.init()', () => {
+            const initMock = jest.fn();
+            const factory = jest.fn().mockReturnValue(rendererStub(initMock));
+
+            showChipComponent(
+                { component: {}, componentProps: { foo: 'bar' } },
+                factory
+            );
+
+            expect(initMock).toHaveBeenCalledWith(
+                expect.objectContaining({ componentProps: { foo: 'bar' } })
+            );
+        });
+
+        test('init receives a close function that calls popupService.close()', () => {
+            const initMock = jest.fn();
+            const factory = jest.fn().mockReturnValue(rendererStub(initMock));
+
+            const { close } = showChipComponent({ component: {} }, factory);
+
+            const { close: closeFn } = initMock.mock.calls[0][0];
+            closeFn();
+            expect(close).toHaveBeenCalled();
+        });
+
+        test('skips the item if createContextMenuItemComponent returns undefined', () => {
+            const factory = jest.fn().mockReturnValue(undefined);
+
+            const { menuEl } = showChipComponent({ component: {} }, factory);
+
+            expect(menuEl.children).toHaveLength(0);
+        });
+
+        test('skips a component item when no createContextMenuItemComponent factory is configured', () => {
+            const { menuEl } = showChipComponent({ component: {} });
+
+            expect(menuEl.children).toHaveLength(0);
+        });
+    });
+
     describe("chip 'rename' input", () => {
         function makeChipAccessor(items: unknown[]) {
             const openPopover = jest.fn();
@@ -2025,13 +2293,88 @@ describe('ContextMenuController', () => {
             expect(Object.keys(ContextMenuModule.services ?? {})).toContain(
                 'contextMenuService'
             );
-            expect(ContextMenuModule.options).toEqual(
-                expect.arrayContaining([
-                    'getTabContextMenuItems',
-                    'getTabGroupChipContextMenuItems',
-                    'createContextMenuItemComponent',
-                ])
-            );
+            // Always registered, so it declares no `options`.
+            expect(ContextMenuModule.options).toBeUndefined();
         });
+    });
+});
+
+/**
+ * The specs above drive a hand-built accessor, so they pass whichever package
+ * the module ships in. These build a real component with no module
+ * registration of their own, and so fail if ContextMenu ever leaves core's
+ * built-in set.
+ */
+describe('the free package serves context menus', () => {
+    let container: HTMLElement;
+    let component: DockviewComponent | undefined;
+
+    const create = (options: Partial<DockviewComponentOptions>) => {
+        component = new DockviewComponent(container, {
+            createComponent: () => ({
+                element: document.createElement('div'),
+                init: () => {
+                    // noop
+                },
+                dispose: () => {
+                    // noop
+                },
+            }),
+            ...options,
+        } as DockviewComponentOptions);
+        component.layout(1000, 1000);
+        return component;
+    };
+
+    beforeEach(() => {
+        container = document.createElement('div');
+        document.body.appendChild(container);
+    });
+
+    afterEach(() => {
+        component?.dispose();
+        component = undefined;
+        container.remove();
+    });
+
+    test('right-clicking a tab opens the menu the app asked for', () => {
+        const api = create({
+            getTabContextMenuItems: () => [
+                'close',
+                'separator',
+                { label: 'Log panel id', action: () => undefined },
+            ],
+        }).api;
+
+        api.addPanel({ id: 'panel_1', component: 'default' });
+
+        const tab = container.querySelector('.dv-tab');
+        expect(tab).toBeTruthy();
+
+        fireEvent.contextMenu(tab!);
+
+        const labels = Array.from(
+            container.querySelectorAll('.dv-context-menu-item')
+        ).map((el) => el.textContent);
+        expect(labels).toEqual(['Close', 'Log panel id']);
+        expect(
+            container.querySelectorAll('.dv-context-menu-separator')
+        ).toHaveLength(1);
+    });
+
+    test('the context menu options log no missing-module error', () => {
+        const consoleError = jest
+            .spyOn(console, 'error')
+            .mockImplementation(() => undefined);
+
+        try {
+            create({
+                getTabContextMenuItems: () => ['close'],
+                getTabGroupChipContextMenuItems: () => ['rename'],
+            });
+            expect(consoleError).not.toHaveBeenCalled();
+        } finally {
+            consoleError.mockRestore();
+        }
     });
 });

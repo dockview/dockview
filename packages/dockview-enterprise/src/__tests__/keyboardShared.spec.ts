@@ -3,12 +3,11 @@ import type {
     KeyboardNavigationOptions,
 } from 'dockview';
 import {
-    type DocumentListenerSpec,
     KEYBOARD_MOVE_ATTRIBUTE,
-    bindDocumentListeners,
     matchesBinding,
     readKeyboardNavigation,
 } from '../keyboardShared';
+import { type DocumentListenerSpec, bindDocumentListeners } from '../shadowDom';
 
 /**
  * Minimal stand-in for the accessibility host that `bindDocumentListeners`

@@ -9,7 +9,7 @@ import { DockviewTheme, themeAbyss, themeLight } from 'dockview-react';
 import styles from './demo.module.css';
 
 const CODESANDBOX_URL =
-    'https://codesandbox.io/s/github/mathuo/dockview/tree/master/packages/docs/sandboxes/react/dockview/demo-dockview';
+    'https://codesandbox.io/s/github/dockview/dockview/tree/master/packages/docs/sandboxes/react/dockview/demo-dockview';
 
 const updateTheme = (theme: DockviewTheme) => {
     const urlParams = new URLSearchParams(window.location.search);

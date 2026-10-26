@@ -600,12 +600,10 @@ describe('tab', () => {
 
             expect(cut.element.draggable).toBe(true);
 
-            // Simulate option change
             options.disableDnd = true;
             cut.updateDragAndDropState();
             expect(cut.element.draggable).toBe(false);
 
-            // Change back
             options.disableDnd = false;
             cut.updateDragAndDropState();
             expect(cut.element.draggable).toBe(true);
@@ -673,13 +671,11 @@ describe('tab', () => {
                 new groupMock()
             );
 
-            // Initially not disabled
             let event = new Event('dragstart');
             let spy = jest.spyOn(event, 'preventDefault');
             fireEvent(cut.element, event);
             expect(spy).toHaveBeenCalledTimes(0);
 
-            // Simulate option change to disabled
             options.disableDnd = true;
             cut.updateDragAndDropState();
             event = new Event('dragstart');
@@ -687,7 +683,6 @@ describe('tab', () => {
             fireEvent(cut.element, event);
             expect(spy).toHaveBeenCalledTimes(1);
 
-            // Change back to enabled
             options.disableDnd = false;
             cut.updateDragAndDropState();
             event = new Event('dragstart');
@@ -733,7 +728,6 @@ describe('tab', () => {
             });
 
             expect(onDragStart).not.toHaveBeenCalled();
-            // No transfer data should have been set.
             expect(
                 LocalSelectionTransfer.getInstance().hasData(
                     PanelTransfer.prototype

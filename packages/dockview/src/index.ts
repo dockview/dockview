@@ -2,7 +2,7 @@ export * from 'dockview-core';
 
 /**
  * `dockview` is the recommended free entry point: a thin re-export of
- * `dockview-core`. The separable enterprise feature modules now live in the
+ * `dockview-core`. The separable enterprise feature modules live in the
  * separately-published `dockview-enterprise` package (which depends on and
  * re-exports `dockview`); install that to opt into them.
  *

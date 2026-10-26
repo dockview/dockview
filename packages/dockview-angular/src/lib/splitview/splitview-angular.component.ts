@@ -89,7 +89,6 @@ export class SplitviewAngularComponent implements OnInit, OnDestroy, OnChanges {
             const coreChanges: Partial<SplitviewOptions> = {};
             let hasChanges = false;
 
-            // Check for changes in core splitview properties
             PROPERTY_KEYS_SPLITVIEW.forEach((key) => {
                 if (changes[key] && !changes[key].isFirstChange()) {
                     (coreChanges as any)[key] = changes[key].currentValue;
@@ -122,7 +121,6 @@ export class SplitviewAngularComponent implements OnInit, OnDestroy, OnChanges {
             ...frameworkOptions,
         });
 
-        // Emit ready event
         this.ready.emit({ api: this.splitviewApi });
     }
 

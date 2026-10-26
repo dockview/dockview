@@ -219,6 +219,39 @@ describe('LongPressDetector', () => {
         document.body.removeChild(other);
     });
 
+    test('suppresses the synthesised click when the source is inside a shadow root', () => {
+        jest.useFakeTimers();
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        const element = document.createElement('div');
+        host.attachShadow({ mode: 'open' }).appendChild(element);
+
+        const onClick = jest.fn();
+        element.addEventListener('click', onClick);
+
+        const cut = new LongPressDetector(element, {
+            onLongPress: jest.fn(),
+            delay: 500,
+        });
+
+        fireEvent.pointerDown(element, pointerInit({ composed: true }));
+        jest.advanceTimersByTime(500);
+
+        // The window-level guard sees this click retargeted to the shadow
+        // host; it must still recognise it as a click on the source.
+        const click = new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+        });
+        element.dispatchEvent(click);
+        expect(click.defaultPrevented).toBe(true);
+        expect(onClick).not.toHaveBeenCalled();
+
+        cut.dispose();
+        document.body.removeChild(host);
+    });
+
     test('contextmenu guard self-disposes after the first event', () => {
         jest.useFakeTimers();
         const element = document.createElement('div');

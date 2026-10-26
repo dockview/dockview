@@ -74,7 +74,6 @@ test.describe('locked group', () => {
         await expect(page.locator('.dv-dnd-compass')).toBeVisible();
         await page.mouse.up();
 
-        // The two groups merged into one.
         await expect.poll(() => groupCount(page)).toBe(1);
         await expect(page.locator('.dv-tab')).toHaveText(['two', 'one']);
     });

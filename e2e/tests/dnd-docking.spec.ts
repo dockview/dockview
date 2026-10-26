@@ -80,7 +80,6 @@ test.describe('pointer dnd docking', () => {
         await expect
             .poll(() => page.evaluate(() => (window as any).__dv.groupCount()))
             .toBe(1);
-        // Both panels now share the surviving group's strip.
         await expect(page.locator('.dv-tab')).toHaveText(['two', 'one']);
     });
 });

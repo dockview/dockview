@@ -9,7 +9,7 @@ sidebar_custom_props:
 
 import { DocRef } from '@site/src/components/ui/reference/docRef';
 
-**Smart Guides** bring Figma / Keynote-style alignment guides and magnetic snapping to Dockview's **floating groups**. While you drag a floating group, Dockview draws crisp alignment lines and gently snaps the dragged group when one of its edges or centers lines up with another floating group, the container, or (optionally) the grid splitters behind it.
+**Smart Guides** bring Figma / Keynote-style alignment guides and magnetic snapping to Dockview's **floating groups**. While you drag a floating group, Dockview draws crisp alignment lines and gently snaps the dragged group when one of its edges or centres lines up with another floating group, the container, or (optionally) the grid splitters behind it.
 
 :::info
 Smart Guides apply to **floating groups only**. Docked groups in the grid are unaffected, and no guides are shown when dragging them.
@@ -53,7 +53,7 @@ const api = createDockview(element, {
 
 ### How snapping works
 
-- **Alignment.** As a floating group is dragged, its leading edge, center, and trailing edge on each axis are compared against the alignment lines contributed by the other floating groups and the container. When a probe lands within `snapDistance` of a line, the group snaps so the two align exactly, and a guide line is drawn.
+- **Alignment.** As a floating group is dragged, its leading edge, centre, and trailing edge on each axis are compared against the alignment lines contributed by the other floating groups and the container. When a probe lands within `snapDistance` of a line, the group snaps so the two align exactly, and a guide line is drawn.
 - **Independent X and Y.** The horizontal and vertical axes are resolved independently; a group can snap horizontally to one neighbour and vertically to another at the same time, drawing a guide for each alignment.
 - **Hysteresis.** To avoid the group "sticking then jumping" at the snap boundary, a snap engages at `snapDistance` but only releases once the pointer moves past `snapDistance + releaseDistance`. This asymmetric threshold keeps snapping stable and stops oscillation.
 - **Guides.** Set `showGuides: false` to keep the magnetic snapping behaviour but hide the alignment lines.
@@ -64,8 +64,8 @@ Choose which sources a dragged floating group aligns against with `snapTargets`:
 
 <DocRef declaration="SmartGuidesSnapTargets" />
 
-- `floats` (default `true`): align to the other floating groups' edges and centers.
-- `container` (default `true`): align to the container's edges and center. Set `containerInset` to also emit guide lines a fixed number of pixels inside the container edges (e.g. a content margin).
+- `floats` (default `true`): align to the other floating groups' edges and centres.
+- `container` (default `true`): align to the container's edges and centre. Set `containerInset` to also emit guide lines a fixed number of pixels inside the container edges (e.g. a content margin).
 - `splitters` (default `false`): align to the underlying grid's splitter (sash) positions, so a floating group can line up with the docked layout behind it.
 
 ```ts

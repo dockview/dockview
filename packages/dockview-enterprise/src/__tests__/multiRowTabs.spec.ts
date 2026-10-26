@@ -285,6 +285,91 @@ describe('multi-row tabs (wrap mode)', () => {
         dockview.dispose();
     });
 
+    test('unbounded wrap is bounded by the group height: the surplus rows beyond the fit spill to the dropdown', () => {
+        // No `maxRows`, but a group only tall enough for a couple of rows. The
+        // header must not grow past the group and push its extra rows off-screen;
+        // instead the space cap clips it and routes the surplus to the dropdown.
+        const dockview = make({ mode: 'wrap' });
+        const ids = ['p0', 'p1', 'p2', 'p3', 'p4', 'p5'];
+        const first = dockview.addPanel({ id: ids[0], component: 'default' });
+        for (const id of ids.slice(1)) {
+            dockview.addPanel({ id, component: 'default' });
+        }
+        const list = first.group.model.tabsListElement;
+        const header = list.closest(
+            '.dv-tabs-and-actions-container'
+        ) as HTMLElement;
+        const group = list.closest('.dv-groupview') as HTMLElement;
+
+        // 44px rows in a 132px-tall group: floor(132 / 44) - 1 = 2 visible rows
+        // (one row reserved for content). jsdom has no layout, so the line-size
+        // var and the group height are stamped.
+        header.style.setProperty(
+            '--dv-tabs-and-actions-container-height',
+            '44px'
+        );
+        Object.defineProperty(group, 'clientHeight', {
+            configurable: true,
+            value: 132,
+        });
+        // 3 natural rows of two tabs each.
+        stampRows(list, [0, 0, 44, 44, 88, 88]);
+
+        const spy = jest.spyOn(dockview, 'setForcedOverflow');
+        // Re-apply to trigger a measure with the stamped geometry in place.
+        dockview.updateOptions({ overflow: { mode: 'wrap' } });
+
+        // The space cap (2) is applied even though no `maxRows` was set.
+        expect(list.classList.contains(CAPPED_CLASS)).toBe(true);
+        expect(list.style.getPropertyValue(MAX_ROWS_VAR)).toBe('2');
+        // The third row spills into the overflow dropdown.
+        const forced = spy.mock.calls.at(-1)![1];
+        expect(forced('p4')).toBe(true);
+        expect(forced('p5')).toBe(true);
+        expect(forced('p0')).toBe(false);
+        expect(forced('p2')).toBe(false);
+
+        dockview.dispose();
+    });
+
+    test('an explicit maxRows still wins when it is stricter than the space cap', () => {
+        // The group has room for 2 rows but maxRows caps at 1: the tighter of the
+        // two (1) is applied.
+        const dockview = make({ mode: 'wrap', maxRows: 1 });
+        const ids = ['p0', 'p1', 'p2', 'p3', 'p4', 'p5'];
+        const first = dockview.addPanel({ id: ids[0], component: 'default' });
+        for (const id of ids.slice(1)) {
+            dockview.addPanel({ id, component: 'default' });
+        }
+        const list = first.group.model.tabsListElement;
+        const header = list.closest(
+            '.dv-tabs-and-actions-container'
+        ) as HTMLElement;
+        const group = list.closest('.dv-groupview') as HTMLElement;
+
+        header.style.setProperty(
+            '--dv-tabs-and-actions-container-height',
+            '44px'
+        );
+        Object.defineProperty(group, 'clientHeight', {
+            configurable: true,
+            value: 132, // space cap would allow 2 rows
+        });
+        stampRows(list, [0, 0, 44, 44, 88, 88]);
+
+        const spy = jest.spyOn(dockview, 'setForcedOverflow');
+        dockview.updateOptions({ overflow: { mode: 'wrap', maxRows: 1 } });
+
+        expect(list.style.getPropertyValue(MAX_ROWS_VAR)).toBe('1');
+        // Everything past the first row is surplus.
+        const forced = spy.mock.calls.at(-1)![1];
+        expect(forced('p0')).toBe(false);
+        expect(forced('p2')).toBe(true);
+        expect(forced('p4')).toBe(true);
+
+        dockview.dispose();
+    });
+
     test('within the cap nothing is forced into the dropdown', () => {
         const dockview = make({ mode: 'wrap', maxRows: 3 });
         const first = dockview.addPanel({ id: 'p0', component: 'default' });
@@ -446,6 +531,50 @@ describe('multi-row tabs (wrap mode)', () => {
 
         // Capped at 2 columns x 35px = 70px (matches the CSS max-width cap).
         expect(header.style.width).toBe('70px');
+
+        dockview.dispose();
+    });
+
+    test('vertical header: unbounded wrap is bounded by the group width and pins the header to the capped column count', () => {
+        // No `maxRows`, but a group only wide enough for a couple of columns. The
+        // header must stop growing at the group edge (not run its extra columns
+        // off-screen over the content); the surplus columns spill to the dropdown
+        // and the pinned width reflects the capped count, not the natural one.
+        const dockview = makeVertical({ mode: 'wrap' });
+        const ids = ['p0', 'p1', 'p2', 'p3', 'p4', 'p5'];
+        const first = dockview.addPanel({ id: ids[0], component: 'default' });
+        for (const id of ids.slice(1)) {
+            dockview.addPanel({ id, component: 'default' });
+        }
+        const list = first.group.model.tabsListElement;
+        const header = headerOf(list);
+        const group = list.closest('.dv-groupview') as HTMLElement;
+
+        header.style.setProperty(
+            '--dv-tabs-and-actions-container-height',
+            '35px'
+        );
+        // 35px columns in a 105px-wide group: floor(105 / 35) - 1 = 2 columns.
+        Object.defineProperty(group, 'clientWidth', {
+            configurable: true,
+            value: 105,
+        });
+        // 3 natural columns of two tabs each (vertical-rl → right-to-left).
+        stampCols(list, [88, 88, 44, 44, 0, 0]);
+
+        const spy = jest.spyOn(dockview, 'setForcedOverflow');
+        dockview.updateOptions({ overflow: { mode: 'wrap' } });
+
+        // The space cap (2) is applied without an explicit maxRows ...
+        expect(list.classList.contains(CAPPED_CLASS)).toBe(true);
+        expect(list.style.getPropertyValue(MAX_ROWS_VAR)).toBe('2');
+        // ... the header is pinned to 2 columns x 35px, not the natural 3 ...
+        expect(header.style.width).toBe('70px');
+        // ... and the left-most (surplus) column spills to the dropdown.
+        const forced = spy.mock.calls.at(-1)![1];
+        expect(forced('p4')).toBe(true);
+        expect(forced('p5')).toBe(true);
+        expect(forced('p0')).toBe(false);
 
         dockview.dispose();
     });

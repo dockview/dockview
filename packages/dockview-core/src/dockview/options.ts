@@ -166,9 +166,28 @@ export interface IContextMenuItemComponentProps {
     componentProps?: object;
 }
 
+/**
+ * Props passed to a `component` menu item rendered in the tab group chip
+ * context menu. Mirrors {@link IContextMenuItemComponentProps} but carries the
+ * `tabGroup` the chip represents in place of a single `panel`: a chip spans
+ * several panels, so there is no one panel to hand over.
+ */
+export interface IChipContextMenuItemComponentProps {
+    tabGroup: ITabGroup;
+    group: DockviewGroupPanel;
+    api: DockviewApi;
+    /** Call to close the context menu */
+    close: () => void;
+    componentProps?: object;
+}
+
 export interface IContextMenuItemRenderer extends IDisposable {
     readonly element: HTMLElement;
-    init(props: IContextMenuItemComponentProps): void;
+    init(
+        props:
+            | IContextMenuItemComponentProps
+            | IChipContextMenuItemComponentProps
+    ): void;
 }
 
 export interface CreateContextMenuItemComponentOptions {
@@ -258,19 +277,6 @@ export interface SmartGuidesOptions {
 }
 
 /**
- * Per-row content preview for the advanced overflow dropdown. The substrate
- * cannot snapshot arbitrary panel content, so the app supplies the preview.
- * Reserved for `AdvancedOverflowModule`; ignored until that module is present.
- */
-export type OverflowThumbnailRenderer = (
-    panel: IDockviewPanel
-) =>
-    | HTMLElement
-    | { element: HTMLElement; dispose?: () => void }
-    | { src: string }
-    | undefined;
-
-/**
  * The CSS class the `MultiRowTabsModule` toggles on a group's tab list
  * (`.dv-tabs-container`) to switch it into wrap layout. Shared here so core
  * (the reorder controller's wrap detection + the SCSS rules) and the module
@@ -339,11 +345,6 @@ export interface DockviewOverflowOptions {
      * `AdvancedOverflowModule`; ignored until present. Default: false.
      */
     mru?: boolean;
-    /**
-     * Per-row content preview in the dropdown. Reserved for
-     * `AdvancedOverflowModule`; ignored until present.
-     */
-    thumbnails?: boolean | OverflowThumbnailRenderer;
 }
 
 export interface DockviewOptions {
@@ -352,6 +353,19 @@ export interface DockviewOptions {
      * Call `.layout(width, height)` to manually resize the container.
      */
     disableAutoResizing?: boolean;
+    /**
+     * Distribute the available space proportionally between groups when the
+     * container is resized, preserving each group's share of the layout.
+     *
+     * When `false` the extra (or missing) space is absorbed by the last group
+     * in each row/column instead, leaving the other splitters where they are -
+     * the behaviour found in VS Code. If the last group reaches its minimum or
+     * maximum size, the remainder moves on to the group before it.
+     *
+     * Applies to floating and popout windows too, and can be changed at runtime
+     * with `updateOptions`; `undefined` restores the default. Default: `true`.
+     */
+    proportionalLayout?: boolean;
     hideBorders?: boolean;
     singleTabMode?: 'fullwidth' | 'default';
     disableFloatingGroups?: boolean;
@@ -431,6 +445,11 @@ export interface DockviewOptions {
      * hide the outer whole-layout-edge cells (`edges: false`, default on).
      */
     dndCompass?: boolean | { zones?: Position[]; edges?: boolean };
+    /**
+     * How groups are sized after a drop on a group's edge: `split` (default)
+     * halves the target group, `distribute` shares the row or column evenly.
+     */
+    dropSizing?: 'split' | 'distribute';
     // #end dnd
     locked?: boolean;
     className?: string;
@@ -438,6 +457,24 @@ export interface DockviewOptions {
      * Define the behaviour of the dock when there are no panels to display. Defaults to `watermark`.
      */
     noPanelsOverlay?: 'emptyGroup' | 'watermark';
+    /**
+     * Whether a group is removed once its last panel is closed or moved out.
+     * Defaults to `true`. When `false` the empty group stays in the layout
+     * (rendering the watermark) until it is closed explicitly.
+     */
+    closeEmptyGroups?: boolean;
+    /**
+     * Supplies the id for every group dockview creates without an explicit
+     * id: a panel added at a new position, a drop that splits the layout, a
+     * group popped out or floated, `addGroup()` without an `id`. Defaults to
+     * a sequential counter starting at `"1"`, which is unique only within one
+     * instance. Supply your own generator, for example
+     * `() => crypto.randomUUID()`, when groups move between instances such
+     * as separate windows, so a group keeps its id wherever it lands. An id
+     * already in use is retried; a generator that keeps returning live ids
+     * throws.
+     */
+    groupIdGenerator?: () => string;
     theme?: DockviewTheme;
     disableTabsOverflowList?: boolean;
     /**
@@ -446,7 +483,7 @@ export interface DockviewOptions {
      * The single-row strip + chevron dropdown is the default and is free. The
      * `'wrap'` mode (tabs wrap onto multiple rows and the header grows) requires
      * the `MultiRowTabsModule`; without that module `'wrap'` is ignored and the
-     * dropdown is used. The `search`/`mru`/`thumbnails` fields enrich the
+     * dropdown is used. The `search`/`mru` fields enrich the
      * dropdown and require the `AdvancedOverflowModule`; they are ignored when
      * that module is absent.
      *
@@ -659,7 +696,6 @@ export interface PinnedTabsOptions {
     /**
      * `'inline'` (default) keeps pinned tabs first within the existing strip;
      * `'separate-row'` renders them on their own VS-Code-style row.
-     * (Phase 1 implements `'inline'` only.)
      */
     mode?: 'inline' | 'separate-row';
     /**
@@ -776,6 +812,7 @@ export const PROPERTY_KEYS_DOCKVIEW: (keyof DockviewOptions)[] = (() => {
      */
     const properties: Record<keyof DockviewOptions, undefined> = {
         disableAutoResizing: undefined,
+        proportionalLayout: undefined,
         hideBorders: undefined,
         singleTabMode: undefined,
         disableFloatingGroups: undefined,
@@ -793,9 +830,12 @@ export const PROPERTY_KEYS_DOCKVIEW: (keyof DockviewOptions)[] = (() => {
         dndStrategy: undefined,
         className: undefined,
         noPanelsOverlay: undefined,
+        closeEmptyGroups: undefined,
+        groupIdGenerator: undefined,
         dndEdges: undefined,
         dropPositionResolver: undefined,
         dndCompass: undefined,
+        dropSizing: undefined,
         theme: undefined,
         disableTabsOverflowList: undefined,
         overflow: undefined,
@@ -975,6 +1015,45 @@ export type AddGroupOptions = (
     | AbsolutePosition
 ) &
     GroupOptions;
+
+/**
+ * Placement for `addPanelFromJSON`: everything `addPanel` takes beyond what
+ * the serialized panel state already carries.
+ */
+export type AddPanelFromJSONOptions = Pick<
+    AddPanelOptions,
+    'position' | 'floating' | 'inactive' | 'initialWidth' | 'initialHeight'
+>;
+
+/**
+ * Placement for `addGroupFromJSON`: where the rehydrated group goes in the
+ * grid, as for `addGroup`. The group's own shape (id, locked, hidden header,
+ * header position) comes from the serialized state, so it is not repeated
+ * here. Omit the options to append the group to the layout.
+ *
+ * A reference group or panel with `direction: 'within'`, or with no
+ * direction, merges the serialized panels into that group instead of
+ * creating one, as `addPanel` does; `index` then says where in its tab bar
+ * they go.
+ */
+export type AddGroupFromJSONOptions = (
+    | {
+          referenceGroup: string | DockviewGroupPanel;
+          /** Defaults to `'within'`: merge into the reference group. */
+          direction?: Direction;
+          /** Tab index to merge at; only with `'within'`. */
+          index?: number;
+      }
+    | {
+          referencePanel: string | IDockviewPanel;
+          /** Defaults to `'within'`: merge into the reference panel's group. */
+          direction?: Direction;
+          /** Tab index to merge at; only with `'within'`. */
+          index?: number;
+      }
+    | AbsolutePosition
+) &
+    Pick<GroupOptions, 'skipSetActive' | 'initialWidth' | 'initialHeight'>;
 
 export function isGroupOptionsWithPanel(
     data: AddGroupOptions

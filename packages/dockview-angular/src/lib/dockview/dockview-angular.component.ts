@@ -105,6 +105,7 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
     @Input() debug?: boolean;
     @Input() locked?: boolean;
     @Input() disableAutoResizing?: boolean;
+    @Input() proportionalLayout?: boolean;
     @Input() singleTabMode?: 'fullwidth' | 'default';
     @Input() theme?: DockviewTheme;
     @Input() scrollbars?: 'native' | 'custom';
@@ -114,7 +115,10 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
     @Input() disableDnd?: boolean;
     @Input() dndStrategy?: DockviewDndStrategy;
     @Input() dndEdges?: false | DroptargetOverlayModel;
+    @Input() dropSizing?: DockviewOptions['dropSizing'];
     @Input() noPanelsOverlay?: 'emptyGroup' | 'watermark';
+    @Input() closeEmptyGroups?: boolean;
+    @Input() groupIdGenerator?: () => string;
     @Input() getTabContextMenuItems?: (
         params: GetTabContextMenuItemsParams
     ) => (ContextMenuItem | { component: Type<any> | TemplateRef<any> })[];
@@ -127,10 +131,9 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
     )[];
     @Input() tabGroupColors?: DockviewTabGroupColorEntry[];
     @Input() tabGroupAccent?: 'palette' | 'off';
-    // These option keys are in PROPERTY_KEYS_DOCKVIEW but were missing an
-    // @Input(), so bindings like [overflow] raised NG0303 and never reached
-    // dockview-core. Typed via indexed access so they always track the core
-    // option shape.
+    // These option keys are in PROPERTY_KEYS_DOCKVIEW; without an @Input()
+    // bindings like [overflow] raise NG0303 and never reach dockview-core.
+    // Typed via indexed access so they track the core option shape.
     @Input() overflow?: DockviewOptions['overflow'];
     @Input() pinnedTabs?: DockviewOptions['pinnedTabs'];
     @Input() smartGuides?: DockviewOptions['smartGuides'];
@@ -174,7 +177,6 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
             const coreChanges: Partial<DockviewOptions> = {};
             let hasChanges = false;
 
-            // Check for changes in core dockview properties
             PROPERTY_KEYS_DOCKVIEW.forEach((key) => {
                 if (changes[key] && !changes[key].isFirstChange()) {
                     (coreChanges as any)[key] = changes[key].currentValue;
@@ -182,7 +184,6 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
                 }
             });
 
-            // Handle tabGroupChipComponent → createTabGroupChipComponent mapping
             if (
                 changes['tabGroupChipComponent'] &&
                 !changes['tabGroupChipComponent'].isFirstChange()
@@ -200,7 +201,6 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
                 hasChanges = true;
             }
 
-            // Handle groupDragGhostComponent → createGroupDragGhostComponent mapping
             if (
                 changes['groupDragGhostComponent'] &&
                 !changes['groupDragGhostComponent'].isFirstChange()
@@ -261,10 +261,8 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
             ...frameworkOptions,
         });
 
-        // Set up event listeners
         this.setupEventListeners();
 
-        // Emit ready event
         this.ready.emit({ api: this.dockviewApi });
     }
 
@@ -395,7 +393,6 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
             return;
         }
 
-        // Set up event subscriptions using lifecycle manager
         const api = this.dockviewApi;
 
         if (this.didDrop.observers.length > 0) {

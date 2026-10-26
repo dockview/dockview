@@ -59,6 +59,51 @@ const api = createDockview(element, {
 ```
 </FrameworkSpecific>
 
+## Keeping empty groups
+
+By default a group is removed as soon as its last panel is closed or dragged out. Set `closeEmptyGroups` to `false` to keep every emptied group in place, rendering its watermark, until the group itself is closed via `group.api.close()` or `api.removeGroup()`. This is useful when the grid is a fixed layout that panels come and go from.
+
+<FrameworkSpecific framework="React">
+    ```tsx
+    <DockviewReact
+        closeEmptyGroups={false}
+        onReady={onReady}
+        components={components}
+    />
+    ```
+</FrameworkSpecific>
+
+<FrameworkSpecific framework='Vue'>
+```html
+<dockview-vue
+    :closeEmptyGroups="false"
+    :components="components"
+    @ready="onReady">
+</dockview-vue>
+```
+</FrameworkSpecific>
+
+<FrameworkSpecific framework='Angular'>
+```html
+<dv-dockview
+    [closeEmptyGroups]="false"
+    [components]="components"
+    (ready)="onReady($event)">
+</dv-dockview>
+```
+</FrameworkSpecific>
+
+<FrameworkSpecific framework='JavaScript'>
+```ts
+const api = createDockview(element, {
+    closeEmptyGroups: false,
+    createComponent: (options) => new MyPanel(),
+});
+```
+</FrameworkSpecific>
+
+`api.removePanel(panel, { removeEmptyGroup })` overrides the option for a single call. `api.closeAllGroups()` and `api.clear()` remove the groups as well as their panels, except that `closeAllGroups()` keeps the last group when `noPanelsOverlay` is `'emptyGroup'`.
+
 ## Options
 
 The following properties can be set to configure the watermark component.

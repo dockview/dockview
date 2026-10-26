@@ -3,7 +3,7 @@ import './codeSandboxButton.scss';
 import { ThemePicker } from './container';
 
 const BASE_SANDBOX_URL =
-    'https://codesandbox.io/s/github/mathuo/dockview/tree/master/packages/docs/sandboxes';
+    'https://codesandbox.io/s/github/dockview/dockview/tree/master/packages/docs/sandboxes';
 
 const createSvgElementFromPath = (params: {
     height: string;
