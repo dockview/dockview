@@ -1,5 +1,18 @@
 # Popout groups in a window dockview cannot script
 
+> **Status.** Written before dockview 8.6.1. Since then direction A below has
+> shipped in core: `serializeGroup` / `addGroupFromJSON` (the per-group
+> envelope and merge entry point of sub-question 1, including a
+> `direction: 'within'` form that merges into an existing group at a tab
+> index), `addPanelFromJSON` for a single tab, the tab index on
+> `onDidDrop`, and the `groupIdGenerator` option (the id namespacing of
+> sub-question 2). `dockview-enterprise`'s `installMultiWindow` builds on
+> them, and this demo drives it through the shell to drag a group between
+> native windows,
+> which the UX consequence under sub-question 4 said could not exist: the OS
+> drag carries a session id, the shell carries the state. The measurements
+> and the reasoning below are kept as written.
+
 A design note. It asks what dockview would need so an application can run a
 group in a window whose JavaScript context the opener cannot reach, answers
 each sub-question with a measurement, and recommends doing nothing to the API

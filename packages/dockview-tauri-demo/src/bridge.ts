@@ -109,3 +109,63 @@ export async function closeNativePopout(win: Window): Promise<void> {
     const { invoke } = await import('@tauri-apps/api/core');
     await invoke('close_popout', { label });
 }
+
+/** A JSON line on the shell's stdout for the harness. */
+export async function autotestReport(
+    kind: string,
+    payload: unknown
+): Promise<void> {
+    if (!isTauri()) {
+        return;
+    }
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('autotest_report', {
+        label: await windowLabel(),
+        kind,
+        payload,
+    });
+}
+
+/*
+ * The workspace as the shell keeps it, for the Workspace panel. The
+ * multi-window calls themselves are the transport's, in `transport.ts`.
+ */
+
+export interface WorkspaceWindowInfo {
+    label: string;
+    geometry: { x: number; y: number; width: number; height: number } | null;
+    hasLayout: boolean;
+}
+
+export interface WorkspaceInfo {
+    path: string;
+    /** Milliseconds since the Unix epoch, or null if never written this run. */
+    lastSaved: number | null;
+    windows: WorkspaceWindowInfo[];
+}
+
+export async function workspaceInfo(): Promise<WorkspaceInfo | null> {
+    if (!isTauri()) {
+        return null;
+    }
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke<WorkspaceInfo>('workspace_info');
+}
+
+async function listenOrIgnore<T>(
+    event: string,
+    handler: (payload: T) => void
+): Promise<() => void> {
+    if (!isTauri()) {
+        return () => {
+            /* nothing subscribed */
+        };
+    }
+    const { listen } = await import('@tauri-apps/api/event');
+    return listen<T>(event, (e) => handler(e.payload));
+}
+
+export const onAutotestCommand = (handler: (command: string) => void) =>
+    listenOrIgnore<{ command: string }>('dockview:autotest', (payload) =>
+        handler(payload.command)
+    );
