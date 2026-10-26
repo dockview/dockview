@@ -21,8 +21,6 @@ LicenseModule
 LicenseService
 LicenseServiceOptions
 LicenseState
-MemoryOrchestrator
-MemoryOrchestratorOptions
 Modules
 MruTracker
 MultiRowTabsModule
@@ -34,6 +32,8 @@ MultiWindowHistoryRequest
 MultiWindowHistoryStep
 MultiWindowMoveEvent
 MultiWindowOptions
+MultiWindowOrchestrator
+MultiWindowOrchestratorOptions
 MultiWindowReleaseEvent
 MultiWindowTransport
 MultiWindowWorkspaceState
