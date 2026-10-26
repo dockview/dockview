@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>tab group collapse animation</title>
+        <style>
+            html,
+            body {
+                margin: 0;
+                height: 100%;
+                width: 100%;
+                background: #0d1117;
+                font-family: system-ui, sans-serif;
+            }
+            /* Fixed-size dock so geometry samples are stable. */
+            #app {
+                position: absolute;
+                top: 56px;
+                left: 40px;
+                width: 760px;
+                height: 360px;
+            }
+            #controls {
+                position: absolute;
+                top: 12px;
+                left: 40px;
+                display: flex;
+                gap: 8px;
+                align-items: center;
+                color: #ddd;
+                font-size: 13px;
+            }
+            #controls button {
+                font: inherit;
+                padding: 4px 10px;
+            }
+            .dv-test-panel {
+                height: 100%;
+                box-sizing: border-box;
+                padding: 8px;
+                color: #ddd;
+            }
+        </style>
+        <link
+            rel="stylesheet"
+            href="/packages/dockview-core/dist/styles/dockview.css"
+        />
+        <script src="/packages/dockview/dist/dockview.js"></script>
+    </head>
+    <body>
+        <div id="controls">
+            <button id="collapse" type="button">Collapse "Trade"</button>
+            <button id="expand" type="button">Expand "Trade"</button>
+            <span id="status"></span>
+        </div>
+        <div id="app"></div>
+        <script>
+            (function () {
+                const lib = window['dockview'];
+                const params = new URLSearchParams(location.search);
+                const headerPosition = params.get('header') || 'top';
+                // Theme transition duration under test (`--dv-transition-
+                // duration`). Long by default so a mid-animation frame can be
+                // sampled; `?duration=` overrides (any CSS <time>).
+                const duration = params.get('duration') || '600ms';
+
+                const el = document.getElementById('app');
+                el.style.setProperty('--dv-transition-duration', duration);
+
+                const dockview = new lib.DockviewComponent(el, {
+                    createComponent: (options) => {
+                        const element = document.createElement('div');
+                        element.className = 'dv-test-panel';
+                        element.textContent = options.params?.name ?? options.id;
+                        return {
+                            element,
+                            init: () => {},
+                            dispose: () => {},
+                        };
+                    },
+                    theme: lib.themeDark,
+                    tabGroupColors: [{ id: 'brand', value: '#8b5cf6' }],
+                });
+
+                const add = (id, name) =>
+                    dockview.api.addPanel({
+                        id,
+                        title: name,
+                        component: 'default',
+                        params: { name },
+                        position:
+                            id === 'home'
+                                ? undefined
+                                : { referencePanel: 'home', direction: 'within' },
+                    });
+
+                const home = add('home', 'Home');
+                const groupId = home.group.id;
+                add('orders', 'Orders');
+                add('positions', 'Positions');
+                add('history', 'Trade History');
+                add('notes', 'Notes');
+
+                // Colored tab group spanning Orders + Positions + History.
+                const tabGroup = dockview.api.createTabGroup({
+                    groupId,
+                    label: 'Trade',
+                    color: 'brand',
+                });
+                for (const panelId of ['orders', 'positions', 'history']) {
+                    dockview.api.addPanelToTabGroup({
+                        groupId,
+                        tabGroupId: tabGroup.id,
+                        panelId,
+                    });
+                }
+
+                home.group.api.setHeaderPosition(headerPosition);
+                home.api.setActive();
+
+                const status = document.getElementById('status');
+                const setStatus = () => {
+                    status.textContent = tabGroup.collapsed
+                        ? 'collapsed'
+                        : 'expanded';
+                };
+                document
+                    .getElementById('collapse')
+                    .addEventListener('click', () => {
+                        tabGroup.collapse();
+                        setStatus();
+                    });
+                document
+                    .getElementById('expand')
+                    .addEventListener('click', () => {
+                        tabGroup.expand();
+                        setStatus();
+                    });
+                setStatus();
+
+                const tabEl = (panelId) =>
+                    el.querySelector(`.dv-tab[data-tab-panel-id="${panelId}"]`);
+
+                const size = (panelId) => {
+                    const r = tabEl(panelId).getBoundingClientRect();
+                    return headerPosition === 'left' ||
+                        headerPosition === 'right'
+                        ? r.height
+                        : r.width;
+                };
+
+                window.__dv = {
+                    dockview,
+                    tabGroup,
+                    collapse: () => tabGroup.collapse(),
+                    expand: () => tabGroup.expand(),
+                    tabEl,
+                    /** Main-axis size of a grouped tab (width, or height for
+                     *  side headers). */
+                    size,
+                    classes: (panelId) => Array.from(tabEl(panelId).classList),
+                    inlineTransition: (panelId) =>
+                        tabEl(panelId).style.transition,
+                    inlineSize: (panelId) => ({
+                        width: tabEl(panelId).style.width,
+                        height: tabEl(panelId).style.height,
+                    }),
+                    /** Sample a tab's main-axis size every frame for `ms`. */
+                    sample: (panelId, ms) =>
+                        new Promise((resolve) => {
+                            const out = [];
+                            const start = performance.now();
+                            const tick = () => {
+                                out.push({
+                                    t: Math.round(performance.now() - start),
+                                    size: size(panelId),
+                                });
+                                if (performance.now() - start < ms) {
+                                    requestAnimationFrame(tick);
+                                } else {
+                                    resolve(out);
+                                }
+                            };
+                            requestAnimationFrame(tick);
+                        }),
+                };
+
+                requestAnimationFrame(() =>
+                    requestAnimationFrame(() => {
+                        window.__ready = true;
+                    })
+                );
+            })();
+        </script>
+    </body>
+</html>

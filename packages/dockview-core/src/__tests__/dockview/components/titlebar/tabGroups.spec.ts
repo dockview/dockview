@@ -652,6 +652,12 @@ describe('TabGroupManager', () => {
 
             tg.expand();
             manager.update();
+            // The model and the manager both react to a collapse change, so
+            // update runs more than once per toggle; the reverse must not
+            // flip back. `playbackRate` is deliberately left stale here, as
+            // Chromium reports it until the pending rate change applies.
+            anim.playbackRate = 1;
+            manager.update();
 
             expect(anim.reverse).toHaveBeenCalledTimes(1);
             expect(anim.cancel).not.toHaveBeenCalled();
@@ -690,8 +696,10 @@ describe('TabGroupManager', () => {
             manager.update();
 
             expect(anim.reverse).toHaveBeenCalledTimes(2);
-            expect(anim.playbackRate).toBe(1);
             expect(mock.animations).toHaveLength(1);
+            // Re-running update in the same direction is idempotent.
+            manager.update();
+            expect(anim.reverse).toHaveBeenCalledTimes(2);
 
             anim.finish();
             expect(manager['_collapseAnimations'].size).toBe(0);

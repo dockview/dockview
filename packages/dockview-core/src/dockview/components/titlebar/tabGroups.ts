@@ -110,7 +110,15 @@ export class TabGroupManager {
      */
     private readonly _collapseAnimations = new Map<
         string,
-        { animation: Animation; el: HTMLElement }
+        {
+            animation: Animation;
+            el: HTMLElement;
+            /** Direction of travel. Tracked here rather than read back from
+             *  `animation.playbackRate`: `reverse()` applies as a *pending*
+             *  playback-rate change, so the getter still reports the old
+             *  direction until the animation is ready. */
+            collapsing: boolean;
+        }
     >();
 
     get chipRenderers(): ReadonlyMap<string, ChipRendererEntry> {
@@ -784,7 +792,7 @@ export class TabGroupManager {
                         // once a forward collapse settles), so there is no
                         // class swap and no snap; the finish handler simply
                         // tears the animation down at the expanded end.
-                        inFlight.reverse();
+                        this._setCollapseDirection(inFlight, false);
                         continue;
                     }
 
@@ -903,8 +911,7 @@ export class TabGroupManager {
         if (el.classList.contains('dv-tab--group-collapsed')) {
             return true;
         }
-        const animation = this._inFlightCollapse(el, panelId);
-        return !!animation && animation.playbackRate > 0;
+        return this._inFlightCollapse(el, panelId)?.collapsing === true;
     }
 
     /**
@@ -916,7 +923,7 @@ export class TabGroupManager {
     private _inFlightCollapse(
         el: HTMLElement,
         panelId: string
-    ): Animation | undefined {
+    ): { animation: Animation; collapsing: boolean } | undefined {
         const entry = this._collapseAnimations.get(panelId);
         if (!entry) {
             return undefined;
@@ -925,7 +932,18 @@ export class TabGroupManager {
             this._cancelCollapseAnimation(panelId);
             return undefined;
         }
-        return entry.animation;
+        return entry;
+    }
+
+    /** Turn an in-flight collapse around (idempotent per direction). */
+    private _setCollapseDirection(
+        entry: { animation: Animation; collapsing: boolean },
+        collapsing: boolean
+    ): void {
+        if (entry.collapsing !== collapsing) {
+            entry.collapsing = collapsing;
+            entry.animation.reverse();
+        }
     }
 
     /**
@@ -1018,7 +1036,7 @@ export class TabGroupManager {
         for (const tab of tabs) {
             const reversing = this._inFlightCollapse(tab.el, tab.pid);
             if (reversing) {
-                reversing.reverse();
+                this._setCollapseDirection(reversing, true);
             } else {
                 fresh.push(tab);
             }
@@ -1080,12 +1098,11 @@ export class TabGroupManager {
                 easing: 'ease-out',
                 fill: 'both',
             });
-            this._collapseAnimations.set(pid, { animation, el });
+            const entry = { animation, el, collapsing: true };
+            this._collapseAnimations.set(pid, entry);
 
             animation.onfinish = () => {
-                if (
-                    this._collapseAnimations.get(pid)?.animation !== animation
-                ) {
+                if (this._collapseAnimations.get(pid) !== entry) {
                     // Superseded or cancelled; its owner cleaned up.
                     return;
                 }
@@ -1094,7 +1111,7 @@ export class TabGroupManager {
                 // resting class while the fill still holds the final frame.
                 // Finished at the expanded end (reversed) → the natural
                 // layout is the resting state; nothing to add.
-                if (animation.playbackRate > 0) {
+                if (entry.collapsing) {
                     el.classList.add('dv-tab--group-collapsed');
                 }
                 el.classList.remove('dv-tab--group-collapsing');
