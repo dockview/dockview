@@ -1,11 +1,3 @@
-/**
- * A window's side of the workspace. The orchestrator owns the whole: it
- * knows every window, hands each one its layout at start, and each window
- * reports its layout back whenever it changes. The dockview part stays
- * here, `fromJSON` on the way in and `toJSON` on the way out; the
- * orchestrator stores the result without reading it.
- */
-
 import {
     type DockviewApi,
     DockviewCompositeDisposable as CompositeDisposable,
@@ -17,7 +9,6 @@ import type { MultiWindowTransport } from './transport';
 const DEFAULT_DEBOUNCE_MS = 300;
 
 export interface WindowWorkspaceOptions {
-    /** Fills a window the orchestrator holds no layout for. */
     buildDefaults(windowId: string): void | Promise<void>;
     debounceMs?: number;
 }
@@ -42,18 +33,13 @@ export class WindowWorkspace extends CompositeDisposable {
         this.addDisposables(Disposable.from(() => clearTimeout(this._timer)));
     }
 
-    /**
-     * Load the window's layout from the orchestrator, or build its defaults,
-     * then report every change. Resolves once the window holds its initial
-     * layout.
-     */
+    /** Resolves once the window holds its initial layout. */
     async restore(): Promise<{ restored: boolean }> {
         const windowId = this._transport.windowId;
         let layout: SerializedDockview | null = null;
         try {
             layout = await this._transport.loadLayout();
         } catch (err: unknown) {
-            // The window still has to show something.
             console.error(
                 'dockview: no layout from the orchestrator; building defaults.',
                 err
@@ -81,9 +67,7 @@ export class WindowWorkspace extends CompositeDisposable {
             await this._buildDefaults(windowId);
         }
 
-        // Only report from here on, so a half-built default layout and the
-        // restore itself are not written back over what the orchestrator
-        // held.
+        // Report only from here, so a half-built layout is never written back.
         if (!this.isDisposed) {
             this.addDisposables(
                 this._api.onDidLayoutChange(() => this._scheduleReport())

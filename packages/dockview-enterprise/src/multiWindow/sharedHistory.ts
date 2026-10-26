@@ -1,24 +1,3 @@
-/**
- * A window's side of the one undo history across every window.
- *
- * Dockview's own history keeps this window's local steps and knows how to
- * restore them. What it cannot know is the order of those steps against the
- * moves between windows, so the orchestrator sequences: this reports each
- * local step as it is pushed, forwards undo and redo to the orchestrator,
- * and carries out the requests that come back, which are either "undo (or
- * redo) your own top step" or "take this layout". Ordering is what keeps it
- * safe: an older local step is only reachable once the move after it has
- * been undone.
- *
- * Needs `layoutHistory` enabled with `clearOnFromJSON: false`, since an
- * applied layout arrives through `fromJSON` and must not wipe the stack;
- * `recordResize: false`, since a resize is only recorded once its run of
- * sash drags settles, which can fall after a request has already been
- * carried out against the stack without it; and
- * `undoableProgrammaticMutations: false`, since the install's own adds and
- * removes must not become local steps. Each is reported once if broken.
- */
-
 import {
     type DockviewApi,
     DockviewCompositeDisposable as CompositeDisposable,
@@ -43,10 +22,7 @@ export class SharedHistory extends CompositeDisposable {
     private readonly _api: DockviewApi;
     private readonly _transport: MultiWindowTransport;
     private _info: HistoryInfo = EMPTY_HISTORY;
-    /**
-     * >0 while carrying out a request, so the local history changes it causes
-     * are not reported back as new steps.
-     */
+    /** Non-zero while carrying out a request, whose steps are not reported. */
     private _applyDepth = 0;
     private readonly _warned = new Set<string>();
 
@@ -74,15 +50,10 @@ export class SharedHistory extends CompositeDisposable {
                 }
                 if (this._applyDepth > 0) {
                     if (event.reason === 'clear') {
-                        // An applied layout cleared this window's own
-                        // history, so the steps the orchestrator has on
-                        // record for it can no longer be undone here.
                         this._warnOption('clearOnFromJSON');
                     }
                     return;
                 }
-                // A step the user made here; the orchestrator needs it in the
-                // global order.
                 if (event.reason === 'push') {
                     transport.reportLocalStep().catch((err: unknown) => {
                         console.error(
@@ -95,7 +66,6 @@ export class SharedHistory extends CompositeDisposable {
         );
     }
 
-    /** Carry out the orchestrator's requests and follow its history. */
     connect(): void {
         retainSubscription(
             this,
@@ -119,14 +89,12 @@ export class SharedHistory extends CompositeDisposable {
         );
     }
 
-    /** Undo the most recent step in any window. */
     undo(): void {
         this._transport.undo().catch((err: unknown) => {
             console.warn('dockview: could not undo.', err);
         });
     }
 
-    /** Redo the most recently undone step in any window. */
     redo(): void {
         this._transport.redo().catch((err: unknown) => {
             console.warn('dockview: could not redo.', err);
@@ -164,7 +132,6 @@ export class SharedHistory extends CompositeDisposable {
         }
     }
 
-    /** A `layoutHistory` option the shared history needs off is on. */
     private _warnOption(
         option:
             | 'clearOnFromJSON'

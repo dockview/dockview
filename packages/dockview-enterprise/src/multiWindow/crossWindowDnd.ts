@@ -1,17 +1,3 @@
-/**
- * Cross-window drag and drop as an interceptor over dockview's public drag
- * hooks. Ordinary tab and group drags keep working as before; the only
- * addition is that a drag can now land in another window's dockview.
- *
- * Every native window runs its own dockview in its own JavaScript context,
- * so nothing can move between them as DOM. What can cross is an OS drag
- * session, and only an HTML5 drag rides one. The drag's `DataTransfer`
- * carries a session id and nothing else; the orchestrator outside every
- * window holds what the drag carries; the window the drop lands in rebuilds
- * it with `addPanelFromJSON` or `addGroupFromJSON`, and the source is told
- * to remove its copy. No window owns another.
- */
-
 import {
     type Direction,
     type DockviewApi,
@@ -34,36 +20,24 @@ import {
     retainSubscription,
 } from './transport';
 
-/**
- * The drag type that marks a dockview drag as one the orchestrator brokers.
- * During `dragover` a browser exposes a drag's types but not its data, so
- * this is what the destination accepts on; the session id is read at the
- * drop.
- */
+/** Carries the drag's session id; only the type is readable before the drop. */
 export const MULTI_WINDOW_DRAG_TYPE = 'application/x-dockview-multi-window';
 
-/**
- * How long after its drag ended a source keeps what it needs to act on a
- * release: past the orchestrator's grace period, so a late accept is still
- * honoured here.
- */
+/** Outlasts the orchestrator's grace period, so a late accept is honoured. */
 const LOCAL_SESSION_TTL_MS = 2 * DRAG_END_GRACE_MS;
 
-/** What the source window remembers about a drag, to act on its release. */
 interface LocalSession {
     readonly kind: DragPayload['kind'];
-    /** The panel id (`panel`) or group id (`group`) to remove on release. */
+    /** The panel or group id to remove on release. */
     readonly id: string;
 }
 
 export class CrossWindowDnd extends CompositeDisposable {
     private readonly _api: DockviewApi;
     private readonly _transport: MultiWindowTransport;
-    /** The drags this window started that another window may yet take. */
     private readonly _local = new Map<string, LocalSession>();
 
     private readonly _onDidMove = new Emitter<MoveEvent>();
-    /** Panels moved between any two windows. */
     readonly onDidMove: Event<MoveEvent> = this._onDidMove.event;
 
     /** See `MultiWindowOptions.detach`. */
@@ -93,15 +67,11 @@ export class CrossWindowDnd extends CompositeDisposable {
                     group: api.serializeGroup(event.group),
                 });
             }),
-            // dockview treats a drag it did not start as external and asks;
-            // a brokered drag is accepted so the normal drop overlay shows.
             api.onUnhandledDragOver((event) => {
                 if (isMultiWindowDrag(event.nativeEvent)) {
                     event.accept();
                 }
             }),
-            // Fired only for a drop dockview does not handle itself, so never
-            // for a drag that stays in this window.
             api.onDidDrop((event) => {
                 const session = readSession(event.nativeEvent);
                 if (session) {
@@ -111,7 +81,6 @@ export class CrossWindowDnd extends CompositeDisposable {
         );
     }
 
-    /** Listen for the orchestrator's releases and moves. */
     connect(): void {
         retainSubscription(
             this,
@@ -123,10 +92,7 @@ export class CrossWindowDnd extends CompositeDisposable {
         );
     }
 
-    /**
-     * Place what a detach parked for this window, if it was created by one.
-     * Resolves to whether there was anything to place.
-     */
+    /** Resolves to whether a detach had parked anything for this window. */
     async placeDetachedDrag(): Promise<boolean> {
         try {
             const payload = await this._transport.takeDetachedDrag();
@@ -141,11 +107,6 @@ export class CrossWindowDnd extends CompositeDisposable {
         }
     }
 
-    /**
-     * Put the session id on the drag, hand the orchestrator the payload, and
-     * remember what to remove if another window takes it. The drag's own end
-     * reports back whether anything accepted it.
-     */
     private _announce(
         nativeEvent: DragEvent | PointerEvent,
         id: string,
@@ -169,8 +130,6 @@ export class CrossWindowDnd extends CompositeDisposable {
                 const dropEffect =
                     (end as DragEvent).dataTransfer?.dropEffect ?? 'none';
                 this._endDrag(session, this.detach && dropEffect === 'none');
-                // Only conclude the drag stayed here once a late accept would
-                // have shown up as a release.
                 setTimeout(
                     () => this._local.delete(session),
                     LOCAL_SESSION_TTL_MS
@@ -186,12 +145,7 @@ export class CrossWindowDnd extends CompositeDisposable {
         });
     }
 
-    /**
-     * Rebuild the payload where the drop landed. It is read before the
-     * accept so one this window cannot take, because it already holds a
-     * panel of the same id, is refused without the source letting go of it;
-     * only then is the drag accepted, which releases the source.
-     */
+    /** Peeks first, so a duplicate is refused before the source lets go. */
     private async _receive(
         session: string,
         event: DockviewDidDropEvent
@@ -214,9 +168,7 @@ export class CrossWindowDnd extends CompositeDisposable {
             return;
         }
 
-        // The source has let go by now. Whatever happens here, this half of
-        // the move is recorded, so a shared undo can restore the source's
-        // layout even when the panels could not be placed.
+        // Recorded even if placing fails, so undo restores the source.
         const before = this._api.toJSON();
         try {
             place(this._api, payload, event);
@@ -229,7 +181,6 @@ export class CrossWindowDnd extends CompositeDisposable {
         this._reportMove(session, 'to', payloadPanels(payload), before);
     }
 
-    /** The source window's half of a completed move. */
     private _release(event: ReleaseEvent): void {
         const local = this._local.get(event.session);
         if (!local) {
@@ -253,8 +204,7 @@ export class CrossWindowDnd extends CompositeDisposable {
             }
         }
 
-        // The new window of a detach is the host's to create; a detach is
-        // not a move the shared history can undo.
+        // A detach is not undoable.
         if (event.reason === 'drop') {
             this._reportMove(event.session, 'from', panels, before);
         }
@@ -274,11 +224,7 @@ export class CrossWindowDnd extends CompositeDisposable {
     }
 }
 
-/**
- * A random id for drag sessions. `randomUUID` is only defined in a secure
- * context, which a custom-scheme origin such as `tauri://localhost` need not
- * be, so fall back to raw random bytes.
- */
+/** `randomUUID` needs a secure context, which `tauri://localhost` need not be. */
 function randomSessionId(): string {
     const crypto = globalThis.crypto;
     if (typeof crypto.randomUUID === 'function') {
@@ -289,11 +235,7 @@ function randomSessionId(): string {
     ).join('');
 }
 
-/**
- * Narrow a drag-related native event to one with a `dataTransfer`. A
- * property check rather than `instanceof DragEvent`, which some
- * environments (jsdom among them) do not define.
- */
+/** Not `instanceof DragEvent`, which jsdom does not define. */
 function hasDataTransfer(
     nativeEvent: DragEvent | PointerEvent
 ): nativeEvent is DragEvent {
@@ -316,12 +258,8 @@ function readSession(nativeEvent: DragEvent | PointerEvent): string | null {
 }
 
 /**
- * Where the drop landed decides how the payload is rebuilt. An edge of a
- * grid group or of the layout becomes a new group there. The centre of a
- * group, its tab bar, or any edge of a floating or edge group (which has no
- * grid neighbours) merges into that group, at the tab index the drop
- * reports for a tab-bar landing. Without a drop event (a detach) the
- * payload is appended to the layout.
+ * An edge of a grid group or the layout makes a new group; anything else
+ * merges into the target group. Without an event (a detach) it is appended.
  */
 function place(
     api: DockviewApi,

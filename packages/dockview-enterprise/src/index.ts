@@ -61,9 +61,6 @@ export type {
     LicenseServiceOptions,
 } from './licenseService';
 export type { LicenseState } from './licenseValidator';
-// Multi-window layouts: the interceptors a window installs, the transport
-// contracts to an orchestrator, and an in-memory orchestrator. Plain
-// functions over the public api rather than a module; nothing to register.
 export * from './multiWindow';
 
 /**
