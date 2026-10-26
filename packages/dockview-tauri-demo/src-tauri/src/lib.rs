@@ -1,11 +1,10 @@
-mod drags;
-mod history;
-mod workspace;
+mod orchestrator;
+mod persistence;
+mod transport;
 
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
 use tauri::{
@@ -14,186 +13,19 @@ use tauri::{
     WebviewWindowBuilder, WindowEvent,
 };
 
-use drags::{DragEnd, DragSession, DragSessions, Release};
-use history::{History, Request, Role, Step};
-use workspace::{FileStore, Geometry, Workspace, WorkspaceState};
+use orchestrator::drag_sessions::DragSessions;
+use orchestrator::history_sequencer::HistorySequencer;
+use orchestrator::workspace_registry::{Geometry, WorkspaceRegistry, WorkspaceState};
+use persistence::{workspace_path, FileStore, Persistence, SAVE_DEBOUNCE};
+use transport::{broadcast_history, history, perform_redo, perform_undo, workspace};
 
-/// Nothing panics while one of these is held, so a poisoned lock is still consistent.
-fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+/// Nothing panics while holding an orchestrator lock, so a poisoned one is still consistent.
+pub(crate) fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
-fn drags(app: &AppHandle) -> MutexGuard<'_, DragSessions> {
-    lock(app.state::<Mutex<DragSessions>>().inner())
-}
-
-fn workspace(app: &AppHandle) -> MutexGuard<'_, Workspace> {
-    lock(app.state::<Mutex<Workspace>>().inner())
-}
-
-fn history(app: &AppHandle) -> MutexGuard<'_, History> {
-    lock(app.state::<Mutex<History>>().inner())
 }
 
 /// Event carrying a serialized dockview layout between native windows.
 const LAYOUT_EVENT: &str = "dockview:layout";
-
-/// To the source window: another window took its drag.
-const RELEASE_EVENT: &str = "dockview:release";
-
-const MOVED_EVENT: &str = "dockview:moved";
-const HISTORY_EVENT: &str = "dockview:history";
-/// To one window: a `HistoryRequest`.
-const HISTORY_REQUEST_EVENT: &str = "dockview:history-request";
-
-static DETACH_COUNT: AtomicUsize = AtomicUsize::new(0);
-
-/// Skips labels restored from the workspace as well as open ones.
-fn new_detach_label(app: &AppHandle) -> String {
-    let recorded = workspace(app).window_ids();
-    loop {
-        let label = format!(
-            "dock-detached-{}",
-            DETACH_COUNT.fetch_add(1, Ordering::Relaxed)
-        );
-        if !recorded.contains(&label) && app.get_webview_window(&label).is_none() {
-            return label;
-        }
-    }
-}
-
-/// `panel.id` of a tab, or `group.group.views` of a group.
-fn payload_panels(payload: &serde_json::Value) -> Vec<String> {
-    if let Some(id) = payload
-        .pointer("/panel/id")
-        .and_then(serde_json::Value::as_str)
-    {
-        return vec![id.to_string()];
-    }
-    payload
-        .pointer("/group/group/views")
-        .and_then(serde_json::Value::as_array)
-        .map(|views| {
-            views
-                .iter()
-                .filter_map(serde_json::Value::as_str)
-                .map(str::to_string)
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-#[derive(Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-struct MovedNotice {
-    session: String,
-    panels: Vec<String>,
-    from: String,
-    to: String,
-    reason: &'static str,
-}
-
-fn broadcast_history(app: &AppHandle) {
-    let info = history(app).info();
-    if let Err(err) = app.emit(HISTORY_EVENT, info) {
-        eprintln!("history: could not broadcast: {err}");
-    }
-}
-
-fn carry_out(app: &AppHandle, step: Step, reason: &'static str) -> Result<(), String> {
-    // Stored first and under one lock, so neither the window's own report
-    // nor a stale one is checked against half a step.
-    {
-        let mut workspace = workspace(app);
-        for action in &step.actions {
-            if let Request::ApplyLayout { layout } = &action.request {
-                workspace.set_layout_unchecked(&action.window, layout.clone());
-                app.state::<Persistence>().mark_dirty();
-            }
-        }
-    }
-    for action in step.actions {
-        // A listener for "any" target hears every window's events, so the
-        // payload names its window too.
-        app.emit_to(
-            &action.window,
-            HISTORY_REQUEST_EVENT,
-            serde_json::json!({ "window": action.window, "request": action.request }),
-        )
-        .map_err(|err| err.to_string())?;
-    }
-    if let Some(moved) = step.moved {
-        app.emit(
-            MOVED_EVENT,
-            MovedNotice {
-                session: moved.session,
-                panels: moved.panels,
-                from: moved.from,
-                to: moved.to,
-                reason,
-            },
-        )
-        .map_err(|err| err.to_string())?;
-    }
-    broadcast_history(app);
-    Ok(())
-}
-
-fn perform_undo(app: &AppHandle) -> Result<(), String> {
-    let step = history(app).undo().map_err(|err| err.to_string())?;
-    carry_out(app, step, "undo")
-}
-
-fn perform_redo(app: &AppHandle) -> Result<(), String> {
-    let step = history(app).redo().map_err(|err| err.to_string())?;
-    carry_out(app, step, "redo")
-}
-
-// One command per `MultiWindowTransport` call; the window is the caller.
-
-#[tauri::command]
-fn report_local_step(app: AppHandle, window: tauri::Window) {
-    history(&app).push_local(window.label());
-    broadcast_history(&app);
-}
-
-#[tauri::command]
-fn report_move(
-    app: AppHandle,
-    window: tauri::Window,
-    session: String,
-    role: Role,
-    panels: Vec<String>,
-    before: serde_json::Value,
-    after: serde_json::Value,
-) {
-    history(&app).record_move(
-        &session,
-        &panels,
-        role,
-        history::Half {
-            window: window.label().to_string(),
-            before,
-            after,
-        },
-    );
-    broadcast_history(&app);
-}
-
-#[tauri::command]
-fn undo(app: AppHandle) -> Result<(), String> {
-    perform_undo(&app)
-}
-
-#[tauri::command]
-fn redo(app: AppHandle) -> Result<(), String> {
-    perform_redo(&app)
-}
-
-#[tauri::command]
-fn get_history(app: AppHandle) -> history::Info {
-    history(&app).info()
-}
 
 /// Runs the measurement harness, `scripts/measure-cross-window-drag.py`.
 const AUTOTEST_ENV: &str = "DOCKVIEW_DEMO_AUTOTEST";
@@ -204,58 +36,9 @@ fn autotest() -> bool {
     std::env::var_os(AUTOTEST_ENV).is_some()
 }
 
-/// Overrides the workspace file's path.
-const WORKSPACE_ENV: &str = "DOCKVIEW_DEMO_WORKSPACE";
-
-const SAVE_DEBOUNCE: Duration = Duration::from_millis(500);
-
 /// Popout windows travel inside their opener's layout instead.
 fn is_dock_window(label: &str) -> bool {
     label == "main" || label.starts_with("dock-")
-}
-
-fn workspace_path(app: &AppHandle) -> PathBuf {
-    if let Some(path) = std::env::var_os(WORKSPACE_ENV) {
-        return PathBuf::from(path);
-    }
-    match app.path().app_data_dir() {
-        Ok(dir) => dir.join("workspace.json"),
-        Err(err) => {
-            eprintln!("workspace: no app data dir ({err}); using the working directory");
-            PathBuf::from("workspace.json")
-        }
-    }
-}
-
-struct Persistence {
-    store: FileStore,
-    dirty: AtomicBool,
-    /// Windows closing as part of the exit stay on record.
-    exiting: AtomicBool,
-    last_saved: Mutex<Option<SystemTime>>,
-}
-
-impl Persistence {
-    fn mark_dirty(&self) {
-        self.dirty.store(true, Ordering::Relaxed);
-    }
-
-    fn save_if_dirty(&self, app: &AppHandle) {
-        if !self.dirty.swap(false, Ordering::Relaxed) {
-            return;
-        }
-        let snapshot = workspace(app).snapshot();
-        match self.store.save(&snapshot) {
-            Ok(()) => *lock(&self.last_saved) = Some(SystemTime::now()),
-            Err(err) => {
-                eprintln!(
-                    "workspace: could not save {}: {err}",
-                    self.store.path().display()
-                );
-                self.dirty.store(true, Ordering::Relaxed);
-            }
-        }
-    }
 }
 
 /// In logical pixels, which is what the builder takes.
@@ -277,25 +60,6 @@ fn record_geometry(app: &AppHandle, window: &tauri::Window) {
     };
     workspace(app).set_geometry(window.label(), geometry);
     app.state::<Persistence>().mark_dirty();
-}
-
-#[tauri::command]
-fn report_layout(
-    app: AppHandle,
-    window: tauri::Window,
-    persistence: State<Persistence>,
-    layout: serde_json::Value,
-) -> Result<(), String> {
-    workspace(&app)
-        .set_layout(window.label(), layout)
-        .map_err(|err| err.to_string())?;
-    persistence.mark_dirty();
-    Ok(())
-}
-
-#[tauri::command]
-fn load_layout(app: AppHandle, window: tauri::Window) -> Option<serde_json::Value> {
-    workspace(&app).load_layout(window.label())
 }
 
 #[derive(Serialize)]
@@ -356,118 +120,6 @@ struct HostInfo {
 struct LayoutBroadcast {
     from: String,
     layout: serde_json::Value,
-}
-
-fn deliver(app: &AppHandle, release: Release) -> Result<(), String> {
-    app.emit_to(&release.from, RELEASE_EVENT, &release)
-        .map_err(|err| err.to_string())
-}
-
-#[tauri::command]
-fn start_drag(app: AppHandle, window: tauri::Window, session: String, payload: serde_json::Value) {
-    drags(&app).start(
-        session,
-        DragSession {
-            from: window.label().to_string(),
-            payload,
-        },
-    );
-}
-
-#[tauri::command]
-fn peek_drag(app: AppHandle, session: String) -> Result<serde_json::Value, String> {
-    drags(&app).peek(&session).map_err(|err| err.to_string())
-}
-
-#[tauri::command]
-fn accept_drag(app: AppHandle, window: tauri::Window, session: String) -> Result<(), String> {
-    let to = window.label().to_string();
-    let accept = drags(&app)
-        .accept(&session, to.clone())
-        .map_err(|err| err.to_string())?;
-    let panels = payload_panels(&accept.payload);
-    let from = accept.release.from.clone();
-    workspace(&app).expect_move(&panels, &from, &to);
-    deliver(&app, accept.release)?;
-    // The source has let go, so a failed announcement is not a failed accept.
-    if let Err(err) = app.emit(
-        MOVED_EVENT,
-        MovedNotice {
-            session,
-            panels,
-            from,
-            to,
-            reason: "drop",
-        },
-    ) {
-        eprintln!("accept_drag: could not announce the move: {err}");
-    }
-    Ok(())
-}
-
-/// `DRAG_END_GRACE_MS` in `dockview-enterprise`.
-const DRAG_END_GRACE: std::time::Duration = std::time::Duration::from_millis(1500);
-
-#[tauri::command]
-fn end_drag(app: AppHandle, session: String, detach: bool) {
-    if !drags(&app).end(&session, detach) {
-        return;
-    }
-
-    std::thread::spawn(move || {
-        std::thread::sleep(DRAG_END_GRACE);
-        let ended = drags(&app).expire(&session, || new_detach_label(&app));
-        match ended {
-            DragEnd::Detached {
-                window_id: label,
-                payload,
-                release,
-            } => {
-                let handle = app.clone();
-                let panels = payload_panels(&payload);
-                let result = app.run_on_main_thread(move || {
-                    match build_dock_window(
-                        &handle,
-                        &label,
-                        &format!("dockview — {label}"),
-                        (900.0, 600.0),
-                        None,
-                    ) {
-                        Ok(_) => {
-                            workspace(&handle).expect_move(&panels, &release.from, &label);
-                            let moved = MovedNotice {
-                                session: release.session.clone(),
-                                panels,
-                                from: release.from.clone(),
-                                to: label.clone(),
-                                reason: "detach",
-                            };
-                            // The source's earlier steps would bring the
-                            // panels back.
-                            history(&handle).forget_window(&release.from);
-                            if let Err(err) = deliver(&handle, release) {
-                                eprintln!("detach: could not release the source: {err}");
-                            }
-                            if let Err(err) = handle.emit(MOVED_EVENT, moved) {
-                                eprintln!("detach: could not announce the move: {err}");
-                            }
-                            broadcast_history(&handle);
-                        }
-                        Err(err) => eprintln!("detach: could not open {label}: {err}"),
-                    }
-                });
-                if let Err(err) = result {
-                    eprintln!("detach: {err}");
-                }
-            }
-            DragEnd::Settled | DragEnd::Discarded => {}
-        }
-    });
-}
-
-#[tauri::command]
-fn take_detached_drag(app: AppHandle, window: tauri::Window) -> Option<serde_json::Value> {
-    drags(&app).take_detached_drag(window.label())
 }
 
 #[tauri::command]
@@ -578,7 +230,7 @@ fn close_popout(app: AppHandle, label: String) -> Result<(), String> {
 /// Every window running the frontend is built here rather than declared in
 /// `tauri.conf.json`, so each one answers `window.open` (see
 /// `open_related_window`).
-fn build_dock_window(
+pub(crate) fn build_dock_window(
     app: &AppHandle,
     label: &str,
     title: &str,
@@ -651,7 +303,7 @@ fn broadcast_layout(app: AppHandle, from: String, layout: serde_json::Value) -> 
 pub fn run() {
     let app = tauri::Builder::default()
         .manage(Mutex::new(DragSessions::default()))
-        .manage(Mutex::new(History::default()))
+        .manage(Mutex::new(HistorySequencer::default()))
         .setup(|app| {
             let handle = app.handle().clone();
 
@@ -673,7 +325,7 @@ pub fn run() {
                 .filter(|window| is_dock_window(&window.id))
                 .map(|window| (window.id.clone(), window.geometry))
                 .collect();
-            app.manage(Mutex::new(Workspace::restore(restored)));
+            app.manage(Mutex::new(WorkspaceRegistry::restore(restored)));
             app.manage(Persistence {
                 store,
                 dirty: AtomicBool::new(false),
@@ -775,19 +427,19 @@ pub fn run() {
             open_dock_window,
             broadcast_layout,
             close_popout,
-            start_drag,
-            peek_drag,
-            accept_drag,
-            end_drag,
-            take_detached_drag,
-            report_move,
-            load_layout,
-            report_layout,
+            transport::start_drag,
+            transport::peek_drag,
+            transport::accept_drag,
+            transport::end_drag,
+            transport::take_detached_drag,
+            transport::report_move,
+            transport::load_layout,
+            transport::report_layout,
             workspace_info,
-            report_local_step,
-            undo,
-            redo,
-            get_history,
+            transport::report_local_step,
+            transport::undo,
+            transport::redo,
+            transport::get_history,
             autotest_report
         ])
         .build(tauri::generate_context!())

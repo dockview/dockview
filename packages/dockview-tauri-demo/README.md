@@ -416,15 +416,16 @@ docs/           design notes
 src/            frontend
   main.ts       builds the dockview instance and its panels
   panels.ts     the five probe panels plus a scratch panel
-  transport.ts        the Tauri transport behind dockview-enterprise's installMultiWindow
+  transport.ts  the Tauri transport behind dockview-enterprise's installMultiWindow
   autotest.ts   geometry and log reporting for the measurement driver
-scripts/        measure-cross-window-drag.py drives a real drag between two windows
   host.ts       host-environment detection and the popout URL diagnosis
   probes.ts     window.open probes
   bridge.ts     lazy wrapper over the Tauri IPC surface
-src-tauri/      Rust shell: host info, native window creation, layout broadcast
-  src/drags.rs    the drag orchestrator, Tauri-free and unit tested
-  src/workspace.rs  the workspace: windows, frames and opaque layouts, with an atomic file store
-  src/history.rs  the one ordered undo history across windows, markers and move entries
+scripts/        measure-cross-window-drag.py drives a real drag between two windows
+src-tauri/      Rust shell
+  src/lib.rs           the host: windows, popouts, the harness
+  src/transport.rs     one command per MultiWindowTransport call
+  src/persistence.rs   the workspace file
+  src/orchestrator/    a Tauri-free port of dockview-enterprise's MemoryOrchestrator pieces
 popout.html     served at /popout.html, dockview's default popout target
 ```

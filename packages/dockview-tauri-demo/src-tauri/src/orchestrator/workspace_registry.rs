@@ -1,9 +1,6 @@
 //! Mirrors `workspaceRegistry.ts` in `dockview-enterprise`.
 
 use std::fmt;
-use std::fs;
-use std::io;
-use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -70,14 +67,14 @@ struct PendingMove {
 }
 
 #[derive(Default)]
-pub struct Workspace {
+pub struct WorkspaceRegistry {
     state: WorkspaceState,
     pending: Vec<PendingMove>,
 }
 
-impl Workspace {
+impl WorkspaceRegistry {
     pub fn restore(state: WorkspaceState) -> Self {
-        Workspace {
+        WorkspaceRegistry {
             state,
             pending: Vec::new(),
         }
@@ -189,53 +186,6 @@ fn panel_ids(layout: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Written to a sibling file and renamed, so a crash leaves the old one intact.
-pub struct FileStore {
-    path: PathBuf,
-}
-
-impl FileStore {
-    pub fn new(path: impl Into<PathBuf>) -> Self {
-        FileStore { path: path.into() }
-    }
-
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-
-    /// `None` when nothing has been saved yet.
-    pub fn load(&self) -> io::Result<Option<WorkspaceState>> {
-        let text = match fs::read_to_string(&self.path) {
-            Ok(text) => text,
-            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
-            Err(err) => return Err(err),
-        };
-        let state: WorkspaceState = serde_json::from_str(&text)
-            .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-        if state.version != FORMAT_VERSION {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "workspace format {} is not the supported {FORMAT_VERSION}",
-                    state.version
-                ),
-            ));
-        }
-        Ok(Some(state))
-    }
-
-    pub fn save(&self, state: &WorkspaceState) -> io::Result<()> {
-        if let Some(parent) = self.path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let text = serde_json::to_string_pretty(state)
-            .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-        let staging = self.path.with_extension("json.tmp");
-        fs::write(&staging, text)?;
-        fs::rename(&staging, &self.path)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -251,7 +201,7 @@ mod tests {
 
     #[test]
     fn a_reported_layout_is_the_initial_layout_next_time() {
-        let mut workspace = Workspace::default();
+        let mut workspace = WorkspaceRegistry::default();
         workspace.set_layout("main", layout(&["a"])).unwrap();
 
         assert_eq!(workspace.load_layout("main"), Some(layout(&["a"])));
@@ -262,7 +212,7 @@ mod tests {
 
     #[test]
     fn a_layout_may_not_hold_another_windows_panel() {
-        let mut workspace = Workspace::default();
+        let mut workspace = WorkspaceRegistry::default();
         workspace.set_layout("main", layout(&["a", "b"])).unwrap();
 
         assert_eq!(
@@ -278,7 +228,7 @@ mod tests {
 
     #[test]
     fn a_panel_on_its_way_may_be_reported_by_the_destination_first() {
-        let mut workspace = Workspace::default();
+        let mut workspace = WorkspaceRegistry::default();
         workspace.set_layout("main", layout(&["a", "b"])).unwrap();
         workspace.set_layout("dock-2", layout(&["c"])).unwrap();
 
@@ -300,7 +250,7 @@ mod tests {
 
     #[test]
     fn an_allowance_is_only_for_the_announced_destination() {
-        let mut workspace = Workspace::default();
+        let mut workspace = WorkspaceRegistry::default();
         workspace.set_layout("main", layout(&["a", "b"])).unwrap();
         workspace.expect_move(&["b".into()], "main", "dock-2");
 
@@ -315,7 +265,7 @@ mod tests {
 
     #[test]
     fn an_unchecked_layout_is_taken_as_is() {
-        let mut workspace = Workspace::default();
+        let mut workspace = WorkspaceRegistry::default();
         workspace.set_layout("main", layout(&["a", "b"])).unwrap();
 
         workspace.set_layout_unchecked("dock-2", layout(&["b"]));
@@ -324,7 +274,7 @@ mod tests {
 
     #[test]
     fn a_window_may_re_report_its_own_panels() {
-        let mut workspace = Workspace::default();
+        let mut workspace = WorkspaceRegistry::default();
         workspace.set_layout("main", layout(&["a", "b"])).unwrap();
 
         assert!(workspace.set_layout("main", layout(&["a"])).is_ok());
@@ -332,7 +282,7 @@ mod tests {
 
     #[test]
     fn a_move_between_windows_converges() {
-        let mut workspace = Workspace::default();
+        let mut workspace = WorkspaceRegistry::default();
         workspace.set_layout("main", layout(&["a", "b"])).unwrap();
         workspace.set_layout("dock-2", layout(&["c"])).unwrap();
 
@@ -346,7 +296,7 @@ mod tests {
 
     #[test]
     fn windows_keep_creation_order_and_geometry() {
-        let mut workspace = Workspace::default();
+        let mut workspace = WorkspaceRegistry::default();
         workspace.ensure_window("main");
         workspace.set_geometry(
             "dock-2",
@@ -373,7 +323,7 @@ mod tests {
 
     #[test]
     fn removing_a_window_forgets_it() {
-        let mut workspace = Workspace::default();
+        let mut workspace = WorkspaceRegistry::default();
         workspace.set_layout("dock-2", layout(&["c"])).unwrap();
 
         let removed = workspace.remove_window("dock-2");
@@ -385,7 +335,7 @@ mod tests {
 
     #[test]
     fn a_snapshot_restores_to_the_same_workspace() {
-        let mut workspace = Workspace::default();
+        let mut workspace = WorkspaceRegistry::default();
         workspace.set_layout("main", layout(&["a"])).unwrap();
         workspace.set_geometry(
             "main",
@@ -397,50 +347,9 @@ mod tests {
             },
         );
 
-        let restored = Workspace::restore(workspace.snapshot());
+        let restored = WorkspaceRegistry::restore(workspace.snapshot());
 
         assert_eq!(restored.snapshot(), workspace.snapshot());
-    }
-
-    #[test]
-    fn the_file_store_round_trips_and_starts_empty() {
-        let dir = std::env::temp_dir().join(format!(
-            "dockview-workspace-test-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        let store = FileStore::new(dir.join("nested").join("workspace.json"));
-
-        assert_eq!(store.load().unwrap(), None);
-
-        let mut state = WorkspaceState::default();
-        state.windows.push(WindowRecord {
-            id: "main".into(),
-            geometry: None,
-            layout: Some(layout(&["a"])),
-        });
-        store.save(&state).unwrap();
-
-        assert_eq!(store.load().unwrap(), Some(state));
-        assert!(!store.path().with_extension("json.tmp").exists());
-        fs::remove_dir_all(dir).unwrap();
-    }
-
-    #[test]
-    fn the_file_store_refuses_another_format_version() {
-        let dir =
-            std::env::temp_dir().join(format!("dockview-workspace-version-{}", std::process::id()));
-        fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("workspace.json");
-        fs::write(&path, r#"{"version": 99, "windows": []}"#).unwrap();
-
-        let err = FileStore::new(&path).load().unwrap_err();
-
-        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
-        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

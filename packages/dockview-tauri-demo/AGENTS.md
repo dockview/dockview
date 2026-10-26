@@ -17,39 +17,28 @@ not a published package and not a supported example.
   `undo`, `redo`, `get_history`). Those take the calling `tauri::Window`
   rather than a window id argument. Window creation lives in Rust so the
   capability set stays at `core:default`.
-- `src-tauri/src/drags.rs` — the orchestrator: which drag is in flight between
-  windows and who accepted it. It imports nothing from Tauri and returns the
-  release notices for the shell to deliver, so it can one day be lifted into
-  a crate of its own behind any host. Keep it that way: no `AppHandle`, no
-  window handling, no event emission in this module. `cargo test` covers it;
-  the commands in `lib.rs` are thin wrappers over it.
+- `src-tauri/src/orchestrator/` — a port of `MemoryOrchestrator`'s pieces in
+  `dockview-enterprise` (`packages/dockview-enterprise/src/multiWindow/orchestrator/`):
+  `drag_sessions.rs` / `dragSessions.ts`, `workspace_registry.rs` /
+  `workspaceRegistry.ts`, `history_sequencer.rs` / `historySequencer.ts`.
+  Keep the two in step, including the shapes that cross: `DragPayload`
+  (`panel` or `group`), the release's `reason` (`drop` or `detach`),
+  `HistoryRequest`, `HistoryInfo` and the workspace file's `WindowRecord`.
+  Nothing here imports Tauri: no `AppHandle`, no window handling, no event
+  emission. `cargo test` covers it.
+- `src-tauri/src/transport.rs` — one command per `MultiWindowTransport` call
+  over the orchestrator, the Rust side of `src/transport.ts`.
+- `src-tauri/src/persistence.rs` — the workspace file: the atomic
+  `FileStore`, written on a debounce and on exit.
+- `src-tauri/src/lib.rs` — the host: creating windows (from the workspace
+  file at start), recording their frames, popouts, the harness and `run()`.
 - The window side (cross-window drag, workspace, shared undo) is
-  `installMultiWindow` from `dockview-enterprise`
-  (`packages/dockview-enterprise/src/multiWindow/`). Its in-memory
-  orchestrator mirrors the three Rust modules here (`drags.rs` /
-  `dragSessions.ts`, `workspace.rs` / `workspaceRegistry.ts`, `history.rs` /
-  `historySequencer.ts`); keep the two in step, including the shapes that
-  cross: `DragPayload` (`panel` or `group`), the release's `reason` (`drop`
-  or `detach`), `HistoryRequest`, `HistoryInfo` and the workspace file's
-  `WindowRecord` (`id`, read as `label` from older files).
+  `installMultiWindow` from `dockview-enterprise`.
 - `src/transport.ts` — the Tauri `MultiWindowTransport` over those commands
   and events, created before installing since the Tauri api loads lazily,
   plus the `ShellMultiWindow` wrapper whose log and counters the panels and
   the harness read. The package reports only failures, on the console;
   `src/autotest.ts` mirrors those into the harness log.
-- `src-tauri/src/workspace.rs` — the workspace: which windows exist, their
-  frames, and each one's dockview layout as opaque JSON, plus the atomic
-  `FileStore`. Tauri-free and unit tested like `drags.rs`. The one field of a
-  layout it reads is the keys of `panels`, to refuse duplicate panel ids
-  across windows. `lib.rs` loads it before any window exists, creates the
-  windows from it, records geometry from window events, and writes it on a
-  debounce and on exit.
-- `src-tauri/src/history.rs` — the one ordered undo history across windows:
-  a marker per step a window recorded locally, a full entry per move
-  between windows (two halves, one per window), and `undo` / `redo` that
-  return the actions for the shell to carry out. Tauri-free and unit
-  tested. Windows keep dockview's own `layoutHistory` for their local steps;
-  this only sequences.
 - Events the shell addresses to one window (`dockview:history-request`,
   `dockview:release`) name that window in the payload and
   are listened for on the window's own target, never with the global

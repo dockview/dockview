@@ -140,15 +140,15 @@ impl fmt::Display for HistoryError {
 
 impl std::error::Error for HistoryError {}
 
-pub struct History {
+pub struct HistorySequencer {
     undo: Vec<Entry>,
     redo: Vec<Entry>,
     abandon_after: Duration,
 }
 
-impl Default for History {
+impl Default for HistorySequencer {
     fn default() -> Self {
-        History {
+        HistorySequencer {
             undo: Vec::new(),
             redo: Vec::new(),
             abandon_after: ABANDONED_MOVE,
@@ -156,7 +156,7 @@ impl Default for History {
     }
 }
 
-impl History {
+impl HistorySequencer {
     pub fn push_local(&mut self, window: &str) {
         self.push(Entry::Local {
             window: window.to_string(),
@@ -358,14 +358,14 @@ mod tests {
         }
     }
 
-    fn moved(history: &mut History) {
+    fn moved(history: &mut HistorySequencer) {
         history.record_move("s1", &["p".into()], Role::From, half("main", "A0", "A1"));
         history.record_move("s1", &["p".into()], Role::To, half("dock-2", "B0", "B1"));
     }
 
     #[test]
     fn a_local_step_undoes_and_redoes_in_its_window() {
-        let mut history = History::default();
+        let mut history = HistorySequencer::default();
         history.push_local("main");
 
         assert_eq!(
@@ -386,7 +386,7 @@ mod tests {
 
     #[test]
     fn a_move_undoes_destination_first_then_source_with_before_layouts() {
-        let mut history = History::default();
+        let mut history = HistorySequencer::default();
         moved(&mut history);
 
         let step = history.undo().unwrap();
@@ -411,7 +411,7 @@ mod tests {
 
     #[test]
     fn a_move_redoes_source_first_then_destination_with_after_layouts() {
-        let mut history = History::default();
+        let mut history = HistorySequencer::default();
         moved(&mut history);
         history.undo().unwrap();
 
@@ -429,7 +429,7 @@ mod tests {
 
     #[test]
     fn the_halves_may_arrive_in_either_order() {
-        let mut history = History::default();
+        let mut history = HistorySequencer::default();
         history.record_move("s1", &["p".into()], Role::To, half("dock-2", "B0", "B1"));
         history.record_move("s1", &["p".into()], Role::From, half("main", "A0", "A1"));
 
@@ -439,7 +439,7 @@ mod tests {
 
     #[test]
     fn an_incomplete_move_cannot_be_undone_yet() {
-        let mut history = History::default();
+        let mut history = HistorySequencer::default();
         history.record_move("s1", &["p".into()], Role::From, half("main", "A0", "A1"));
 
         assert_eq!(history.undo(), Err(HistoryError::Incomplete("s1".into())));
@@ -449,7 +449,7 @@ mod tests {
 
     #[test]
     fn steps_unwind_in_the_order_they_happened_across_windows() {
-        let mut history = History::default();
+        let mut history = HistorySequencer::default();
         history.push_local("main");
         moved(&mut history);
         history.push_local("dock-2");
@@ -474,7 +474,7 @@ mod tests {
 
     #[test]
     fn a_new_step_clears_redo() {
-        let mut history = History::default();
+        let mut history = HistorySequencer::default();
         history.push_local("main");
         history.undo().unwrap();
         assert_eq!(history.info().redo_count, 1);
@@ -487,7 +487,7 @@ mod tests {
 
     #[test]
     fn the_stack_is_bounded() {
-        let mut history = History::default();
+        let mut history = HistorySequencer::default();
         for _ in 0..(DEPTH + 10) {
             history.push_local("main");
         }
@@ -496,7 +496,7 @@ mod tests {
 
     #[test]
     fn a_closed_window_takes_its_steps_with_it() {
-        let mut history = History::default();
+        let mut history = HistorySequencer::default();
         history.push_local("main");
         moved(&mut history);
         history.push_local("dock-2");
@@ -521,7 +521,7 @@ mod tests {
 
     #[test]
     fn info_summarizes_the_next_steps_in_the_frontend_shape() {
-        let mut history = History::default();
+        let mut history = HistorySequencer::default();
         moved(&mut history);
         let summary = StepInfo::Move {
             panels: vec!["p".into()],
@@ -555,7 +555,7 @@ mod tests {
 
     #[test]
     fn a_move_missing_a_half_is_dropped_with_any_window() {
-        let mut history = History::default();
+        let mut history = HistorySequencer::default();
         history.record_move("s1", &["p".into()], Role::From, half("main", "A0", "A1"));
         // The destination closed before reporting its half.
         history.push_local("main");
@@ -576,7 +576,7 @@ mod tests {
 
     #[test]
     fn a_dropped_move_takes_the_steps_beyond_it() {
-        let mut history = History::default();
+        let mut history = HistorySequencer::default();
         // dock-3 closes a tab while it holds p, then p moves to dock-2.
         history.push_local("dock-3");
         history.record_move("s1", &["p".into()], Role::From, half("dock-3", "C0", "C1"));
@@ -597,9 +597,9 @@ mod tests {
 
     #[test]
     fn a_move_never_completed_is_dropped_once_abandoned() {
-        let mut history = History {
+        let mut history = HistorySequencer {
             abandon_after: Duration::ZERO,
-            ..History::default()
+            ..HistorySequencer::default()
         };
         history.push_local("main");
         history.record_move("s1", &["p".into()], Role::To, half("dock-2", "B0", "B1"));
