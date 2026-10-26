@@ -1,0 +1,102 @@
+---
+title: Hidden panels
+description: Hide a panel in place, keeping its position and state in the layout, and show it again later.
+sidebar_position: 15
+---
+
+import { DocRef } from '@site/src/components/ui/reference/docRef';
+
+A panel can be hidden without being removed from the layout. A hidden panel keeps
+its group, its position among its siblings, its params and its serialized state,
+but it has no tab, is never the active panel, and is skipped by tab navigation and
+the overflow dropdown. Showing it again restores the tab in place.
+
+This is the right tool when a panel should disappear for a while rather than for
+good: a view the current user has no permission for, a feature behind a flag, or a
+tool window the user has dismissed but may want back. Compare
+[removing a panel](/docs/core/panels/remove), which destroys the panel instance,
+and [hiding a group](/docs/core/groups/add), which hides every panel in it.
+
+## Hide and show a panel
+
+<DocRef
+    declaration="DockviewPanelApi"
+    methods={['isHidden', 'setHidden', 'onDidHiddenChange']}
+/>
+
+```ts
+const panel: IDockviewPanel = api.getPanel('reports');
+
+// park the panel: its tab disappears, its state is kept
+panel.api.setHidden(true);
+
+// bring it back: the tab returns to its original slot
+panel.api.setHidden(false);
+
+// read the current state
+const hidden: boolean = panel.api.isHidden;
+
+// react to changes on this panel
+panel.api.onDidHiddenChange((event) => {
+    console.log(event.isHidden);
+});
+```
+
+Observe hide and show across the whole component through the container `api`:
+
+<DocRef declaration="DockviewApi" methods={['onDidPanelHiddenChange']} />
+
+```ts
+api.onDidPanelHiddenChange((event) => {
+    console.log(event.panel.id, event.isHidden);
+});
+```
+
+## Behaviour
+
+- **Active panel**: hiding the active panel activates the group's most recently
+  used visible panel. If every panel in a group is hidden the group stays in the
+  layout and shows its [watermark](/docs/core/watermark); it is not treated as
+  empty by `closeEmptyGroups`. Showing a panel into such a group activates it;
+  showing a panel next to an active one does not steal activation.
+- **Activation**: `panel.api.setActive()` on a hidden panel is a no-op and logs a
+  warning. Call `setHidden(false)` first.
+- **Listing**: hidden panels remain in `api.panels`, `group.panels` and
+  `api.getPanel(id)`, so you can find them to show them again. Filter on
+  `panel.api.isHidden` where you only want what is on screen.
+- **Navigation and overflow**: `activateNext`, `activatePrevious` and the tab
+  overflow dropdown only see visible panels, so the overflow count always matches
+  the tabs on offer.
+- **Moving**: a hidden panel can be moved between groups with `moveTo` or by
+  moving its group; it arrives hidden.
+- **Visibility events**: `isHidden` is distinct from
+  [`isVisible`](/docs/core/panels/rendering), which reports whether the panel is
+  the one currently shown in its group and flips on every tab switch. Hiding the
+  active panel fires `onDidVisibilityChange` with `isVisible: false`.
+
+## Serialization
+
+The flag is saved as `hidden: true` on the panel entry in `toJSON()` and is
+omitted when a panel is shown, so existing layouts are unchanged. `fromJSON`
+restores hidden panels without a tab and never seeds one as a group's active
+panel. Hiding or showing a panel fires `onDidLayoutChange`, so a layout saved on
+that event picks the change up.
+
+```json
+{
+    "panels": {
+        "reports": {
+            "id": "reports",
+            "contentComponent": "default",
+            "title": "Reports",
+            "hidden": true
+        }
+    }
+}
+```
+
+## See also
+
+- [Remove panel](/docs/core/panels/remove): destroy a panel instead of parking it.
+- [Rendering](/docs/core/panels/rendering): how an inactive or hidden panel's content is kept.
+- [Saving state](/docs/core/state/save): persisting the layout, hidden flags included.
