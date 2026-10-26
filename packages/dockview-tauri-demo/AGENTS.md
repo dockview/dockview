@@ -21,9 +21,9 @@ not a published package and not a supported example.
   `dockview-enterprise` (`packages/dockview-enterprise/src/multiWindow/orchestrator/`):
   `drag_sessions.rs` / `dragSessions.ts`, `workspace_registry.rs` /
   `workspaceRegistry.ts`, `history_sequencer.rs` / `historySequencer.ts`.
-  Keep the two in step, including the shapes that cross: `DragPayload`
+  Keep the two in step, including the shapes that cross: `MultiWindowDragPayload`
   (`panel` or `group`), the release's `reason` (`drop` or `detach`),
-  `HistoryRequest`, `HistoryInfo` and the workspace file's `WindowRecord`.
+  `MultiWindowHistoryRequest`, `MultiWindowHistoryInfo` and the workspace file's `WindowRecord`.
   Nothing here imports Tauri: no `AppHandle`, no window handling, no event
   emission. `cargo test` covers it.
 - `src-tauri/src/transport.rs` — one command per `MultiWindowTransport` call

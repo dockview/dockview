@@ -1,20 +1,20 @@
 import {
     type DockviewApi,
     type DockviewIDisposable,
-    type DragPayload,
-    type HistoryInfo,
-    type HistoryRequest,
+    type MultiWindowDragPayload,
+    type MultiWindowHistoryInfo,
+    type MultiWindowHistoryRequest,
     installMultiWindow,
-    type MoveEvent,
+    type MultiWindowMoveEvent,
     type MultiWindow,
     type MultiWindowOptions,
     type MultiWindowTransport,
-    type ReleaseEvent,
+    type MultiWindowReleaseEvent,
     type SerializedDockview,
 } from 'dockview-enterprise';
 import { isTauri } from './host';
 
-const EMPTY_HISTORY: HistoryInfo = {
+const EMPTY_HISTORY: MultiWindowHistoryInfo = {
     canUndo: false,
     canRedo: false,
     undoCount: 0,
@@ -58,17 +58,17 @@ export async function createTauriTransport(): Promise<MultiWindowTransport> {
 
         startDrag: (session, payload) =>
             invoke<void>('start_drag', { session, payload }),
-        peekDrag: (session) => invoke<DragPayload>('peek_drag', { session }),
+        peekDrag: (session) =>
+            invoke<MultiWindowDragPayload>('peek_drag', { session }),
         acceptDrag: (session) => invoke<void>('accept_drag', { session }),
         endDrag: (session, detach) =>
             invoke<void>('end_drag', { session, detach }),
-        onDidRelease: thisWindow<ReleaseEvent & { from: string }, ReleaseEvent>(
-            'dockview:release',
-            'from',
-            (payload) => payload
-        ),
+        onDidRelease: thisWindow<
+            MultiWindowReleaseEvent & { from: string },
+            MultiWindowReleaseEvent
+        >('dockview:release', 'from', (payload) => payload),
         takeDetachedDrag: () =>
-            invoke<DragPayload | null>('take_detached_drag'),
+            invoke<MultiWindowDragPayload | null>('take_detached_drag'),
         reportMove: (session, role, panels, before, after) =>
             invoke<void>('report_move', {
                 session,
@@ -77,7 +77,7 @@ export async function createTauriTransport(): Promise<MultiWindowTransport> {
                 before,
                 after,
             }),
-        onDidMove: everyWindow<MoveEvent>('dockview:moved'),
+        onDidMove: everyWindow<MultiWindowMoveEvent>('dockview:moved'),
 
         loadLayout: () => invoke<SerializedDockview | null>('load_layout'),
         reportLayout: (layout) => invoke<void>('report_layout', { layout }),
@@ -85,12 +85,13 @@ export async function createTauriTransport(): Promise<MultiWindowTransport> {
         reportLocalStep: () => invoke<void>('report_local_step'),
         undo: () => invoke<void>('undo'),
         redo: () => invoke<void>('redo'),
-        getHistory: () => invoke<HistoryInfo>('get_history'),
+        getHistory: () => invoke<MultiWindowHistoryInfo>('get_history'),
         onDidRequestHistory: thisWindow<
-            { window: string; request: HistoryRequest },
-            HistoryRequest
+            { window: string; request: MultiWindowHistoryRequest },
+            MultiWindowHistoryRequest
         >('dockview:history-request', 'window', (payload) => payload.request),
-        onDidChangeHistory: everyWindow<HistoryInfo>('dockview:history'),
+        onDidChangeHistory:
+            everyWindow<MultiWindowHistoryInfo>('dockview:history'),
     };
 }
 

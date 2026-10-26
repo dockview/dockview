@@ -5,7 +5,7 @@ import type {
     IContentRenderer,
     SerializedDockview,
 } from 'dockview';
-import type { HistoryStepInfo, MultiWindow } from 'dockview-enterprise';
+import type { MultiWindowHistoryStep, MultiWindow } from 'dockview-enterprise';
 import {
     broadcastLayout,
     nativeHostInfo,
@@ -612,7 +612,7 @@ export class HistoryPanel extends DemoPanel {
     }
 }
 
-function describeStep(step: HistoryStepInfo | undefined): string {
+function describeStep(step: MultiWindowHistoryStep | undefined): string {
     if (!step) {
         return 'nothing';
     }
