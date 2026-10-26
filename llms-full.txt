@@ -296,6 +296,8 @@ Advanced groups and windows:
 State and history:
 - `toJSON()` — serialize the layout
 - `fromJSON(data)` — deserialize/restore a layout
+- `serializeGroup(group)` / `addGroupFromJSON(data, options)`: move one group between layouts or instances
+- `addPanelFromJSON(state, options)`: add a panel from its `toJSON()` state
 - `undo()` / `redo()` / `canUndo` / `canRedo` / `clearHistory()` — layout history
 
 Events (a selection of the full surface):

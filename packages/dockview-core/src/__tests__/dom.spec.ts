@@ -13,6 +13,7 @@ import {
     isInDocument,
     isShadowRoot,
     onDidWindowMoveEnd,
+    onDidWindowResizeEnd,
     prefersReducedMotion,
     quasiDefaultPrevented,
     quasiPreventDefault,
@@ -544,6 +545,37 @@ describe('onDidWindowMoveEnd', () => {
         rafCallbacks.clear();
         pending(0);
         expect(rafCallbacks.size).toBe(0);
+    });
+});
+
+describe('onDidWindowResizeEnd', () => {
+    afterEach(() => {
+        jest.useRealTimers();
+    });
+
+    test('fires the callback once the resize events settle', () => {
+        jest.useFakeTimers();
+        const cb = jest.fn();
+        const disposable = onDidWindowResizeEnd(window, cb);
+
+        window.dispatchEvent(new Event('resize'));
+        window.dispatchEvent(new Event('resize'));
+        jest.runAllTimers();
+        expect(cb).toHaveBeenCalledTimes(1);
+
+        disposable.dispose();
+    });
+
+    test('disposing cancels a pending callback', () => {
+        jest.useFakeTimers();
+        const cb = jest.fn();
+        const disposable = onDidWindowResizeEnd(window, cb);
+
+        window.dispatchEvent(new Event('resize'));
+        disposable.dispose();
+        jest.runAllTimers();
+
+        expect(cb).not.toHaveBeenCalled();
     });
 });
 
