@@ -1,14 +1,3 @@
-/**
- * The one ordered history across windows. Each window keeps its own undo
- * stack for its local steps; this sequences them against the moves between
- * windows. An entry is either a marker, "a step in window X", or a move,
- * which carries each window's layout before and after. Undoing a marker
- * asks that window to undo its own top step; undoing a move applies both
- * pre-move layouts, destination first so no two windows hold the panels at
- * once. Ordering is what makes it safe: an older local step is only
- * reachable after the move that followed it has been undone.
- */
-
 import type { SerializedDockview } from 'dockview';
 import type {
     HistoryInfo,
@@ -18,21 +7,12 @@ import type {
     MoveRole,
 } from '../transport';
 
-/**
- * The same as dockview's own `layoutHistory.depth` default. A window whose
- * own history keeps fewer steps than this leaves markers it can no longer
- * undo.
- */
+/** No window's `layoutHistory.depth` should be lower. */
 export const DEFAULT_HISTORY_DEPTH = 25;
 
-/**
- * How long a move may wait for its second half. Both halves normally arrive
- * within milliseconds; one still missing after this never will (its window
- * reloaded mid-drag, or the report was lost).
- */
+/** A move still missing a half after this never completes. */
 export const ABANDONED_MOVE_MS = 10_000;
 
-/** One window's side of a move. */
 export interface MoveHalf {
     readonly window: string;
     readonly before: SerializedDockview;
@@ -53,7 +33,6 @@ type HistoryEntry =
 
 type MoveEntry = Extract<HistoryEntry, { type: 'move' }>;
 
-/** A request for one window, in the order the windows must carry them out. */
 export interface HistoryAction {
     readonly window: string;
     readonly request: HistoryRequest;
@@ -79,11 +58,7 @@ export class HistorySequencer {
         this._push({ type: 'local', window });
     }
 
-    /**
-     * A window's half of a move. The two halves arrive in either order; the
-     * first opens the entry, the second completes it. A half for a session
-     * already on the stack updates it in place.
-     */
+    /** The two halves of a move arrive in either order. */
     recordMove(
         session: string,
         panels: string[],
@@ -118,8 +93,7 @@ export class HistorySequencer {
             (!entry.from || !entry.to) &&
             this._now() - entry.opened >= ABANDONED_MOVE_MS
         ) {
-            // It will never complete. Everything before it goes too: those
-            // steps restore layouts from before the move.
+            // The steps before it restore layouts from before the move.
             this._undo.length = 0;
             throw new Error(
                 `move ${entry.session} was never completed; the history before it is dropped`
@@ -195,11 +169,8 @@ export class HistorySequencer {
     }
 
     /**
-     * Drop every entry that involves a window, and every move still missing
-     * a half, which may have been that window's and could then never
-     * complete. A dropped move takes everything beyond it with it: the other
-     * window's earlier steps restore layouts from before the move, which are
-     * only safe once the move itself has been undone.
+     * Drop the window's entries and every incomplete move, and everything
+     * older than a move dropped: those steps restore layouts from before it.
      */
     forgetWindow(window: string): void {
         const involves = (entry: HistoryEntry) =>
@@ -209,7 +180,7 @@ export class HistorySequencer {
                   !entry.to ||
                   entry.from.window === window ||
                   entry.to.window === window;
-        // Both stacks hold the entry furthest from the present first.
+        // Oldest first in both stacks.
         for (const stack of [this._undo, this._redo]) {
             let cut = -1;
             stack.forEach((entry, index) => {

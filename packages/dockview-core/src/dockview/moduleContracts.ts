@@ -247,11 +247,7 @@ export interface ILayoutHistoryHost {
 export type LayoutHistoryKind = DockviewLayoutMutationKind | 'resize';
 
 export interface LayoutHistoryChangeEvent {
-    /**
-     * What changed the history: a step was recorded (`push`), undone, redone,
-     * or the history was cleared. A push at the depth limit drops the oldest
-     * step, so `undoCount` alone does not show one.
-     */
+    /** What changed the history. */
     readonly reason: 'push' | 'undo' | 'redo' | 'clear';
     readonly canUndo: boolean;
     readonly canRedo: boolean;

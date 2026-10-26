@@ -51,11 +51,7 @@ const layoutWith = (...ids: string[]): SerializedDockview =>
         ),
     }) as unknown as SerializedDockview;
 
-/**
- * Fire a drag event carrying a pointer position. jsdom builds drag events
- * as plain `Event`s, which drop `clientX`/`clientY` from the init, so they
- * are defined on the event itself.
- */
+/** jsdom drops `clientX`/`clientY` from a drag event's init. */
 function fireDrag(
     type: 'dragEnter' | 'dragOver' | 'drop',
     element: Element,
@@ -68,13 +64,8 @@ function fireDrag(
     fireEvent(element, event);
 }
 
-/** Let every promise continuation and queued microtask run. */
 const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-/**
- * End a drag nobody accepted and let the orchestrator's grace period run
- * out, so an unaccepted drag settles: discarded, or detached.
- */
 async function endUnaccepted(
     element: HTMLElement,
     dataTransfer: DataTransfer
@@ -90,11 +81,7 @@ async function endUnaccepted(
     await flush();
 }
 
-/**
- * jsdom has no `DataTransfer`; this carries what the HTML5 backend and the
- * interceptor touch. One instance is shared across the events of a drag,
- * as the browser shares one `DataTransfer` for a drag session.
- */
+/** jsdom has no `DataTransfer`. */
 function fakeDataTransfer(): DataTransfer {
     const data = new Map<string, string>();
     const transfer = {
@@ -368,8 +355,7 @@ describe('multi-window: HistorySequencer', () => {
         history.recordMove('s1', ['p'], 'to', half('dock-2', [], ['p']));
         history.pushLocal('main');
 
-        // dock-2 goes; undoing dock-3's close would now bring p back while
-        // nothing could take it out of dock-2 first.
+        // Undoing dock-3's close would now bring p back alongside dock-2's.
         history.forgetWindow('dock-2');
 
         expect(history.undo().actions).toEqual([
@@ -535,8 +521,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
                 reason: 'drop',
             }),
         ]);
-        // Both windows reported their layouts, in whichever order, and the
-        // workspace accepted them as the announced move.
+        // Neither window's report was refused as a duplicate.
         await flush();
         expect(reported).toEqual([]);
         const held = (label: string) =>
@@ -851,10 +836,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
         main.api.addPanel({ id: 'b', component: 'default' });
         other.api.addPanel({ id: 'x', component: 'default' });
 
-        // The layout-edge target refuses a drag whose in-heap transfer data
-        // names another dockview, which only exists when the two share a
-        // heap. Another window has no such data, so clear it as the drag
-        // leaves main, as a real second process would never see it.
+        // A separate window never sees main's in-heap transfer data.
         const leaveHeap = () =>
             LocalSelectionTransfer.getInstance().clearData(
                 PanelTransfer.prototype
@@ -934,11 +916,9 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
                 reason: 'detach',
             }),
         ]);
-        // Neither window's layout report was refused as a duplicate...
         await flush();
         expect(reported).toEqual([]);
-        // ...and the history holds no half-recorded move: undo has nothing
-        // to do and says so, rather than failing on an incomplete entry.
+        // No half-recorded move is left behind.
         expect(orchestrator.history.undoCount).toBe(0);
         main.mw.undo();
         await flush();

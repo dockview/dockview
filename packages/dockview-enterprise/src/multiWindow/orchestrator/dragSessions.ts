@@ -1,9 +1,3 @@
-/**
- * The drag sessions an orchestrator tracks: announced by a source window,
- * accepted by at most one destination, or ended unaccepted. Pure state; the
- * orchestrator decides what to do with each outcome.
- */
-
 import type { DragPayload } from '../transport';
 
 export interface DragSession {
@@ -16,7 +10,6 @@ interface TrackedSession extends DragSession {
     ended?: boolean;
 }
 
-/** The source to tell that its drag was taken. */
 export interface Release {
     readonly from: string;
     readonly session: string;
@@ -40,19 +33,18 @@ export type DragEnd =
 
 export class DragSessions {
     private readonly _sessions = new Map<string, TrackedSession>();
-    /** Payloads of detached drags, by the window created to hold them. */
+    /** By the id of the window created to hold them. */
     private readonly _detached = new Map<string, DragPayload>();
 
     start(session: string, drag: DragSession): void {
         this._sessions.set(session, { ...drag });
     }
 
-    /** The payload of a drag in flight; throws otherwise. */
     peek(session: string): DragPayload {
         return this._inFlight(session).payload;
     }
 
-    /** Take the drag for `to`. The first accept wins; a second throws. */
+    /** The first accept wins; a second throws. */
     accept(session: string, to: string): Accept {
         const taken = this._inFlight(session);
         this._sessions.delete(session);
@@ -62,11 +54,7 @@ export class DragSessions {
         };
     }
 
-    /**
-     * The source reported its drag over. Nothing happens yet; the drag
-     * stays acceptable until {@link expire}. Returns whether it was in
-     * flight, so an already-accepted drag needs no expiry.
-     */
+    /** The drag stays acceptable until {@link expire}. Returns whether it is in flight. */
     end(session: string, detach: boolean): boolean {
         const tracked = this._sessions.get(session);
         if (!tracked) {
@@ -76,11 +64,7 @@ export class DragSessions {
         return true;
     }
 
-    /**
-     * Settle an ended drag nobody accepted: discard it, or, when the source
-     * asked for a detach, park its payload under a window id from
-     * `newWindowId` for that window to collect with {@link takeDetachedDrag}.
-     */
+    /** Discard an ended, unaccepted drag, or park it for a new window. */
     expire(session: string, newWindowId: () => string): DragEnd {
         const tracked = this._sessions.get(session);
         if (tracked?.ended === undefined) {

@@ -1,11 +1,3 @@
-/**
- * The one install for a window of a multi-window layout. It composes the
- * cross-window drag, the workspace and the shared history over the public
- * api, behind one transport to the orchestrator, and returns one handle for
- * the few things that only exist across windows. Everything else about the
- * instance keeps working as before.
- */
-
 import {
     type DockviewApi,
     DockviewCompositeDisposable as CompositeDisposable,
@@ -18,28 +10,17 @@ import type { HistoryInfo, MoveEvent, MultiWindowTransport } from './transport';
 import { WindowWorkspace } from './windowWorkspace';
 
 export interface MultiWindowOptions {
-    /**
-     * Builds the window's default layout when the orchestrator has none for
-     * it. Not called for a window a detach created, which starts with what
-     * was dragged, nor without the workspace (`workspace: false`).
-     */
+    /** Builds the layout of a window the orchestrator has none for. */
     buildDefaults?(windowId: string): void;
-    /**
-     * Restore this window's layout from the orchestrator at start and report
-     * every change back. Default true.
-     */
+    /** Restore and report this window's layout. Default true. */
     workspace?: boolean;
-    /** How long after a change the layout is reported. Default 300 ms. */
+    /** Default 300 ms. */
     debounceMs?: number;
-    /**
-     * One undo across windows, sequenced by the orchestrator. Default true;
-     * `false` keeps undo local to each window.
-     */
+    /** One undo across windows. Default true. */
     history?: boolean;
     /**
-     * Turn an unaccepted drag into a new window, where the orchestrator
-     * supports it. Off by default: an HTML5 drag cannot tell a drop on the
-     * desktop from a cancelled drag.
+     * Turn an unaccepted drag into a new window. Off by default: an HTML5
+     * drag cannot tell a drop on the desktop from a cancelled one.
      */
     detach?: boolean;
 }
@@ -54,7 +35,6 @@ export class MultiWindow extends CompositeDisposable {
     readonly onDidChangeHistory: Event<HistoryInfo> =
         this._onDidChangeHistory.event;
 
-    /** Panels moved between any two windows: by a drop, a detach, or undo or redo. */
     readonly onDidMoveAcrossWindows: Event<MoveEvent>;
 
     /** Resolves once the window holds its initial layout, restored or default. */
@@ -64,7 +44,6 @@ export class MultiWindow extends CompositeDisposable {
         return this._transport.windowId;
     }
 
-    /** The shared history's state; empty with `history: false`. */
     get history(): HistoryInfo {
         return this._history?.info ?? EMPTY_HISTORY;
     }
@@ -101,10 +80,7 @@ export class MultiWindow extends CompositeDisposable {
         }
     }
 
-    /**
-     * Undo the most recent step in any window. With `history: false` this
-     * falls back to this window's own history.
-     */
+    /** Falls back to this window's own history with `history: false`. */
     undo(): void {
         if (this._history) {
             this._history.undo();

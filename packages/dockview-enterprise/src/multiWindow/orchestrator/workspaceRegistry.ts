@@ -1,10 +1,3 @@
-/**
- * The windows an orchestrator knows and what each holds: a frame, for the
- * party that creates windows, and a dockview layout as opaque JSON. The one
- * thing read out of a layout is its panel ids, to refuse giving two windows
- * the same panel.
- */
-
 import type { SerializedDockview } from 'dockview';
 
 export const WORKSPACE_FORMAT_VERSION = 1;
@@ -28,11 +21,7 @@ export interface WorkspaceState {
     windows: WindowRecord[];
 }
 
-/**
- * A move the orchestrator announced: until the source reports the panel
- * gone, the destination may report it held without that counting as a
- * duplicate. The two windows of a move report in either order.
- */
+/** Until the source reports the panel gone, the destination may hold it too. */
 interface PendingMove {
     panel: string;
     from: string;
@@ -83,11 +72,7 @@ export class WorkspaceRegistry {
         this._entry(windowId).geometry = { ...geometry };
     }
 
-    /**
-     * Store a window's reported layout, refusing one that names a panel
-     * another window's stored layout holds, unless an announced move
-     * explains it.
-     */
+    /** Refuses a layout holding another window's panel, unless a move explains it. */
     setLayout(windowId: string, layout: SerializedDockview): void {
         const incoming = panelIds(layout);
         for (const other of this._windows) {
@@ -119,7 +104,7 @@ export class WorkspaceRegistry {
         this._entry(windowId).layout = clone(layout);
     }
 
-    /** Store a layout the orchestrator itself applied, which it trusts. */
+    /** A layout the orchestrator itself applied. */
     setLayoutUnchecked(windowId: string, layout: SerializedDockview): void {
         this._entry(windowId).layout = clone(layout);
     }
@@ -153,7 +138,7 @@ function panelIds(layout: SerializedDockview): string[] {
     return Object.keys(layout.panels ?? {});
 }
 
-/** Layouts and records are plain JSON; copy them so callers cannot alias state. */
+/** So callers cannot alias state. */
 function clone<T>(value: T): T {
     return JSON.parse(JSON.stringify(value)) as T;
 }

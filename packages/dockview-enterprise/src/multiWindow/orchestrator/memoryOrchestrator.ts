@@ -1,16 +1,3 @@
-/**
- * An orchestrator for windows that share one JavaScript heap: several
- * dockview instances on one page, a test, an Electron main process, or a
- * host that runs the orchestrator in a page of its own and bridges windows
- * to it. It composes the three pure pieces, {@link DragSessions},
- * {@link WorkspaceRegistry} and {@link HistorySequencer}, and hands each
- * window a {@link MultiWindowTransport}.
- *
- * Every notice is delivered on a later microtask, never inside the call
- * that caused it, so a window's listeners run as they would with a real
- * message bus and nothing is re-entrant.
- */
-
 import {
     DockviewCompositeDisposable as CompositeDisposable,
     DockviewEmitter as Emitter,
@@ -40,21 +27,12 @@ import {
 export interface MemoryOrchestratorOptions {
     /** The workspace to start from, as a previous {@link MemoryOrchestrator.snapshot}. */
     workspace?: WorkspaceState;
-    /**
-     * How many steps the shared history keeps. Default 25, as dockview's own
-     * `layoutHistory.depth`; no window's depth should be lower.
-     */
+    /** Default 25. No window's `layoutHistory.depth` should be lower. */
     historyDepth?: number;
-    /**
-     * Called when an unaccepted drag ended with `detach`: the host opens a
-     * window with this id and connects it; its cross-window drag then
-     * collects the payload with `takeDetachedDrag`. Without this, a detached
-     * drag is discarded like any other.
-     */
+    /** Open and connect a window for a detached drag. Without it, detaches are discarded. */
     createWindow?(windowId: string, payload: DragPayload): void;
 }
 
-/** What only one window hears. */
 class WindowChannel extends CompositeDisposable {
     readonly onDidRelease = new Emitter<ReleaseEvent>();
     readonly onDidRequestHistory = new Emitter<HistoryRequest>();
@@ -74,7 +52,6 @@ export class MemoryOrchestrator extends CompositeDisposable {
     private _detachedCount = 0;
 
     private readonly _onDidMove = new Emitter<MoveEvent>();
-    /** Panels moved between any two windows. */
     readonly onDidMove: Event<MoveEvent> = this._onDidMove.event;
 
     private readonly _onDidChangeHistory = new Emitter<HistoryInfo>();
@@ -86,7 +63,6 @@ export class MemoryOrchestrator extends CompositeDisposable {
     readonly onDidChangeWorkspace: Event<WorkspaceState> =
         this._onDidChangeWorkspace.event;
 
-    /** The windows this orchestrator knows, connected or restored. */
     get windowIds(): string[] {
         return this._workspace.windowIds();
     }
@@ -107,7 +83,6 @@ export class MemoryOrchestrator extends CompositeDisposable {
         );
     }
 
-    /** The transport for a window, which the orchestrator knows from now on. */
     connect(windowId: string): MultiWindowTransport {
         this._workspace.ensureWindow(windowId);
         const channel = this._channel(windowId);
@@ -165,10 +140,6 @@ export class MemoryOrchestrator extends CompositeDisposable {
         };
     }
 
-    /**
-     * Forget a window that closed: its listeners, its workspace record and
-     * every history entry that involves it.
-     */
     disconnect(windowId: string): void {
         const channel = this._channels.get(windowId);
         if (channel) {
@@ -182,17 +153,17 @@ export class MemoryOrchestrator extends CompositeDisposable {
         this._historyDidChange();
     }
 
-    /** Undo the most recent step in any window. Throws when there is none. */
+    /** Throws when there is nothing to undo. */
     undo(): void {
         this._carryOut(this._history.undo(), 'undo');
     }
 
-    /** Redo the most recently undone step. Throws when there is none. */
+    /** Throws when there is nothing to redo. */
     redo(): void {
         this._carryOut(this._history.redo(), 'redo');
     }
 
-    /** The whole workspace, in the shape to persist and pass back as `workspace`. */
+    /** To persist and pass back as `workspace`. */
     snapshot(): WorkspaceState {
         return this._workspace.snapshot();
     }
@@ -230,7 +201,6 @@ export class MemoryOrchestrator extends CompositeDisposable {
             return;
         }
         if (!this._createWindow) {
-            // Nobody to open a window: the parked payload is dropped.
             this._drags.takeDetachedDrag(ended.windowId);
             return;
         }
@@ -242,14 +212,11 @@ export class MemoryOrchestrator extends CompositeDisposable {
             payloadPanels(ended.payload),
             'detach'
         );
-        // A detach is no step to undo, and the source's earlier steps hold
-        // the panels it gave away: undoing one would bring them back while
-        // the new window holds them too. They end here.
+        // The source's earlier steps would bring the panels back.
         this._history.forgetWindow(ended.release.from);
         this._historyDidChange();
     }
 
-    /** An id for a detached window, unused by any window on record. */
     private _newWindowId(): string {
         const taken = new Set(this._workspace.windowIds());
         let windowId: string;
@@ -259,11 +226,6 @@ export class MemoryOrchestrator extends CompositeDisposable {
         return windowId;
     }
 
-    /**
-     * Panels left `from` for `to`: let the workspace expect it, release the
-     * source, and tell everyone. The destination may report the panels
-     * before the source reports them gone.
-     */
     private _moved(
         from: string,
         to: string,
@@ -298,8 +260,7 @@ export class MemoryOrchestrator extends CompositeDisposable {
     private _carryOut(step: HistoryStep, reason: 'undo' | 'redo'): void {
         for (const { window, request } of step.actions) {
             if (request.type === 'apply-layout') {
-                // Stored before it is applied, so the window's own report
-                // afterwards never reads as a duplicate.
+                // Stored first, so the window's report is not a duplicate.
                 this._workspace.setLayoutUnchecked(window, request.layout);
             }
             const channel = this._channels.get(window);
@@ -328,11 +289,7 @@ function post<T>(emitter: Emitter<T>, value: T): void {
     queueMicrotask(() => emitter.fire(value));
 }
 
-/**
- * Run a synchronous orchestrator step as a transport call: its result, or
- * the error it throws, arrives as a settled promise, as it would over a
- * message bus.
- */
+/** A synchronous step as a transport call: its result or error, as a promise. */
 function settle<T>(step: () => T): Promise<T> {
     try {
         return Promise.resolve(step());
