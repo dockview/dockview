@@ -426,6 +426,6 @@ src-tauri/      Rust shell
   src/lib.rs           the host: windows, popouts, the harness
   src/transport.rs     one command per MultiWindowTransport call
   src/persistence.rs   the workspace file
-  src/orchestrator/    a Tauri-free port of dockview-enterprise's MemoryOrchestrator pieces
+  src/orchestrator/    a Tauri-free port of dockview-enterprise's MultiWindowOrchestrator pieces
 popout.html     served at /popout.html, dockview's default popout target
 ```

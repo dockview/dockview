@@ -17,7 +17,7 @@ not a published package and not a supported example.
   `undo`, `redo`, `get_history`). Those take the calling `tauri::Window`
   rather than a window id argument. Window creation lives in Rust so the
   capability set stays at `core:default`.
-- `src-tauri/src/orchestrator/` — a port of `MemoryOrchestrator`'s pieces in
+- `src-tauri/src/orchestrator/` — a port of `MultiWindowOrchestrator`'s pieces in
   `dockview-enterprise` (`packages/dockview-enterprise/src/multiWindow/orchestrator/`):
   `drag_sessions.rs` / `dragSessions.ts`, `workspace_registry.rs` /
   `workspaceRegistry.ts`, `history_sequencer.rs` / `historySequencer.ts`.
