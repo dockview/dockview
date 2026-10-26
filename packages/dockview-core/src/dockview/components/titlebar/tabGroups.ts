@@ -798,6 +798,11 @@ export class TabGroupManager {
 
                     // Collapsed (at rest) → expanding: swap the resting class
                     // for the transition-carrying one and let CSS animate back.
+                    // (Resolve the duration before the class writes so the
+                    // read does not force a style recalculation.)
+                    const fallbackMs =
+                        this._transitionDurationMs(tab.element) +
+                        EXPAND_FALLBACK_SLACK_MS;
                     tab.element.classList.remove('dv-tab--group-collapsed');
                     tab.element.classList.add('dv-tab--group-expanding');
 
@@ -816,11 +821,7 @@ export class TabGroupManager {
                     // Fallback in case transitionend never fires (e.g. element
                     // removed from DOM mid-transition). Sized from the theme's
                     // duration so a slower theme is not cut off mid-expand.
-                    const fallbackTimer = setTimeout(
-                        onEnd,
-                        this._transitionDurationMs(tab.element) +
-                            EXPAND_FALLBACK_SLACK_MS
-                    );
+                    const fallbackTimer = setTimeout(onEnd, fallbackMs);
                     this._pendingTransitionCleanups.set(panelId, onEnd);
                     tab.element.addEventListener('transitionend', onEnd);
                 }
