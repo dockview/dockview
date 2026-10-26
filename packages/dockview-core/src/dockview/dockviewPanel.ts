@@ -24,7 +24,9 @@ export interface IDockviewPanel extends IDisposable, IPanel {
     readonly maximumWidth?: number;
     readonly maximumHeight?: number;
     readonly isPinned: boolean;
+    readonly isHidden: boolean;
     setPinned(pinned: boolean): void;
+    setHidden(hidden: boolean): void;
     updateParentGroup(
         group: DockviewGroupPanel,
         options?: { skipSetActive?: boolean }
@@ -48,6 +50,7 @@ export class DockviewPanel
     private _title: string | undefined;
     private _renderer: DockviewPanelRenderer | undefined;
     private _pinned = false;
+    private _hidden = false;
 
     private _minimumWidth: number | undefined;
     private _minimumHeight: number | undefined;
@@ -64,6 +67,10 @@ export class DockviewPanel
 
     get isPinned(): boolean {
         return this._pinned;
+    }
+
+    get isHidden(): boolean {
+        return this._hidden;
     }
 
     get group(): DockviewGroupPanel {
@@ -173,6 +180,8 @@ export class DockviewPanel
             maximumWidth: this._maximumWidth,
             // Emit only when pinned so existing layouts stay byte-stable.
             pinned: this._pinned ? true : undefined,
+            // Likewise for hidden.
+            hidden: this._hidden ? true : undefined,
         };
     }
 
@@ -203,6 +212,22 @@ export class DockviewPanel
         }
         this._pinned = pinned;
         this.api._onDidChangePinned.fire({ isPinned: pinned });
+    }
+
+    /**
+     * Low-level hidden-state mutation. Sets the flag and fires the panel-api
+     * event; it does not touch the group. The public entry point is
+     * `panel.api.setHidden` → `DockviewComponent.setPanelHidden`, which also
+     * asks the group to drop or restore the tab and re-pick its active panel.
+     * Deserialization drives this directly before the panel joins its group,
+     * at which point `doAddPanel` honours the flag.
+     */
+    setHidden(hidden: boolean): void {
+        if (this._hidden === hidden) {
+            return;
+        }
+        this._hidden = hidden;
+        this.api._onDidHiddenChange.fire({ isHidden: hidden });
     }
 
     setRenderer(renderer: DockviewPanelRenderer): void {
@@ -258,6 +283,7 @@ export class DockviewPanel
             (state.pinned ?? false) &&
                 !!this.accessor.options.pinnedTabs?.enabled
         );
+        this.setHidden(state.hidden ?? false);
 
         // state.contentComponent;
         // state.tabComponent;

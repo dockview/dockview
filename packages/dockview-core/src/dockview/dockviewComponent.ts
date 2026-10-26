@@ -410,6 +410,15 @@ export interface DockviewPanelPinnedChangeEvent {
     readonly isPinned: boolean;
 }
 
+/**
+ * Fired by `onDidPanelHiddenChange` when a panel is hidden or shown via
+ * `panel.api.setHidden`. `isHidden` is the new state.
+ */
+export interface DockviewPanelHiddenChangeEvent {
+    readonly panel: IDockviewPanel;
+    readonly isHidden: boolean;
+}
+
 export interface PopoutGroupChangeSizeEvent {
     width: number;
     height: number;
@@ -453,6 +462,7 @@ export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
     readonly onDidLayoutFromJSON: Event<void>;
     readonly onDidActivePanelChange: Event<DockviewActivePanelChangeEvent>;
     readonly onDidPanelPinnedChange: Event<DockviewPanelPinnedChangeEvent>;
+    readonly onDidPanelHiddenChange: Event<DockviewPanelHiddenChangeEvent>;
     readonly onWillDragPanel: Event<TabDragEvent>;
     readonly onWillDragGroup: Event<GroupDragEvent>;
     readonly onDidRemoveGroup: Event<DockviewGroupPanel>;
@@ -481,6 +491,7 @@ export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
     moveGroupOrPanel(options: MoveGroupOrPanelOptions): void;
     moveGroup(options: MoveGroupOptions): void;
     setPanelPinned(panel: DockviewPanel, pinned: boolean): void;
+    setPanelHidden(panel: DockviewPanel, hidden: boolean): void;
     doSetGroupActive: (group: DockviewGroupPanel, skipFocus?: boolean) => void;
     removeGroup: (group: DockviewGroupPanel) => void;
     addPanel<T extends object = Parameters>(
@@ -752,6 +763,11 @@ export class DockviewComponent
         new Emitter<DockviewPanelPinnedChangeEvent>();
     readonly onDidPanelPinnedChange: Event<DockviewPanelPinnedChangeEvent> =
         this._onDidPanelPinnedChange.event;
+
+    private readonly _onDidPanelHiddenChange =
+        new Emitter<DockviewPanelHiddenChangeEvent>();
+    readonly onDidPanelHiddenChange: Event<DockviewPanelHiddenChangeEvent> =
+        this._onDidPanelHiddenChange.event;
 
     private readonly _onDidMovePanel = new Emitter<MovePanelEvent>();
     readonly onDidMovePanel = this._onDidMovePanel.event;
@@ -1577,6 +1593,26 @@ export class DockviewComponent
         this._onDidPanelPinnedChange.fire({ panel, isPinned: pinned });
     }
 
+    /**
+     * Hide or show a panel in place. The flag is set on the panel first (so
+     * the group's tab/active-panel bookkeeping reads the new state), then the
+     * group drops or restores the tab and re-picks its active panel. Fires the
+     * panel-level `onDidHiddenChange`, the component-level
+     * `onDidPanelHiddenChange`, and a layout change since the serialized
+     * state moved.
+     */
+    setPanelHidden(panel: DockviewPanel, hidden: boolean): void {
+        if (panel.isHidden === hidden) {
+            return;
+        }
+
+        panel.setHidden(hidden);
+        panel.group.model.updatePanelHidden(panel);
+
+        this._onDidPanelHiddenChange.fire({ panel, isHidden: hidden });
+        this._bufferOnDidLayoutChange.fire();
+    }
+
     get mountElement(): HTMLElement {
         return this.gridview.element;
     }
@@ -1753,6 +1789,7 @@ export class DockviewComponent
             this._onWillShowOverlay,
             this._onDidActivePanelChange,
             this._onDidPanelPinnedChange,
+            this._onDidPanelHiddenChange,
             this._onDidAddPanel,
             this._onDidRemovePanel,
             this._onDidLayoutFromJSON,
@@ -3658,6 +3695,11 @@ export class DockviewComponent
     }
 
     setActivePanel(panel: IDockviewPanel): void {
+        if (panel.isHidden) {
+            // Mirrors `panel.api.setActive()`: a hidden panel can't be shown
+            // until it is unhidden.
+            return;
+        }
         panel.group.model.openPanel(panel);
         this.doSetGroupAndPanelActive(panel.group);
     }
@@ -3671,10 +3713,8 @@ export class DockviewComponent
         }
 
         if (options.includePanel && options.group) {
-            if (
-                options.group.activePanel !==
-                options.group.panels[options.group.panels.length - 1]
-            ) {
+            const panels = options.group.model.visiblePanels;
+            if (options.group.activePanel !== panels[panels.length - 1]) {
                 options.group.model.moveToNext({ suppressRoll: true });
                 return;
             }
@@ -3694,7 +3734,8 @@ export class DockviewComponent
         }
 
         if (options.includePanel && options.group) {
-            if (options.group.activePanel !== options.group.panels[0]) {
+            const panels = options.group.model.visiblePanels;
+            if (options.group.activePanel !== panels[0]) {
                 options.group.model.moveToPrevious({ suppressRoll: true });
                 return;
             }
@@ -4082,12 +4123,12 @@ export class DockviewComponent
                 }
 
                 if (!group.activePanel && group.panels.length > 0) {
-                    group.model.openPanel(
-                        group.panels[group.panels.length - 1],
-                        {
+                    const visible = group.model.visiblePanels;
+                    if (visible.length > 0) {
+                        group.model.openPanel(visible[visible.length - 1], {
                             skipSetGroupActive: true,
-                        }
-                    );
+                        });
+                    }
                 }
 
                 return group;
@@ -4329,10 +4370,12 @@ export class DockviewComponent
                 }
 
                 if (!edgeGroup.activePanel && edgeGroup.panels.length > 0) {
-                    edgeGroup.model.openPanel(
-                        edgeGroup.panels[edgeGroup.panels.length - 1],
-                        { skipSetGroupActive: true }
-                    );
+                    const visible = edgeGroup.model.visiblePanels;
+                    if (visible.length > 0) {
+                        edgeGroup.model.openPanel(visible[visible.length - 1], {
+                            skipSetGroupActive: true,
+                        });
+                    }
                 }
             }
         }
@@ -4572,6 +4615,10 @@ export class DockviewComponent
             // `setPanelPinned` ignores it otherwise.
             if (state.pinned) {
                 this.setPanelPinned(panel, true);
+            }
+
+            if (state.hidden) {
+                this.setPanelHidden(panel, true);
             }
 
             return panel;
@@ -4987,9 +5034,12 @@ export class DockviewComponent
         }
 
         if (!group.activePanel && group.panels.length > 0) {
-            group.model.openPanel(group.panels[group.panels.length - 1], {
-                skipSetGroupActive: true,
-            });
+            const visible = group.model.visiblePanels;
+            if (visible.length > 0) {
+                group.model.openPanel(visible[visible.length - 1], {
+                    skipSetGroupActive: true,
+                });
+            }
         }
 
         if (!options?.skipSetActive) {

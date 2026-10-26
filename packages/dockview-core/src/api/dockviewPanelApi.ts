@@ -19,6 +19,10 @@ export interface PinnedChangeEvent {
     readonly isPinned: boolean;
 }
 
+export interface HiddenChangeEvent {
+    readonly isHidden: boolean;
+}
+
 export interface RendererChangedEvent {
     readonly renderer: DockviewPanelRenderer;
 }
@@ -57,10 +61,23 @@ export interface DockviewPanelApi
      * component with pinning disabled always reports `false`.
      */
     readonly isPinned: boolean;
+    /**
+     * Whether this panel is hidden. A hidden panel stays in its group (it
+     * keeps its position, params and group membership and is still listed in
+     * `group.panels` / `api.panels`) but has no tab and can't be the active
+     * panel, so it is skipped by tab navigation and never rendered. It is
+     * serialized as `hidden: true` so a layout round-trips it. Hiding the
+     * active panel activates the group's most recently used visible panel; a
+     * group whose panels are all hidden shows its watermark. Distinct from
+     * {@link isVisible}, which reports whether the panel is the one currently
+     * shown in its group and flips on every tab switch.
+     */
+    readonly isHidden: boolean;
     readonly onDidActiveGroupChange: Event<ActiveGroupEvent>;
     readonly onDidGroupChange: Event<GroupChangedEvent>;
     readonly onDidTitleChange: Event<TitleEvent>;
     readonly onDidChangePinned: Event<PinnedChangeEvent>;
+    readonly onDidHiddenChange: Event<HiddenChangeEvent>;
     readonly onDidRendererChange: Event<RendererChangedEvent>;
     readonly location: DockviewGroupLocation;
     readonly onDidLocationChange: Event<DockviewGroupPanelLocationChangeEvent>;
@@ -71,6 +88,13 @@ export interface DockviewPanelApi
      * module is not registered, and dormant unless `pinnedTabs.enabled` is set.
      */
     setPinned(pinned: boolean): void;
+    /**
+     * Hide or show this panel's tab and content without removing the panel
+     * from the layout. See {@link isHidden}. Showing a panel restores its
+     * tab in place; it only becomes active if its group had nothing else to
+     * show. `setActive()` on a hidden panel is a no-op.
+     */
+    setHidden(hidden: boolean): void;
     setRenderer(renderer: DockviewPanelRenderer): void;
     moveTo(options: DockviewPanelMoveParams): void;
     maximize(): void;
@@ -94,6 +118,9 @@ export class DockviewPanelApiImpl
 
     readonly _onDidChangePinned = new Emitter<PinnedChangeEvent>();
     readonly onDidChangePinned = this._onDidChangePinned.event;
+
+    readonly _onDidHiddenChange = new Emitter<HiddenChangeEvent>();
+    readonly onDidHiddenChange = this._onDidHiddenChange.event;
 
     private readonly _onDidActiveGroupChange = new Emitter<ActiveGroupEvent>();
     readonly onDidActiveGroupChange = this._onDidActiveGroupChange.event;
@@ -121,6 +148,10 @@ export class DockviewPanelApiImpl
 
     get isPinned(): boolean {
         return this.panel.isPinned;
+    }
+
+    get isHidden(): boolean {
+        return this.panel.isHidden;
     }
 
     get isGroupActive(): boolean {
@@ -174,6 +205,7 @@ export class DockviewPanelApiImpl
             this._onDidRendererChange,
             this._onDidTitleChange,
             this._onDidChangePinned,
+            this._onDidHiddenChange,
             this._onDidGroupChange,
             this._onDidActiveGroupChange,
             this._onDidLocationChange
@@ -185,6 +217,15 @@ export class DockviewPanelApiImpl
     }
 
     override setActive(): void {
+        if (this.panel.isHidden) {
+            // A hidden panel has no tab to show; activating it would render
+            // content the app asked to keep out of reach. Show it first.
+            console.warn(
+                `dockview: cannot activate hidden panel '${this.panel.id}'; call setHidden(false) first`
+            );
+            return;
+        }
+
         // A bare `panel.api.setActive()` from application code is a
         // programmatic activation. Tag it `'api'` so `onDidActivePanelChange`
         // reports the correct origin; user-gesture call sites that route
@@ -217,6 +258,10 @@ export class DockviewPanelApiImpl
 
     setPinned(pinned: boolean): void {
         this.accessor.setPanelPinned(this.panel, pinned);
+    }
+
+    setHidden(hidden: boolean): void {
+        this.accessor.setPanelHidden(this.panel, hidden);
     }
 
     setRenderer(renderer: DockviewPanelRenderer): void {

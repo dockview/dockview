@@ -1,6 +1,7 @@
 import {
     DockviewActivePanelChangeEvent,
     DockviewPanelPinnedChangeEvent,
+    DockviewPanelHiddenChangeEvent,
     DockviewLayoutMutationEvent,
     DockviewMaximizedGroupChangeEvent,
     DockviewPopoutGroupOptions,
@@ -714,6 +715,14 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
      */
     get onDidPanelPinnedChange(): Event<DockviewPanelPinnedChangeEvent> {
         return this.component.onDidPanelPinnedChange;
+    }
+
+    /**
+     * Fired when a panel is hidden or shown via `panel.api.setHidden`. Carries
+     * the panel and its new `isHidden` state.
+     */
+    get onDidPanelHiddenChange(): Event<DockviewPanelHiddenChangeEvent> {
+        return this.component.onDidPanelHiddenChange;
     }
 
     /**

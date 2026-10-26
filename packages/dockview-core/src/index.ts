@@ -174,6 +174,7 @@ export {
 export {
     type TitleEvent,
     type PinnedChangeEvent,
+    type HiddenChangeEvent,
     type RendererChangedEvent,
     type DockviewPanelApi,
     type DockviewPanelMoveParams,
