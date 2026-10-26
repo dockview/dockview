@@ -5,13 +5,13 @@ import {
     type DockviewEvent as Event,
 } from 'dockview';
 import {
-    type HistoryInfo,
-    type HistoryRequest,
+    type MultiWindowHistoryInfo,
+    type MultiWindowHistoryRequest,
     type MultiWindowTransport,
     retainSubscription,
 } from './transport';
 
-export const EMPTY_HISTORY: HistoryInfo = {
+export const EMPTY_HISTORY: MultiWindowHistoryInfo = {
     canUndo: false,
     canRedo: false,
     undoCount: 0,
@@ -21,15 +21,16 @@ export const EMPTY_HISTORY: HistoryInfo = {
 export class SharedHistory extends CompositeDisposable {
     private readonly _api: DockviewApi;
     private readonly _transport: MultiWindowTransport;
-    private _info: HistoryInfo = EMPTY_HISTORY;
+    private _info: MultiWindowHistoryInfo = EMPTY_HISTORY;
     /** Non-zero while carrying out a request, whose steps are not reported. */
     private _applyDepth = 0;
     private readonly _warned = new Set<string>();
 
-    private readonly _onDidChange = new Emitter<HistoryInfo>();
-    readonly onDidChange: Event<HistoryInfo> = this._onDidChange.event;
+    private readonly _onDidChange = new Emitter<MultiWindowHistoryInfo>();
+    readonly onDidChange: Event<MultiWindowHistoryInfo> =
+        this._onDidChange.event;
 
-    get info(): HistoryInfo {
+    get info(): MultiWindowHistoryInfo {
         return this._info;
     }
 
@@ -101,12 +102,12 @@ export class SharedHistory extends CompositeDisposable {
         });
     }
 
-    private _setInfo(info: HistoryInfo): void {
+    private _setInfo(info: MultiWindowHistoryInfo): void {
         this._info = info;
         this._onDidChange.fire(info);
     }
 
-    private _carryOut(request: HistoryRequest): void {
+    private _carryOut(request: MultiWindowHistoryRequest): void {
         this._applyDepth += 1;
         try {
             switch (request.type) {

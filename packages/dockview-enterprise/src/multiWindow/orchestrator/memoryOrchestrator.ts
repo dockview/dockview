@@ -7,35 +7,35 @@ import {
 } from 'dockview';
 import {
     DRAG_END_GRACE_MS,
-    type DragPayload,
-    type HistoryInfo,
-    type HistoryRequest,
-    type MoveEvent,
+    type MultiWindowDragPayload,
+    type MultiWindowHistoryInfo,
+    type MultiWindowHistoryRequest,
+    type MultiWindowMoveEvent,
     type MoveRole,
     type MultiWindowTransport,
     payloadPanels,
-    type ReleaseEvent,
+    type MultiWindowReleaseEvent,
 } from '../transport';
 import { DragSessions } from './dragSessions';
 import { HistorySequencer, type HistoryStep } from './historySequencer';
 import {
     type WindowGeometry,
     WorkspaceRegistry,
-    type WorkspaceState,
+    type MultiWindowWorkspaceState,
 } from './workspaceRegistry';
 
 export interface MemoryOrchestratorOptions {
     /** The workspace to start from, as a previous {@link MemoryOrchestrator.snapshot}. */
-    workspace?: WorkspaceState;
+    workspace?: MultiWindowWorkspaceState;
     /** Default 25. No window's `layoutHistory.depth` should be lower. */
     historyDepth?: number;
     /** Open and connect a window for a detached drag. Without it, detaches are discarded. */
-    createWindow?(windowId: string, payload: DragPayload): void;
+    createWindow?(windowId: string, payload: MultiWindowDragPayload): void;
 }
 
 class WindowChannel extends CompositeDisposable {
-    readonly onDidRelease = new Emitter<ReleaseEvent>();
-    readonly onDidRequestHistory = new Emitter<HistoryRequest>();
+    readonly onDidRelease = new Emitter<MultiWindowReleaseEvent>();
+    readonly onDidRequestHistory = new Emitter<MultiWindowHistoryRequest>();
 
     constructor() {
         super();
@@ -51,23 +51,25 @@ export class MemoryOrchestrator extends CompositeDisposable {
     private readonly _createWindow: MemoryOrchestratorOptions['createWindow'];
     private _detachedCount = 0;
 
-    private readonly _onDidMove = new Emitter<MoveEvent>();
-    readonly onDidMove: Event<MoveEvent> = this._onDidMove.event;
+    private readonly _onDidMove = new Emitter<MultiWindowMoveEvent>();
+    readonly onDidMove: Event<MultiWindowMoveEvent> = this._onDidMove.event;
 
-    private readonly _onDidChangeHistory = new Emitter<HistoryInfo>();
-    readonly onDidChangeHistory: Event<HistoryInfo> =
+    private readonly _onDidChangeHistory =
+        new Emitter<MultiWindowHistoryInfo>();
+    readonly onDidChangeHistory: Event<MultiWindowHistoryInfo> =
         this._onDidChangeHistory.event;
 
-    private readonly _onDidChangeWorkspace = new Emitter<WorkspaceState>();
+    private readonly _onDidChangeWorkspace =
+        new Emitter<MultiWindowWorkspaceState>();
     /** The workspace changed: a layout or frame was reported, or a window left. */
-    readonly onDidChangeWorkspace: Event<WorkspaceState> =
+    readonly onDidChangeWorkspace: Event<MultiWindowWorkspaceState> =
         this._onDidChangeWorkspace.event;
 
     get windowIds(): string[] {
         return this._workspace.windowIds();
     }
 
-    get history(): HistoryInfo {
+    get history(): MultiWindowHistoryInfo {
         return this._history.info();
     }
 
@@ -164,7 +166,7 @@ export class MemoryOrchestrator extends CompositeDisposable {
     }
 
     /** To persist and pass back as `workspace`. */
-    snapshot(): WorkspaceState {
+    snapshot(): MultiWindowWorkspaceState {
         return this._workspace.snapshot();
     }
 

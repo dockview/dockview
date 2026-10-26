@@ -11,17 +11,14 @@ import {
     PanelTransfer,
 } from 'dockview-core';
 import type {
-    DragPayload,
-    MoveEvent,
+    MultiWindowDragPayload,
+    MultiWindowMoveEvent,
     MultiWindow,
     MultiWindowTransport,
 } from '../multiWindow';
-import {
-    DRAG_END_GRACE_MS,
-    installMultiWindow,
-    MemoryOrchestrator,
-    MULTI_WINDOW_DRAG_TYPE,
-} from '../multiWindow';
+import { installMultiWindow, MemoryOrchestrator } from '../multiWindow';
+import { MULTI_WINDOW_DRAG_TYPE } from '../multiWindow/crossWindowDnd';
+import { DRAG_END_GRACE_MS } from '../multiWindow/transport';
 import { setupMockWindow } from '../../../dockview-core/src/__tests__/__mocks__/mockWindow';
 import { DragSessions } from '../multiWindow/orchestrator/dragSessions';
 import { HistorySequencer } from '../multiWindow/orchestrator/historySequencer';
@@ -40,7 +37,7 @@ class TestPanel implements IContentRenderer {
     }
 }
 
-const panelPayload = (id: string): DragPayload => ({
+const panelPayload = (id: string): MultiWindowDragPayload => ({
     kind: 'panel',
     panel: { id, contentComponent: 'default' },
 });
@@ -493,7 +490,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
 
     test('a tab dropped on another window moves there, with undo and redo through the orchestrator', async () => {
         const orchestrator = new MemoryOrchestrator();
-        const moves: MoveEvent[] = [];
+        const moves: MultiWindowMoveEvent[] = [];
         orchestrator.onDidMove((notice) => moves.push(notice));
         const main = open(orchestrator, 'main');
         const other = open(orchestrator, 'other');
@@ -890,7 +887,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
                 open(orchestrator, label);
             },
         });
-        const moves: MoveEvent[] = [];
+        const moves: MultiWindowMoveEvent[] = [];
         orchestrator.onDidMove((notice) => moves.push(notice));
         const main = open(orchestrator, 'main', { detach: true });
         await flush();

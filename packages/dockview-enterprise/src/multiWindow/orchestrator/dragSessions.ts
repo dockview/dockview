@@ -1,8 +1,8 @@
-import type { DragPayload } from '../transport';
+import type { MultiWindowDragPayload } from '../transport';
 
 export interface DragSession {
     readonly from: string;
-    readonly payload: DragPayload;
+    readonly payload: MultiWindowDragPayload;
 }
 
 interface TrackedSession extends DragSession {
@@ -17,7 +17,7 @@ export interface Release {
 }
 
 export interface Accept {
-    readonly payload: DragPayload;
+    readonly payload: MultiWindowDragPayload;
     readonly release: Release;
 }
 
@@ -27,20 +27,20 @@ export type DragEnd =
     | {
           readonly outcome: 'detached';
           readonly windowId: string;
-          readonly payload: DragPayload;
+          readonly payload: MultiWindowDragPayload;
           readonly release: Release;
       };
 
 export class DragSessions {
     private readonly _sessions = new Map<string, TrackedSession>();
     /** By the id of the window created to hold them. */
-    private readonly _detached = new Map<string, DragPayload>();
+    private readonly _detached = new Map<string, MultiWindowDragPayload>();
 
     start(session: string, drag: DragSession): void {
         this._sessions.set(session, { ...drag });
     }
 
-    peek(session: string): DragPayload {
+    peek(session: string): MultiWindowDragPayload {
         return this._inFlight(session).payload;
     }
 
@@ -84,7 +84,7 @@ export class DragSessions {
         };
     }
 
-    takeDetachedDrag(windowId: string): DragPayload | null {
+    takeDetachedDrag(windowId: string): MultiWindowDragPayload | null {
         const payload = this._detached.get(windowId) ?? null;
         this._detached.delete(windowId);
         return payload;

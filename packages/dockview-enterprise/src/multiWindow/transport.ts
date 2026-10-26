@@ -13,12 +13,12 @@ import type {
 export const DRAG_END_GRACE_MS = 1500;
 
 /** One tab as its `toJSON()` state, or one group as `serializeGroup` output. */
-export type DragPayload =
+export type MultiWindowDragPayload =
     | { kind: 'panel'; panel: GroupviewPanelState }
     | { kind: 'group'; group: SerializedDockviewGroup };
 
 /** Delivered to the source window once another window took its drag. */
-export interface ReleaseEvent {
+export interface MultiWindowReleaseEvent {
     readonly session: string;
     /** The window that took the payload. */
     readonly to: string;
@@ -26,7 +26,7 @@ export interface ReleaseEvent {
 }
 
 /** Broadcast after panels moved between any two windows. */
-export interface MoveEvent {
+export interface MultiWindowMoveEvent {
     readonly session: string;
     readonly panels: string[];
     readonly from: string;
@@ -37,7 +37,7 @@ export interface MoveEvent {
 export type MoveRole = 'from' | 'to';
 
 /** The step an undo or redo would take next. */
-export type HistoryStepInfo =
+export type MultiWindowHistoryStep =
     | { readonly type: 'local'; readonly windowId: string }
     | {
           readonly type: 'move';
@@ -47,17 +47,17 @@ export type HistoryStepInfo =
           readonly to?: string;
       };
 
-export interface HistoryInfo {
+export interface MultiWindowHistoryInfo {
     readonly canUndo: boolean;
     readonly canRedo: boolean;
     readonly undoCount: number;
     readonly redoCount: number;
-    readonly nextUndo?: HistoryStepInfo;
-    readonly nextRedo?: HistoryStepInfo;
+    readonly nextUndo?: MultiWindowHistoryStep;
+    readonly nextRedo?: MultiWindowHistoryStep;
 }
 
 /** What the orchestrator asks of one window to carry out an undo or redo. */
-export type HistoryRequest =
+export type MultiWindowHistoryRequest =
     | { readonly type: 'undo' }
     | { readonly type: 'redo' }
     | { readonly type: 'apply-layout'; readonly layout: SerializedDockview };
@@ -69,28 +69,28 @@ export type HistoryRequest =
 export interface MultiWindowTransport {
     readonly windowId: string;
 
-    startDrag(session: string, payload: DragPayload): Promise<void>;
+    startDrag(session: string, payload: MultiWindowDragPayload): Promise<void>;
     /** Read a drag's payload without accepting it. Rejects if not in flight. */
-    peekDrag(session: string): Promise<DragPayload>;
+    peekDrag(session: string): Promise<MultiWindowDragPayload>;
     /** Accept a drop. Rejects if another window accepted it first. */
     acceptDrag(session: string): Promise<void>;
     /** With `detach`, an unaccepted drag becomes a new window holding it. */
     endDrag(session: string, detach: boolean): Promise<void>;
     onDidRelease(
-        listener: (event: ReleaseEvent) => void
+        listener: (event: MultiWindowReleaseEvent) => void
     ): Promise<DockviewIDisposable>;
     /** The payload a detach parked for this window, if it was created by one. */
-    takeDetachedDrag(): Promise<DragPayload | null>;
+    takeDetachedDrag(): Promise<MultiWindowDragPayload | null>;
     /** This window's half of a move, for the shared history. */
     reportMove(
         session: string,
-        role: MoveRole,
+        role: 'from' | 'to',
         panels: string[],
         before: SerializedDockview,
         after: SerializedDockview
     ): Promise<void>;
     onDidMove(
-        listener: (event: MoveEvent) => void
+        listener: (event: MultiWindowMoveEvent) => void
     ): Promise<DockviewIDisposable>;
 
     /** Null to build the window's defaults. */
@@ -101,16 +101,16 @@ export interface MultiWindowTransport {
     reportLocalStep(): Promise<void>;
     undo(): Promise<void>;
     redo(): Promise<void>;
-    getHistory(): Promise<HistoryInfo>;
+    getHistory(): Promise<MultiWindowHistoryInfo>;
     onDidRequestHistory(
-        listener: (request: HistoryRequest) => void
+        listener: (request: MultiWindowHistoryRequest) => void
     ): Promise<DockviewIDisposable>;
     onDidChangeHistory(
-        listener: (info: HistoryInfo) => void
+        listener: (info: MultiWindowHistoryInfo) => void
     ): Promise<DockviewIDisposable>;
 }
 
-export function payloadPanels(payload: DragPayload): string[] {
+export function payloadPanels(payload: MultiWindowDragPayload): string[] {
     return payload.kind === 'panel'
         ? [payload.panel.id]
         : payload.group.group.views;

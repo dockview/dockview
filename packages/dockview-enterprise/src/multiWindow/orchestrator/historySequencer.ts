@@ -1,9 +1,9 @@
 import type { SerializedDockview } from 'dockview';
 import type {
-    HistoryInfo,
-    HistoryRequest,
-    HistoryStepInfo,
-    MoveEvent,
+    MultiWindowHistoryInfo,
+    MultiWindowHistoryRequest,
+    MultiWindowHistoryStep,
+    MultiWindowMoveEvent,
     MoveRole,
 } from '../transport';
 
@@ -35,12 +35,12 @@ type MoveEntry = Extract<HistoryEntry, { type: 'move' }>;
 
 export interface HistoryAction {
     readonly window: string;
-    readonly request: HistoryRequest;
+    readonly request: MultiWindowHistoryRequest;
 }
 
 export interface HistoryStep {
     readonly actions: HistoryAction[];
-    readonly moved?: Omit<MoveEvent, 'reason'>;
+    readonly moved?: Omit<MultiWindowMoveEvent, 'reason'>;
 }
 
 export class HistorySequencer {
@@ -155,7 +155,7 @@ export class HistorySequencer {
         return step;
     }
 
-    info(): HistoryInfo {
+    info(): MultiWindowHistoryInfo {
         const nextUndo = this._undo[this._undo.length - 1];
         const nextRedo = this._redo[this._redo.length - 1];
         return {
@@ -215,7 +215,7 @@ function complete(entry: MoveEntry): { from: MoveHalf; to: MoveHalf } {
     return { from: entry.from, to: entry.to };
 }
 
-function summarize(entry: HistoryEntry): HistoryStepInfo {
+function summarize(entry: HistoryEntry): MultiWindowHistoryStep {
     if (entry.type === 'local') {
         return { type: 'local', windowId: entry.window };
     }

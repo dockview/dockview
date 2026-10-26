@@ -16,7 +16,7 @@ export interface WindowRecord {
 }
 
 /** The whole workspace, in the shape a host persists. */
-export interface WorkspaceState {
+export interface MultiWindowWorkspaceState {
     version: number;
     windows: WindowRecord[];
 }
@@ -32,7 +32,7 @@ export class WorkspaceRegistry {
     private readonly _windows: WindowRecord[];
     private readonly _pending: PendingMove[] = [];
 
-    constructor(state?: WorkspaceState) {
+    constructor(state?: MultiWindowWorkspaceState) {
         if (state && state.version !== WORKSPACE_FORMAT_VERSION) {
             throw new Error(
                 `workspace format ${state.version} is not the supported ${WORKSPACE_FORMAT_VERSION}`
@@ -41,7 +41,7 @@ export class WorkspaceRegistry {
         this._windows = clone(state?.windows ?? []);
     }
 
-    snapshot(): WorkspaceState {
+    snapshot(): MultiWindowWorkspaceState {
         return {
             version: WORKSPACE_FORMAT_VERSION,
             windows: clone(this._windows),
