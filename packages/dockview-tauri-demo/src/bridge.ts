@@ -110,10 +110,7 @@ export async function closeNativePopout(win: Window): Promise<void> {
     await invoke('close_popout', { label });
 }
 
-/**
- * The measurement harness: a JSON line on the shell's stdout, read by
- * `scripts/measure-cross-window-drag.py`. No-op outside the shell.
- */
+/** A JSON line on the shell's stdout for the harness. */
 export async function autotestReport(
     kind: string,
     payload: unknown
@@ -168,7 +165,6 @@ async function listenOrIgnore<T>(
     return listen<T>(event, (e) => handler(e.payload));
 }
 
-/** A harness command to every window (`detach` switches detach on). */
 export const onAutotestCommand = (handler: (command: string) => void) =>
     listenOrIgnore<{ command: string }>('dockview:autotest', (payload) =>
         handler(payload.command)

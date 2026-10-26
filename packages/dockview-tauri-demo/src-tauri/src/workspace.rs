@@ -1,20 +1,4 @@
-//! The workspace: which windows exist, where they are, and what each one
-//! holds. The orchestrator owns it because only the party that creates
-//! windows can bring them back; a window cannot restore itself before it
-//! exists.
-//!
-//! Each window's dockview layout is an opaque `serde_json::Value` produced
-//! by `api.toJSON()` and consumed by `api.fromJSON()` in that window. This
-//! module stores and hands those out; the one thing it reads from them is
-//! the top-level `panels` map's keys, to refuse a layout that would give two
-//! windows the same panel id, since a drag between them relies on ids being
-//! unique across the whole workspace.
-//!
-//! Like `drags.rs`, this knows nothing about Tauri. The host decides when to
-//! load and save, feeds in native geometry, and creates the windows.
-//!
-//! Mirrors `workspaceRegistry.ts` in `dockview-enterprise`; keep the two in
-//! step.
+//! Mirrors `workspaceRegistry.ts` in `dockview-enterprise`.
 
 use std::fmt;
 use std::fs;
@@ -24,10 +8,9 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// The file format's version, bumped if `WorkspaceState` changes shape.
 pub const FORMAT_VERSION: u32 = 1;
 
-/// A native window's frame, in physical pixels.
+/// A window's frame, in logical pixels.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Geometry {
     pub x: i32,
@@ -36,23 +19,16 @@ pub struct Geometry {
     pub height: u32,
 }
 
-/// One window: the `WindowRecord` of `dockview-enterprise`, so the file has
-/// the shape `MemoryOrchestrator.snapshot()` writes. The id is the Tauri
-/// window label.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct WindowRecord {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub geometry: Option<Geometry>,
-    /// The window's `SerializedDockview`, opaque here. `None` until the
-    /// window first reports one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub layout: Option<Value>,
 }
 
-/// What goes in the file. Windows keep creation order, so a restore opens
-/// them in the order the user did.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct WorkspaceState {
     pub version: u32,
@@ -70,7 +46,6 @@ impl Default for WorkspaceState {
 
 #[derive(Debug, PartialEq)]
 pub enum WorkspaceError {
-    /// The layout names a panel another window already holds.
     DuplicatePanel { panel: String, window: String },
 }
 
@@ -86,10 +61,7 @@ impl fmt::Display for WorkspaceError {
 
 impl std::error::Error for WorkspaceError {}
 
-/// A panel on its way between two windows. While it is pending, the
-/// destination may report a layout holding it although the source's stored
-/// layout still does too: the two windows report independently and in
-/// either order, so the duplicate is the move itself, not a conflict.
+/// Until the source reports the panel gone, the destination may hold it too.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct PendingMove {
     panel: String,
@@ -97,7 +69,6 @@ struct PendingMove {
     to: String,
 }
 
-/// The live workspace. One per host process.
 #[derive(Default)]
 pub struct Workspace {
     state: WorkspaceState,
@@ -112,10 +83,6 @@ impl Workspace {
         }
     }
 
-    /// Announce that `panels` are moving from one window to another, so the
-    /// two windows' next reports are reconciled rather than refused. A
-    /// pending move is forgotten once the source reports a layout without
-    /// the panel.
     pub fn expect_move(&mut self, panels: &[String], from: &str, to: &str) {
         for panel in panels {
             self.pending.retain(|entry| entry.panel != *panel);
@@ -131,7 +98,6 @@ impl Workspace {
         self.state.clone()
     }
 
-    /// The labels of the windows on record, in creation order.
     pub fn window_ids(&self) -> Vec<String> {
         self.state
             .windows
@@ -140,8 +106,6 @@ impl Workspace {
             .collect()
     }
 
-    /// Puts a window on record, with no geometry or layout yet. A window
-    /// already on record is left alone.
     pub fn ensure_window(&mut self, label: &str) {
         entry(&mut self.state, label);
     }
@@ -150,9 +114,7 @@ impl Workspace {
         entry(&mut self.state, label).geometry = Some(geometry);
     }
 
-    /// A window reports its layout. Refused if it names a panel another
-    /// window holds, in which case nothing is recorded, unless that panel is
-    /// on its way from that window to this one (see [`Workspace::expect_move`]).
+    /// Refuses a layout holding another window's panel, unless a move explains it.
     pub fn set_layout(&mut self, label: &str, layout: Value) -> Result<(), WorkspaceError> {
         let incoming = panel_ids(&layout);
         for other in self
@@ -177,8 +139,7 @@ impl Workspace {
             }
         }
 
-        // A source that no longer holds a panel has completed its half of
-        // the move; the panel needs no further allowance.
+        // A source reporting without the panel completes the move.
         self.pending
             .retain(|entry| entry.from != label || incoming.contains(&entry.panel));
 
@@ -186,16 +147,11 @@ impl Workspace {
         Ok(())
     }
 
-    /// Records a layout the orchestrator itself is applying to a window, as
-    /// an undo or redo does. It is trusted as is: the orchestrator computed
-    /// it from layouts it already held, and applies the two windows' halves
-    /// in an order that never leaves a panel in both.
+    /// A layout the orchestrator itself applied.
     pub fn set_layout_unchecked(&mut self, label: &str, layout: Value) {
         entry(&mut self.state, label).layout = Some(layout);
     }
 
-    /// The layout a window should start with: what it last reported, or what
-    /// the file held for it. Not consumed, so a reloaded window gets it again.
     pub fn load_layout(&self, label: &str) -> Option<Value> {
         self.state
             .windows
@@ -225,8 +181,6 @@ fn entry<'a>(state: &'a mut WorkspaceState, label: &str) -> &'a mut WindowRecord
     state.windows.last_mut().expect("just pushed")
 }
 
-/// The panel ids a `SerializedDockview` holds: the keys of its top-level
-/// `panels` map. The only field of a layout this module reads.
 fn panel_ids(layout: &Value) -> Vec<String> {
     layout
         .get("panels")
@@ -235,9 +189,7 @@ fn panel_ids(layout: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// A JSON file, written atomically: the new contents go to a sibling file
-/// first and are renamed over the old one, so a crash mid-write leaves the
-/// previous workspace intact rather than a truncated file.
+/// Written to a sibling file and renamed, so a crash leaves the old one intact.
 pub struct FileStore {
     path: PathBuf,
 }

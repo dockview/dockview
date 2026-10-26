@@ -1,12 +1,3 @@
-/**
- * The Tauri transport for the enterprise multi-window install. The shell is
- * the orchestrator: each transport call is one command in
- * `src-tauri/src/lib.rs`, named after it, and the shell's notices arrive as
- * Tauri events. No call names its window; the shell reads it from the window
- * the call arrived on. Outside the shell every call degrades to a no-op or a
- * rejection, so the same build runs in a browser.
- */
-
 import {
     type DockviewApi,
     type DockviewIDisposable,
@@ -30,11 +21,7 @@ const EMPTY_HISTORY: HistoryInfo = {
     redoCount: 0,
 };
 
-/**
- * The shell's transport for this window. Asynchronous only because the demo
- * loads the Tauri api lazily; the transport itself, its window id included,
- * is ready once this resolves.
- */
+/** Asynchronous only because the Tauri api loads lazily. */
 export async function createTauriTransport(): Promise<MultiWindowTransport> {
     if (!isTauri()) {
         return browserTransport();
@@ -47,7 +34,6 @@ export async function createTauriTransport(): Promise<MultiWindowTransport> {
         ]);
     const current = getCurrentWebviewWindow();
 
-    /** An event the shell broadcasts to every window. */
     const everyWindow =
         <T>(event: string) =>
         async (
@@ -56,12 +42,7 @@ export async function createTauriTransport(): Promise<MultiWindowTransport> {
             dispose: await listen<T>(event, (e) => listener(e.payload)),
         });
 
-    /**
-     * An event the shell addresses to one window, under `key` in its
-     * payload. A listener registered for "any" target hears events emitted
-     * to every window, so this listens on this window's own target and drops
-     * payloads naming another.
-     */
+    /** A listener for "any" target hears every window's events, so filter on `key`. */
     const thisWindow =
         <P, T>(event: string, key: keyof P, pick: (payload: P) => T) =>
         async (listener: (value: T) => void): Promise<DockviewIDisposable> => ({
@@ -113,7 +94,6 @@ export async function createTauriTransport(): Promise<MultiWindowTransport> {
     };
 }
 
-/** One window, no shell: nothing to reach, so nothing ever arrives. */
 function browserTransport(): MultiWindowTransport {
     const nothing = async () => undefined;
     const silent = async (): Promise<DockviewIDisposable> => ({
@@ -149,11 +129,6 @@ export interface CrossWindowCounters {
     releases: number;
 }
 
-/**
- * The multi-window handle, plus the counters and log the demo's panels and
- * the measurement harness read. The package itself reports only failures,
- * on the console; the demo watches its transport for the rest.
- */
 export interface ShellMultiWindow {
     readonly multiWindow: MultiWindow;
     readonly counters: Readonly<CrossWindowCounters>;
@@ -198,10 +173,6 @@ export async function installShellMultiWindow(
     };
 }
 
-/**
- * Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y (Cmd on macOS) undo and redo across every
- * window. Text undo in an input or editor stays with it.
- */
 function bindUndoKeys(multiWindow: MultiWindow): void {
     document.addEventListener('keydown', (event) => {
         const target = event.target as HTMLElement;
@@ -223,7 +194,6 @@ function bindUndoKeys(multiWindow: MultiWindow): void {
     });
 }
 
-/** The transport, with what passes through it counted and logged. */
 function observed(
     transport: MultiWindowTransport,
     counters: CrossWindowCounters,
@@ -264,7 +234,6 @@ function observed(
             }),
         reportMove: (session, role, panels, before, after) => {
             if (role === 'to') {
-                // Reported after the drop is placed, or failed to be.
                 const placed = panels.every((id) => id in (after.panels ?? {}));
                 if (placed) {
                     counters.dropsAccepted += 1;

@@ -413,13 +413,7 @@ export class LayoutSyncPanel extends DemoPanel {
     }
 }
 
-/**
- * Drag between native windows, brokered by the shell. The OS drag carries a
- * session id; the shell holds what the drag carries; the window the drop
- * lands in rebuilds it and the source removes its copy. Only an HTML5 drag
- * can leave a window, so the pointer backend is the first thing to rule out
- * when nothing crosses.
- */
+/** Drag between native windows, brokered by the shell. */
 export class CrossWindowDragPanel extends DemoPanel {
     constructor(private readonly shell: Promise<ShellMultiWindow>) {
         super();
@@ -496,12 +490,7 @@ export class CrossWindowDragPanel extends DemoPanel {
     }
 }
 
-/**
- * What the orchestrator has on record: the file, when it was last written,
- * and every window with its frame and whether it has reported a layout.
- * Read back from the shell rather than from this window, since the point is
- * that the shell is the one that knows.
- */
+/** What the shell has on record for every window. */
 export class WorkspacePanel extends DemoPanel {
     init(parameters: GroupPanelPartInitParameters): void {
         const api = parameters.containerApi;
@@ -542,7 +531,6 @@ export class WorkspacePanel extends DemoPanel {
             });
         };
 
-        // The save is debounced in the shell; look a moment after a change.
         let timer: ReturnType<typeof setTimeout> | undefined;
         this.onDispose(
             api.onDidLayoutChange(() => {
@@ -568,12 +556,7 @@ export class WorkspacePanel extends DemoPanel {
     }
 }
 
-/**
- * The one undo history across every window. Each window keeps dockview's
- * own stack for its local steps; the shell orders them with the moves
- * between windows and says which window undoes next. Ctrl+Z anywhere goes
- * to the shell.
- */
+/** The one undo history across every window. */
 export class HistoryPanel extends DemoPanel {
     constructor(private readonly shell: Promise<ShellMultiWindow>) {
         super();

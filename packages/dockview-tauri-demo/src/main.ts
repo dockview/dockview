@@ -21,11 +21,7 @@ import {
 } from './panels';
 import { installShellMultiWindow, type ShellMultiWindow } from './transport';
 
-/**
- * A random id for groups. `randomUUID` is only defined in a secure context,
- * which a custom-scheme origin such as `tauri://localhost` need not be, so
- * fall back to raw random bytes.
- */
+/** `randomUUID` needs a secure context, which `tauri://localhost` need not be. */
 function randomId(): string {
     if (typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID();
@@ -35,8 +31,7 @@ function randomId(): string {
     ).join('');
 }
 
-// Resolved once the multi-window install is in place. Panels can be built
-// before that (the restore itself builds them), so they wait on it.
+// Panels are built during the restore, before the install returns.
 let resolveMultiWindow: (shell: ShellMultiWindow) => void = () => undefined;
 const multiWindow = new Promise<ShellMultiWindow>((resolve) => {
     resolveMultiWindow = resolve;
@@ -64,18 +59,11 @@ const dndStrategy = resolveDndStrategy();
 const api = createDockview(container, {
     theme: themeAbyss,
     dndStrategy,
-    // Every window numbers its groups from "1" by default, so a group
-    // moved between windows would collide on arrival. Random ids let a
-    // group keep its id wherever it lands.
+    // Default group ids collide when a group moves between windows.
     groupIdGenerator: randomId,
-    // Each window keeps its own undo stack; the shell sequences them with
-    // the moves between windows. An applied layout arrives through
-    // fromJSON and must not wipe the stack.
     layoutHistory: {
         enabled: true,
         clearOnFromJSON: false,
-        // A resize settles into a step too late to sequence with the other
-        // windows, so it is not undoable here.
         recordResize: false,
     },
     createComponent: (options) =>
@@ -102,12 +90,7 @@ const width = (fraction: number) =>
 const height = (fraction: number) =>
     Math.round(container.clientHeight * fraction);
 
-/**
- * Every window builds the same probe panels. Panel ids have to be unique
- * across the windows a group can move between, so every window but the
- * main one suffixes its ids with its label; a panel that crosses keeps the
- * id it was born with.
- */
+/** Panel ids are unique across windows: all but main suffix their label. */
 function buildDefaults(label: string): void {
     const id = (name: string) =>
         label === 'main' || label === 'browser' ? name : `${name}-${label}`;

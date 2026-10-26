@@ -18,9 +18,7 @@ use drags::{DragEnd, DragSession, DragSessions, Release};
 use history::{History, Request, Role, Step};
 use workspace::{FileStore, Geometry, Workspace, WorkspaceState};
 
-/// The orchestrator's three pieces, each behind one lock. None of them
-/// panics while it is held, so a lock poisoned elsewhere still guards
-/// consistent state.
+/// Nothing panics while one of these is held, so a poisoned lock is still consistent.
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
@@ -40,25 +38,17 @@ fn history(app: &AppHandle) -> MutexGuard<'_, History> {
 /// Event carrying a serialized dockview layout between native windows.
 const LAYOUT_EVENT: &str = "dockview:layout";
 
-/// Event telling the window a drag started in that another window has taken
-/// the dragged group, so it can remove its own copy.
+/// To the source window: another window took its drag.
 const RELEASE_EVENT: &str = "dockview:release";
 
-/// Broadcast after panels moved between windows, by a drop or by undo or
-/// redo of one, so app code has one event for it.
 const MOVED_EVENT: &str = "dockview:moved";
-/// Broadcast whenever the global history changes.
 const HISTORY_EVENT: &str = "dockview:history";
-/// Sent to one window: a `HistoryRequest` (undo or redo your own top step,
-/// or take this layout).
+/// To one window: a `HistoryRequest`.
 const HISTORY_REQUEST_EVENT: &str = "dockview:history-request";
 
-/// Labels for the windows a detach creates; see `POPOUT_COUNT`.
 static DETACH_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-/// A label for a window a detach creates. Detached windows are on record in
-/// the workspace and come back on the next start, so the count alone is not
-/// enough: skip any label already recorded or open.
+/// Skips labels restored from the workspace as well as open ones.
 fn new_detach_label(app: &AppHandle) -> String {
     let recorded = workspace(app).window_ids();
     loop {
@@ -72,10 +62,7 @@ fn new_detach_label(app: &AppHandle) -> String {
     }
 }
 
-/// The panel ids a drag payload carries: one tab's `panel.id`, or a group's
-/// `group.group.views` (the `DragPayload` of `dockview-enterprise`). The one
-/// thing the shell reads out of a payload, for move events and for the
-/// workspace's reconciliation of the two windows' reports.
+/// `panel.id` of a tab, or `group.group.views` of a group.
 fn payload_panels(payload: &serde_json::Value) -> Vec<String> {
     if let Some(id) = payload
         .pointer("/panel/id")
@@ -103,7 +90,6 @@ struct MovedNotice {
     panels: Vec<String>,
     from: String,
     to: String,
-    /// `drop`, `detach`, `undo` or `redo`.
     reason: &'static str,
 }
 
@@ -114,12 +100,9 @@ fn broadcast_history(app: &AppHandle) {
     }
 }
 
-/// Carries out an undo or redo step the history handed back.
 fn carry_out(app: &AppHandle, step: Step, reason: &'static str) -> Result<(), String> {
-    // Every layout the step applies is stored before any window is told, so
-    // a window's own report afterwards never reads as a duplicate, and under
-    // one lock, so a stale report arriving meanwhile is checked against the
-    // whole step rather than half of it.
+    // Stored first and under one lock, so neither the window's own report
+    // nor a stale one is checked against half a step.
     {
         let mut workspace = workspace(app);
         for action in &step.actions {
@@ -130,9 +113,8 @@ fn carry_out(app: &AppHandle, step: Step, reason: &'static str) -> Result<(), St
         }
     }
     for action in step.actions {
-        // The payload names its window: a listener registered for "any"
-        // target hears events emitted to every window, so the receiver
-        // filters as well as the sender targeting.
+        // A listener for "any" target hears every window's events, so the
+        // payload names its window too.
         app.emit_to(
             &action.window,
             HISTORY_REQUEST_EVENT,
@@ -167,18 +149,14 @@ fn perform_redo(app: &AppHandle) -> Result<(), String> {
     carry_out(app, step, "redo")
 }
 
-// The commands below are the `MultiWindowTransport` of `dockview-enterprise`,
-// one per call, named after it. A call never names its window: it is the
-// window the call arrived from.
+// One command per `MultiWindowTransport` call; the window is the caller.
 
-/// A window recorded a step in its own history.
 #[tauri::command]
 fn report_local_step(app: AppHandle, window: tauri::Window) {
     history(&app).push_local(window.label());
     broadcast_history(&app);
 }
 
-/// A window reports its half of a move: its layout before and after.
 #[tauri::command]
 fn report_move(
     app: AppHandle,
@@ -202,13 +180,11 @@ fn report_move(
     broadcast_history(&app);
 }
 
-/// Undo the most recent step anywhere.
 #[tauri::command]
 fn undo(app: AppHandle) -> Result<(), String> {
     perform_undo(&app)
 }
 
-/// Redo the most recently undone step anywhere.
 #[tauri::command]
 fn redo(app: AppHandle) -> Result<(), String> {
     perform_redo(&app)
@@ -219,31 +195,21 @@ fn get_history(app: AppHandle) -> history::Info {
     history(&app).info()
 }
 
-/// Set in the environment to run the measurement harness: a second window
-/// opens at a known position, and the frontend reports its geometry and the
-/// drag sessions' log as JSON lines on stdout for `scripts/measure-cross-window-drag.py`
-/// to drive. See the README's "Dragging between windows".
+/// Runs the measurement harness, `scripts/measure-cross-window-drag.py`.
 const AUTOTEST_ENV: &str = "DOCKVIEW_DEMO_AUTOTEST";
 
-/// A command from the harness to every window, such as switching detach on.
 const AUTOTEST_EVENT: &str = "dockview:autotest";
 
 fn autotest() -> bool {
     std::env::var_os(AUTOTEST_ENV).is_some()
 }
 
-/// Overrides where the workspace file lives; the harness points it at a
-/// temporary file so a measurement never starts from a previous run.
+/// Overrides the workspace file's path.
 const WORKSPACE_ENV: &str = "DOCKVIEW_DEMO_WORKSPACE";
 
-/// How long after a change the workspace file is written. Changes come in
-/// bursts (a drag is two layout reports and a few geometry events) and the
-/// file is small, so this only coalesces, it does not risk much.
 const SAVE_DEBOUNCE: Duration = Duration::from_millis(500);
 
-/// The windows the workspace records: the ones running the frontend. Popout
-/// windows belong to the dockview instance that opened them and travel
-/// inside its layout.
+/// Popout windows travel inside their opener's layout instead.
 fn is_dock_window(label: &str) -> bool {
     label == "main" || label.starts_with("dock-")
 }
@@ -261,12 +227,10 @@ fn workspace_path(app: &AppHandle) -> PathBuf {
     }
 }
 
-/// The host's side of persistence: the store, whether anything changed since
-/// the last write, and whether the app is on its way out (so windows closing
-/// as part of the exit are not mistaken for the user closing them).
 struct Persistence {
     store: FileStore,
     dirty: AtomicBool,
+    /// Windows closing as part of the exit stay on record.
     exiting: AtomicBool,
     last_saved: Mutex<Option<SystemTime>>,
 }
@@ -276,7 +240,6 @@ impl Persistence {
         self.dirty.store(true, Ordering::Relaxed);
     }
 
-    /// Writes the workspace if anything changed since the last write.
     fn save_if_dirty(&self, app: &AppHandle) {
         if !self.dirty.swap(false, Ordering::Relaxed) {
             return;
@@ -295,8 +258,7 @@ impl Persistence {
     }
 }
 
-/// Records a window's current frame, in logical pixels, which is what the
-/// builder takes when the window is recreated.
+/// In logical pixels, which is what the builder takes.
 fn record_geometry(app: &AppHandle, window: &tauri::Window) {
     let (Ok(position), Ok(size), Ok(scale)) = (
         window.outer_position(),
@@ -317,9 +279,6 @@ fn record_geometry(app: &AppHandle, window: &tauri::Window) {
     app.state::<Persistence>().mark_dirty();
 }
 
-/// A window reports its dockview layout; the orchestrator keeps it and
-/// writes the workspace shortly after. Refused, and nothing recorded, if the
-/// layout names a panel another window holds.
 #[tauri::command]
 fn report_layout(
     app: AppHandle,
@@ -334,9 +293,6 @@ fn report_layout(
     Ok(())
 }
 
-/// A freshly loaded window asks what layout to start with: the one it last
-/// reported, or the one the workspace file held for it. `None` means build
-/// the defaults.
 #[tauri::command]
 fn load_layout(app: AppHandle, window: tauri::Window) -> Option<serde_json::Value> {
     workspace(&app).load_layout(window.label())
@@ -359,7 +315,6 @@ struct WorkspaceInfo {
     windows: Vec<WorkspaceWindowInfo>,
 }
 
-/// What the Workspace panel shows.
 #[tauri::command]
 fn workspace_info(app: AppHandle, persistence: State<Persistence>) -> WorkspaceInfo {
     let snapshot = workspace(&app).snapshot();
@@ -403,14 +358,11 @@ struct LayoutBroadcast {
     layout: serde_json::Value,
 }
 
-/// Delivers a release notice to the window it names.
 fn deliver(app: &AppHandle, release: Release) -> Result<(), String> {
     app.emit_to(&release.from, RELEASE_EVENT, &release)
         .map_err(|err| err.to_string())
 }
 
-/// The source window announces a drag. Called from `onWillDragPanel` /
-/// `onWillDragGroup`, before the pointer can have left the window.
 #[tauri::command]
 fn start_drag(app: AppHandle, window: tauri::Window, session: String, payload: serde_json::Value) {
     drags(&app).start(
@@ -422,17 +374,11 @@ fn start_drag(app: AppHandle, window: tauri::Window, session: String, payload: s
     );
 }
 
-/// The destination window looks at a drag before accepting it, to refuse a
-/// payload whose panel ids it already holds without taking it from the
-/// source.
 #[tauri::command]
 fn peek_drag(app: AppHandle, session: String) -> Result<serde_json::Value, String> {
     drags(&app).peek(&session).map_err(|err| err.to_string())
 }
 
-/// The destination window accepts the drag it just received a drop for. The
-/// first accept wins: the source is told to release its copy. A second
-/// accept, or an accept for a drag the shell never saw, is refused.
 #[tauri::command]
 fn accept_drag(app: AppHandle, window: tauri::Window, session: String) -> Result<(), String> {
     let to = window.label().to_string();
@@ -443,8 +389,7 @@ fn accept_drag(app: AppHandle, window: tauri::Window, session: String) -> Result
     let from = accept.release.from.clone();
     workspace(&app).expect_move(&panels, &from, &to);
     deliver(&app, accept.release)?;
-    // The source has let go: from here the accept has happened, whatever
-    // becomes of the announcement.
+    // The source has let go, so a failed announcement is not a failed accept.
     if let Err(err) = app.emit(
         MOVED_EVENT,
         MovedNotice {
@@ -460,18 +405,9 @@ fn accept_drag(app: AppHandle, window: tauri::Window, session: String) -> Result
     Ok(())
 }
 
-/// How long a drag stays acceptable after its source reported it over. The
-/// source's `dragend` fires the instant the drop lands in another window,
-/// and that window's accept is a separate IPC message that routinely arrives
-/// later. `DRAG_END_GRACE_MS` in `dockview-enterprise`: the windows assume
-/// it is no longer than that.
+/// `DRAG_END_GRACE_MS` in `dockview-enterprise`.
 const DRAG_END_GRACE: std::time::Duration = std::time::Duration::from_millis(1500);
 
-/// The source window reports the end of its drag. Nothing happens yet: the
-/// drag stays acceptable for `DRAG_END_GRACE`, after which an unaccepted one
-/// is discarded, or, when the source asked, turned into a new window holding
-/// the payload: the shell's replacement for a popout. The source learns
-/// either outcome through the release event, or through silence.
 #[tauri::command]
 fn end_drag(app: AppHandle, session: String, detach: bool) {
     if !drags(&app).end(&session, detach) {
@@ -498,8 +434,6 @@ fn end_drag(app: AppHandle, session: String, detach: bool) {
                         None,
                     ) {
                         Ok(_) => {
-                            // As for an accept: the new window may report the
-                            // panels before the source reports them gone.
                             workspace(&handle).expect_move(&panels, &release.from, &label);
                             let moved = MovedNotice {
                                 session: release.session.clone(),
@@ -508,10 +442,8 @@ fn end_drag(app: AppHandle, session: String, detach: bool) {
                                 to: label.clone(),
                                 reason: "detach",
                             };
-                            // A detach is no step to undo, and the source's
-                            // earlier steps hold the panels it gave away:
-                            // undoing one would bring them back while the new
-                            // window holds them too. They end here.
+                            // The source's earlier steps would bring the
+                            // panels back.
                             history(&handle).forget_window(&release.from);
                             if let Err(err) = deliver(&handle, release) {
                                 eprintln!("detach: could not release the source: {err}");
@@ -533,9 +465,6 @@ fn end_drag(app: AppHandle, session: String, detach: bool) {
     });
 }
 
-/// A freshly loaded window asks whether a detached drag is waiting for it;
-/// the window's frontend collects it once dockview is ready, since nothing
-/// can be pushed into a webview before it has loaded.
 #[tauri::command]
 fn take_detached_drag(app: AppHandle, window: tauri::Window) -> Option<serde_json::Value> {
     drags(&app).take_detached_drag(window.label())
@@ -677,17 +606,13 @@ fn build_dock_window(
 
     let window = builder.build()?;
 
-    // On record from the moment it exists, frame included, so a workspace
-    // saved before the window reports a layout, or before the user moves
-    // it, still brings the window back where it was.
+    // On record from the start, so an early save still brings it back.
     workspace(app).ensure_window(label);
     record_geometry(app, &window.as_ref().window());
 
     Ok(window)
 }
 
-/// The frontend's side of the measurement harness: one JSON line per report
-/// on stdout, where the driver script reads them.
 #[tauri::command]
 fn autotest_report(label: String, kind: String, payload: serde_json::Value) {
     use std::io::Write;
@@ -730,8 +655,6 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
 
-            // The workspace is the orchestrator's: it is read once here,
-            // before any window exists, and every window is created from it.
             let store = FileStore::new(workspace_path(&handle));
             let restored = match store.load() {
                 Ok(Some(state)) => state,
@@ -770,7 +693,6 @@ pub fn run() {
                 build_dock_window(&handle, label, &title, (1000.0, 700.0), *geometry)?;
             }
 
-            // The harness needs two windows at known places from the start.
             if autotest() {
                 eprintln!("{AUTOTEST_ENV} is set: opening dock-2 and reporting on stdout");
                 if !recorded.iter().any(|(label, _)| label == "dock-2") {
@@ -789,9 +711,7 @@ pub fn run() {
                 }
             }
 
-            // The harness drives undo and redo over stdin, since it cannot
-            // reach the commands and synthetic key events need a focus the
-            // headless display does not give.
+            // Synthetic key events need a focus the headless display lacks.
             if autotest() {
                 let driver = handle.clone();
                 std::thread::spawn(move || {
@@ -800,8 +720,6 @@ pub fn run() {
                         let result = match line.as_deref().map(str::trim) {
                             Ok("undo") => perform_undo(&driver),
                             Ok("redo") => perform_redo(&driver),
-                            // Turn detach on in every window, which the
-                            // driver cannot click for itself.
                             Ok("detach") => driver
                                 .emit(AUTOTEST_EVENT, serde_json::json!({ "command": "detach" }))
                                 .map_err(|err| err.to_string()),
@@ -815,7 +733,6 @@ pub fn run() {
                 });
             }
 
-            // Writes coalesce here rather than on every event.
             std::thread::spawn(move || loop {
                 std::thread::sleep(SAVE_DEBOUNCE);
                 handle.state::<Persistence>().save_if_dirty(&handle);
@@ -834,9 +751,8 @@ pub fn run() {
                     record_geometry(app, window);
                 }
                 WindowEvent::CloseRequested { .. } if label == "main" => {
-                    // Closing the main window closes the app, keeping every
-                    // window on record for next time. Tauri would otherwise
-                    // keep running while any other window is open.
+                    // Quit, keeping every window on record. Tauri would keep
+                    // running while another window is open.
                     app.state::<Persistence>()
                         .exiting
                         .store(true, Ordering::Relaxed);
@@ -845,8 +761,6 @@ pub fn run() {
                 WindowEvent::Destroyed => {
                     let persistence = app.state::<Persistence>();
                     if label != "main" && !persistence.exiting.load(Ordering::Relaxed) {
-                        // The user closed one window: it, and the panels it
-                        // held, leave the workspace.
                         workspace(app).remove_window(&label);
                         history(app).forget_window(&label);
                         persistence.mark_dirty();
@@ -886,8 +800,6 @@ pub fn run() {
                 .store(true, Ordering::Relaxed);
         }
         RunEvent::Exit => {
-            // The last write: everything is already in memory, so nothing
-            // has to be collected from the closing windows.
             app.state::<Persistence>().save_if_dirty(app);
         }
         _ => {}

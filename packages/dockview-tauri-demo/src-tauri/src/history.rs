@@ -1,21 +1,4 @@
-//! One ordered undo history across every window.
-//!
-//! Each window keeps dockview's own undo stack for the steps it made itself;
-//! this module only sequences. It records a marker for every step a window
-//! pushed locally and a full entry for every move between windows, in the
-//! order they happened, and undo or redo hands the host the actions to take:
-//! tell a window to undo or redo its own top step, or apply a layout the
-//! orchestrator holds. Ordering is what makes cross-window undo safe: a
-//! window's older local step is only reachable after the move that followed
-//! it has been undone, which puts the moved panels back first, so a snapshot
-//! can never resurrect a panel that now lives elsewhere.
-//!
-//! A move is recorded in two halves, one from each window, since each sees
-//! only its own layout before and after. Like `drags.rs` and `workspace.rs`
-//! this knows nothing about Tauri; layouts are opaque `serde_json::Value`s.
-//!
-//! Mirrors `historySequencer.ts` in `dockview-enterprise`; keep the two in
-//! step.
+//! Mirrors `historySequencer.ts` in `dockview-enterprise`.
 
 use std::fmt;
 use std::time::{Duration, Instant};
@@ -23,17 +6,12 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// How many steps are kept: dockview's own `layoutHistory.depth` default,
-/// which no window's depth should be below. Each move holds four layouts, so
-/// this bounds memory as well as reach.
+/// No window's `layoutHistory.depth` should be lower.
 pub const DEPTH: usize = 25;
 
-/// How long a move may wait for its second half. Both halves normally arrive
-/// within milliseconds; one still missing after this never will. Mirrors
-/// `ABANDONED_MOVE_MS` in `historySequencer.ts`.
+/// A move still missing a half after this never completes.
 pub const ABANDONED_MOVE: Duration = Duration::from_secs(10);
 
-/// Which end of a move a window reported.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
@@ -41,7 +19,6 @@ pub enum Role {
     To,
 }
 
-/// One window's view of a move: its layout before and after.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Half {
     pub window: String,
@@ -51,9 +28,9 @@ pub struct Half {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Entry {
-    /// A step one window recorded in its own history.
-    Local { window: String },
-    /// A move between windows, keyed by the drag session that made it.
+    Local {
+        window: String,
+    },
     Move {
         session: String,
         panels: Vec<String>,
@@ -81,31 +58,23 @@ impl Entry {
     }
 }
 
-/// What the orchestrator asks of one window: the `HistoryRequest` of
-/// `dockview-enterprise`.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum Request {
-    /// Undo the window's own top step.
     Undo,
-    /// Redo the window's own top step.
     Redo,
-    /// Replace the window's layout with one the orchestrator holds.
     ApplyLayout { layout: Value },
 }
 
-/// A request for one window, in the order the host carries them out.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Action {
     pub window: String,
     pub request: Request,
 }
 
-/// What was undone or redone, for the host to announce.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Step {
     pub actions: Vec<Action>,
-    /// Set when the step was a move between windows.
     pub moved: Option<Moved>,
 }
 
@@ -118,8 +87,6 @@ pub struct Moved {
     pub to: String,
 }
 
-/// The step an undo or redo would take next: the `HistoryStepInfo` of
-/// `dockview-enterprise`.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum StepInfo {
@@ -129,7 +96,6 @@ pub enum StepInfo {
     },
     Move {
         panels: Vec<String>,
-        /// Unset until that window has reported its half of the move.
         #[serde(skip_serializing_if = "Option::is_none")]
         from: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -137,7 +103,6 @@ pub enum StepInfo {
     },
 }
 
-/// The history's state: the `HistoryInfo` of `dockview-enterprise`.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Info {
@@ -154,10 +119,7 @@ pub struct Info {
 #[derive(Debug, PartialEq)]
 pub enum HistoryError {
     Nothing,
-    /// The top step is a move one window has not finished reporting.
     Incomplete(String),
-    /// The top step was a move one window never finished reporting; it and
-    /// the history before it are gone.
     Abandoned(String),
 }
 
@@ -195,15 +157,13 @@ impl Default for History {
 }
 
 impl History {
-    /// A window recorded a step of its own. Clears redo, as any new step does.
     pub fn push_local(&mut self, window: &str) {
         self.push(Entry::Local {
             window: window.to_string(),
         });
     }
 
-    /// One window reports its half of a move. The first half to arrive
-    /// places the move in the order; the second completes it.
+    /// The two halves of a move arrive in either order.
     pub fn record_move(&mut self, session: &str, panels: &[String], role: Role, half: Half) {
         let existing = self.undo.iter_mut().find(
             |entry| matches!(entry, Entry::Move { session: recorded, .. } if recorded == session),
@@ -240,8 +200,7 @@ impl History {
         }) = self.undo.last()
         {
             if (from.is_none() || to.is_none()) && opened.elapsed() >= self.abandon_after {
-                // It will never complete. Everything before it goes too:
-                // those steps restore layouts from before the move.
+                // The steps before it restore layouts from before the move.
                 let session = session.clone();
                 self.undo.clear();
                 return Err(HistoryError::Abandoned(session));
@@ -264,8 +223,7 @@ impl History {
                 ..
             } => {
                 let (from, to) = complete(session, from, to)?;
-                // Take the panels out of the destination before putting them
-                // back in the source, so no two windows hold them at once.
+                // Destination first, so no two windows hold the panels at once.
                 Step {
                     actions: vec![
                         apply(&to.window, &to.before),
@@ -274,7 +232,6 @@ impl History {
                     moved: Some(Moved {
                         session: session.clone(),
                         panels: panels.clone(),
-                        // Undone, the panels travel back.
                         from: to.window.clone(),
                         to: from.window.clone(),
                     }),
@@ -334,12 +291,8 @@ impl History {
         }
     }
 
-    /// Forget a window's steps, when it closes.
-    /// Also drops every move still missing a half, which may have been that
-    /// window's and could then never complete. A dropped move takes
-    /// everything beyond it with it: the other window's earlier steps
-    /// restore layouts from before the move, which are only safe once the
-    /// move itself has been undone.
+    /// Drop the window's entries and every incomplete move, and everything
+    /// older than a move dropped: those steps restore layouts from before it.
     pub fn forget_window(&mut self, window: &str) {
         let involves = |entry: &Entry| match entry {
             Entry::Local { window: w } => w == window,
@@ -348,7 +301,7 @@ impl History {
                 _ => true,
             },
         };
-        // Both stacks hold the entry furthest from the present first.
+        // Oldest first in both stacks.
         for stack in [&mut self.undo, &mut self.redo] {
             let cut = stack
                 .iter()
@@ -363,8 +316,6 @@ impl History {
         }
     }
 
-    /// A new step. Clears redo, as any new step does, and keeps at most
-    /// `DEPTH`.
     fn push(&mut self, entry: Entry) {
         self.undo.push(entry);
         self.redo.clear();

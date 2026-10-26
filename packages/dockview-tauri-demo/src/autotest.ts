@@ -1,11 +1,4 @@
-/**
- * The frontend half of the measurement harness. When the shell was started
- * with `DOCKVIEW_DEMO_AUTOTEST` set it injects a flag into every window;
- * this then reports where each panel's tab and content sit, and mirrors the
- * cross-window drag log, as JSON lines on the shell's stdout. The driver
- * script turns the geometry into real pointer drags with xdotool and reads
- * the log back to judge them. Inert otherwise.
- */
+/** The frontend half of `scripts/measure-cross-window-drag.py`. */
 
 import type { DockviewApi, IDockviewPanel } from 'dockview';
 import { autotestReport, onAutotestCommand } from './bridge';
@@ -58,8 +51,7 @@ export function installAutotest(
     };
 
     shell.onLog((line) => report('log', line));
-    // dockview reports its failures on the console, which the harness cannot
-    // read; mirror them into the log.
+    // The harness cannot read the console.
     for (const level of ['warn', 'error'] as const) {
         const original = console[level].bind(console);
         console[level] = (...args: unknown[]) => {
@@ -86,7 +78,6 @@ export function installAutotest(
         });
     };
 
-    // Layout changes arrive in bursts; report once they settle.
     let timer: ReturnType<typeof setTimeout> | undefined;
     const schedule = () => {
         clearTimeout(timer);
