@@ -9,9 +9,9 @@ sidebar_custom_props:
 
 A desktop application built on Tauri, Electron or a browser with several
 top-level windows runs one dockview per window, each in its own JavaScript
-context. Nothing can move between them as DOM, no window is the root that owns
-the others, and a popout window has no meaning. What can cross a window
-boundary is an OS drag session, and only an HTML5 drag rides one.
+context. Nothing can move between them as DOM, and no window is the root that
+owns the others. What can cross a window boundary is an OS drag session, and
+only an HTML5 drag rides one.
 
 `dockview-enterprise` ships the window side of that setup as one
 **interceptor** over the public api. Install it and the instance keeps working
@@ -425,6 +425,10 @@ and write the workspace on a debounce and on exit.
   other window never sees that data.
 - **Resizes are not undoable across windows.** See the required options
   under [Undo across windows](#undo-across-windows).
+- **Popout groups are not supported.** A popout belongs to the window that
+  opened it, and the shared history and workspace do not account for it: an
+  undo or a restore can reopen it. To give a group a window of its own, detach
+  it. Opening a popout is reported once on the console.
 
 ## See also
 

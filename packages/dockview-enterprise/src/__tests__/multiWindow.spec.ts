@@ -22,6 +22,7 @@ import {
     MemoryOrchestrator,
     MULTI_WINDOW_DRAG_TYPE,
 } from '../multiWindow';
+import { setupMockWindow } from '../../../dockview-core/src/__tests__/__mocks__/mockWindow';
 import { DragSessions } from '../multiWindow/orchestrator/dragSessions';
 import { HistorySequencer } from '../multiWindow/orchestrator/historySequencer';
 import { WorkspaceRegistry } from '../multiWindow/orchestrator/workspaceRegistry';
@@ -1212,5 +1213,31 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
         expect(
             reportedMatching(/undoableProgrammaticMutations set to false/)
         ).toHaveLength(1);
+    });
+
+    test('a popout group is reported once as unsupported', async () => {
+        const open_ = jest
+            .spyOn(window, 'open')
+            .mockImplementation(() => setupMockWindow());
+        const orchestrator = new MemoryOrchestrator();
+        const main = open(orchestrator, 'main');
+        await flush();
+        main.api.addPanel({ id: 'a', component: 'default' });
+        main.api.addPanel({
+            id: 'b',
+            component: 'default',
+            position: { referencePanel: 'a', direction: 'right' },
+        });
+        await flush();
+
+        await main.api.addPopoutGroup(main.api.getPanel('a')!.group);
+        await main.api.addPopoutGroup(main.api.getPanel('b')!.group);
+        await flush();
+        expect(main.api.getPanel('a')?.group.api.location.type).toBe('popout');
+
+        expect(
+            reportedMatching(/popout groups are not supported/)
+        ).toHaveLength(1);
+        open_.mockRestore();
     });
 });

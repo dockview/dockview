@@ -66,7 +66,24 @@ export class MultiWindow extends CompositeDisposable {
         this.ready = parts.ready;
         this.onDidMoveAcrossWindows = this._dnd.onDidMove;
 
-        this.addDisposables(this._onDidChangeHistory, this._dnd);
+        let warnedPopout = false;
+        this.addDisposables(
+            this._onDidChangeHistory,
+            this._dnd,
+            api.onDidLayoutChange(() => {
+                if (
+                    !warnedPopout &&
+                    api.groups.some(
+                        (group) => group.api.location.type === 'popout'
+                    )
+                ) {
+                    warnedPopout = true;
+                    console.warn(
+                        'dockview: popout groups are not supported in a multi-window layout; undo and restore do not account for them.'
+                    );
+                }
+            })
+        );
         if (parts.workspace) {
             this.addDisposables(parts.workspace);
         }
