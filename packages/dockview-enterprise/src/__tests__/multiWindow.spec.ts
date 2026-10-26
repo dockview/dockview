@@ -16,7 +16,7 @@ import type {
     MultiWindow,
     MultiWindowTransport,
 } from '../multiWindow';
-import { installMultiWindow, MemoryOrchestrator } from '../multiWindow';
+import { installMultiWindow, MultiWindowOrchestrator } from '../multiWindow';
 import { MULTI_WINDOW_DRAG_TYPE } from '../multiWindow/crossWindowDnd';
 import { DRAG_END_GRACE_MS } from '../multiWindow/transport';
 import { setupMockWindow } from '../../../dockview-core/src/__tests__/__mocks__/mockWindow';
@@ -363,7 +363,7 @@ describe('multi-window: HistorySequencer', () => {
     });
 });
 
-describe('multi-window: two dockviews through the in-memory orchestrator', () => {
+describe('multi-window: two dockviews through MultiWindowOrchestrator', () => {
     interface Window {
         label: string;
         dockview: DockviewComponent;
@@ -388,7 +388,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     const open = (
-        orchestrator: MemoryOrchestrator,
+        orchestrator: MultiWindowOrchestrator,
         label: string,
         options: {
             buildDefaults?: () => void;
@@ -489,7 +489,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('a tab dropped on another window moves there, with undo and redo through the orchestrator', async () => {
-        const orchestrator = new MemoryOrchestrator();
+        const orchestrator = new MultiWindowOrchestrator();
         const moves: MultiWindowMoveEvent[] = [];
         orchestrator.onDidMove((notice) => moves.push(notice));
         const main = open(orchestrator, 'main');
@@ -574,7 +574,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('a drop is refused, and nothing released, when the window already holds the panel', async () => {
-        const orchestrator = new MemoryOrchestrator();
+        const orchestrator = new MultiWindowOrchestrator();
         const main = open(orchestrator, 'main');
         const other = open(orchestrator, 'other');
         await flush();
@@ -592,7 +592,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('a group drag carries every tab of the group', async () => {
-        const orchestrator = new MemoryOrchestrator();
+        const orchestrator = new MultiWindowOrchestrator();
         const main = open(orchestrator, 'main');
         const other = open(orchestrator, 'other');
         await flush();
@@ -629,7 +629,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('a drop on a tab lands at that tab, through the drop index', async () => {
-        const orchestrator = new MemoryOrchestrator();
+        const orchestrator = new MultiWindowOrchestrator();
         const main = open(orchestrator, 'main');
         const other = open(orchestrator, 'other');
         await flush();
@@ -653,7 +653,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     test('an unaccepted drag with detach becomes a new window holding the tab', async () => {
         const created: string[] = [];
         const defaultsBuilt: string[] = [];
-        const orchestrator = new MemoryOrchestrator({
+        const orchestrator = new MultiWindowOrchestrator({
             createWindow: (label) => {
                 created.push(label);
                 open(orchestrator, label, {
@@ -687,7 +687,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('a local step is ordered against a move, and undone through the window', async () => {
-        const orchestrator = new MemoryOrchestrator();
+        const orchestrator = new MultiWindowOrchestrator();
         const main = open(orchestrator, 'main');
         const other = open(orchestrator, 'other');
         await flush();
@@ -763,7 +763,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('with history off, undo stays local to the window', async () => {
-        const orchestrator = new MemoryOrchestrator();
+        const orchestrator = new MultiWindowOrchestrator();
         const main = open(orchestrator, 'main');
         const local = installMultiWindow(
             main.api,
@@ -797,7 +797,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('a layout that cannot be restored falls back to the defaults', async () => {
-        const orchestrator = new MemoryOrchestrator({
+        const orchestrator = new MultiWindowOrchestrator({
             workspace: {
                 version: 1,
                 windows: [
@@ -827,7 +827,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('a drop at a layout edge opens a new group there', async () => {
-        const orchestrator = new MemoryOrchestrator();
+        const orchestrator = new MultiWindowOrchestrator();
         const main = open(orchestrator, 'main');
         const other = open(orchestrator, 'other');
         await flush();
@@ -855,7 +855,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('a detached group starts the new window with every tab', async () => {
-        const orchestrator = new MemoryOrchestrator({
+        const orchestrator = new MultiWindowOrchestrator({
             createWindow: (label) => {
                 open(orchestrator, label);
             },
@@ -882,7 +882,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('a detach is not a move the shared history records, and the new window reports cleanly', async () => {
-        const orchestrator = new MemoryOrchestrator({
+        const orchestrator = new MultiWindowOrchestrator({
             createWindow: (label) => {
                 open(orchestrator, label);
             },
@@ -927,7 +927,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('a transport written as a class keeps its methods and its this', async () => {
-        const orchestrator = new MemoryOrchestrator();
+        const orchestrator = new MultiWindowOrchestrator();
         type Transport = MultiWindowTransport;
         class Bridge implements MultiWindowTransport {
             calls = 0;
@@ -1012,7 +1012,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('a subscription that answers after dispose is dropped at once', async () => {
-        const orchestrator = new MemoryOrchestrator();
+        const orchestrator = new MultiWindowOrchestrator();
         const transport = orchestrator.connect('main');
         const unlisten = jest.fn();
         let answer: (value: DockviewIDisposable) => void = () => undefined;
@@ -1032,7 +1032,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('an orchestrator that cannot be reached at start still gets the defaults', async () => {
-        const orchestrator = new MemoryOrchestrator();
+        const orchestrator = new MultiWindowOrchestrator();
         const transport = orchestrator.connect('main');
         const main = open(orchestrator, 'main');
         const handle = installMultiWindow(
@@ -1057,14 +1057,14 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('the workspace restores a window from the orchestrator and reports changes back', async () => {
-        const seed = new MemoryOrchestrator();
+        const seed = new MultiWindowOrchestrator();
         const seedWindow = open(seed, 'main');
         seedWindow.api.addPanel({ id: 'kept', component: 'default' });
         const layout = seedWindow.api.toJSON();
         seedWindow.dispose();
         windows.length = 0;
 
-        const orchestrator = new MemoryOrchestrator({
+        const orchestrator = new MultiWindowOrchestrator({
             workspace: {
                 version: 1,
                 windows: [{ id: 'main', layout }],
@@ -1110,7 +1110,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
         );
 
     test('local steps keep reaching the orchestrator once the local history is full', async () => {
-        const orchestrator = new MemoryOrchestrator();
+        const orchestrator = new MultiWindowOrchestrator();
         const main = open(orchestrator, 'main', {
             layoutHistory: { depth: 2 },
         });
@@ -1128,7 +1128,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('an applied layout that clears the local history is reported once', async () => {
-        const orchestrator = new MemoryOrchestrator();
+        const orchestrator = new MultiWindowOrchestrator();
         const main = open(orchestrator, 'main', {
             layoutHistory: { clearOnFromJSON: true },
         });
@@ -1150,7 +1150,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test("a detach ends the source window's earlier steps", async () => {
-        const orchestrator = new MemoryOrchestrator({
+        const orchestrator = new MultiWindowOrchestrator({
             createWindow: (label) => {
                 open(orchestrator, label);
             },
@@ -1177,7 +1177,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
 
     test('a detached window never takes the id of a window on record', async () => {
         const created: string[] = [];
-        const orchestrator = new MemoryOrchestrator({
+        const orchestrator = new MultiWindowOrchestrator({
             workspace: { version: 1, windows: [{ id: 'detached-1' }] },
             createWindow: (label) => {
                 created.push(label);
@@ -1198,7 +1198,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
     });
 
     test('a recorded programmatic mutation is reported once as a broken option', async () => {
-        const orchestrator = new MemoryOrchestrator();
+        const orchestrator = new MultiWindowOrchestrator();
         const main = open(orchestrator, 'main', {
             layoutHistory: { undoableProgrammaticMutations: true },
         });
@@ -1216,7 +1216,7 @@ describe('multi-window: two dockviews through the in-memory orchestrator', () =>
         const open_ = jest
             .spyOn(window, 'open')
             .mockImplementation(() => setupMockWindow());
-        const orchestrator = new MemoryOrchestrator();
+        const orchestrator = new MultiWindowOrchestrator();
         const main = open(orchestrator, 'main');
         await flush();
         main.api.addPanel({ id: 'a', component: 'default' });

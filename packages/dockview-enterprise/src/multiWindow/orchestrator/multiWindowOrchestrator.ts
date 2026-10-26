@@ -24,8 +24,8 @@ import {
     type MultiWindowWorkspaceState,
 } from './workspaceRegistry';
 
-export interface MemoryOrchestratorOptions {
-    /** The workspace to start from, as a previous {@link MemoryOrchestrator.snapshot}. */
+export interface MultiWindowOrchestratorOptions {
+    /** The workspace to start from, as a previous {@link MultiWindowOrchestrator.snapshot}. */
     workspace?: MultiWindowWorkspaceState;
     /** Default 25. No window's `layoutHistory.depth` should be lower. */
     historyDepth?: number;
@@ -43,12 +43,12 @@ class WindowChannel extends CompositeDisposable {
     }
 }
 
-export class MemoryOrchestrator extends CompositeDisposable {
+export class MultiWindowOrchestrator extends CompositeDisposable {
     private readonly _drags = new DragSessions();
     private readonly _workspace: WorkspaceRegistry;
     private readonly _history: HistorySequencer;
     private readonly _channels = new Map<string, WindowChannel>();
-    private readonly _createWindow: MemoryOrchestratorOptions['createWindow'];
+    private readonly _createWindow: MultiWindowOrchestratorOptions['createWindow'];
     private _detachedCount = 0;
 
     private readonly _onDidMove = new Emitter<MultiWindowMoveEvent>();
@@ -73,7 +73,7 @@ export class MemoryOrchestrator extends CompositeDisposable {
         return this._history.info();
     }
 
-    constructor(options: MemoryOrchestratorOptions = {}) {
+    constructor(options: MultiWindowOrchestratorOptions = {}) {
         super();
         this._workspace = new WorkspaceRegistry(options.workspace);
         this._history = new HistorySequencer(options.historyDepth);

@@ -55,7 +55,7 @@ also ships the window side of a multi-window setup as one function over the
 public api, `installMultiWindow`: drag a tab or group into another window's
 dockview, every window's layout kept together by an orchestrator, and one undo
 across windows. It reaches the orchestrator through a transport you supply;
-`MemoryOrchestrator` is one for windows that share a JavaScript heap (an
+`MultiWindowOrchestrator` is one for windows that share a JavaScript heap (an
 Electron main process can run it as is), and the pieces it is built from are
 the model for a shell in another language. See
 [multi-window layouts](https://dockview.dev/docs/core/state/multiWindow).

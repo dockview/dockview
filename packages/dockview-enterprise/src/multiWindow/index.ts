@@ -1,7 +1,7 @@
 export type { MultiWindow, MultiWindowOptions } from './multiWindow';
 export { installMultiWindow } from './multiWindow';
-export type { MemoryOrchestratorOptions } from './orchestrator/memoryOrchestrator';
-export { MemoryOrchestrator } from './orchestrator/memoryOrchestrator';
+export type { MultiWindowOrchestratorOptions } from './orchestrator/multiWindowOrchestrator';
+export { MultiWindowOrchestrator } from './orchestrator/multiWindowOrchestrator';
 export type { MultiWindowWorkspaceState } from './orchestrator/workspaceRegistry';
 export type {
     MultiWindowDragPayload,

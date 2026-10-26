@@ -58,7 +58,7 @@ prefix, as core reports its own:
 
 Orchestrator side, `orchestrator/`:
 
-- `memoryOrchestrator.ts` (`MemoryOrchestrator`, exported): an orchestrator
+- `multiWindowOrchestrator.ts` (`MultiWindowOrchestrator`, exported): an orchestrator
   for one heap, composed from the pure `dragSessions.ts`,
   `workspaceRegistry.ts` and `historySequencer.ts` (not exported; tests import
   them directly), which the Tauri demo ports to Rust in

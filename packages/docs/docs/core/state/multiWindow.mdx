@@ -19,7 +19,7 @@ exactly as before; a drag can now also land in another window, the layout of
 every window is kept together, and Ctrl+Z works across windows. It reaches the
 outside world only through a **transport** you supply, so the same code runs
 against a Tauri shell, an Electron main process, a `BroadcastChannel`, or the
-in-memory orchestrator this package includes.
+orchestrator this package includes, `MultiWindowOrchestrator`.
 
 ```ts
 import { installMultiWindow } from 'dockview-enterprise';
@@ -188,7 +188,7 @@ options. Each one left on is reported once on the console.
 
 ## The orchestrator
 
-`MemoryOrchestrator` is the shipped orchestrator, for windows that share one JavaScript heap:
+`MultiWindowOrchestrator` is the shipped orchestrator, for windows that share one JavaScript heap:
 several dockviews on one page, a test, or a host with a JavaScript process of
 its own, such as an Electron main process, which runs it as is (it has no DOM
 dependency) and bridges each window's transport over IPC. A shell in another
@@ -196,9 +196,9 @@ language mirrors its rules instead, see
 [Writing an orchestrator](#writing-an-orchestrator).
 
 ```ts
-import { MemoryOrchestrator } from 'dockview-enterprise';
+import { MultiWindowOrchestrator } from 'dockview-enterprise';
 
-const orchestrator = new MemoryOrchestrator({
+const orchestrator = new MultiWindowOrchestrator({
     workspace: JSON.parse(localStorage.getItem('workspace') ?? 'null') ?? undefined,
 });
 orchestrator.onDidChangeWorkspace((state) =>
@@ -260,7 +260,7 @@ interface MultiWindowTransport {
 A transport is the window's end of a message bus. There are two cases.
 
 **The orchestrator already runs in JavaScript** (an Electron main process, a
-SharedWorker, a Node sidecar): run `MemoryOrchestrator` there and bridge each
+SharedWorker, a Node sidecar): run `MultiWindowOrchestrator` there and bridge each
 window to its `connect(windowId)` transport. The bridge is then a mapping:
 every method becomes a request, every `on*` subscription becomes a message
 channel. The rules are already enforced on the orchestrator's side.
@@ -310,9 +310,9 @@ The main process runs the orchestrator and owns the windows:
 ```ts
 // main.ts
 import { BrowserWindow, ipcMain } from 'electron';
-import { MemoryOrchestrator, type MultiWindowTransport } from 'dockview-enterprise';
+import { MultiWindowOrchestrator, type MultiWindowTransport } from 'dockview-enterprise';
 
-const orchestrator = new MemoryOrchestrator({
+const orchestrator = new MultiWindowOrchestrator({
     createWindow: (windowId) => open(windowId), // a detach needs a window
 });
 // By the sending renderer, so a window cannot speak for another.
@@ -397,7 +397,7 @@ what `peekDrag`, `acceptDrag` and `reportLayout` rely on. Persist
 ## Writing an orchestrator
 
 When the orchestrator cannot be JavaScript, mirror the three pieces
-`MemoryOrchestrator` is built from: `dragSessions.ts`, `workspaceRegistry.ts`
+`MultiWindowOrchestrator` is built from: `dragSessions.ts`, `workspaceRegistry.ts`
 and `historySequencer.ts` under `multiWindow/orchestrator/` in the package
 source. Each is small, pure state and unit tested; the
 [Tauri demo](https://github.com/dockview/dockview/tree/master/packages/dockview-tauri-demo)
