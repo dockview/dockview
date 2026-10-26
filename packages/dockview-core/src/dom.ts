@@ -3,7 +3,7 @@ import {
     Emitter,
     addDisposableListener,
 } from './events';
-import { IDisposable, CompositeDisposable } from './lifecycle';
+import { IDisposable, CompositeDisposable, Disposable } from './lifecycle';
 
 export interface OverflowEvent {
     hasScrollX: boolean;
@@ -679,7 +679,10 @@ export function onDidWindowResizeEnd(element: Window, cb: () => void) {
             resizeTimeout = setTimeout(() => {
                 cb();
             }, DEBOUCE_DELAY);
-        })
+        }),
+        // Cancel a pending callback so it cannot fire after a popout window
+        // is closed and its `window` reference is gone.
+        Disposable.from(() => clearTimeout(resizeTimeout))
     );
 
     return disposable;

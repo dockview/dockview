@@ -1,9 +1,14 @@
-import { generateDockviewCoreExports } from './dockview-core-exports.mjs';
+import { generatePackageExports } from './package-exports.mjs';
 
 const generators = [
     {
         name: 'dockview-core-exports',
-        fn: generateDockviewCoreExports,
+        fn: () => generatePackageExports('dockview-core'),
+    },
+    {
+        name: 'dockview-enterprise-exports',
+        fn: () =>
+            generatePackageExports('dockview-enterprise', { ownOnly: true }),
     },
 ];
 
