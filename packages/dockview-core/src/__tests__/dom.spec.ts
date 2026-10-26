@@ -18,7 +18,6 @@ import {
     prefersReducedMotion,
     quasiDefaultPrevented,
     quasiPreventDefault,
-    resolveCssDurationMs,
     resolveOpaqueBackground,
     trackFocus,
     watchElementResize,
@@ -475,29 +474,15 @@ describe('parseCssTimeMs', () => {
         '10',
         '10px',
         'fast',
+        // Negative durations are invalid CSS and would make
+        // `Element.animate()` throw.
+        '-1ms',
+        '-200ms',
+        '-0.2s',
+        // Unevaluated expressions in an unregistered custom property.
+        'calc(100ms * 2)',
     ])('falls back for the unparseable value %p', (value) => {
         expect(parseCssTimeMs(value, 42)).toBe(42);
-    });
-});
-
-describe('resolveCssDurationMs', () => {
-    test('reads a CSS time custom property from computed style', () => {
-        const el = document.createElement('div');
-        el.style.setProperty('--dv-transition-duration', '0.3s');
-        document.body.appendChild(el);
-        expect(resolveCssDurationMs(el, '--dv-transition-duration', 200)).toBe(
-            300
-        );
-        el.remove();
-    });
-
-    test('falls back when the property is absent', () => {
-        const el = document.createElement('div');
-        document.body.appendChild(el);
-        expect(resolveCssDurationMs(el, '--dv-transition-duration', 175)).toBe(
-            175
-        );
-        el.remove();
     });
 });
 
