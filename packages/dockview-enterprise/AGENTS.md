@@ -48,13 +48,13 @@ prefix, as core reports its own:
   install, composing the three internal pieces below. Only the `MultiWindow`
   type is exported.
 - `crossWindowDnd.ts` (`CrossWindowDnd`): a drag's `DataTransfer` carries a
-  session id; the orchestrator carries the payload (`DragPayload`: a panel's
+  session id; the orchestrator carries the payload (`MultiWindowDragPayload`: a panel's
   `toJSON()` or `serializeGroup` output); the drop rebuilds it with
   `addPanelFromJSON` / `addGroupFromJSON`.
 - `windowWorkspace.ts` (`WindowWorkspace`): `fromJSON` in at start, `toJSON`
   out on every change.
 - `sharedHistory.ts` (`SharedHistory`): reports local steps, carries out the
-  `HistoryRequest`s that come back.
+  `MultiWindowHistoryRequest`s that come back.
 
 Orchestrator side, `orchestrator/`:
 

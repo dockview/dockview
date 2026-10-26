@@ -11,12 +11,12 @@ import {
 } from 'dockview';
 import {
     DRAG_END_GRACE_MS,
-    type DragPayload,
-    type MoveEvent,
+    type MultiWindowDragPayload,
+    type MultiWindowMoveEvent,
     type MoveRole,
     type MultiWindowTransport,
     payloadPanels,
-    type ReleaseEvent,
+    type MultiWindowReleaseEvent,
     retainSubscription,
 } from './transport';
 
@@ -27,7 +27,7 @@ export const MULTI_WINDOW_DRAG_TYPE = 'application/x-dockview-multi-window';
 const LOCAL_SESSION_TTL_MS = 2 * DRAG_END_GRACE_MS;
 
 interface LocalSession {
-    readonly kind: DragPayload['kind'];
+    readonly kind: MultiWindowDragPayload['kind'];
     /** The panel or group id to remove on release. */
     readonly id: string;
 }
@@ -37,8 +37,8 @@ export class CrossWindowDnd extends CompositeDisposable {
     private readonly _transport: MultiWindowTransport;
     private readonly _local = new Map<string, LocalSession>();
 
-    private readonly _onDidMove = new Emitter<MoveEvent>();
-    readonly onDidMove: Event<MoveEvent> = this._onDidMove.event;
+    private readonly _onDidMove = new Emitter<MultiWindowMoveEvent>();
+    readonly onDidMove: Event<MultiWindowMoveEvent> = this._onDidMove.event;
 
     /** See `MultiWindowOptions.detach`. */
     detach: boolean;
@@ -110,7 +110,7 @@ export class CrossWindowDnd extends CompositeDisposable {
     private _announce(
         nativeEvent: DragEvent | PointerEvent,
         id: string,
-        payload: DragPayload
+        payload: MultiWindowDragPayload
     ): void {
         if (!hasDataTransfer(nativeEvent) || !nativeEvent.dataTransfer) {
             // A pointer-backend drag cannot leave the window.
@@ -150,7 +150,7 @@ export class CrossWindowDnd extends CompositeDisposable {
         session: string,
         event: DockviewDidDropEvent
     ): Promise<void> {
-        let payload: DragPayload;
+        let payload: MultiWindowDragPayload;
         try {
             payload = await this._transport.peekDrag(session);
             const held = payloadPanels(payload).filter((id) =>
@@ -181,7 +181,7 @@ export class CrossWindowDnd extends CompositeDisposable {
         this._reportMove(session, 'to', payloadPanels(payload), before);
     }
 
-    private _release(event: ReleaseEvent): void {
+    private _release(event: MultiWindowReleaseEvent): void {
         const local = this._local.get(event.session);
         if (!local) {
             return;
@@ -263,7 +263,7 @@ function readSession(nativeEvent: DragEvent | PointerEvent): string | null {
  */
 function place(
     api: DockviewApi,
-    payload: DragPayload,
+    payload: MultiWindowDragPayload,
     event?: DockviewDidDropEvent
 ): void {
     const target = event?.group as DockviewGroupPanel | undefined;

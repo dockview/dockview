@@ -6,7 +6,11 @@ import {
 } from 'dockview';
 import { CrossWindowDnd } from './crossWindowDnd';
 import { EMPTY_HISTORY, SharedHistory } from './sharedHistory';
-import type { HistoryInfo, MoveEvent, MultiWindowTransport } from './transport';
+import type {
+    MultiWindowHistoryInfo,
+    MultiWindowMoveEvent,
+    MultiWindowTransport,
+} from './transport';
 import { WindowWorkspace } from './windowWorkspace';
 
 export interface MultiWindowOptions {
@@ -31,11 +35,12 @@ export class MultiWindow extends CompositeDisposable {
     private readonly _dnd: CrossWindowDnd;
     private readonly _history: SharedHistory | undefined;
 
-    private readonly _onDidChangeHistory = new Emitter<HistoryInfo>();
-    readonly onDidChangeHistory: Event<HistoryInfo> =
+    private readonly _onDidChangeHistory =
+        new Emitter<MultiWindowHistoryInfo>();
+    readonly onDidChangeHistory: Event<MultiWindowHistoryInfo> =
         this._onDidChangeHistory.event;
 
-    readonly onDidMoveAcrossWindows: Event<MoveEvent>;
+    readonly onDidMoveAcrossWindows: Event<MultiWindowMoveEvent>;
 
     /** Resolves once the window holds its initial layout, restored or default. */
     readonly ready: Promise<{ restored: boolean }>;
@@ -44,7 +49,7 @@ export class MultiWindow extends CompositeDisposable {
         return this._transport.windowId;
     }
 
-    get history(): HistoryInfo {
+    get history(): MultiWindowHistoryInfo {
         return this._history?.info ?? EMPTY_HISTORY;
     }
 

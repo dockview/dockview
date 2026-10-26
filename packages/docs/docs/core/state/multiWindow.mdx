@@ -226,14 +226,14 @@ interface MultiWindowTransport {
     readonly windowId: string;
 
     // Drags.
-    startDrag(session: string, payload: DragPayload): Promise<void>;
-    peekDrag(session: string): Promise<DragPayload>;
+    startDrag(session: string, payload: MultiWindowDragPayload): Promise<void>;
+    peekDrag(session: string): Promise<MultiWindowDragPayload>;
     acceptDrag(session: string): Promise<void>;
     endDrag(session: string, detach: boolean): Promise<void>;
-    onDidRelease(listener: (event: ReleaseEvent) => void): Promise<DockviewIDisposable>;
-    takeDetachedDrag(): Promise<DragPayload | null>;
+    onDidRelease(listener: (event: MultiWindowReleaseEvent) => void): Promise<DockviewIDisposable>;
+    takeDetachedDrag(): Promise<MultiWindowDragPayload | null>;
     reportMove(session, role: 'from' | 'to', panels, before, after): Promise<void>;
-    onDidMove(listener: (event: MoveEvent) => void): Promise<DockviewIDisposable>;
+    onDidMove(listener: (event: MultiWindowMoveEvent) => void): Promise<DockviewIDisposable>;
 
     // The workspace.
     loadLayout(): Promise<SerializedDockview | null>;
@@ -243,16 +243,16 @@ interface MultiWindowTransport {
     reportLocalStep(): Promise<void>;
     undo(): Promise<void>;
     redo(): Promise<void>;
-    getHistory(): Promise<HistoryInfo>;
-    onDidRequestHistory(listener: (request: HistoryRequest) => void): Promise<DockviewIDisposable>;
-    onDidChangeHistory(listener: (info: HistoryInfo) => void): Promise<DockviewIDisposable>;
+    getHistory(): Promise<MultiWindowHistoryInfo>;
+    onDidRequestHistory(listener: (request: MultiWindowHistoryRequest) => void): Promise<DockviewIDisposable>;
+    onDidChangeHistory(listener: (info: MultiWindowHistoryInfo) => void): Promise<DockviewIDisposable>;
 }
 ```
 
-`DragPayload` is `{ kind: 'panel', panel: GroupviewPanelState }` or
+`MultiWindowDragPayload` is `{ kind: 'panel', panel: GroupviewPanelState }` or
 `{ kind: 'group', group: SerializedDockviewGroup }`. The panel ids it moves,
 `panel.id` or `group.group.views`, are all an orchestrator needs to read.
-`HistoryRequest` is `{ type: 'undo' }`, `{ type: 'redo' }` or
+`MultiWindowHistoryRequest` is `{ type: 'undo' }`, `{ type: 'redo' }` or
 `{ type: 'apply-layout', layout }`.
 
 ## Implementing a transport
@@ -279,7 +279,7 @@ In both cases the transport must keep to this contract.
 | `startDrag(session, payload)` | Record the session with this window as its source. Session ids are random; never reject one as a duplicate. |
 | `peekDrag(session)` | Resolve the payload. Reject if the session is unknown or already accepted. |
 | `acceptDrag(session)` | The first accept wins; a later one rejects. On success: forget the session, tell the workspace a move of the payload's panels from the source to this window is under way, deliver `onDidRelease` to the source with reason `'drop'`, and broadcast `onDidMove` with reason `'drop'`. |
-| `endDrag(session, detach)` | Resolve at once; the session stays acceptable for a grace period (`DRAG_END_GRACE_MS`, 1.5 s, which the windows assume as an upper bound), because the source's `dragend` fires before the destination's accept arrives. When it expires unaccepted: discard it, or, if `detach` and the host can open windows, choose a new window id, park the payload under it, open the window, announce the move to the workspace, deliver `onDidRelease` with reason `'detach'` and broadcast `onDidMove` with reason `'detach'`. |
+| `endDrag(session, detach)` | Resolve at once; the session stays acceptable for a grace period (1.5 s, which the windows assume as an upper bound), because the source's `dragend` fires before the destination's accept arrives. When it expires unaccepted: discard it, or, if `detach` and the host can open windows, choose a new window id, park the payload under it, open the window, announce the move to the workspace, deliver `onDidRelease` with reason `'detach'` and broadcast `onDidMove` with reason `'detach'`. |
 | `takeDetachedDrag()` | The payload parked for this window by a detach, once; `null` otherwise. Every window calls this at start. |
 | `reportMove(session, role, panels, before, after)` | This window's half of a move. The history entry is complete when both halves have arrived, in either order. |
 | `loadLayout()` | The layout stored for this window, or `null` to let it build its defaults. |
