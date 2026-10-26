@@ -61,8 +61,9 @@ Orchestrator side, `orchestrator/`:
 - `memoryOrchestrator.ts` (`MemoryOrchestrator`, exported): an orchestrator
   for one heap, composed from the pure `dragSessions.ts`,
   `workspaceRegistry.ts` and `historySequencer.ts` (not exported; tests import
-  them directly), which mirror the Rust modules in
-  `packages/dockview-tauri-demo/src-tauri/src/`. Keep the two in step.
+  them directly), which the Tauri demo ports to Rust in
+  `packages/dockview-tauri-demo/src-tauri/src/orchestrator/`. Keep the two
+  in step.
 
 Narrow drag events with a `'dataTransfer' in event` check, not
 `instanceof DragEvent`: jsdom defines neither `DragEvent` nor `DataTransfer`,
