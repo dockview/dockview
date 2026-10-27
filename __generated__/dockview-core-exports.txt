@@ -79,6 +79,7 @@ DockviewOrigin
 DockviewOverflowOptions
 DockviewPanel
 DockviewPanelApi
+DockviewPanelHiddenChangeEvent
 DockviewPanelMoveParams
 DockviewPanelPinnedChangeEvent
 DockviewPanelRenderer
@@ -129,6 +130,7 @@ GroupNavigationDirection
 GroupPanelPartInitParameters
 GroupviewPanelState
 HeaderPartInitParameters
+HiddenChangeEvent
 IAdvancedDnDHost
 IAdvancedDnDService
 IAdvancedOverflowHost
