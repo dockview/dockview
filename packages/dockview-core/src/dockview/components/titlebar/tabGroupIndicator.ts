@@ -80,10 +80,8 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
     }
 
     /**
-     * Continuously reposition underlines every frame for the duration of a
-     * tab transition, so the underline tracks tab sizes. `durationMs` should
-     * be slightly longer than the transition so the end is caught; it
-     * defaults to the built-in 200ms theme duration plus slack.
+     * Continuously reposition underlines every frame for the duration
+     * of a tab transition, so the underline tracks tab sizes.
      */
     trackUnderlines(durationMs = 250): void {
         if (this._rafId !== null) {
@@ -309,10 +307,7 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
                 : lastTabRect.right - containerRect.left;
             let span = endEdge - startEdge;
 
-            // During collapse or expand: converge both edges toward chip
-            // center. `--group-collapsing` covers a scripted collapse that is
-            // being reversed back to expanded (`tg.collapsed` is already
-            // false then, and no `--group-expanding` is applied).
+            // During collapse or expand: converge both edges toward chip center
             const isAnimating =
                 tg.collapsed ||
                 tg.panelIds.some((pid) => {

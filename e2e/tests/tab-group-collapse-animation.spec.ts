@@ -1,14 +1,9 @@
 import { test, expect, Page } from '@playwright/test';
 
 /**
- * Animated tab-group collapse (Web Animations API). jsdom has no layout and no
- * `Element.animate`, so whether the collapse *visibly* animates — the tab's
- * geometry shrinking over the theme's `--dv-transition-duration` rather than
- * snapping to zero — and how an interrupted collapse behaves can only be
- * verified in a real browser.
- *
- * The fixture builds one group with a three-tab coloured "Trade" group and
- * exposes `__dv.sample(panelId, ms)`, which records the tab's main-axis size
+ * jsdom has no layout and no `Element.animate`, so whether the collapse
+ * visibly animates, and how an interrupted one behaves, needs a real browser.
+ * The fixture exposes `__dv.sample(panelId, ms)`: the tab's main-axis size
  * on every frame.
  */
 
@@ -41,8 +36,7 @@ const open = async (
     await page.waitForFunction(() => (window as any).__ready === true);
 };
 
-// Frames strictly between the start and end sizes: the animation is driving
-// geometry, not snapping.
+// Frames strictly between the start and end sizes.
 const intermediate = (samples: Sample[], full: number) =>
     samples.filter((s) => s.size > 1 && s.size < full - 1);
 
@@ -58,27 +52,21 @@ test.describe('animated tab-group collapse', () => {
         await dv(page).collapse();
         const samples = await samplesPromise;
 
-        // Many frames in flight with intermediate widths...
         expect(intermediate(samples, full).length).toBeGreaterThan(5);
-        // ...monotonically shrinking...
         for (let i = 1; i < samples.length; i++) {
             expect(samples[i].size).toBeLessThanOrEqual(
                 samples[i - 1].size + 0.5
             );
         }
-        // ...still visibly open around the midpoint, and gone at the end.
         const mid = samples.find((s) => s.t >= 250 && s.t <= 350);
         expect(mid?.size).toBeGreaterThan(full * 0.1);
         expect(samples[samples.length - 1].size).toBe(0);
-        // Only the scripted animation ever runs: swapping in the resting
-        // class at the end must not trigger its CSS transition.
+        // The class swap at the end must not start a CSS transition.
         expect(samples.flatMap((s) => s.animations)).not.toContain(
             'CSSTransition'
         );
         expect(samples[samples.length - 1].animations).toEqual([]);
 
-        // Resting state: the class provides the geometry, no in-flight marker,
-        // no inline styles left behind.
         const classes = await dv(page).classes('orders');
         expect(classes).toContain('dv-tab--group-collapsed');
         expect(classes).not.toContain('dv-tab--group-collapsing');
@@ -106,9 +94,7 @@ test.describe('animated tab-group collapse', () => {
         await dv(page).collapse();
         const samples = await samplesPromise;
 
-        // Several in-flight frames (not a 0ms snap)...
         expect(intermediate(samples, full).length).toBeGreaterThan(3);
-        // ...done well before the sample window ends.
         const settled = samples.find((s) => s.size === 0);
         expect(settled?.t).toBeGreaterThan(100);
         expect(settled?.t).toBeLessThan(400);
@@ -134,9 +120,7 @@ test.describe('animated tab-group collapse', () => {
         await dv(page).collapse();
         const samples = await samplesPromise;
 
-        // Dropping the expand transition snaps the underlying layout to full
-        // size; the scripted collapse must hide that by starting from the
-        // measured, in-transition size.
+        // Dropping the expand transition snaps the layout to full size underneath.
         for (const s of samples.slice(0, 4)) {
             expect(s.size).toBeLessThan(full * 0.9);
         }
@@ -153,7 +137,6 @@ test.describe('animated tab-group collapse', () => {
                 'dv-tab--group-collapsed'
             );
         }
-        // The ungrouped neighbours are untouched.
         expect(await dv(page).size('home')).toBeGreaterThan(20);
         expect(await dv(page).size('notes')).toBeGreaterThan(20);
     });
@@ -174,16 +157,13 @@ test.describe('animated tab-group collapse', () => {
         await dv(page).expand();
         const samples = await samplesPromise;
 
-        // No snap to zero: the smallest the tab ever gets is where the
-        // collapse was turned around (the sampler may catch a frame or two of
-        // the collapse still running before the expand call lands)...
+        // The sampler may catch a frame of the collapse before the expand lands.
         const turnaround = samples.reduce(
             (min, s, i) => (s.size < samples[min].size ? i : min),
             0
         );
         expect(samples[turnaround].size).toBeGreaterThan(atInterrupt * 0.5);
         expect(turnaround).toBeLessThan(4);
-        // ...and from there the tab grows back monotonically to full size.
         for (let i = turnaround + 1; i < samples.length; i++) {
             expect(samples[i].size).toBeGreaterThanOrEqual(
                 samples[i - 1].size - 0.5
@@ -216,7 +196,6 @@ test.describe('animated tab-group collapse', () => {
             expect(classes).not.toContain('dv-tab--group-collapsing');
             expect(await dv(page).inlineTransition(id)).toBe('');
         }
-        // A single scripted animation did all of that (reversed twice).
         const live = await page.evaluate(() =>
             (window as any).__dv
                 .tabEl('orders')
@@ -236,8 +215,7 @@ test.describe('animated tab-group collapse', () => {
         expect(await dv(page).size('orders')).toBe(0);
 
         await dv(page).expand();
-        // The old hardcoded 300ms fallback would have dropped the
-        // transition-carrying class here and snapped the tab open.
+        // A fixed 300ms fallback would have cut this off.
         await page.waitForTimeout(450);
         expect(await dv(page).classes('orders')).toContain(
             'dv-tab--group-expanding'
@@ -294,7 +272,6 @@ test.describe('animated tab-group collapse', () => {
         await open(page, { duration: '600ms' });
 
         await dv(page).collapse();
-        // Synchronously collapsed: no in-flight frame to sample.
         expect(await dv(page).size('orders')).toBe(0);
         expect(await dv(page).classes('orders')).toContain(
             'dv-tab--group-collapsed'

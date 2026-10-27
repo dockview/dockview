@@ -744,18 +744,13 @@ export function prefersReducedMotion(doc: Document = document): boolean {
     return !!mq?.matches;
 }
 
-/** Parse a CSS `<time>` value (e.g. `"200ms"`, `"0.2s"`, `"0"`) into
- *  milliseconds. Returns `fallbackMs` for an empty, unparseable or negative
- *  value (a negative duration is invalid CSS and would make
- *  `Element.animate()` throw) so a scripted animation can mirror a themed CSS
- *  transition without hardcoding a duration. */
+/** Parse a CSS `<time>` (`"200ms"`, `"0.2s"`, `"0"`) into milliseconds.
+ *  Returns `fallbackMs` for an empty, unparseable or negative value. */
 export function parseCssTimeMs(value: string, fallbackMs: number): number {
     const trimmed = value.trim();
     if (trimmed === '') {
         return fallbackMs;
     }
-    // `\d+(\.\d+)?|\.\d+` rather than `\d*\.?\d+`: the alternatives do not
-    // overlap, so the match cannot backtrack super-linearly.
     const match = /^\+?(\d+(?:\.\d+)?|\.\d+)(ms|s)?$/i.exec(trimmed);
     if (!match) {
         return fallbackMs;
@@ -764,7 +759,6 @@ export function parseCssTimeMs(value: string, fallbackMs: number): number {
     if (!Number.isFinite(amount)) {
         return fallbackMs;
     }
-    // A unitless value is only valid CSS when it is zero.
     if (match[2] === undefined) {
         return amount === 0 ? 0 : fallbackMs;
     }

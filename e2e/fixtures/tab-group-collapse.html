@@ -59,10 +59,7 @@
                 const lib = window['dockview'];
                 const params = new URLSearchParams(location.search);
                 const headerPosition = params.get('header') || 'top';
-                // Theme transition duration under test: `?duration=` (any
-                // CSS <time>) sets `--dv-transition-duration` on the dock.
-                // Without it the dock runs as every shipped theme does, with
-                // the variable unset and the stylesheet's 200ms fallback.
+                // `?duration=` sets --dv-transition-duration; unset otherwise, as in shipped themes.
                 const duration = params.get('duration');
 
                 const el = document.getElementById('app');
@@ -104,7 +101,6 @@
                 add('history', 'Trade History');
                 add('notes', 'Notes');
 
-                // Colored tab group spanning Orders + Positions + History.
                 const tabGroup = dockview.api.createTabGroup({
                     groupId,
                     label: 'Trade',
@@ -158,8 +154,7 @@
                     collapse: () => tabGroup.collapse(),
                     expand: () => tabGroup.expand(),
                     tabEl,
-                    /** Main-axis size of a grouped tab (width, or height for
-                     *  side headers). */
+                    /** Main-axis size: width, or height for side headers. */
                     size,
                     classes: (panelId) => Array.from(tabEl(panelId).classList),
                     inlineTransition: (panelId) =>
@@ -168,8 +163,7 @@
                         width: tabEl(panelId).style.width,
                         height: tabEl(panelId).style.height,
                     }),
-                    /** Sample a tab's main-axis size, and the kinds of
-                     *  animation live on it, every frame for `ms`. */
+                    /** Per-frame size and live animation kinds for `ms`. */
                     sample: (panelId, ms) =>
                         new Promise((resolve) => {
                             const out = [];

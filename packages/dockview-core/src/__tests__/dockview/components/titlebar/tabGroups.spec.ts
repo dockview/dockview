@@ -532,7 +532,7 @@ describe('TabGroupManager', () => {
                     typeof options.duration === 'number' &&
                     options.duration < 0
                 ) {
-                    // Mirrors the browser: a negative duration is a TypeError.
+                    // As in a browser.
                     throw new TypeError('duration must be non-negative');
                 }
                 const anim: MockAnimation = {
@@ -583,17 +583,13 @@ describe('TabGroupManager', () => {
 
             expect(mock.animations).toHaveLength(1);
             const [anim] = mock.animations;
-            // The resting class carries `!important` geometry that would
-            // outrank the keyframes, so it must not be present mid-animation.
+            // `!important` resting class must stay off mid-animation.
             expect(el.classList.contains('dv-tab--group-collapsed')).toBe(
                 false
             );
             expect(el.classList.contains('dv-tab--group-collapsing')).toBe(
                 true
             );
-            // No inline transition suppression is needed (or wanted: the
-            // drag/reorder paths own that property): the in-flight class
-            // declares no transition.
             expect(el.style.transition).toBe('');
 
             expect(anim.keyframes).toHaveLength(2);
@@ -640,7 +636,6 @@ describe('TabGroupManager', () => {
             expect(el.classList.contains('dv-tab--group-collapsing')).toBe(
                 false
             );
-            // The fill is released once the class provides the resting state.
             expect(anim.cancel).toHaveBeenCalledTimes(1);
             expect(el.style.transition).toBe('');
             expect(el.style.width).toBe('');
@@ -654,18 +649,13 @@ describe('TabGroupManager', () => {
 
             tg.expand();
             manager.update();
-            // The model and the manager both react to a collapse change, so
-            // update runs more than once per toggle; the reverse must not
-            // flip back. `playbackRate` is deliberately left stale here, as
-            // Chromium reports it until the pending rate change applies.
+            // update runs more than once per toggle; playbackRate is left stale as Chromium reports it.
             anim.playbackRate = 1;
             manager.update();
 
             expect(anim.reverse).toHaveBeenCalledTimes(1);
             expect(anim.cancel).not.toHaveBeenCalled();
             expect(mock.animations).toHaveLength(1);
-            // No class swap: the CSS expand path is for tabs collapsed at
-            // rest, which would start from the zeroed resting state.
             expect(el.classList.contains('dv-tab--group-collapsed')).toBe(
                 false
             );
@@ -676,7 +666,6 @@ describe('TabGroupManager', () => {
                 true
             );
 
-            // Reaching the expanded end tears everything down.
             anim.finish();
             expect(el.classList.contains('dv-tab--group-collapsed')).toBe(
                 false
@@ -699,7 +688,6 @@ describe('TabGroupManager', () => {
 
             expect(anim.reverse).toHaveBeenCalledTimes(2);
             expect(mock.animations).toHaveLength(1);
-            // Re-running update in the same direction is idempotent.
             manager.update();
             expect(anim.reverse).toHaveBeenCalledTimes(2);
 
@@ -776,8 +764,7 @@ describe('TabGroupManager', () => {
 
         test('with no theme duration set the collapse uses the 200ms default, never 0', () => {
             const { tabs } = collapsedSetup();
-            // jsdom reports no transition on the tab, as a real browser does
-            // for a tab at rest; that must not be mistaken for a 0ms theme.
+            // A resting tab has no transition; that must not read as a 0ms theme.
             expect(
                 getComputedStyle(tabs[0].value.element).transitionDuration
             ).not.toBe('200ms');
@@ -807,8 +794,6 @@ describe('TabGroupManager', () => {
             manager.update();
             expect(el.classList.contains('dv-tab--group-expanding')).toBe(true);
 
-            // Record whether the tab still wore the transition-carrying class
-            // when its geometry was read.
             const wornAtRead: boolean[] = [];
             const originalRect = HTMLElement.prototype.getBoundingClientRect;
             HTMLElement.prototype.getBoundingClientRect = function () {
@@ -869,7 +854,6 @@ describe('TabGroupManager', () => {
                     true
                 );
 
-                // The old hardcoded 300ms fallback would have cut this off.
                 jest.advanceTimersByTime(350);
                 expect(el.classList.contains('dv-tab--group-expanding')).toBe(
                     true
@@ -897,7 +881,6 @@ describe('TabGroupManager', () => {
                 false
             );
             expect(el.style.transition).toBe('');
-            // A later finish from the detached animation is a no-op.
             expect(() => anim.finish()).not.toThrow();
             expect(el.classList.contains('dv-tab--group-collapsed')).toBe(
                 false
@@ -908,8 +891,7 @@ describe('TabGroupManager', () => {
             const { manager, tabs, tg, tabMap, tabsList } = collapsedSetup();
             const [anim] = mock.animations;
 
-            // Simulate a tab re-created mid-collapse (as a group move does):
-            // the fresh element has no classes and must collapse instantly.
+            // A tab re-created mid-collapse, as a group move does.
             const fresh = createTab('p1');
             tabsList.replaceChild(fresh.value.element, tabs[0].value.element);
             tabs[0] = fresh;
@@ -971,7 +953,6 @@ describe('TabGroupManager', () => {
                     true
                 );
                 expect(el.style.transition).toBe('');
-                // Nothing is animating, so no per-frame tracking loop.
                 expect(track).not.toHaveBeenCalled();
             } finally {
                 win.matchMedia = originalMatchMedia;
@@ -980,9 +961,7 @@ describe('TabGroupManager', () => {
 
         test('without the Web Animations API the collapsed class is applied instantly, with its CSS transition suppressed', () => {
             mock.restore();
-            // The resting class carries its own CSS transition, which would
-            // half-animate (width snaps, padding/opacity ease) unless it is
-            // suppressed while the class is committed with one reflow.
+            // The resting class has its own CSS transition; it must be suppressed.
             const seen: string[] = [];
             const originalRect = HTMLElement.prototype.getBoundingClientRect;
             HTMLElement.prototype.getBoundingClientRect = function () {
@@ -999,8 +978,6 @@ describe('TabGroupManager', () => {
             } finally {
                 HTMLElement.prototype.getBoundingClientRect = originalRect;
             }
-            // One reflow for the batch, taken with transitions off and the
-            // class already applied.
             expect(seen).toEqual(['none|true']);
             for (const t of tabs) {
                 const el = t.value.element;

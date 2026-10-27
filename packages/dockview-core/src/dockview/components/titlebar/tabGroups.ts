@@ -41,26 +41,18 @@ import {
     WrapTabGroupIndicator,
 } from './tabGroupIndicator';
 
-/** Default `--dv-transition-duration` when the theme does not set one; keep in
- *  sync with the `var(--dv-transition-duration, 200ms)` fallbacks in
- *  `tabs.scss`. */
+// Keep in sync with the `var(--dv-transition-duration, 200ms)` fallbacks in tabs.scss.
 const DEFAULT_TRANSITION_MS = 200;
-/** Grace added to the expand `transitionend` fallback timer, and to the
- *  underline indicator's tracking window. */
 const EXPAND_FALLBACK_SLACK_MS = 100;
 
-/** A tab mid-collapse (or mid-reverse), see `TabGroupManager._collapseAnimations`. */
 interface CollapseAnimationEntry {
     animation: Animation;
     el: HTMLElement;
-    /** Direction of travel. Tracked here rather than read back from
-     *  `animation.playbackRate`: `reverse()` applies as a *pending*
-     *  playback-rate change, so the getter still reports the old direction
-     *  until the animation is ready. */
+    // Not read from `animation.playbackRate`: `reverse()` is a pending change,
+    // so the getter reports the old direction until the animation is ready.
     collapsing: boolean;
 }
 
-/** A tab element and the panel id it renders. */
 interface TabTarget {
     el: HTMLElement;
     pid: string;
@@ -119,13 +111,7 @@ export class TabGroupManager {
     private _indicator: ITabGroupIndicator | null = null;
     private _skipNextCollapseAnimation = false;
     private readonly _pendingTransitionCleanups = new Map<string, () => void>();
-    /**
-     * In-flight Web Animations API collapse animations, keyed by panel id. A
-     * tab is in here from the moment its collapse starts until the animation
-     * settles (or is reversed back to expanded, see `_updateTabGroupClasses`),
-     * so a rapid expand/collapse, another collapse, tab removal, or disposal
-     * can act on the running animation (see `_cancelCollapseAnimation`).
-     */
+    /** In-flight WAAPI collapses (forward or reversed), keyed by panel id. */
     private readonly _collapseAnimations = new Map<
         string,
         CollapseAnimationEntry
@@ -342,9 +328,6 @@ export class TabGroupManager {
     cleanupTransition(panelId: string): void {
         this._pendingTransitionCleanups.get(panelId)?.();
         this._pendingTransitionCleanups.delete(panelId);
-        // A tab removed mid-collapse must not leave its animation entry behind:
-        // a panel re-added under the same id (restore / `fromJSON`) would
-        // otherwise be matched to the detached element's animation.
         this._cancelCollapseAnimation(panelId);
     }
 
@@ -411,7 +394,6 @@ export class TabGroupManager {
         }
         this._pendingTransitionCleanups.clear();
 
-        // Deleting the current entry while iterating a Map is well defined.
         for (const panelId of this._collapseAnimations.keys()) {
             this._cancelCollapseAnimation(panelId);
         }
@@ -764,10 +746,7 @@ export class TabGroupManager {
             }
         }
 
-        // The theme duration, resolved at most once per pass (the custom
-        // property is inherited, so the tabs list is as good a source as any
-        // tab) and only when an expand needs it, so a pass with no animation
-        // reads no computed style.
+        // Resolved at most once per pass, and only when something animates.
         let durationMs: number | undefined;
         const getDurationMs = () =>
             (durationMs ??= this._transitionDurationMs(this._ctx.tabsList));
@@ -799,8 +778,6 @@ export class TabGroupManager {
         if (this._indicator) {
             this._indicator.syncUnderlineElements(activeGroupIds);
             if (hasAnimation) {
-                // Track for the themed duration, not a fixed window, so a
-                // slower theme does not leave the underline frozen mid-way.
                 this._indicator.trackUnderlines(
                     getDurationMs() + EXPAND_FALLBACK_SLACK_MS
                 );
@@ -810,11 +787,7 @@ export class TabGroupManager {
         }
     }
 
-    /**
-     * Sync the group classes and accent of a tab that belongs to `tg`, and
-     * start its expand animation if the group has just been expanded. Returns
-     * whether an animation is now in flight for the tab.
-     */
+    /** Returns whether an animation is now in flight for the tab. */
     private _syncGroupedTab(
         tab: Tab,
         tg: ITabGroup,
@@ -844,11 +817,7 @@ export class TabGroupManager {
 
         const inFlight = this._inFlightCollapse(tab.element, panelId);
         if (inFlight) {
-            // Expand requested mid-collapse: play the scripted collapse
-            // backwards from its current point. The collapsed class was never
-            // applied (it is only added once a forward collapse settles), so
-            // there is no class swap and no snap; the finish handler simply
-            // tears the animation down at the expanded end.
+            // Mid-collapse: play it backwards rather than swapping classes.
             this._setCollapseDirection(inFlight, false);
         } else {
             this._expandTab(tab.element, panelId, getDurationMs());
@@ -856,7 +825,6 @@ export class TabGroupManager {
         return true;
     }
 
-    /** Drop every group class and inline style from a tab in no group. */
     private _syncUngroupedTab(tab: Tab): void {
         toggleClass(tab.element, 'dv-tab--grouped', false);
         toggleClass(tab.element, 'dv-tab--group-first', false);
@@ -871,10 +839,7 @@ export class TabGroupManager {
         tab.element.style.removeProperty('--dv-tab-group-color');
     }
 
-    /**
-     * Expand a tab collapsed at rest: swap the resting class for the
-     * transition-carrying one and let CSS animate back.
-     */
+    /** Expand a tab collapsed at rest via the CSS transition. */
     private _expandTab(
         el: HTMLElement,
         panelId: string,
@@ -883,8 +848,6 @@ export class TabGroupManager {
         el.classList.remove('dv-tab--group-collapsed');
         el.classList.add('dv-tab--group-expanding');
 
-        // Clean up any previous transitionend listener from a rapid
-        // collapse/expand cycle.
         this._pendingTransitionCleanups.get(panelId)?.();
 
         const onEnd = () => {
@@ -895,9 +858,7 @@ export class TabGroupManager {
             clearTimeout(fallbackTimer);
             this._pendingTransitionCleanups.delete(panelId);
         };
-        // Fallback in case transitionend never fires (e.g. element removed
-        // from DOM mid-transition). Sized from the theme's duration so a
-        // slower theme is not cut off mid-expand.
+        // In case transitionend never fires (e.g. element removed mid-transition).
         const fallbackTimer = setTimeout(
             onEnd,
             durationMs + EXPAND_FALLBACK_SLACK_MS
@@ -906,11 +867,7 @@ export class TabGroupManager {
         el.addEventListener('transitionend', onEnd);
     }
 
-    /**
-     * Collapse the tabs of `tg` that are neither at rest collapsed nor already
-     * collapsing (a tab whose collapse is being reversed counts: it is
-     * re-reversed). Returns whether an animation was started.
-     */
+    /** Returns whether an animation was started. */
     private _collapseGroup(
         tg: ITabGroup,
         tabMap: ReadonlyMap<string, IValueDisposable<Tab>>,
@@ -942,17 +899,11 @@ export class TabGroupManager {
     }
 
     /**
-     * Apply the collapsed resting state with no animation. The inline
-     * `transition: none` keeps the resting class's own CSS transition from
-     * firing; one forced reflow commits the change before it is re-enabled.
-     * This path only suppresses a style; it drives no animation, so the Web
-     * Animations API does not apply.
+     * Apply the resting class with its CSS transition suppressed, committed
+     * by a single reflow.
      */
     private _applyCollapsedInstantly(tabs: readonly TabTarget[]): void {
         for (const { el, pid } of tabs) {
-            // Stop any in-flight animated collapse first so we don't leave a
-            // running animation on a tab we are about to force to its resting
-            // state.
             this._cancelCollapseAnimation(pid);
             el.style.transition = 'none';
             el.classList.add('dv-tab--group-collapsed');
@@ -963,11 +914,7 @@ export class TabGroupManager {
         }
     }
 
-    /**
-     * Whether a tab is collapsed at rest (`dv-tab--group-collapsed`) or is
-     * currently playing a forward collapse. A tab whose collapse is being
-     * reversed back to expanded is not collapsing.
-     */
+    /** Collapsed at rest, or playing a forward collapse. */
     private _isCollapsing(el: HTMLElement, panelId: string): boolean {
         if (el.classList.contains('dv-tab--group-collapsed')) {
             return true;
@@ -976,10 +923,9 @@ export class TabGroupManager {
     }
 
     /**
-     * The running collapse animation for `el`, if any. An entry left by a
-     * previous element under the same panel id (the tab was re-created
-     * without `cleanupTransition`, e.g. by a group move) is stale: it is
-     * cancelled and ignored so the new element is never matched to it.
+     * The running collapse for `el`, if any. An entry left by a previous
+     * element under the same panel id (tab re-created by a group move) is
+     * stale and gets cancelled.
      */
     private _inFlightCollapse(
         el: HTMLElement,
@@ -996,7 +942,6 @@ export class TabGroupManager {
         return entry;
     }
 
-    /** Turn an in-flight collapse around (idempotent per direction). */
     private _setCollapseDirection(
         entry: CollapseAnimationEntry,
         collapsing: boolean
@@ -1008,16 +953,9 @@ export class TabGroupManager {
     }
 
     /**
-     * The theme's `--dv-transition-duration` for `el` in milliseconds, used to
-     * size the scripted collapse and the expand fallback timer from the same
-     * source of truth as `tabs.scss`. Resolved from a computed style the
-     * caller already holds so no extra style recalculation is forced.
-     *
-     * Only a literal `<time>` is honoured; anything else (unset, as in every
-     * shipped theme, or a non-literal such as `calc()`) takes the default,
-     * matching the `var(--dv-transition-duration, 200ms)` fallback in the
-     * stylesheet. (The element's own `transition-duration` is deliberately
-     * not consulted: a tab at rest declares no transition, so it reads `0s`.)
+     * `--dv-transition-duration` in ms, or the default when unset (as in every
+     * shipped theme) or non-literal. Don't fall back to the element's own
+     * `transition-duration`: a tab at rest declares none and reads `0s`.
      */
     private _transitionDurationMs(
         el: HTMLElement,
@@ -1035,30 +973,13 @@ export class TabGroupManager {
     }
 
     /**
-     * Collapse a set of tabs (the tabs of one group), animating each from its
-     * current geometry to the collapsed rest state with the Web Animations
-     * API. Returns whether an animation is now in flight (false on the
-     * instant paths).
+     * Animate the tabs of one group to the collapsed state with WAAPI.
+     * Returns whether an animation is in flight (false on the instant paths).
      *
-     * This replaces the former "pin an inline size → force a synchronous
-     * reflow → toggle the `dv-tab--group-collapsed` class" pattern. All
-     * geometry reads happen before any write, so a group of N tabs costs one
-     * layout, not N forced reflows.
-     *
-     * `.dv-tab--group-collapsed` still provides the resting state. Its
-     * declarations are `!important` (they must beat inline geometry pinned by
-     * drag/reorder), and `!important` author declarations outrank animation
-     * keyframes in the cascade, so the class cannot be present *during* the
-     * animation. Instead the tab wears `dv-tab--group-collapsing` (overflow
-     * clipping, no pointer events, no min size — nothing `!important`) while
-     * the animation plays from the measured geometry to zero with
-     * `fill: 'both'`, and the resting class is swapped in the moment the
-     * animation settles, before the fill is dropped, so no intermediate frame
-     * is painted.
-     *
-     * Timing and easing mirror the theme's CSS transition: the duration comes
-     * from `--dv-transition-duration` (default 200ms) and the easing is
-     * `ease-out`, matching `tabs.scss`.
+     * `.dv-tab--group-collapsed` is `!important`, which outranks animation
+     * keyframes, so it is only applied once the animation settles; meanwhile
+     * the tab wears `--group-collapsing` and the animation's `fill: 'both'`
+     * holds the end frame across the swap.
      */
     private _animateTabCollapse(
         tabs: readonly TabTarget[],
@@ -1068,10 +989,6 @@ export class TabGroupManager {
         const first = tabs[0].el;
         const win = first.ownerDocument.defaultView;
 
-        // Reduced motion mirrors the CSS `@media (prefers-reduced-motion)` rule
-        // that disables the transition. Environments without the Web
-        // Animations API take the same instant path: there is one animated
-        // implementation, not a second, pin-and-reflow one to maintain.
         if (
             prefersReducedMotion(first.ownerDocument) ||
             typeof first.animate !== 'function'
@@ -1083,8 +1000,6 @@ export class TabGroupManager {
             return false;
         }
 
-        // A collapse that is being reversed (expand requested mid-collapse)
-        // only needs to be turned around again.
         const fresh: TabTarget[] = [];
         for (const tab of tabs) {
             const reversing = this._inFlightCollapse(tab.el, tab.pid);
@@ -1098,16 +1013,12 @@ export class TabGroupManager {
             return true;
         }
 
-        // ---- Read phase: geometry and computed style for every tab. This
-        // precedes every write, including the expand cleanups below: a tab
-        // still mid-expand is measured at its current, in-transition size so
-        // the collapse starts from there rather than from full size.
+        // Read everything before any write (one layout per group), including
+        // before the expand cleanups below, so a tab still mid-expand is
+        // measured at its current size.
         const frames = fresh.map(({ el }) => {
             const computed = win?.getComputedStyle(el);
             const rect = el.getBoundingClientRect();
-            // Only geometry (and opacity) is expressed as keyframes; colours
-            // and other themed properties stay in CSS. Longhands are used on
-            // both keyframes so each animates as a matched pair.
             const from: Keyframe = {
                 paddingTop: computed?.paddingTop ?? '',
                 paddingRight: computed?.paddingRight ?? '',
@@ -1130,8 +1041,6 @@ export class TabGroupManager {
                 marginLeft: '0px',
                 opacity: '0',
             };
-            // Vertical collapses the block (height) axis; horizontal the
-            // inline (width) axis — matching the CSS transition per direction.
             if (isVert) {
                 from.height = `${rect.height}px`;
                 to.height = '0px';
@@ -1143,19 +1052,12 @@ export class TabGroupManager {
         });
         const duration = getDurationMs();
 
-        // ---- Write phase. Dropping a pending expand cleanup removes the
-        // transition-carrying `--group-expanding` class, which snaps the tab
-        // to full size underneath; the animation measured above hides that.
         for (const { pid } of fresh) {
             this._pendingTransitionCleanups.get(pid)?.();
         }
         fresh.forEach(({ el, pid }, i) => {
-            // No inline transition suppression: `--group-collapsing` declares
-            // no transition, so nothing fires while the animation plays, and
-            // at the swap below the animated end values equal the resting
-            // class's values, so nothing fires then either. Leaving the
-            // element's inline `transition` alone also keeps it out of the
-            // drag/reorder paths, which set and clear that property.
+            // No inline `transition: none` needed: `--group-collapsing` has no
+            // transition and the swap below changes no animated value.
             el.classList.add('dv-tab--group-collapsing');
 
             const animation = el.animate([frames[i].from, frames[i].to], {
@@ -1168,14 +1070,9 @@ export class TabGroupManager {
 
             animation.onfinish = () => {
                 if (this._collapseAnimations.get(pid) !== entry) {
-                    // Superseded or cancelled; its owner cleaned up.
                     return;
                 }
                 this._collapseAnimations.delete(pid);
-                // Finished at the collapsed end (forward) → swap in the
-                // resting class while the fill still holds the final frame.
-                // Finished at the expanded end (reversed) → the natural
-                // layout is the resting state; nothing to add.
                 if (entry.collapsing) {
                     el.classList.add('dv-tab--group-collapsed');
                 }
@@ -1186,13 +1083,7 @@ export class TabGroupManager {
         return true;
     }
 
-    /**
-     * Cancel an in-flight animated collapse for a tab, if any, dropping its
-     * animated geometry so the tab is governed by its classes alone, and
-     * removing the in-flight marker.
-     * Callers that need the collapsed resting state add the class themselves.
-     * Idempotent.
-     */
+    /** Leaves the tab governed by its classes alone. */
     private _cancelCollapseAnimation(panelId: string): void {
         const entry = this._collapseAnimations.get(panelId);
         if (!entry) {

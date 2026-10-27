@@ -291,10 +291,8 @@
             opacity var(--dv-transition-duration, 200ms) ease-out;
     }
 
-    // Worn while a scripted (Web Animations API) collapse plays, before
-    // `--group-collapsed` is swapped in at rest. Deliberately nothing
-    // `!important` here: `!important` declarations outrank animation
-    // keyframes, so the geometry must stay free for the animation to drive.
+    // Worn while the scripted collapse plays. Nothing `!important` here: it
+    // would outrank the animation's keyframes.
     &.dv-tab--group-collapsing {
         min-width: 0;
         overflow: hidden;

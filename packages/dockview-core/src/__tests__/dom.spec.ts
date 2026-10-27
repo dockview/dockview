@@ -474,12 +474,10 @@ describe('parseCssTimeMs', () => {
         '10',
         '10px',
         'fast',
-        // Negative durations are invalid CSS and would make
-        // `Element.animate()` throw.
+        // Negative: would make `Element.animate()` throw.
         '-1ms',
         '-200ms',
         '-0.2s',
-        // Unevaluated expressions in an unregistered custom property.
         'calc(100ms * 2)',
     ])('falls back for the unparseable value %p', (value) => {
         expect(parseCssTimeMs(value, 42)).toBe(42);
