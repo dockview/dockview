@@ -754,7 +754,9 @@ export function parseCssTimeMs(value: string, fallbackMs: number): number {
     if (trimmed === '') {
         return fallbackMs;
     }
-    const match = /^\+?(\d*\.?\d+)(ms|s)?$/i.exec(trimmed);
+    // `\d+(\.\d+)?|\.\d+` rather than `\d*\.?\d+`: the alternatives do not
+    // overlap, so the match cannot backtrack super-linearly.
+    const match = /^\+?(\d+(?:\.\d+)?|\.\d+)(ms|s)?$/i.exec(trimmed);
     if (!match) {
         return fallbackMs;
     }
