@@ -12,7 +12,7 @@ import { test, expect, Page } from '@playwright/test';
  * on every frame.
  */
 
-type Sample = { t: number; size: number };
+type Sample = { t: number; size: number; animations: string[] };
 
 const dv = (page: Page) => ({
     collapse: () => page.evaluate(() => (window as any).__dv.collapse()),
@@ -70,6 +70,12 @@ test.describe('animated tab-group collapse', () => {
         const mid = samples.find((s) => s.t >= 250 && s.t <= 350);
         expect(mid?.size).toBeGreaterThan(full * 0.1);
         expect(samples[samples.length - 1].size).toBe(0);
+        // Only the scripted animation ever runs: swapping in the resting
+        // class at the end must not trigger its CSS transition.
+        expect(samples.flatMap((s) => s.animations)).not.toContain(
+            'CSSTransition'
+        );
+        expect(samples[samples.length - 1].animations).toEqual([]);
 
         // Resting state: the class provides the geometry, no in-flight marker,
         // no inline styles left behind.
@@ -81,6 +87,60 @@ test.describe('animated tab-group collapse', () => {
             width: '',
             height: '',
         });
+    });
+
+    test('with no theme duration set (every shipped theme) the collapse animates over the 200ms default', async ({
+        page,
+    }) => {
+        await open(page);
+        expect(
+            await page.evaluate(() =>
+                getComputedStyle(
+                    document.getElementById('app')!
+                ).getPropertyValue('--dv-transition-duration')
+            )
+        ).toBe('');
+        const full = await dv(page).size('orders');
+
+        const samplesPromise = dv(page).sample('orders', 500);
+        await dv(page).collapse();
+        const samples = await samplesPromise;
+
+        // Several in-flight frames (not a 0ms snap)...
+        expect(intermediate(samples, full).length).toBeGreaterThan(3);
+        // ...done well before the sample window ends.
+        const settled = samples.find((s) => s.size === 0);
+        expect(settled?.t).toBeGreaterThan(100);
+        expect(settled?.t).toBeLessThan(400);
+        expect(samples[samples.length - 1].size).toBe(0);
+    });
+
+    test('collapsing mid-expand starts from the tab\'s current size, not full size', async ({
+        page,
+    }) => {
+        await open(page, { duration: '600ms' });
+        const full = await dv(page).size('orders');
+        await dv(page).collapse();
+        await page.waitForTimeout(800);
+        expect(await dv(page).size('orders')).toBe(0);
+
+        await dv(page).expand();
+        await page.waitForTimeout(200);
+        const atInterrupt = await dv(page).size('orders');
+        expect(atInterrupt).toBeGreaterThan(2);
+        expect(atInterrupt).toBeLessThan(full * 0.9);
+
+        const samplesPromise = dv(page).sample('orders', 300);
+        await dv(page).collapse();
+        const samples = await samplesPromise;
+
+        // Dropping the expand transition snaps the underlying layout to full
+        // size; the scripted collapse must hide that by starting from the
+        // measured, in-transition size.
+        for (const s of samples.slice(0, 4)) {
+            expect(s.size).toBeLessThan(full * 0.9);
+        }
+        expect(samples[samples.length - 1].size).toBeLessThan(atInterrupt);
     });
 
     test('every tab in the group animates and settles', async ({ page }) => {

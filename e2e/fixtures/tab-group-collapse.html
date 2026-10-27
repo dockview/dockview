@@ -59,13 +59,16 @@
                 const lib = window['dockview'];
                 const params = new URLSearchParams(location.search);
                 const headerPosition = params.get('header') || 'top';
-                // Theme transition duration under test (`--dv-transition-
-                // duration`). Long by default so a mid-animation frame can be
-                // sampled; `?duration=` overrides (any CSS <time>).
-                const duration = params.get('duration') || '600ms';
+                // Theme transition duration under test: `?duration=` (any
+                // CSS <time>) sets `--dv-transition-duration` on the dock.
+                // Without it the dock runs as every shipped theme does, with
+                // the variable unset and the stylesheet's 200ms fallback.
+                const duration = params.get('duration');
 
                 const el = document.getElementById('app');
-                el.style.setProperty('--dv-transition-duration', duration);
+                if (duration !== null) {
+                    el.style.setProperty('--dv-transition-duration', duration);
+                }
 
                 const dockview = new lib.DockviewComponent(el, {
                     createComponent: (options) => {
@@ -165,7 +168,8 @@
                         width: tabEl(panelId).style.width,
                         height: tabEl(panelId).style.height,
                     }),
-                    /** Sample a tab's main-axis size every frame for `ms`. */
+                    /** Sample a tab's main-axis size, and the kinds of
+                     *  animation live on it, every frame for `ms`. */
                     sample: (panelId, ms) =>
                         new Promise((resolve) => {
                             const out = [];
@@ -174,6 +178,9 @@
                                 out.push({
                                     t: Math.round(performance.now() - start),
                                     size: size(panelId),
+                                    animations: tabEl(panelId)
+                                        .getAnimations()
+                                        .map((a) => a.constructor.name),
                                 });
                                 if (performance.now() - start < ms) {
                                     requestAnimationFrame(tick);

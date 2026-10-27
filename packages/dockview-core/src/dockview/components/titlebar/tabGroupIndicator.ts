@@ -47,7 +47,7 @@ export interface TabGroupIndicatorContext {
 export interface ITabGroupIndicator {
     readonly underlines: ReadonlyMap<string, HTMLElement>;
     positionUnderlines(): void;
-    trackUnderlines(): void;
+    trackUnderlines(durationMs?: number): void;
     syncUnderlineElements(activeGroupIds: Set<string>): void;
     getUnderline(groupId: string): HTMLElement | undefined;
     dispose(): void;
@@ -80,16 +80,18 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
     }
 
     /**
-     * Continuously reposition underlines every frame for the duration
-     * of a tab transition (~200ms), so the underline tracks tab sizes.
+     * Continuously reposition underlines every frame for the duration of a
+     * tab transition, so the underline tracks tab sizes. `durationMs` should
+     * be slightly longer than the transition so the end is caught; it
+     * defaults to the built-in 200ms theme duration plus slack.
      */
-    trackUnderlines(): void {
+    trackUnderlines(durationMs = 250): void {
         if (this._rafId !== null) {
             cancelAnimationFrame(this._rafId);
         }
 
         const start = performance.now();
-        const duration = 250; // slightly longer than transition to ensure we catch the end
+        const duration = durationMs;
 
         const tick = () => {
             this._positionUnderlinesSync();
@@ -307,13 +309,17 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
                 : lastTabRect.right - containerRect.left;
             let span = endEdge - startEdge;
 
-            // During collapse or expand: converge both edges toward chip center
+            // During collapse or expand: converge both edges toward chip
+            // center. `--group-collapsing` covers a scripted collapse that is
+            // being reversed back to expanded (`tg.collapsed` is already
+            // false then, and no `--group-expanding` is applied).
             const isAnimating =
                 tg.collapsed ||
                 tg.panelIds.some((pid) => {
-                    const te = tabMap.get(pid);
-                    return te?.value.element.classList.contains(
-                        'dv-tab--group-expanding'
+                    const cls = tabMap.get(pid)?.value.element.classList;
+                    return (
+                        cls?.contains('dv-tab--group-expanding') ||
+                        cls?.contains('dv-tab--group-collapsing')
                     );
                 });
 
