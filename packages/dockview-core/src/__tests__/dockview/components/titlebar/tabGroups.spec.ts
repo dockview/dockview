@@ -503,6 +503,494 @@ describe('TabGroupManager', () => {
         });
     });
 
+    describe('collapse animation (Web Animations API)', () => {
+        interface MockAnimation {
+            playbackRate: number;
+            onfinish: (() => void) | null;
+            cancel: jest.Mock;
+            reverse: jest.Mock;
+            keyframes: Keyframe[];
+            options: KeyframeAnimationOptions;
+            /** Drive the animation to its end (in its current direction). */
+            finish: () => void;
+        }
+
+        function installAnimateMock(): {
+            animations: MockAnimation[];
+            restore: () => void;
+        } {
+            const proto = HTMLElement.prototype as unknown as {
+                animate?: (...args: unknown[]) => Animation;
+            };
+            const original = proto.animate;
+            const animations: MockAnimation[] = [];
+            proto.animate = function (
+                keyframes: Keyframe[],
+                options: KeyframeAnimationOptions
+            ): Animation {
+                if (
+                    typeof options.duration === 'number' &&
+                    options.duration < 0
+                ) {
+                    // As in a browser.
+                    throw new TypeError('duration must be non-negative');
+                }
+                const anim: MockAnimation = {
+                    playbackRate: 1,
+                    onfinish: null,
+                    keyframes,
+                    options,
+                    cancel: jest.fn(),
+                    reverse: jest.fn(() => {
+                        anim.playbackRate = -anim.playbackRate;
+                    }),
+                    finish: () => anim.onfinish?.(),
+                };
+                animations.push(anim);
+                return anim as unknown as Animation;
+            };
+            return {
+                animations,
+                restore: () => {
+                    proto.animate = original;
+                },
+            };
+        }
+
+        let mock: { animations: MockAnimation[]; restore: () => void };
+
+        beforeEach(() => {
+            mock = installAnimateMock();
+        });
+
+        afterEach(() => {
+            mock.restore();
+        });
+
+        function collapsedSetup(panelIds = ['p1']) {
+            const tabs = panelIds.map(createTab);
+            const tg = makeGroup('g1', panelIds);
+            const harness = createManager({ tabs, tabGroups: [tg] });
+            harness.manager.update();
+            tg.collapse();
+            harness.manager.update();
+            return { ...harness, tabs, tg };
+        }
+
+        test('collapse animates from the measured geometry to zero without the !important resting class', () => {
+            const { tabs } = collapsedSetup();
+            const el = tabs[0].value.element;
+
+            expect(mock.animations).toHaveLength(1);
+            const [anim] = mock.animations;
+            // `!important` resting class must stay off mid-animation.
+            expect(el.classList.contains('dv-tab--group-collapsed')).toBe(
+                false
+            );
+            expect(el.classList.contains('dv-tab--group-collapsing')).toBe(
+                true
+            );
+            expect(el.style.transition).toBe('');
+
+            expect(anim.keyframes).toHaveLength(2);
+            expect(anim.keyframes[0]).toMatchObject({ width: '0px' });
+            expect(anim.keyframes[1]).toMatchObject({
+                width: '0px',
+                paddingLeft: '0px',
+                marginRight: '0px',
+                opacity: '0',
+            });
+            expect(anim.options).toEqual({
+                duration: 200,
+                easing: 'ease-out',
+                fill: 'both',
+            });
+        });
+
+        test('vertical headers animate height rather than width', () => {
+            const tabs = [createTab('p1')];
+            const tg = makeGroup('g1', ['p1']);
+            const { manager } = createManager({
+                tabs,
+                tabGroups: [tg],
+                direction: 'vertical',
+            });
+            manager.update();
+            tg.collapse();
+            manager.update();
+
+            const [anim] = mock.animations;
+            expect(anim.keyframes[0]).toHaveProperty('height');
+            expect(anim.keyframes[0]).not.toHaveProperty('width');
+            expect(anim.keyframes[1]).toMatchObject({ height: '0px' });
+        });
+
+        test('finishing swaps in the resting class, drops the fill and leaks no inline style', () => {
+            const { tabs } = collapsedSetup();
+            const el = tabs[0].value.element;
+            const [anim] = mock.animations;
+
+            anim.finish();
+
+            expect(el.classList.contains('dv-tab--group-collapsed')).toBe(true);
+            expect(el.classList.contains('dv-tab--group-collapsing')).toBe(
+                false
+            );
+            expect(anim.cancel).toHaveBeenCalledTimes(1);
+            expect(el.style.transition).toBe('');
+            expect(el.style.width).toBe('');
+            expect(el.style.height).toBe('');
+        });
+
+        test('expanding mid-collapse reverses the running animation instead of snapping', () => {
+            const { manager, tabs, tg } = collapsedSetup();
+            const el = tabs[0].value.element;
+            const [anim] = mock.animations;
+
+            tg.expand();
+            manager.update();
+            // update runs more than once per toggle; playbackRate is left stale as Chromium reports it.
+            anim.playbackRate = 1;
+            manager.update();
+
+            expect(anim.reverse).toHaveBeenCalledTimes(1);
+            expect(anim.cancel).not.toHaveBeenCalled();
+            expect(mock.animations).toHaveLength(1);
+            expect(el.classList.contains('dv-tab--group-collapsed')).toBe(
+                false
+            );
+            expect(el.classList.contains('dv-tab--group-expanding')).toBe(
+                false
+            );
+            expect(el.classList.contains('dv-tab--group-collapsing')).toBe(
+                true
+            );
+
+            anim.finish();
+            expect(el.classList.contains('dv-tab--group-collapsed')).toBe(
+                false
+            );
+            expect(el.classList.contains('dv-tab--group-collapsing')).toBe(
+                false
+            );
+            expect(el.style.transition).toBe('');
+            expect(anim.cancel).toHaveBeenCalledTimes(1);
+        });
+
+        test('collapsing again while a collapse is being reversed turns it around again', () => {
+            const { manager, tg } = collapsedSetup();
+            const [anim] = mock.animations;
+
+            tg.expand();
+            manager.update();
+            tg.collapse();
+            manager.update();
+
+            expect(anim.reverse).toHaveBeenCalledTimes(2);
+            expect(mock.animations).toHaveLength(1);
+            manager.update();
+            expect(anim.reverse).toHaveBeenCalledTimes(2);
+
+            anim.finish();
+            expect(manager['_collapseAnimations'].size).toBe(0);
+        });
+
+        test('a second update while collapsing does not stack a new animation', () => {
+            const { manager } = collapsedSetup();
+            manager.update();
+            manager.update();
+            expect(mock.animations).toHaveLength(1);
+        });
+
+        test('tabs collapsed at rest expand through the CSS transition path', () => {
+            const { manager, tabs, tg } = collapsedSetup();
+            const el = tabs[0].value.element;
+            mock.animations[0].finish();
+
+            tg.expand();
+            manager.update();
+
+            expect(el.classList.contains('dv-tab--group-collapsed')).toBe(
+                false
+            );
+            expect(el.classList.contains('dv-tab--group-expanding')).toBe(true);
+            expect(mock.animations).toHaveLength(1);
+        });
+
+        test('reads all geometry before the first write when collapsing a group', () => {
+            const log: string[] = [];
+            const originalRect = HTMLElement.prototype.getBoundingClientRect;
+            HTMLElement.prototype.getBoundingClientRect = function () {
+                log.push('read');
+                return originalRect.call(this);
+            };
+            const animate = HTMLElement.prototype.animate;
+            HTMLElement.prototype.animate = function (...args: any[]) {
+                log.push('write');
+                return (animate as any).apply(this, args);
+            };
+            try {
+                collapsedSetup(['p1', 'p2', 'p3']);
+            } finally {
+                HTMLElement.prototype.getBoundingClientRect = originalRect;
+                HTMLElement.prototype.animate = animate;
+            }
+            expect(log).toEqual([
+                'read',
+                'read',
+                'read',
+                'write',
+                'write',
+                'write',
+            ]);
+        });
+
+        test('the duration follows --dv-transition-duration, read once per pass from the tabs list', () => {
+            const tabs = [createTab('p1'), createTab('p2')];
+            const tg = makeGroup('g1', ['p1', 'p2']);
+            const { manager, tabsList } = createManager({
+                tabs,
+                tabGroups: [tg],
+            });
+            tabsList.style.setProperty('--dv-transition-duration', '0.5s');
+            manager.update();
+            tg.collapse();
+            manager.update();
+
+            expect(mock.animations.map((a) => a.options.duration)).toEqual([
+                500, 500,
+            ]);
+        });
+
+        test('with no theme duration set the collapse uses the 200ms default, never 0', () => {
+            const { tabs } = collapsedSetup();
+            // A resting tab has no transition; that must not read as a 0ms theme.
+            expect(
+                getComputedStyle(tabs[0].value.element).transitionDuration
+            ).not.toBe('200ms');
+            expect(mock.animations[0].options.duration).toBe(200);
+        });
+
+        test('the indicator tracks underlines for the themed duration plus slack', () => {
+            const tabs = [createTab('p1')];
+            const tg = makeGroup('g1', ['p1']);
+            const { manager, tabsList } = createManager({
+                tabs,
+                tabGroups: [tg],
+            });
+            tabsList.style.setProperty('--dv-transition-duration', '500ms');
+            manager.update();
+            const track = jest.spyOn(manager['_indicator']!, 'trackUnderlines');
+            tg.collapse();
+            manager.update();
+            expect(track).toHaveBeenCalledWith(600);
+        });
+
+        test('a collapse interrupting an expand measures the tab before dropping the expand transition', () => {
+            const { manager, tabs, tg } = collapsedSetup();
+            const el = tabs[0].value.element;
+            mock.animations[0].finish();
+            tg.expand();
+            manager.update();
+            expect(el.classList.contains('dv-tab--group-expanding')).toBe(true);
+
+            const wornAtRead: boolean[] = [];
+            const originalRect = HTMLElement.prototype.getBoundingClientRect;
+            HTMLElement.prototype.getBoundingClientRect = function () {
+                wornAtRead.push(
+                    this.classList.contains('dv-tab--group-expanding')
+                );
+                return originalRect.call(this);
+            };
+            try {
+                tg.collapse();
+                manager.update();
+            } finally {
+                HTMLElement.prototype.getBoundingClientRect = originalRect;
+            }
+            expect(wornAtRead).toEqual([true]);
+            expect(el.classList.contains('dv-tab--group-expanding')).toBe(
+                false
+            );
+            expect(mock.animations).toHaveLength(2);
+        });
+
+        test('a negative --dv-transition-duration falls back instead of throwing', () => {
+            const tabs = [createTab('p1'), createTab('p2')];
+            const tg = makeGroup('g1', ['p1', 'p2']);
+            const { manager, tabsList } = createManager({
+                tabs,
+                tabGroups: [tg],
+            });
+            tabsList.style.setProperty('--dv-transition-duration', '-200ms');
+            manager.update();
+            tg.collapse();
+
+            expect(() => manager.update()).not.toThrow();
+            expect(mock.animations).toHaveLength(2);
+            expect(mock.animations[0].options.duration).toBe(200);
+            expect(manager.skipNextCollapseAnimation).toBe(false);
+        });
+
+        test('the expand fallback timer honours a slower theme duration', () => {
+            jest.useFakeTimers();
+            try {
+                const tabs = [createTab('p1')];
+                const el = tabs[0].value.element;
+                const tg = makeGroup('g1', ['p1']);
+                const { manager, tabsList } = createManager({
+                    tabs,
+                    tabGroups: [tg],
+                });
+                tabsList.style.setProperty('--dv-transition-duration', '500ms');
+                manager.update();
+                tg.collapse();
+                manager.update();
+                mock.animations[0].finish();
+
+                tg.expand();
+                manager.update();
+                expect(el.classList.contains('dv-tab--group-expanding')).toBe(
+                    true
+                );
+
+                jest.advanceTimersByTime(350);
+                expect(el.classList.contains('dv-tab--group-expanding')).toBe(
+                    true
+                );
+
+                jest.advanceTimersByTime(300);
+                expect(el.classList.contains('dv-tab--group-expanding')).toBe(
+                    false
+                );
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        test('removing a tab mid-collapse (cleanupTransition) cancels its animation', () => {
+            const { manager, tabs } = collapsedSetup();
+            const el = tabs[0].value.element;
+            const [anim] = mock.animations;
+
+            manager.cleanupTransition('p1');
+
+            expect(anim.cancel).toHaveBeenCalledTimes(1);
+            expect(manager['_collapseAnimations'].size).toBe(0);
+            expect(el.classList.contains('dv-tab--group-collapsing')).toBe(
+                false
+            );
+            expect(el.style.transition).toBe('');
+            expect(() => anim.finish()).not.toThrow();
+            expect(el.classList.contains('dv-tab--group-collapsed')).toBe(
+                false
+            );
+        });
+
+        test('the skip-animation instant path cancels an in-flight collapse', () => {
+            const { manager, tabs, tg, tabMap, tabsList } = collapsedSetup();
+            const [anim] = mock.animations;
+
+            // A tab re-created mid-collapse, as a group move does.
+            const fresh = createTab('p1');
+            tabsList.replaceChild(fresh.value.element, tabs[0].value.element);
+            tabs[0] = fresh;
+            tabMap.set('p1', fresh);
+            manager.skipNextCollapseAnimation = true;
+            expect(tg.collapsed).toBe(true);
+            manager.update();
+
+            expect(anim.cancel).toHaveBeenCalledTimes(1);
+            expect(mock.animations).toHaveLength(1);
+            expect(
+                fresh.value.element.classList.contains(
+                    'dv-tab--group-collapsed'
+                )
+            ).toBe(true);
+            expect(fresh.value.element.style.transition).toBe('');
+        });
+
+        test('disposeAll cancels an in-flight collapse animation', () => {
+            const { manager, tabs } = collapsedSetup();
+
+            manager.disposeAll();
+
+            expect(mock.animations[0].cancel).toHaveBeenCalledTimes(1);
+            expect(tabs[0].value.element.style.transition).toBe('');
+            expect(
+                tabs[0].value.element.classList.contains(
+                    'dv-tab--group-collapsing'
+                )
+            ).toBe(false);
+        });
+
+        test('reduced motion skips the scripted animation and applies instantly', () => {
+            const win = document.defaultView as Window & {
+                matchMedia?: (q: string) => MediaQueryList;
+            };
+            const originalMatchMedia = win.matchMedia;
+            win.matchMedia = ((query: string) =>
+                ({
+                    matches: true,
+                    media: query,
+                }) as MediaQueryList) as typeof win.matchMedia;
+
+            try {
+                const tabs = [createTab('p1')];
+                const tg = makeGroup('g1', ['p1']);
+                const { manager } = createManager({ tabs, tabGroups: [tg] });
+                manager.update();
+                const track = jest.spyOn(
+                    manager['_indicator']!,
+                    'trackUnderlines'
+                );
+                tg.collapse();
+                manager.update();
+
+                const el = tabs[0].value.element;
+                expect(mock.animations).toHaveLength(0);
+                expect(el.classList.contains('dv-tab--group-collapsed')).toBe(
+                    true
+                );
+                expect(el.style.transition).toBe('');
+                expect(track).not.toHaveBeenCalled();
+            } finally {
+                win.matchMedia = originalMatchMedia;
+            }
+        });
+
+        test('without the Web Animations API the collapsed class is applied instantly, with its CSS transition suppressed', () => {
+            mock.restore();
+            // The resting class has its own CSS transition; it must be suppressed.
+            const seen: string[] = [];
+            const originalRect = HTMLElement.prototype.getBoundingClientRect;
+            HTMLElement.prototype.getBoundingClientRect = function () {
+                seen.push(
+                    `${this.style.transition}|${this.classList.contains(
+                        'dv-tab--group-collapsed'
+                    )}`
+                );
+                return originalRect.call(this);
+            };
+            let tabs: ReturnType<typeof collapsedSetup>['tabs'];
+            try {
+                ({ tabs } = collapsedSetup(['p1', 'p2']));
+            } finally {
+                HTMLElement.prototype.getBoundingClientRect = originalRect;
+            }
+            expect(seen).toEqual(['none|true']);
+            for (const t of tabs) {
+                const el = t.value.element;
+                expect(el.classList.contains('dv-tab--group-collapsed')).toBe(
+                    true
+                );
+                expect(el.style.width).toBe('');
+                expect(el.style.height).toBe('');
+                expect(el.style.transition).toBe('');
+            }
+        });
+    });
+
     describe('underline / indicator', () => {
         test('groupUnderlines is empty before any update', () => {
             const { manager } = createManager();

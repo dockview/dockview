@@ -14,6 +14,7 @@ import {
     isShadowRoot,
     onDidWindowMoveEnd,
     onDidWindowResizeEnd,
+    parseCssTimeMs,
     prefersReducedMotion,
     quasiDefaultPrevented,
     quasiPreventDefault,
@@ -451,6 +452,35 @@ describe('prefersReducedMotion', () => {
     test('false when matchMedia is unavailable', () => {
         delete (win as { matchMedia?: unknown }).matchMedia;
         expect(prefersReducedMotion(document)).toBe(false);
+    });
+});
+
+describe('parseCssTimeMs', () => {
+    test.each([
+        ['200ms', 200],
+        ['0.2s', 200],
+        ['1s', 1000],
+        ['0', 0],
+        ['  150ms  ', 150],
+        ['.5s', 500],
+    ])('parses %p as %p ms', (value, expected) => {
+        expect(parseCssTimeMs(value, 999)).toBe(expected);
+    });
+
+    test.each([
+        '',
+        '   ',
+        'abc',
+        '10',
+        '10px',
+        'fast',
+        // Negative: would make `Element.animate()` throw.
+        '-1ms',
+        '-200ms',
+        '-0.2s',
+        'calc(100ms * 2)',
+    ])('falls back for the unparseable value %p', (value) => {
+        expect(parseCssTimeMs(value, 42)).toBe(42);
     });
 });
 

@@ -744,6 +744,27 @@ export function prefersReducedMotion(doc: Document = document): boolean {
     return !!mq?.matches;
 }
 
+/** Parse a CSS `<time>` (`"200ms"`, `"0.2s"`, `"0"`) into milliseconds.
+ *  Returns `fallbackMs` for an empty, unparseable or negative value. */
+export function parseCssTimeMs(value: string, fallbackMs: number): number {
+    const trimmed = value.trim();
+    if (trimmed === '') {
+        return fallbackMs;
+    }
+    const match = /^\+?(\d+(?:\.\d+)?|\.\d+)(ms|s)?$/i.exec(trimmed);
+    if (!match) {
+        return fallbackMs;
+    }
+    const amount = Number.parseFloat(match[1]);
+    if (!Number.isFinite(amount)) {
+        return fallbackMs;
+    }
+    if (match[2] === undefined) {
+        return amount === 0 ? 0 : fallbackMs;
+    }
+    return match[2].toLowerCase() === 's' ? amount * 1000 : amount;
+}
+
 /** The first opaque computed background colour walking up from `element` (the
  *  element itself, then its ancestors). Use to give a floating/overlapping
  *  surface a non-see-through backdrop derived from the live DOM. Returns `''`
