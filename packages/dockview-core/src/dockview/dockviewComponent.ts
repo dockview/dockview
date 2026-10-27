@@ -1594,6 +1594,26 @@ export class DockviewComponent
     }
 
     /**
+     * After a restore that left a group with no active panel (its saved
+     * `activeView` was missing or hidden), activate its last visible panel.
+     * No-op when the group already has one or every panel is hidden, in which
+     * case the group shows its watermark.
+     */
+    private activateLastVisiblePanel(group: DockviewGroupPanel): void {
+        if (group.activePanel) {
+            return;
+        }
+
+        const visible = group.model.visiblePanels;
+
+        if (visible.length > 0) {
+            group.model.openPanel(visible[visible.length - 1], {
+                skipSetGroupActive: true,
+            });
+        }
+    }
+
+    /**
      * Hide or show a panel in place. The flag is set on the panel first (so
      * the group's tab/active-panel bookkeeping reads the new state), then the
      * group drops or restores the tab and re-picks its active panel. Fires the
@@ -4122,14 +4142,7 @@ export class DockviewComponent
                     group.model.restoreTabGroups(data.tabGroups);
                 }
 
-                if (!group.activePanel && group.panels.length > 0) {
-                    const visible = group.model.visiblePanels;
-                    if (visible.length > 0) {
-                        group.model.openPanel(visible[visible.length - 1], {
-                            skipSetGroupActive: true,
-                        });
-                    }
-                }
+                this.activateLastVisiblePanel(group);
 
                 return group;
             };
@@ -4369,14 +4382,7 @@ export class DockviewComponent
                     edgeGroup.model.restoreTabGroups(groupState.tabGroups);
                 }
 
-                if (!edgeGroup.activePanel && edgeGroup.panels.length > 0) {
-                    const visible = edgeGroup.model.visiblePanels;
-                    if (visible.length > 0) {
-                        edgeGroup.model.openPanel(visible[visible.length - 1], {
-                            skipSetGroupActive: true,
-                        });
-                    }
-                }
+                this.activateLastVisiblePanel(edgeGroup);
             }
         }
 
@@ -5033,14 +5039,7 @@ export class DockviewComponent
             group.model.restoreTabGroups(tabGroups);
         }
 
-        if (!group.activePanel && group.panels.length > 0) {
-            const visible = group.model.visiblePanels;
-            if (visible.length > 0) {
-                group.model.openPanel(visible[visible.length - 1], {
-                    skipSetGroupActive: true,
-                });
-            }
-        }
+        this.activateLastVisiblePanel(group);
 
         if (!options?.skipSetActive) {
             this.doSetGroupAndPanelActive(group);
