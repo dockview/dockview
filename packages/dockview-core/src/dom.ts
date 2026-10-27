@@ -760,7 +760,7 @@ export function parseCssTimeMs(value: string, fallbackMs: number): number {
     if (!match) {
         return fallbackMs;
     }
-    const amount = parseFloat(match[1]);
+    const amount = Number.parseFloat(match[1]);
     if (!Number.isFinite(amount)) {
         return fallbackMs;
     }

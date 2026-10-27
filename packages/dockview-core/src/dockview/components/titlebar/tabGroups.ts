@@ -401,7 +401,8 @@ export class TabGroupManager {
         }
         this._pendingTransitionCleanups.clear();
 
-        for (const panelId of [...this._collapseAnimations.keys()]) {
+        // Deleting the current entry while iterating a Map is well defined.
+        for (const panelId of this._collapseAnimations.keys()) {
             this._cancelCollapseAnimation(panelId);
         }
 
