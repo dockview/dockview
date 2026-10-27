@@ -917,9 +917,7 @@ export class TabGroupManager {
             el.style.transition = 'none';
             el.classList.add('dv-tab--group-collapsed');
         }
-        // `void` marks this offsetHeight read as an intentional layout
-        // reflow, not a dead expression.
-        void toCollapse[0].el.offsetHeight; // single reflow
+        toCollapse[0].el.getBoundingClientRect(); // single reflow for the batch
         for (const { el } of toCollapse) {
             el.style.removeProperty('transition');
         }
