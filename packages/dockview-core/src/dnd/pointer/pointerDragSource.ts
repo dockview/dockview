@@ -109,6 +109,10 @@ export class PointerDragSource extends CompositeDisposable {
         ) {
             return false;
         }
+        // Native HTML5 drags begin on the primary button only.
+        if (event.pointerType === 'mouse' && event.button !== 0) {
+            return false;
+        }
         if (this.options.isCancelled?.(event)) {
             return false;
         }

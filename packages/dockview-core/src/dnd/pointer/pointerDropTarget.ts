@@ -170,6 +170,7 @@ export class PointerDropTarget
             nativeEvent: event.pointerEvent,
             position: quadrant,
             edge: resolved.edge,
+            edgeGroup: resolved.edgeGroup,
         });
         this._onWillShowOverlay.fire(willShow);
         if (willShow.defaultPrevented) {
@@ -264,7 +265,7 @@ export class PointerDropTarget
         width: number,
         height: number,
         event: DragEvent | PointerEvent
-    ): { position: Position; edge: boolean } | null {
+    ): { position: Position; edge: boolean; edgeGroup: boolean } | null {
         const resolver = this.options.getPositionResolver?.();
         if (resolver) {
             const result = resolver.resolve({
@@ -276,11 +277,15 @@ export class PointerDropTarget
                 event,
             });
             return result
-                ? { position: result.position, edge: !!result.edge }
+                ? {
+                      position: result.position,
+                      edge: !!result.edge,
+                      edgeGroup: !!result.edgeGroup,
+                  }
                 : null;
         }
         const position = this._calculateQuadrant(x, y, width, height);
-        return position ? { position, edge: false } : null;
+        return position ? { position, edge: false, edgeGroup: false } : null;
     }
 
     private _calculateQuadrant(
