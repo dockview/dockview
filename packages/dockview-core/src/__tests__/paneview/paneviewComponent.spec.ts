@@ -285,6 +285,61 @@ describe('paneviewComponent', () => {
         paneview.dispose();
     });
 
+    test('a restored hidden pane reports isVisible false and reopens at its cached size', () => {
+        const paneview = new PaneviewComponent(container, {
+            createComponent: (options) => {
+                switch (options.name) {
+                    case 'default':
+                        return new TestPanel(options.id, options.name);
+                    default:
+                        throw new Error('unsupported');
+                }
+            },
+        });
+
+        paneview.layout(300, 600);
+
+        paneview.addPanel({
+            id: 'panel1',
+            component: 'default',
+            title: 'Panel 1',
+            isExpanded: true,
+        });
+        const panel2 = paneview.addPanel({
+            id: 'panel2',
+            component: 'default',
+            title: 'Panel 2',
+            isExpanded: true,
+        });
+
+        paneview.setVisible(panel2, false);
+        expect(panel2.api.isVisible).toBe(false);
+
+        const json = paneview.toJSON();
+        const cachedSize = json.views.find((v) => v.data.id === 'panel2')!.size;
+        expect(cachedSize).toBeGreaterThan(0);
+
+        paneview.fromJSON(JSON.parse(JSON.stringify(json)));
+        paneview.layout(300, 600);
+
+        const restored1 = paneview.getPanel('panel1')!;
+        const restored2 = paneview.getPanel('panel2')!;
+        // the api must agree with the splitview: hidden, not merely size 0
+        expect(restored2.api.isVisible).toBe(false);
+        expect(restored1.api.isVisible).toBe(true);
+
+        // showing it again must bring back the pre-hide size
+        paneview.setVisible(restored2, true);
+        expect(restored2.api.isVisible).toBe(true);
+
+        const json2 = paneview.toJSON();
+        const v2 = json2.views.find((v) => v.data.id === 'panel2')!;
+        expect('visible' in v2).toBe(false);
+        expect(v2.size).toBe(cachedSize);
+
+        paneview.dispose();
+    });
+
     test('serialization', () => {
         const paneview = new PaneviewComponent(container, {
             createComponent: (options) => {

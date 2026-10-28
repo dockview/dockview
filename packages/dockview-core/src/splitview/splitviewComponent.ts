@@ -32,6 +32,9 @@ export interface SerializedSplitviewPanel {
     priority?: LayoutPriority;
     data: SerializedSplitviewPanelData;
     size: number;
+    /** Absent/true = visible; false = the panel was hidden via setVisible and
+     *  `size` holds its cached pre-hide size. */
+    visible?: boolean;
 }
 
 export interface SerializedSplitview {
@@ -332,12 +335,18 @@ export class SplitviewComponent
         const views: SerializedSplitviewPanel[] = this.splitview
             .getViews<SplitviewPanel>()
             .map((view, i) => {
-                const size = this.splitview.getViewSize(i);
+                // a hidden view reports size 0; its pre-hide size is cached
+                const cachedVisibleSize =
+                    this.splitview.getViewCachedVisibleSize(i);
+                const hidden = typeof cachedVisibleSize === 'number';
                 return {
-                    size,
+                    size: hidden
+                        ? cachedVisibleSize
+                        : this.splitview.getViewSize(i),
                     data: view.toJSON(),
                     snap: !!view.snap,
                     priority: view.priority,
+                    ...(hidden ? { visible: false } : {}),
                 };
             });
 
@@ -385,6 +394,11 @@ export class SplitviewComponent
                             priority: view.priority,
                             accessor: this,
                         });
+                        // the descriptor adds the view hidden without telling
+                        // it, so sync the panel api's isVisible state here
+                        if (view.visible === false) {
+                            panel.setVisible(false);
+                        }
                     });
 
                     panel.orientation = orientation;
@@ -395,7 +409,11 @@ export class SplitviewComponent
                         this._onDidAddView.fire(panel);
                     }, 0);
 
-                    return { size: view.size, view: panel };
+                    return {
+                        size: view.size,
+                        view: panel,
+                        visible: view.visible,
+                    };
                 }),
             },
         });

@@ -146,6 +146,98 @@ describe('paneview', () => {
         paneview.dispose();
     });
 
+    test('moving a hidden pane keeps it hidden with its cached size', () => {
+        const paneview = new Paneview(container, {
+            orientation: Orientation.HORIZONTAL,
+        });
+
+        const makePanel = (id: string) =>
+            new TestPanel({
+                id,
+                component: 'component',
+                headerComponent: 'headerComponent',
+                orientation: Orientation.VERTICAL,
+                isExpanded: true,
+                isHeaderVisible: true,
+                headerSize: 22,
+                minimumBodySize: 0,
+                maximumBodySize: Number.MAX_SAFE_INTEGER,
+            });
+
+        const view1 = makePanel('id1');
+        const view2 = makePanel('id2');
+
+        paneview.addPane(view1);
+        paneview.addPane(view2);
+        paneview.layout(600, 400);
+
+        const size1 = paneview.getViewSize(0);
+        const size2 = paneview.getViewSize(1);
+        expect(size2).toBeGreaterThan(0);
+
+        // hide view2: it reports size 0 and keeps its real size cached
+        paneview.setViewVisible(1, false);
+        expect(paneview.getViewSize(1)).toBe(0);
+        expect(paneview.getViewCachedVisibleSize(1)).toBe(size2);
+        expect(paneview.getViewSize(0)).toBe(600);
+
+        paneview.moveView(1, 0);
+
+        expect(paneview.getPanes()).toEqual([view2, view1]);
+        // still hidden, cached size intact, sibling keeps the freed space
+        expect(paneview.getViewSize(0)).toBe(0);
+        expect(paneview.getViewCachedVisibleSize(0)).toBe(size2);
+        expect(paneview.getViewSize(1)).toBe(600);
+
+        // showing it again restores the pre-hide size
+        paneview.setViewVisible(0, true);
+        expect(paneview.getViewCachedVisibleSize(0)).toBeUndefined();
+        expect(paneview.getViewSize(0)).toBe(size2);
+        expect(paneview.getViewSize(1)).toBe(size1);
+
+        paneview.dispose();
+    });
+
+    test('moving a visible pane keeps its size', () => {
+        const paneview = new Paneview(container, {
+            orientation: Orientation.HORIZONTAL,
+        });
+
+        const makePanel = (id: string) =>
+            new TestPanel({
+                id,
+                component: 'component',
+                headerComponent: 'headerComponent',
+                orientation: Orientation.VERTICAL,
+                isExpanded: true,
+                isHeaderVisible: true,
+                headerSize: 22,
+                minimumBodySize: 0,
+                maximumBodySize: Number.MAX_SAFE_INTEGER,
+            });
+
+        const view1 = makePanel('id1');
+        const view2 = makePanel('id2');
+
+        paneview.addPane(view1);
+        paneview.addPane(view2);
+        paneview.layout(600, 400);
+
+        const size1 = paneview.getViewSize(0);
+        const size2 = paneview.getViewSize(1);
+        expect(size1).toBeGreaterThan(0);
+        expect(size2).toBeGreaterThan(0);
+
+        paneview.moveView(1, 0);
+
+        expect(paneview.getPanes()).toEqual([view2, view1]);
+        expect(paneview.getViewSize(0)).toBe(size2);
+        expect(paneview.getViewSize(1)).toBe(size1);
+        expect(paneview.getViewCachedVisibleSize(0)).toBeUndefined();
+
+        paneview.dispose();
+    });
+
     test('dispose of paneview', () => {
         expect(container.childNodes).toHaveLength(0);
 
