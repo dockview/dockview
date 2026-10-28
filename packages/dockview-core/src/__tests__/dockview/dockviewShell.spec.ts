@@ -1047,6 +1047,17 @@ describe('ShellManager', () => {
             shell.dispose();
         });
 
+        test('an explicit undefined collapsedSize falls back to defaultCollapsedSize', () => {
+            const shell = makeShell(
+                { left: { id: 'left', collapsedSize: undefined } },
+                0,
+                48
+            );
+            const leftView = (shell as any)._leftView as EdgeGroupView;
+            expect(leftView.collapsedSize).toBe(48);
+            shell.dispose();
+        });
+
         test('applies to all four positions', () => {
             const shell = makeShell(
                 {
