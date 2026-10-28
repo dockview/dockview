@@ -240,6 +240,93 @@ describe('FloatingGroupService', () => {
         });
     });
 
+    describe('setAnchorGroup', () => {
+        test('z-order tracking follows the current anchor group', () => {
+            const { host, overlay, gridview, group, emitters } = createMocks();
+            const second = createMocks();
+            const service = new FloatingGroupService(host);
+            const panel = service.add(group, overlay, gridview);
+
+            panel.setAnchorGroup(second.group);
+            expect(panel.group).toBe(second.group);
+
+            // the departed anchor no longer raises the window
+            emitters.activeChange.fire({ isActive: true });
+            expect(overlay.bringToFront).not.toHaveBeenCalled();
+
+            // the promoted anchor does
+            second.emitters.activeChange.fire({ isActive: true });
+            expect(overlay.bringToFront).toHaveBeenCalledTimes(1);
+        });
+
+        test('the aria-label follows the current anchor group', () => {
+            const { host, overlay, gridview, group, emitters } = createMocks({
+                activePanelTitle: 'old-anchor',
+            });
+            const second = createMocks({ activePanelTitle: 'new-anchor' });
+            const service = new FloatingGroupService(host);
+            const panel = service.add(group, overlay, gridview);
+            expect(overlay.element.getAttribute('aria-label')).toBe(
+                'old-anchor'
+            );
+
+            panel.setAnchorGroup(second.group);
+            expect(overlay.element.getAttribute('aria-label')).toBe(
+                'new-anchor'
+            );
+
+            // the departed anchor's active panel no longer drives the label
+            group.activePanel = { title: 'stale' };
+            emitters.activePanelChange.fire();
+            expect(overlay.element.getAttribute('aria-label')).toBe(
+                'new-anchor'
+            );
+
+            // the promoted anchor's does
+            second.group.activePanel = { title: 'renamed' };
+            second.emitters.activePanelChange.fire();
+            expect(overlay.element.getAttribute('aria-label')).toBe('renamed');
+        });
+
+        test('size requests follow the current anchor group', () => {
+            const { host, overlay, gridview, group, emitters } = createMocks({
+                headerHeight: 30,
+            });
+            const second = createMocks();
+            const service = new FloatingGroupService(host);
+            const panel = service.add(group, overlay, gridview);
+
+            panel.setAnchorGroup(second.group);
+            overlay.setBounds.mockClear();
+
+            // the departed anchor's size request no longer resizes the window
+            emitters.groupChange.fire({ height: 100, width: 250 });
+            expect(overlay.setBounds).not.toHaveBeenCalled();
+
+            // the promoted anchor's does, with the header height added back
+            second.emitters.groupChange.fire({ height: 100, width: 250 });
+            expect(overlay.setBounds).toHaveBeenCalledTimes(1);
+            expect(overlay.setBounds).toHaveBeenLastCalledWith({
+                height: 130,
+                width: 250,
+            });
+        });
+
+        test('after disposal, the promoted anchor no longer drives the overlay', () => {
+            const { host, overlay, gridview, group } = createMocks();
+            const second = createMocks();
+            const service = new FloatingGroupService(host);
+            const panel = service.add(group, overlay, gridview);
+            panel.setAnchorGroup(second.group);
+
+            panel.dispose();
+            overlay.bringToFront.mockClear();
+
+            second.emitters.activeChange.fire({ isActive: true });
+            expect(overlay.bringToFront).not.toHaveBeenCalled();
+        });
+    });
+
     describe('findByGroup', () => {
         test('finds a floating group by its anchor group', () => {
             const { host, overlay, gridview, group } = createMocks();
