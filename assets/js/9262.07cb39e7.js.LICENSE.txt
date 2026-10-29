@@ -1,13 +1,13 @@
 /**
  * dockview-enterprise
- * @version 8.8.1
+ * @version 8.8.2
  * @link https://github.com/dockview/dockview
  * @license SEE LICENSE IN LICENCE.md
  */
 
 /**
  * dockview-react
- * @version 8.8.1
+ * @version 8.8.2
  * @link https://github.com/dockview/dockview
  * @license MIT
  */
