@@ -1988,9 +1988,11 @@ describe('overlayRenderContainer', () => {
             const onDidVisibilityChange = new Emitter<any>();
             const onDidDimensionsChange = new Emitter<any>();
             const onDidLocationChange = new Emitter<any>();
+            const onDidCollapsedChange = new Emitter<any>();
             const groupApi = {
                 location: { type: 'grid' } as { type: string },
                 isCollapsed: () => false,
+                onDidCollapsedChange: onDidCollapsedChange.event,
             };
             const panel = fromPartial<IDockviewPanel>({
                 api: {
@@ -2004,7 +2006,12 @@ describe('overlayRenderContainer', () => {
                 view: { content: { element: document.createElement('div') } },
                 group: { api: groupApi },
             });
-            return { panel, groupApi, onDidDimensionsChange };
+            return {
+                panel,
+                groupApi,
+                onDidDimensionsChange,
+                onDidCollapsedChange,
+            };
         }
 
         function setup() {
@@ -2023,7 +2030,12 @@ describe('overlayRenderContainer', () => {
                     height: 600,
                 })
             );
-            const { panel, groupApi, onDidDimensionsChange } = createPanel();
+            const {
+                panel,
+                groupApi,
+                onDidDimensionsChange,
+                onDidCollapsedChange,
+            } = createPanel();
 
             const gridReference = createReferenceContainer();
             jest.spyOn(
@@ -2066,8 +2078,10 @@ describe('overlayRenderContainer', () => {
                 panel,
                 groupApi,
                 container,
+                edgeReference,
                 edgeRect,
                 onDidDimensionsChange,
+                onDidCollapsedChange,
                 moveIntoCollapsedEdge,
             };
         }
@@ -2090,6 +2104,93 @@ describe('overlayRenderContainer', () => {
             await exhaustAnimationFrame();
             expect(container.style.visibility).toBe('hidden');
             expect(container.style.pointerEvents).toBe('none');
+            // the last real box is kept while hidden, as for a hidden grid panel
+            expect(container.style.left).toBe('100px');
+            expect(container.style.width).toBe('400px');
+        });
+
+        test('a group that collapses between attach and the first frame is not un-hidden by the attach microtask', async () => {
+            const { cut, panel, container, groupApi, edgeReference, edgeRect } =
+                setup();
+            await exhaustMicrotaskQueue();
+            await exhaustAnimationFrame();
+
+            // moved into an expanded edge group...
+            groupApi.location = { type: 'edge' };
+            edgeRect.mockReturnValue(
+                fromPartial<DOMRect>({
+                    left: 35,
+                    top: 0,
+                    width: 200,
+                    height: 600,
+                })
+            );
+            cut.attach({ panel, referenceContainer: edgeReference });
+            // ...which collapses before the microtask runs
+            groupApi.isCollapsed = () => true;
+            edgeRect.mockReturnValue(
+                fromPartial<DOMRect>({ left: 0, top: 0, width: 0, height: 0 })
+            );
+            await exhaustMicrotaskQueue();
+            expect(container.style.visibility).toBe('hidden');
+            expect(container.style.pointerEvents).toBe('none');
+            await exhaustAnimationFrame();
+            expect(container.style.visibility).toBe('hidden');
+            expect(container.style.pointerEvents).toBe('none');
+        });
+
+        test('collapsing the edge group in place hides the overlay through the collapse event alone', async () => {
+            const {
+                cut,
+                panel,
+                container,
+                groupApi,
+                edgeReference,
+                edgeRect,
+                onDidCollapsedChange,
+            } = setup();
+            await exhaustMicrotaskQueue();
+            await exhaustAnimationFrame();
+
+            groupApi.location = { type: 'edge' };
+            edgeRect.mockReturnValue(
+                fromPartial<DOMRect>({
+                    left: 35,
+                    top: 0,
+                    width: 200,
+                    height: 600,
+                })
+            );
+            cut.attach({ panel, referenceContainer: edgeReference });
+            await exhaustMicrotaskQueue();
+            await exhaustAnimationFrame();
+            expect(container.style.left).toBe('35px');
+            expect(container.style.visibility).toBe('');
+
+            // no dimension or visibility event: only the collapse event
+            groupApi.isCollapsed = () => true;
+            edgeRect.mockReturnValue(
+                fromPartial<DOMRect>({ left: 0, top: 0, width: 0, height: 0 })
+            );
+            onDidCollapsedChange.fire({ isCollapsed: true });
+            await exhaustAnimationFrame();
+            expect(container.style.visibility).toBe('hidden');
+            expect(container.style.pointerEvents).toBe('none');
+            expect(container.style.width).toBe('200px');
+
+            groupApi.isCollapsed = () => false;
+            edgeRect.mockReturnValue(
+                fromPartial<DOMRect>({
+                    left: 35,
+                    top: 0,
+                    width: 220,
+                    height: 600,
+                })
+            );
+            onDidCollapsedChange.fire({ isCollapsed: false });
+            await exhaustAnimationFrame();
+            expect(container.style.visibility).toBe('');
+            expect(container.style.width).toBe('220px');
         });
 
         test('expanding the edge group positions the overlay over the content box', async () => {

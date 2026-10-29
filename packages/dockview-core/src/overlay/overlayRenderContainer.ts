@@ -314,10 +314,11 @@ export class OverlayRenderContainer extends CompositeDisposable {
              * layout, so nothing is retained and the overlay hides at once
              * rather than staying painted at its old box until the next frame.
              */
+            const collapsedEdge = isInCollapsedEdgeGroup(panel);
             mapEntry.retainPreviousGeometry =
-                mapEntry.positioned && !isInCollapsedEdgeGroup(panel);
+                mapEntry.positioned && !collapsedEdge;
 
-            if (!mapEntry.forceVisible && isInCollapsedEdgeGroup(panel)) {
+            if (collapsedEdge && !mapEntry.forceVisible) {
                 mapEntry.element.style.visibility = 'hidden';
                 mapEntry.element.style.pointerEvents = 'none';
             }
@@ -421,9 +422,9 @@ export class OverlayRenderContainer extends CompositeDisposable {
                 const forceVisible = entry.forceVisible ?? false;
                 const clip = entry.clip;
 
+                const collapsedEdge = isInCollapsedEdgeGroup(panel);
                 const hidden =
-                    !forceVisible &&
-                    (!panel.api.isVisible || isInCollapsedEdgeGroup(panel));
+                    !forceVisible && (!panel.api.isVisible || collapsedEdge);
 
                 const box = this.positionCache.getPosition(
                     referenceContainer.element
@@ -435,16 +436,21 @@ export class OverlayRenderContainer extends CompositeDisposable {
                 const width = box.width;
                 const height = box.height;
 
-                if (
-                    entry.retainPreviousGeometry &&
-                    (width === 0 || height === 0)
-                ) {
-                    if (hidden) {
+                if (width === 0 || height === 0) {
+                    // A collapsed edge's 0x0 is a real collapse, not a
+                    // container awaiting layout: hide and keep the last real
+                    // box (as a hidden grid panel does) until expand or peek.
+                    if (collapsedEdge && !forceVisible) {
+                        entry.retainPreviousGeometry = false;
                         focusContainer.style.visibility = 'hidden';
                         focusContainer.style.pointerEvents = 'none';
+                        return;
                     }
-                    // a collapsed edge is not awaiting layout: stop retaining
-                    if (!isInCollapsedEdgeGroup(panel)) {
+                    if (entry.retainPreviousGeometry) {
+                        if (hidden) {
+                            focusContainer.style.visibility = 'hidden';
+                            focusContainer.style.pointerEvents = 'none';
+                        }
                         return;
                     }
                 }
@@ -524,7 +530,10 @@ export class OverlayRenderContainer extends CompositeDisposable {
         };
 
         const visibilityChanged = () => {
-            if (panel.api.isVisible) {
+            const collapsedEdge =
+                !this.map[panel.api.id]?.forceVisible &&
+                isInCollapsedEdgeGroup(panel);
+            if (panel.api.isVisible && !collapsedEdge) {
                 this.positionCache.invalidate();
                 resize();
                 /**
@@ -652,6 +661,12 @@ export class OverlayRenderContainer extends CompositeDisposable {
 
                 resize();
             }),
+            // Edge collapse fires no visibility event, so follow it directly
+            // rather than through the layout the shell resize happens to run.
+            panel.group.api.onDidCollapsedChange?.(() => {
+                this.positionCache.invalidate();
+                resize();
+            }) ?? Disposable.NONE,
             // Keeps hidden panels sized across group layouts (the panel's
             // own dimension events above cover only the active panel): a style
             // write per layout, so nothing to save by skipping them.
