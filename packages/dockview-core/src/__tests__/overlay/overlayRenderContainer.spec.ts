@@ -2266,6 +2266,8 @@ describe('overlayRenderContainer', () => {
             await exhaustAnimationFrame();
             expect(container.style.visibility).toBe('hidden');
             expect(container.style.pointerEvents).toBe('none');
+            expect(container.style.clipPath).toBe('');
+            expect(container.style.zIndex).toBe('');
         });
 
         test('a collapsed edge group is the only 0x0 that releases retained geometry', async () => {

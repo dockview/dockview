@@ -1338,6 +1338,45 @@
                             position: { direction: 'right' },
                         });
                     },
+                    // The demo's shape (#1738): drag-to-edge and auto-hide both
+                    // on, a collapsed auto-reveal left edge holding one panel,
+                    // and a `renderer: 'always'` panel in the grid to drag
+                    // onto the strip.
+                    setupAlwaysIntoCollapsedEdge: () => {
+                        dockview.api.updateOptions({
+                            dockToEdgeGroups: true,
+                            dndCompass: false,
+                            autoHideEdgeGroups: true,
+                        });
+                        dockview.addPanel({
+                            id: 'main',
+                            component: 'default',
+                            title: 'main',
+                        });
+                        dockview.addPanel({
+                            id: 'tab',
+                            component: 'default',
+                            title: 'tab',
+                            renderer: 'always',
+                            position: { direction: 'right' },
+                        });
+                        dockview.addEdgeGroup('left', {
+                            id: 'edge-left',
+                            initialSize: 220,
+                            autoReveal: true,
+                            collapsed: true,
+                        });
+                        dockview.addPanel({
+                            id: 'explorer',
+                            component: 'default',
+                            title: 'Explorer',
+                            position: {
+                                referenceGroup: 'edge-left',
+                                direction: 'within',
+                            },
+                        });
+                    },
+                    expandEdge: (pos) => dockview.getEdgeGroup(pos).expand(),
                     edgeGroupExists: (pos) => !!dockview.getEdgeGroup(pos),
                     edgeGroupCollapsed: (pos) => {
                         const g = dockview.getEdgeGroup(pos);

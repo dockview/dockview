@@ -444,6 +444,9 @@ export class OverlayRenderContainer extends CompositeDisposable {
                         entry.retainPreviousGeometry = false;
                         focusContainer.style.visibility = 'hidden';
                         focusContainer.style.pointerEvents = 'none';
+                        // a closing peek leaves its clip and lift behind
+                        focusContainer.style.clipPath = '';
+                        focusContainer.style.zIndex = '';
                         return;
                     }
                     if (entry.retainPreviousGeometry) {
