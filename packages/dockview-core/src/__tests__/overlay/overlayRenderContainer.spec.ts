@@ -1982,12 +1982,8 @@ describe('overlayRenderContainer', () => {
     });
 
     describe('collapsed edge groups (#1738)', () => {
-        /**
-         * A panel in a collapsed edge group still reports `isVisible: true`:
-         * edge collapse fires no visibility event (`setVisible` is a no-op for
-         * the edge location). Its group is the only signal that the body is
-         * hidden, so the panel here carries a mutable group api.
-         */
+        // `isVisible` stays true in a collapsed edge group (no visibility
+        // event fires on collapse); the group api carries the collapsed state.
         function createPanel() {
             const onDidVisibilityChange = new Emitter<any>();
             const onDidDimensionsChange = new Emitter<any>();
@@ -2029,7 +2025,6 @@ describe('overlayRenderContainer', () => {
             );
             const { panel, groupApi, onDidDimensionsChange } = createPanel();
 
-            // Docked in the grid, positioned at a real box.
             const gridReference = createReferenceContainer();
             jest.spyOn(
                 gridReference.element,
@@ -2047,8 +2042,7 @@ describe('overlayRenderContainer', () => {
                 referenceContainer: gridReference,
             });
 
-            // The collapsed edge group's content container is `display: none`
-            // and measures 0x0 until the group is expanded or peeked.
+            // display:none while collapsed
             const edgeReference = createReferenceContainer();
             const edgeRect = jest
                 .spyOn(edgeReference.element, 'getBoundingClientRect')
@@ -2088,13 +2082,10 @@ describe('overlayRenderContainer', () => {
 
             moveIntoCollapsedEdge();
 
-            // Hidden synchronously: the body would otherwise stay painted, and
-            // interactive, at its grid cell until the frame pass runs.
+            // hidden synchronously, not on the next frame
             expect(container.style.visibility).toBe('hidden');
             expect(container.style.pointerEvents).toBe('none');
 
-            // ...and the frame pass does not restore it from the retained
-            // geometry: a collapsed edge's 0x0 is a real collapse.
             await exhaustMicrotaskQueue();
             await exhaustAnimationFrame();
             expect(container.style.visibility).toBe('hidden');
@@ -2116,8 +2107,7 @@ describe('overlayRenderContainer', () => {
             await exhaustAnimationFrame();
             expect(container.style.visibility).toBe('hidden');
 
-            // Expand: the group lays out its active panel, whose dimension
-            // event is what asks the overlay to reposition.
+            // expand: the group's layout fires the active panel's dimension event
             groupApi.isCollapsed = () => false;
             edgeRect.mockReturnValue(
                 fromPartial<DOMRect>({
@@ -2147,8 +2137,7 @@ describe('overlayRenderContainer', () => {
             await exhaustAnimationFrame();
             expect(container.style.visibility).toBe('hidden');
 
-            // The peek reparents the content container into its own frame, so
-            // measuring it yields the peek's box; the group is still collapsed.
+            // the peek reparents the content container, so it measures the peek box
             edgeRect.mockReturnValue(
                 fromPartial<DOMRect>({
                     left: 35,
@@ -2164,7 +2153,6 @@ describe('overlayRenderContainer', () => {
             expect(container.style.visibility).toBe('');
             expect(container.style.pointerEvents).toBe('');
 
-            // Closing the peek restores the container to the collapsed group.
             edgeRect.mockReturnValue(
                 fromPartial<DOMRect>({
                     left: 0,
@@ -2180,8 +2168,6 @@ describe('overlayRenderContainer', () => {
         });
 
         test('a collapsed edge group is the only 0x0 that releases retained geometry', async () => {
-            // The control case: a replacement grid container awaiting layout
-            // still holds the last good box rather than blanking the panel.
             const { cut, panel, container } = setup();
             await exhaustMicrotaskQueue();
             await exhaustAnimationFrame();
