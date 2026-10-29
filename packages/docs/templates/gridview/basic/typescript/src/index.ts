@@ -20,8 +20,8 @@ class Panel extends GridviewPanel {
         this.element.style.height = '100%';
 
         this._frameworkPart = {
-            update: (parameters) => {
-                this.element.textContent = `Panel ${parameters?.id || id}`;
+            update: ({ params }) => {
+                this.element.textContent = `Panel ${params?.id || id}`;
             },
             dispose: () => {
                 // cleanup if needed
