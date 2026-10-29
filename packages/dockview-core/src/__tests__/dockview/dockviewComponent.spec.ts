@@ -8,7 +8,7 @@ import {
 } from '../../dockview/types';
 import { PanelUpdateEvent } from '../../panel/types';
 import { Orientation } from '../../splitview/splitview';
-import { Gridview } from '../../gridview/gridview';
+import { Gridview, getGridLocation } from '../../gridview/gridview';
 import { CompositeDisposable } from '../../lifecycle';
 import { Emitter } from '../../events';
 import { DockviewPanel, IDockviewPanel } from '../../dockview/dockviewPanel';
@@ -4841,6 +4841,196 @@ describe('dockviewComponent', () => {
 
         expect(panel1Spy).not.toHaveBeenCalled();
         expect(panel2Spy).not.toHaveBeenCalled();
+    });
+
+    describe('moveTo a lone panel to an edge of its own group', () => {
+        function setup() {
+            const container = document.createElement('div');
+
+            const dockview = new DockviewComponent(container, {
+                createComponent(options) {
+                    switch (options.name) {
+                        case 'default':
+                            return new PanelContentPartTest(
+                                options.id,
+                                options.name
+                            );
+                        default:
+                            throw new Error(`unsupported`);
+                    }
+                },
+            });
+
+            dockview.layout(500, 1000);
+
+            return dockview;
+        }
+
+        test.each([
+            'top',
+            'bottom',
+            'left',
+            'right',
+        ] as const)('single group: position %s is a no-op and keeps the group in the grid', (position) => {
+            const dockview = setup();
+
+            const panel1 = dockview.addPanel({
+                id: 'panel1',
+                component: 'default',
+            });
+            const group = panel1.group;
+
+            const moved: string[] = [];
+            dockview.onDidMovePanel((e) => moved.push(e.panel.id));
+
+            expect(() => panel1.api.moveTo({ group, position })).not.toThrow();
+
+            expect(moved).toEqual([]);
+            expect(dockview.groups).toEqual([group]);
+            expect(dockview.totalPanels).toBe(1);
+            expect(panel1.group).toBe(group);
+            expect(group.panels).toEqual([panel1]);
+            expect(() => getGridLocation(group.element)).not.toThrow();
+            expect(dockview.activeGroup).toBe(group);
+            expect(dockview.activePanel).toBe(panel1);
+
+            const json = dockview.toJSON();
+            expect(json.grid.root.data).toHaveLength(1);
+            expect(() => dockview.fromJSON(json)).not.toThrow();
+        });
+
+        test('two groups: cross-axis position on own group keeps both groups', () => {
+            const dockview = setup();
+
+            const panel1 = dockview.addPanel({
+                id: 'panel1',
+                component: 'default',
+            });
+            const panel2 = dockview.addPanel({
+                id: 'panel2',
+                component: 'default',
+                position: { referencePanel: panel1, direction: 'right' },
+            });
+
+            const group1 = panel1.group;
+            const group2 = panel2.group;
+            expect(group1).not.toBe(group2);
+
+            expect(() =>
+                panel2.api.moveTo({ group: group2, position: 'bottom' })
+            ).not.toThrow();
+
+            expect(dockview.groups).toHaveLength(2);
+            expect(dockview.groups).toContain(group1);
+            expect(dockview.groups).toContain(group2);
+            expect(panel2.group).toBe(group2);
+            expect(getGridLocation(group1.element)).toEqual([0]);
+            expect(getGridLocation(group2.element)).toEqual([1]);
+        });
+
+        test('multi-panel group still splits the panel off into a new group', () => {
+            const dockview = setup();
+
+            const panel1 = dockview.addPanel({
+                id: 'panel1',
+                component: 'default',
+            });
+            const panel2 = dockview.addPanel({
+                id: 'panel2',
+                component: 'default',
+            });
+            const group = panel1.group;
+
+            panel2.api.moveTo({ group, position: 'bottom' });
+
+            expect(dockview.groups).toHaveLength(2);
+            expect(panel1.group).toBe(group);
+            expect(panel2.group).not.toBe(group);
+            expect(getGridLocation(group.element)).toEqual([0, 0]);
+            expect(getGridLocation(panel2.group.element)).toEqual([0, 1]);
+        });
+    });
+
+    describe('moveTo with a negative index', () => {
+        function setup() {
+            const container = document.createElement('div');
+
+            const dockview = new DockviewComponent(container, {
+                createComponent(options) {
+                    switch (options.name) {
+                        case 'default':
+                            return new PanelContentPartTest(
+                                options.id,
+                                options.name
+                            );
+                        default:
+                            throw new Error(`unsupported`);
+                    }
+                },
+            });
+
+            dockview.layout(500, 1000);
+
+            return dockview;
+        }
+
+        test('within the same group places the panel first', () => {
+            const dockview = setup();
+
+            const panel1 = dockview.addPanel({
+                id: 'panel1',
+                component: 'default',
+            });
+            const panel2 = dockview.addPanel({
+                id: 'panel2',
+                component: 'default',
+            });
+            const panel3 = dockview.addPanel({
+                id: 'panel3',
+                component: 'default',
+            });
+            const group = panel1.group;
+
+            expect(() => panel3.api.moveTo({ index: -1 })).not.toThrow();
+
+            expect(dockview.totalPanels).toBe(3);
+            expect(group.panels).toEqual([panel3, panel1, panel2]);
+            expect(panel3.group).toBe(group);
+            expect(dockview.getGroupPanel('panel3')).toBe(panel3);
+        });
+
+        test('into another group places the panel first', () => {
+            const dockview = setup();
+
+            const panel1 = dockview.addPanel({
+                id: 'panel1',
+                component: 'default',
+            });
+            const panel2 = dockview.addPanel({
+                id: 'panel2',
+                component: 'default',
+                position: { referencePanel: panel1, direction: 'right' },
+            });
+            const panel3 = dockview.addPanel({
+                id: 'panel3',
+                component: 'default',
+                position: { referenceGroup: panel2.group },
+            });
+
+            const group1 = panel1.group;
+            const group2 = panel2.group;
+
+            expect(() =>
+                panel1.api.moveTo({ group: group2, index: -5 })
+            ).not.toThrow();
+
+            expect(dockview.totalPanels).toBe(3);
+            expect(dockview.groups).toEqual([group2]);
+            expect(dockview.groups).not.toContain(group1);
+            expect(group2.panels).toEqual([panel1, panel2, panel3]);
+            expect(panel1.group).toBe(group2);
+            expect(dockview.getGroupPanel('panel1')).toBe(panel1);
+        });
     });
 
     test('panel is disposed of when group is disposed', () => {

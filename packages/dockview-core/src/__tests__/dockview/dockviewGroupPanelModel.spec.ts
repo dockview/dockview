@@ -488,6 +488,29 @@ describe('dockviewGroupPanelModel', () => {
         expect(groupview.model.activePanel).toBe(panel2);
     });
 
+    test('openPanel clamps a negative index to the front of the group', () => {
+        const panel1 = new TestPanel('panel1', panelApi);
+        const panel2 = new TestPanel('panel2', panelApi);
+        const panel3 = new TestPanel('panel3', panelApi);
+
+        groupview.model.openPanel(panel1);
+        groupview.model.openPanel(panel2);
+
+        expect(() =>
+            groupview.model.openPanel(panel3, { index: -1 })
+        ).not.toThrow();
+
+        expect(groupview.model.panels).toEqual([panel3, panel1, panel2]);
+        expect(groupview.model.indexOf(panel3)).toBe(0);
+        expect(
+            Array.from(
+                groupview.element.querySelectorAll('.dv-tab'),
+                (el) => el.getAttribute('data-testid') ?? el.textContent
+            )
+        ).toHaveLength(3);
+        expect(groupview.model.activePanel).toBe(panel3);
+    });
+
     test('default', () => {
         let viewQuery = groupview.element.querySelectorAll(
             '.dv-groupview > .dv-tabs-and-actions-container'
