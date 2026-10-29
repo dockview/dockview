@@ -186,6 +186,66 @@ describe('dockviewGroupPanel', () => {
         expect(cut.maximumWidth).toBe(200);
     });
 
+    test('setConstraints notifies the grid once, with the new constraints', () => {
+        const accessor = fromPartial<DockviewComponent>({
+            onDidActivePanelChange: jest.fn(),
+            onDidAddPanel: jest.fn(),
+            onDidRemovePanel: jest.fn(),
+            doSetGroupActive: jest.fn(),
+            overlayRenderContainer: fromPartial<OverlayRenderContainer>({
+                attach: jest.fn(),
+                detatch: jest.fn(),
+            }),
+            options: {},
+            onDidOptionsChange: jest.fn(),
+        });
+        const cut = new DockviewGroupPanel(
+            accessor,
+            'test_id',
+            fromPartial<GroupOptions>({})
+        );
+
+        const createPanel = (id: string, minimumWidth: number) =>
+            new DockviewPanel(
+                id,
+                'component_id',
+                undefined,
+                accessor,
+                accessor.api,
+                cut,
+                new DockviewPanelModelMock(
+                    'content_component',
+                    fromPartial<IContentRenderer>({
+                        element: document.createElement('div'),
+                    }),
+                    'tab_component',
+                    fromPartial<ITabRenderer>({
+                        element: document.createElement('div'),
+                    })
+                ),
+                { renderer: 'onlyWhenVisible', minimumWidth }
+            );
+
+        cut.model.openPanel(createPanel('panel_1', 21));
+        expect(cut.minimumWidth).toBe(21);
+
+        // the grid reads the group's constraints when it is notified
+        const seen: number[] = [];
+        cut.onDidChange(() => seen.push(cut.minimumWidth));
+
+        cut.api.setConstraints({ minimumWidth: 50 });
+        expect(seen).toEqual([50]);
+
+        cut.api.setConstraints({ minimumWidth: () => 60 });
+        expect(seen).toEqual([50, 60]);
+
+        // the explicit constraint still wins over a new active panel, so the
+        // grid is not told again
+        cut.model.openPanel(createPanel('panel_2', 22));
+        expect(cut.minimumWidth).toBe(60);
+        expect(seen).toEqual([50, 60]);
+    });
+
     /**
      * A group's min/max follow its active panel. The gridview branch above the
      * group caches its aggregate over child constraints, so switching tabs

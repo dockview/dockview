@@ -1415,27 +1415,29 @@ export class DockviewComponent
     }
 
     /**
-     * The next / previous group in gridview (spatial) order, wrapping round.
-     * The keyboard accessibility module's focus navigation is built on this
-     * primitive, the only piece that needs the grid internals; the rest of
-     * the navigation logic lives in the KeyboardNavigationService.
+     * The next / previous group in gridview (spatial) order, wrapping round,
+     * within the gridview that hosts `group` (the main grid, or its floating /
+     * popout window). The keyboard accessibility module's navigation is built
+     * on this primitive, the only piece that needs the grid internals.
      */
     adjacentGroup(
         group: DockviewGroupPanel,
         reverse: boolean
     ): DockviewGroupPanel | undefined {
-        // gridview traversal only covers grid groups; a floating/popout group
-        // isn't in the grid, so there's no adjacent grid group to step to.
-        if (group.api.location.type !== 'grid') {
+        const gridview = this.getGridviewForGroup(group);
+        // an edge group is hosted outside every gridview
+        if (!gridview.element.contains(group.element)) {
             return undefined;
         }
         const location = getGridLocation(group.element);
-        return <DockviewGroupPanel | undefined>(
-            (reverse
-                ? this.gridview.previous(location)
-                : this.gridview.next(location)
-            )?.view
-        );
+        const next = (
+            reverse ? gridview.previous(location) : gridview.next(location)
+        ).view as DockviewGroupPanel;
+        // a lone group in a floating / popout window has no neighbour
+        if (gridview !== this.gridview && next === group) {
+            return undefined;
+        }
+        return next;
     }
 
     /**

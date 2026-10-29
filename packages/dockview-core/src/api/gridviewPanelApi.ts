@@ -10,7 +10,7 @@ export interface GridConstraintChangeEvent {
     readonly maximumHeight?: number;
 }
 
-interface GridConstraintChangeEvent2 {
+export interface GridConstraintChangeEvent2 {
     readonly minimumWidth?: FunctionOrValue<number>;
     readonly minimumHeight?: FunctionOrValue<number>;
     readonly maximumWidth?: FunctionOrValue<number>;

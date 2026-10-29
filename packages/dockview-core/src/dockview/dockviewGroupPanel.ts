@@ -17,6 +17,7 @@ import {
     DockviewGroupPanelApi,
     DockviewGroupPanelApiImpl,
 } from '../api/dockviewGroupPanelApi';
+import { GridConstraintChangeEvent2 } from '../api/gridviewPanelApi';
 
 const MINIMUM_DOCKVIEW_GROUP_PANEL_WIDTH = 100;
 const MINIMUM_DOCKVIEW_GROUP_PANEL_HEIGHT = 100;
@@ -156,36 +157,40 @@ export class DockviewGroupPanel
             this.model.onDidActivePanelChange((event) => {
                 this.api._onDidActivePanelChange.fire(event);
                 this.notifyIfConstraintsChanged();
-            }),
-            this.api.onDidConstraintsChangeInternal((event: any) => {
-                if (event.minimumWidth !== undefined) {
-                    this._explicitConstraints.minimumWidth =
-                        typeof event.minimumWidth === 'function'
-                            ? event.minimumWidth()
-                            : event.minimumWidth;
-                }
-                if (event.minimumHeight !== undefined) {
-                    this._explicitConstraints.minimumHeight =
-                        typeof event.minimumHeight === 'function'
-                            ? event.minimumHeight()
-                            : event.minimumHeight;
-                }
-                if (event.maximumWidth !== undefined) {
-                    this._explicitConstraints.maximumWidth =
-                        typeof event.maximumWidth === 'function'
-                            ? event.maximumWidth()
-                            : event.maximumWidth;
-                }
-                if (event.maximumHeight !== undefined) {
-                    this._explicitConstraints.maximumHeight =
-                        typeof event.maximumHeight === 'function'
-                            ? event.maximumHeight()
-                            : event.maximumHeight;
-                }
-                // GridviewPanel has already notified the grid of this change
-                this._lastConstraints = this.currentConstraints();
             })
         );
+    }
+
+    protected override applyConstraints(
+        event: GridConstraintChangeEvent2
+    ): void {
+        if (event.minimumWidth !== undefined) {
+            this._explicitConstraints.minimumWidth =
+                typeof event.minimumWidth === 'function'
+                    ? event.minimumWidth()
+                    : event.minimumWidth;
+        }
+        if (event.minimumHeight !== undefined) {
+            this._explicitConstraints.minimumHeight =
+                typeof event.minimumHeight === 'function'
+                    ? event.minimumHeight()
+                    : event.minimumHeight;
+        }
+        if (event.maximumWidth !== undefined) {
+            this._explicitConstraints.maximumWidth =
+                typeof event.maximumWidth === 'function'
+                    ? event.maximumWidth()
+                    : event.maximumWidth;
+        }
+        if (event.maximumHeight !== undefined) {
+            this._explicitConstraints.maximumHeight =
+                typeof event.maximumHeight === 'function'
+                    ? event.maximumHeight()
+                    : event.maximumHeight;
+        }
+        // the override is in place: the grid is told the new values once
+        super.applyConstraints(event);
+        this._lastConstraints = this.currentConstraints();
     }
 
     private currentConstraints(): Required<Constraints> {
