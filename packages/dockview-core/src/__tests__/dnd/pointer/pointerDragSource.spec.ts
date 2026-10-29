@@ -375,3 +375,119 @@ describe('PointerDragSource', () => {
         element.remove();
     });
 });
+
+describe('PointerDragSource mouse buttons', () => {
+    afterEach(() => {
+        PointerDragController.getInstance().cancel();
+    });
+
+    function mouse(
+        overrides: Partial<PointerEventInit> = {}
+    ): PointerEventInit {
+        return {
+            pointerId: 1,
+            pointerType: 'mouse',
+            clientX: 0,
+            clientY: 0,
+            bubbles: true,
+            cancelable: true,
+            ...overrides,
+        };
+    }
+
+    test.each([
+        1, 2, 3, 4,
+    ])('a mouse pointerdown with button %i never starts a drag', (button) => {
+        const element = document.createElement('div');
+        document.body.appendChild(element);
+        const root = document.documentElement;
+
+        const getData = jest.fn<IDisposable, []>(() => ({
+            dispose: jest.fn(),
+        }));
+        const isCancelled = jest.fn(() => false);
+        const onDragStart = jest.fn();
+        const source = new PointerDragSource(element, {
+            getData,
+            isCancelled,
+            onDragStart,
+            touchOnly: false,
+        });
+
+        fireEvent.pointerDown(element, mouse({ button }));
+        // Nothing is pending: no selection shield, consumer not consulted.
+        expect(root.style.getPropertyValue('user-select')).toBe('');
+        expect(isCancelled).not.toHaveBeenCalled();
+
+        fireEvent.pointerMove(window, mouse({ button, clientX: 50 }));
+        fireEvent.pointerUp(window, mouse({ button, clientX: 50 }));
+
+        expect(onDragStart).not.toHaveBeenCalled();
+        expect(getData).not.toHaveBeenCalled();
+        expect(PointerDragController.getInstance().active).toBeUndefined();
+
+        source.dispose();
+        element.remove();
+    });
+
+    test('the primary mouse button still starts a drag', () => {
+        const element = document.createElement('div');
+        document.body.appendChild(element);
+
+        const onDragStart = jest.fn();
+        const source = new PointerDragSource(element, {
+            getData: () => ({ dispose: jest.fn() }),
+            onDragStart,
+            touchOnly: false,
+        });
+
+        fireEvent.pointerDown(element, mouse({ button: 0 }));
+        fireEvent.pointerMove(window, mouse({ button: 0, clientX: 10 }));
+
+        expect(onDragStart).toHaveBeenCalledTimes(1);
+        expect(PointerDragController.getInstance().active).toBeDefined();
+
+        source.dispose();
+        element.remove();
+    });
+
+    test('touch and pen pointers are not subject to the button filter', () => {
+        jest.useFakeTimers();
+        const element = document.createElement('div');
+        document.body.appendChild(element);
+
+        const onDragStart = jest.fn();
+        const source = new PointerDragSource(element, {
+            getData: () => ({ dispose: jest.fn() }),
+            onDragStart,
+        });
+
+        // A pen pressed with its barrel button reports button 2.
+        fireEvent.pointerDown(
+            element,
+            mouse({ pointerType: 'pen', button: 2 })
+        );
+        jest.advanceTimersByTime(300);
+        fireEvent.pointerMove(
+            window,
+            mouse({ pointerType: 'pen', button: 2, clientX: 10 })
+        );
+        expect(onDragStart).toHaveBeenCalledTimes(1);
+        PointerDragController.getInstance().cancel();
+
+        fireEvent.pointerDown(
+            element,
+            mouse({ pointerType: 'touch', pointerId: 2, button: 0 })
+        );
+        jest.advanceTimersByTime(300);
+        fireEvent.pointerMove(
+            window,
+            mouse({ pointerType: 'touch', pointerId: 2, clientX: 10 })
+        );
+        expect(onDragStart).toHaveBeenCalledTimes(2);
+
+        source.dispose();
+        element.remove();
+        jest.useRealTimers();
+    });
+});

@@ -267,3 +267,94 @@ describe('PointerDropTarget', () => {
         document.body.removeChild(element);
     });
 });
+
+describe('PointerDropTarget edgeGroup hint', () => {
+    afterEach(() => {
+        PointerDragController.getInstance().cancel();
+    });
+
+    function mountedElement(): HTMLElement {
+        const element = document.createElement('div');
+        document.body.appendChild(element);
+        jest.spyOn(element, 'offsetWidth', 'get').mockReturnValue(100);
+        jest.spyOn(element, 'offsetHeight', 'get').mockReturnValue(40);
+        jest.spyOn(element, 'getBoundingClientRect').mockReturnValue({
+            top: 0,
+            left: 0,
+            right: 100,
+            bottom: 40,
+            width: 100,
+            height: 40,
+            x: 0,
+            y: 0,
+            toJSON: () => ({}),
+        });
+        return element;
+    }
+
+    function makeDragEvent(clientX: number, clientY: number): PointerDragEvent {
+        return {
+            clientX,
+            clientY,
+            pointerEvent: new PointerEvent('pointermove', {
+                clientX,
+                clientY,
+                pointerId: 1,
+                pointerType: 'touch',
+            }),
+        };
+    }
+
+    test('forwards the resolver edgeGroup hint on onWillShowOverlay', () => {
+        const element = mountedElement();
+        const target = new PointerDropTarget(element, {
+            acceptedTargetZones: ['left', 'right', 'center'],
+            canDisplayOverlay: () => true,
+            getPositionResolver: () => ({
+                resolve: () => ({ position: 'right', edgeGroup: true }),
+            }),
+        });
+
+        const willShow = jest.fn();
+        target.onWillShowOverlay(willShow);
+
+        (target as any)._onDragOver(makeDragEvent(10, 20));
+
+        expect(willShow).toHaveBeenCalledTimes(1);
+        expect(willShow.mock.calls[0][0].edgeGroup).toBe(true);
+        expect(willShow.mock.calls[0][0].edge).toBe(false);
+
+        target.dispose();
+        document.body.removeChild(element);
+    });
+
+    test('a resolver result without the hint and the built-in quadrant both report edgeGroup=false', () => {
+        const element = mountedElement();
+        const resolved = new PointerDropTarget(element, {
+            acceptedTargetZones: ['left', 'right', 'center'],
+            canDisplayOverlay: () => true,
+            getPositionResolver: () => ({
+                resolve: () => ({ position: 'right' }),
+            }),
+        });
+        const builtIn = new PointerDropTarget(element, {
+            acceptedTargetZones: ['left', 'right', 'center'],
+            canDisplayOverlay: () => true,
+        });
+
+        const willShow = jest.fn();
+        resolved.onWillShowOverlay(willShow);
+        builtIn.onWillShowOverlay(willShow);
+
+        (resolved as any)._onDragOver(makeDragEvent(10, 20));
+        (builtIn as any)._onDragOver(makeDragEvent(10, 20));
+
+        expect(willShow).toHaveBeenCalledTimes(2);
+        expect(willShow.mock.calls[0][0].edgeGroup).toBe(false);
+        expect(willShow.mock.calls[1][0].edgeGroup).toBe(false);
+
+        resolved.dispose();
+        builtIn.dispose();
+        document.body.removeChild(element);
+    });
+});
