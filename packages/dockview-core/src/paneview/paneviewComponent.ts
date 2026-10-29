@@ -460,6 +460,11 @@ export class PaneviewComponent extends Resizable implements IPaneviewComponent {
                             accessor: this,
                         });
                         panel.orientation = this.paneview.orientation;
+                        // the descriptor adds the pane hidden without telling
+                        // it, so sync the panel api's isVisible state here
+                        if (view.visible === false) {
+                            panel.setVisible(false);
+                        }
                     });
 
                     setTimeout(() => {

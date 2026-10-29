@@ -450,6 +450,102 @@ describe('componentSplitview', () => {
         });
     });
 
+    test('a hidden panel round-trips hidden at its cached size, not size 0', () => {
+        const splitview = new SplitviewComponent(container, {
+            orientation: Orientation.HORIZONTAL,
+            createComponent: (options) => {
+                switch (options.name) {
+                    case 'default':
+                        return new TestPanel(options.id, options.name);
+                    default:
+                        throw new Error('unsupported');
+                }
+            },
+        });
+        splitview.layout(1000, 500);
+
+        const panel1 = splitview.addPanel({
+            id: 'panel1',
+            component: 'default',
+        });
+        splitview.addPanel({
+            id: 'panel2',
+            component: 'default',
+        });
+
+        // hide panel1: getViewSize now reports 0, but its real size is cached
+        splitview.setVisible(panel1, false);
+        expect(panel1.api.isVisible).toBe(false);
+
+        const json = splitview.toJSON();
+        const v1 = json.views.find((v) => v.data.id === 'panel1')!;
+        const v2 = json.views.find((v) => v.data.id === 'panel2')!;
+        expect(v1.visible).toBe(false);
+        expect(v1.size).toBe(500);
+        // visible panels keep the legacy shape (no `visible` key)
+        expect('visible' in v2).toBe(false);
+        expect(v2.size).toBe(1000);
+
+        // round-trip: the panel must reload hidden at its cached size
+        splitview.fromJSON(JSON.parse(JSON.stringify(json)));
+        splitview.layout(1000, 500);
+
+        const restored1 = splitview.getPanel('panel1')!;
+        const restored2 = splitview.getPanel('panel2')!;
+        expect(restored1.api.isVisible).toBe(false);
+        expect(restored2.api.isVisible).toBe(true);
+        expect(restored1.width).toBe(0);
+        expect(restored2.width).toBe(1000);
+
+        const json2 = splitview.toJSON();
+        const v1b = json2.views.find((v) => v.data.id === 'panel1')!;
+        expect(v1b.visible).toBe(false);
+        expect(v1b.size).toBe(500);
+
+        // showing the panel again restores its pre-hide size
+        splitview.setVisible(restored1, true);
+        expect(restored1.api.isVisible).toBe(true);
+        expect(restored1.width).toBe(500);
+        expect(restored2.width).toBe(500);
+
+        splitview.dispose();
+    });
+
+    test('fromJSON treats a missing `visible` flag as visible', () => {
+        const splitview = new SplitviewComponent(container, {
+            orientation: Orientation.HORIZONTAL,
+            createComponent: (options) => {
+                switch (options.name) {
+                    case 'default':
+                        return new TestPanel(options.id, options.name);
+                    default:
+                        throw new Error('unsupported');
+                }
+            },
+        });
+        splitview.layout(1000, 500);
+
+        splitview.fromJSON({
+            views: [
+                { size: 400, data: { id: 'panel1', component: 'default' } },
+                {
+                    size: 600,
+                    data: { id: 'panel2', component: 'default' },
+                    visible: true,
+                },
+            ],
+            size: 1000,
+            orientation: Orientation.HORIZONTAL,
+        });
+
+        expect(splitview.getPanel('panel1')!.api.isVisible).toBe(true);
+        expect(splitview.getPanel('panel2')!.api.isVisible).toBe(true);
+        expect(splitview.getPanel('panel1')!.width).toBe(400);
+        expect(splitview.getPanel('panel2')!.width).toBe(600);
+
+        splitview.dispose();
+    });
+
     test('toJSON shouldnt fire any layout events', () => {
         const splitview = new SplitviewComponent(container, {
             orientation: Orientation.HORIZONTAL,

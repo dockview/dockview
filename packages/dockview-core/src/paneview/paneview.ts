@@ -176,7 +176,14 @@ export class Paneview extends CompositeDisposable implements IDisposable {
             return;
         }
 
+        // a hidden pane must be re-added as Invisible, carrying its cached
+        // pre-hide size, or the move would reveal it at size 0
+        const cachedVisibleSize = this.getViewCachedVisibleSize(from);
         const view = this.removePane(from, { skipDispose: true });
+        const sizing: number | Sizing =
+            cachedVisibleSize === undefined
+                ? view.pane.size
+                : Sizing.Invisible(cachedVisibleSize);
 
         // `skipDispose` keeps the pane alive but also leaves its old
         // expansion-state listener attached; dispose that listener here since
@@ -186,7 +193,7 @@ export class Paneview extends CompositeDisposable implements IDisposable {
 
         this.skipAnimation = true;
         try {
-            this.addPane(view.pane, view.pane.size, to, false);
+            this.addPane(view.pane, sizing, to, false);
         } finally {
             this.skipAnimation = false;
         }
