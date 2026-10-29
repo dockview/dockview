@@ -61,6 +61,7 @@ export type {
     LicenseServiceOptions,
 } from './licenseService';
 export type { LicenseState } from './licenseValidator';
+export * from './multiWindow';
 
 /**
  * The enterprise feature modules, including the license gate. Registered

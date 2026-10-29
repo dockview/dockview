@@ -248,6 +248,8 @@ export interface ILayoutHistoryHost {
 export type LayoutHistoryKind = DockviewLayoutMutationKind | 'resize';
 
 export interface LayoutHistoryChangeEvent {
+    /** What changed the history. */
+    readonly reason: 'push' | 'undo' | 'redo' | 'clear';
     readonly canUndo: boolean;
     readonly canRedo: boolean;
     readonly undoCount: number;

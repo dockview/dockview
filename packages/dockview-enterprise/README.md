@@ -47,6 +47,19 @@ Merely importing `dockview-enterprise` enables the enterprise features and the
 license check, so their options become available on every `DockviewComponent`.
 No further setup is needed.
 
+### Multi-window layouts
+
+For an application with several native windows (Tauri, Electron, or a browser
+with several top-level windows), each running its own dockview, the package
+also ships the window side of a multi-window setup as one function over the
+public api, `installMultiWindow`: drag a tab or group into another window's
+dockview, every window's layout kept together by an orchestrator, and one undo
+across windows. It reaches the orchestrator through a transport you supply;
+`MultiWindowOrchestrator` is one for windows that share a JavaScript heap (an
+Electron main process can run it as is), and the pieces it is built from are
+the model for a shell in another language. See
+[multi-window layouts](https://dockview.dev/docs/core/state/multiWindow).
+
 Using a framework binding (`dockview-react` / `dockview-vue` /
 `dockview-angular`)? Keep importing your components from the binding and add a
 one-line side-effect import to activate the enterprise features:
