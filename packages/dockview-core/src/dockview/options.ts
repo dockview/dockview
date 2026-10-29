@@ -415,6 +415,14 @@ export interface DockviewOptions {
     // #start dnd
     dndEdges?: false | DroptargetOverlayModel;
     disableDnd?: boolean;
+    /** Hide a dragged grid group from the layout during the drag. Default `false`. */
+    dndCollapseSource?: boolean;
+    /** Allow edge drops beside the row or column around a group. Default `false`. */
+    dndBranchDrops?: boolean;
+    /** Preview edge drops by opening room in the layout. Default `false`. */
+    dndLivePreview?: boolean;
+    /** Drop on the side nearest the pointer, with no centre zone; tabs still take stacking drops. Default `false`. */
+    dndNearestEdge?: boolean;
     /**
      * Selects which drag-and-drop implementation is active.
      *
@@ -827,6 +835,10 @@ export const PROPERTY_KEYS_DOCKVIEW: (keyof DockviewOptions)[] = (() => {
         debug: undefined,
         locked: undefined,
         disableDnd: undefined,
+        dndCollapseSource: undefined,
+        dndBranchDrops: undefined,
+        dndLivePreview: undefined,
+        dndNearestEdge: undefined,
         dndStrategy: undefined,
         className: undefined,
         noPanelsOverlay: undefined,

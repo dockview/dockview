@@ -18,6 +18,8 @@ export interface DroptargetEvent {
      * The target renders no overlay for it; the consumer routes the commit.
      */
     readonly edge?: boolean;
+    /** Levels above the target the drop applies to (see `getScope`); `0` is the target. */
+    readonly depth?: number;
 }
 
 export class WillShowOverlayEvent
@@ -43,12 +45,18 @@ export class WillShowOverlayEvent
         return !!this.options.edgeGroup;
     }
 
+    /** See {@link DroptargetEvent.depth}. */
+    get depth(): number {
+        return this.options.depth ?? 0;
+    }
+
     constructor(
         private readonly options: {
             nativeEvent: DragEvent | PointerEvent;
             position: Position;
             edge?: boolean;
             edgeGroup?: boolean;
+            depth?: number;
         }
     ) {
         super();
@@ -132,6 +140,37 @@ export interface PositionResolver {
     resolve(args: PositionResolverArgs): PositionResolverResult | null;
 }
 
+/** Nearest side to the pointer; `previous` is kept within `hysteresis`. */
+export function resolveNearestEdge(
+    { x, y, width, height, zones }: PositionResolverArgs,
+    previous?: Position,
+    hysteresis = 0
+): PositionResolverResult | null {
+    const distances: [Position, number][] = [
+        ['left', x / width],
+        ['right', (width - x) / width],
+        ['top', y / height],
+        ['bottom', (height - y) / height],
+    ];
+    const sides = distances
+        .filter(([side]) => zones.has(side))
+        .sort((a, b) => a[1] - b[1]);
+    if (sides.length === 0) {
+        return null;
+    }
+
+    const kept = sides.find(([side]) => side === previous);
+    if (kept && kept[1] - sides[0][1] <= hysteresis) {
+        return { position: kept[0] };
+    }
+    return { position: sides[0][0] };
+}
+
+/** {@link resolveNearestEdge} as a stateless {@link PositionResolver}. */
+export const nearestEdgeResolver: PositionResolver = {
+    resolve: (args) => resolveNearestEdge(args),
+};
+
 export type CanDisplayOverlay = (
     dragEvent: DragEvent | PointerEvent,
     state: Position
@@ -183,6 +222,75 @@ export interface DropTargetTargetModel {
     scheduleClear?(): void;
 }
 
+/** A box in client (viewport) coordinates. */
+export interface DropOverlayBox {
+    readonly left: number;
+    readonly top: number;
+    readonly width: number;
+    readonly height: number;
+}
+
+export interface DropTargetScopeArgs {
+    readonly position: Exclude<Position, 'center'>;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    /** Depth of the edge activation zone along the drop axis, in px. */
+    readonly zoneSize: number;
+    readonly clientX: number;
+    readonly clientY: number;
+}
+
+export interface DropTargetScope {
+    readonly depth: number;
+    readonly box: DropOverlayBox;
+}
+
+export function resolveScope(
+    options: Pick<DroptargetOptions, 'getScope' | 'overlayModel'>,
+    position: Position,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    event: { clientX: number; clientY: number }
+): DropTargetScope | undefined {
+    if (!options.getScope || position === 'center') {
+        return undefined;
+    }
+    const scope = options.getScope({
+        position,
+        x,
+        y,
+        width,
+        height,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        zoneSize: activationZoneSize(
+            options.overlayModel,
+            position,
+            width,
+            height
+        ),
+    });
+    return scope && scope.depth > 0 ? scope : undefined;
+}
+
+export function activationZoneSize(
+    model: DroptargetOverlayModel | undefined,
+    position: Exclude<Position, 'center'>,
+    width: number,
+    height: number
+): number {
+    const activation = model?.activationSize ?? DEFAULT_ACTIVATION_SIZE;
+    if (activation.type === 'pixels') {
+        return activation.value;
+    }
+    const extent = position === 'left' || position === 'right' ? width : height;
+    return (extent * activation.value) / 100;
+}
+
 export interface DroptargetOptions {
     canDisplayOverlay: CanDisplayOverlay;
     acceptedTargetZones: Position[];
@@ -204,6 +312,16 @@ export interface DroptargetOptions {
      * propagation there is the DOM event flow's job.
      */
     isHitTestTransparent?: () => boolean;
+    /** Redirect an edge drop to an enclosing region. Only used with an override target. */
+    getScope?: (args: DropTargetScopeArgs) => DropTargetScope | undefined;
+    /** Return `true` to preview the drop yourself instead of drawing the overlay. */
+    livePreview?: (preview: DropTargetLivePreview) => boolean;
+}
+
+export interface DropTargetLivePreview {
+    readonly position: Position;
+    /** See {@link DroptargetEvent.depth}. */
+    readonly depth: number;
 }
 
 /**
@@ -230,6 +348,7 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
     private _state: Position | undefined;
     /** The current state was resolved as an `edge` cell (see DroptargetEvent). */
     private _edge = false;
+    private _depth = 0;
     private _acceptedTargetZonesSet: Set<Position>;
 
     private readonly _onDrop = new Emitter<DroptargetEvent>();
@@ -339,11 +458,25 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
                     return;
                 }
 
+                const scope =
+                    overrideTarget && !resolved.edge
+                        ? resolveScope(
+                              this.options,
+                              quadrant,
+                              x,
+                              y,
+                              width,
+                              height,
+                              e
+                          )
+                        : undefined;
+
                 const willShowOverlayEvent = new WillShowOverlayEvent({
                     nativeEvent: e,
                     position: quadrant,
                     edge: resolved.edge,
                     edgeGroup: resolved.edgeGroup,
+                    depth: scope?.depth,
                 });
 
                 /**
@@ -368,9 +501,24 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
                     this.clearOwnOverlay();
                     this._state = quadrant;
                     this._edge = true;
+                    this._depth = 0;
                     return;
                 }
                 this._edge = false;
+                this._depth = scope?.depth ?? 0;
+
+                if (
+                    this.options.livePreview?.({
+                        position: quadrant,
+                        depth: this._depth,
+                    })
+                ) {
+                    const depth = this._depth;
+                    this.clearOwnOverlay();
+                    this._state = quadrant;
+                    this._depth = depth;
+                    return;
+                }
 
                 if (overrideTarget) {
                     //
@@ -384,7 +532,7 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
                     target.append(this.targetElement);
                 }
 
-                this.toggleClasses(quadrant, width, height);
+                this.toggleClasses(quadrant, width, height, scope?.box);
 
                 this._state = quadrant;
             },
@@ -410,6 +558,7 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
                     // drop at the last hovered position.
                     this._state = undefined;
                     this._edge = false;
+                    this._depth = 0;
                     target.scheduleClear?.();
                     return;
                 }
@@ -428,6 +577,7 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
                             position: this._state,
                             nativeEvent: e,
                             edge: this._edge,
+                            depth: this._depth,
                         });
                     }
                 }
@@ -441,6 +591,7 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
 
                 const state = this._state;
                 const edge = this._edge;
+                const depth = this._depth;
 
                 this.removeDropTarget();
 
@@ -454,6 +605,7 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
                         position: state,
                         nativeEvent: e,
                         edge,
+                        depth,
                     });
                 }
             },
@@ -493,7 +645,8 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
     private toggleClasses(
         quadrant: Position,
         width: number,
-        height: number
+        height: number,
+        outlineBox?: DropOverlayBox
     ): void {
         const target = this.options.getOverrideTarget?.();
 
@@ -502,10 +655,11 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
                 this.options.getOverlayOutline?.() ?? this.element;
             renderAnchoredOverlay({
                 outlineElement: outlineEl,
+                outlineBox,
                 targetModel: target,
                 quadrant,
-                width,
-                height,
+                width: outlineBox?.width ?? width,
+                height: outlineBox?.height ?? height,
                 overlayModel: this.options.overlayModel,
                 className: this.options.className,
             });
@@ -629,6 +783,7 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
         // Always clear state, since an `edge` cell sets state with no overlay element.
         this._state = undefined;
         this._edge = false;
+        this._depth = 0;
         if (this.targetElement) {
             this.targetElement.parentElement?.classList.remove(
                 'dv-drop-target'

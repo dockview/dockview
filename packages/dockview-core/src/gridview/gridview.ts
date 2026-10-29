@@ -16,6 +16,12 @@ import { Node } from './types';
 import { Emitter, Event } from '../events';
 import { IDisposable, MutableDisposable } from '../lifecycle';
 import { Position } from '../dnd/droptarget';
+import {
+    type BranchDropTarget,
+    branchDropTargets,
+    type DropTreeNode,
+    withoutView,
+} from './branchDropTargets';
 
 function findLeaf(candiateNode: Node, last: boolean): LeafNode {
     if (candiateNode instanceof LeafNode) {
@@ -846,6 +852,37 @@ export class Gridview implements IDisposable {
         return this._getViews(node, this.orientation);
     }
 
+    /** Rows and columns `view` can be dropped beside, innermost first; `exclude` is left out. */
+    getBranchDropTargets(
+        view: IGridView,
+        position: Position,
+        exclude?: IGridView
+    ): BranchDropTarget<IGridView>[] {
+        let tree = this.toDropTree(this.root, true);
+        if (exclude && exclude !== view) {
+            tree = withoutView(tree, exclude);
+        }
+        return branchDropTargets(tree, view, position);
+    }
+
+    private toDropTree(node: Node, visible: boolean): DropTreeNode<IGridView> {
+        if (node instanceof LeafNode) {
+            return {
+                view: node.view,
+                orientation: node.orientation,
+                visible,
+                children: [],
+            };
+        }
+        return {
+            orientation: node.orientation,
+            visible,
+            children: node.children.map((child, i) =>
+                this.toDropTree(child, node.isChildVisible(i))
+            ),
+        };
+    }
+
     private _getViews(
         node: Node,
         orientation: Orientation,
@@ -956,6 +993,238 @@ export class Gridview implements IDisposable {
         parent.setChildVisible(index, visible);
     }
 
+    /** Hide the view at `location`; returns a function that undoes it. */
+    collapseView(location: number[]): () => void {
+        const [ancestors] = this.getNode(location);
+
+        let depth = ancestors.length - 1;
+        while (depth > 0) {
+            const branch = ancestors[depth];
+            const onPath = location[depth];
+            const hasVisibleSibling = branch.children.some(
+                (_, i) => i !== onPath && branch.isChildVisible(i)
+            );
+            if (hasVisibleSibling) {
+                break;
+            }
+            depth--;
+        }
+
+        const container = ancestors[depth];
+        const collapsed = location[depth];
+        const before = container.children.map((_, i) =>
+            container.getChildSize(i)
+        );
+
+        this.setViewVisible(location, false);
+
+        const freed = before[collapsed];
+        let remaining = 0;
+        for (let i = 0; i < before.length; i++) {
+            if (i !== collapsed && container.isChildVisible(i)) {
+                remaining += before[i];
+            }
+        }
+        if (remaining > 0) {
+            container.setChildSizes(
+                before.map((size, i) =>
+                    i === collapsed ? 0 : size + (freed * size) / remaining
+                )
+            );
+        }
+
+        return () => {
+            this.setViewVisible(location, true);
+            if (container.children.length === before.length) {
+                container.setChildSizes(before);
+            }
+        };
+    }
+
+    /** Put `view` where `existing` is, at its size. */
+    replaceView(existing: IGridView, view: IGridView): void {
+        const [rest, index] = tail(getGridLocation(existing.element));
+        const [, parent] = this.getNode(rest);
+
+        if (!(parent instanceof BranchNode)) {
+            throw new TypeError('Invalid location');
+        }
+
+        const node = parent.children[index];
+        if (!(node instanceof LeafNode)) {
+            throw new TypeError('Invalid location');
+        }
+
+        parent.replaceChild(
+            index,
+            new LeafNode(view, node.orientation, node.orthogonalSize)
+        );
+        node.dispose();
+    }
+
+    /**
+     * Add `view` until the returned function removes it. With `share`, it takes an
+     * equal share of its branch, counted as if the hidden `exclude` were removed.
+     */
+    addTransientView(
+        view: IGridView,
+        size: number | Sizing,
+        location: number[],
+        options?: { share?: boolean; exclude?: IGridView }
+    ): () => void {
+        const [rest, index] = tail(location);
+        const [, parent] = this.getNode(rest);
+        const sizesOf = (node: Node) =>
+            node instanceof BranchNode
+                ? node.children.map((_, i) => node.getChildSize(i))
+                : undefined;
+        const restore: [BranchNode, number[]][] = [];
+        const keep = (node: Node) => {
+            const sizes = sizesOf(node);
+            if (node instanceof BranchNode && sizes) {
+                restore.push([node, sizes]);
+            }
+        };
+
+        const merge = options?.share
+            ? this.collapsingBranch(options.exclude, parent)
+            : undefined;
+
+        if (merge) {
+            keep(merge.grandParent);
+            keep(merge.sibling);
+            this.addSharedAcrossCollapse(view, location, index, merge);
+        } else if (options?.share && parent instanceof BranchNode) {
+            keep(parent);
+            const before = sizesOf(parent) ?? [];
+            const visible = before.filter((_, i) => parent.isChildVisible(i));
+            const total = visible.reduce((sum, value) => sum + value, 0);
+            const share = total / (visible.length + 1);
+            const scale = visible.length / (visible.length + 1);
+
+            this.addView(view, share, location);
+
+            const sizes = before.map((value) => value * scale);
+            sizes.splice(index, 0, share);
+            parent.setChildSizes(sizes);
+        } else {
+            keep(parent);
+            this.addView(view, size, location);
+        }
+
+        return () => {
+            this.remove(view);
+            for (const [node, sizes] of restore) {
+                if (node.children.length === sizes.length) {
+                    node.setChildSizes(sizes);
+                }
+            }
+        };
+    }
+
+    /**
+     * The branch `exclude` shares with a single sibling, which collapses into the
+     * grandparent once `exclude` is removed; returned only when `insertInto` (the
+     * grandparent, the sibling branch or the sibling leaf) is affected.
+     */
+    private collapsingBranch(
+        exclude: IGridView | undefined,
+        insertInto: Node
+    ):
+        | {
+              grandParent: BranchNode;
+              branch: BranchNode;
+              sibling: Node;
+          }
+        | undefined {
+        if (!exclude || !this.element.contains(exclude.element)) {
+            return undefined;
+        }
+        const [branchLocation, index] = tail(getGridLocation(exclude.element));
+        const [path, branch] = this.getNode(branchLocation);
+        if (
+            !(branch instanceof BranchNode) ||
+            branch.children.length !== 2 ||
+            branch.isChildVisible(index) ||
+            path.length === 0
+        ) {
+            return undefined;
+        }
+        const grandParent = path[path.length - 1];
+        const sibling = branch.children[1 - index];
+        const affected =
+            insertInto === sibling ||
+            (insertInto === grandParent && sibling instanceof BranchNode);
+        return affected ? { grandParent, branch, sibling } : undefined;
+    }
+
+    /** Add `view` with an equal share of the grandparent once `branch` collapses into it. */
+    private addSharedAcrossCollapse(
+        view: IGridView,
+        location: number[],
+        index: number,
+        merge: { grandParent: BranchNode; branch: BranchNode; sibling: Node }
+    ): void {
+        const { grandParent, branch, sibling } = merge;
+        const branchIndex = grandParent.children.indexOf(branch);
+        const into =
+            sibling instanceof LeafNode
+                ? 'wrap'
+                : this.getNode(tail(location)[0])[1] === sibling
+                  ? 'sibling'
+                  : 'grandParent';
+
+        const outer = grandParent.children.map((_, i) =>
+            grandParent.isChildVisible(i) ? grandParent.getChildSize(i) : 0
+        );
+        const inner =
+            sibling instanceof BranchNode
+                ? sibling.children.map((_, i) =>
+                      sibling.isChildVisible(i) ? sibling.getChildSize(i) : 0
+                  )
+                : [outer[branchIndex]];
+        const members =
+            outer.filter((v, i) => i !== branchIndex && v > 0).length +
+            inner.filter((v) => v > 0).length;
+        const total =
+            outer.reduce((a, b) => a + b, 0) -
+            outer[branchIndex] +
+            inner.reduce((a, b) => a + b, 0);
+        const share = total / (members + 1);
+        const scale = members / (members + 1);
+
+        this.addView(view, into === 'wrap' ? Sizing.Split(0) : share, location);
+
+        const scaledInner = inner.map((v) => v * scale);
+        if (into === 'sibling') {
+            scaledInner.splice(index, 0, share);
+        }
+        const branchSize =
+            scaledInner.reduce((a, b) => a + b, 0) +
+            (into === 'wrap' ? share : 0);
+
+        const outerSizes = outer.map((v, i) =>
+            i === branchIndex ? branchSize : v * scale
+        );
+        if (into === 'grandParent') {
+            outerSizes.splice(index, 0, share);
+        }
+        grandParent.setChildSizes(outerSizes);
+
+        if (into === 'wrap') {
+            const wrapped = branch.children.find(
+                (child) => child instanceof BranchNode
+            );
+            if (wrapped instanceof BranchNode) {
+                const sizes = [scaledInner[0]];
+                sizes.splice(index, 0, share);
+                wrapped.setChildSizes(sizes);
+            }
+        } else if (sibling instanceof BranchNode) {
+            sibling.setChildSizes(scaledInner);
+        }
+    }
+
     public moveView(parentLocation: number[], from: number, to: number): void {
         if (this.hasMaximizedView()) {
             this.exitMaximizedView();
@@ -1038,12 +1307,21 @@ export class Gridview implements IDisposable {
         }
     }
 
-    public remove(view: IGridView, sizing?: Sizing): IGridView {
+    public remove(
+        view: IGridView,
+        sizing?: Sizing,
+        options?: { exactSizes?: boolean }
+    ): IGridView {
         const location = getGridLocation(view.element);
-        return this.removeView(location, sizing);
+        return this.removeView(location, sizing, options);
     }
 
-    removeView(location: number[], sizing?: Sizing): IGridView {
+    /** `exactSizes` restores the sizes around a collapsed branch in one pass, so the neighbours are not nudged. */
+    removeView(
+        location: number[],
+        sizing?: Sizing,
+        options?: { exactSizes?: boolean }
+    ): IGridView {
         if (this.hasMaximizedView()) {
             this.exitMaximizedView();
         }
@@ -1119,9 +1397,12 @@ export class Gridview implements IDisposable {
             // A child's extent along the sibling's axis (which is also the
             // grandparent's axis) is `size` for a leaf but `orthogonalSize`
             // for a branch, whose `size` is its own-axis extent.
-            const childSizes = sibling.children.map((c) =>
-                c instanceof BranchNode ? c.orthogonalSize : c.size
-            );
+            const childSizes = sibling.children.map((c, i) => {
+                if (options?.exactSizes) {
+                    return sibling.getChildSize(i);
+                }
+                return c instanceof BranchNode ? c.orthogonalSize : c.size;
+            });
 
             // replace the parent with the siblings children
             sizes.splice(parentIndex, 1, ...childSizes);
@@ -1168,8 +1449,12 @@ export class Gridview implements IDisposable {
         sibling.dispose();
 
         // resize everything
-        for (let i = 0; i < sizes.length; i++) {
-            grandParent.resizeChild(i, sizes[i]);
+        if (options?.exactSizes) {
+            grandParent.setChildSizes(sizes);
+        } else {
+            for (let i = 0; i < sizes.length; i++) {
+                grandParent.resizeChild(i, sizes[i]);
+            }
         }
 
         return nodeToRemove.view;

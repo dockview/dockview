@@ -8,7 +8,13 @@ import { Emitter, Event } from '../../../events';
 import { trackFocus } from '../../../dom';
 import { IDockviewPanel } from '../../dockviewPanel';
 import { DockviewComponent } from '../../dockviewComponent';
-import { Droptarget, IDropTarget, Position } from '../../../dnd/droptarget';
+import {
+    Droptarget,
+    DropTargetLivePreview,
+    DropTargetScopeArgs,
+    IDropTarget,
+    Position,
+} from '../../../dnd/droptarget';
 import { pointerBackend } from '../../../dnd/backend';
 import { DockviewGroupPanelModel } from '../../dockviewGroupPanelModel';
 import { Size } from '../../../types';
@@ -100,6 +106,11 @@ export class ContentContainer
         // captured here would mount overlays in the wrong window.
         const getOverrideTarget = () => group.dropTargetContainer?.model;
 
+        const getScope = (args: DropTargetScopeArgs) =>
+            accessor.resolveBranchDropScope?.(group.id, args);
+        const livePreview = (preview: DropTargetLivePreview) =>
+            accessor.showLiveDropPreview?.(group.id, preview) ?? false;
+
         const canDisplayOverlay = (
             event: DragEvent | PointerEvent,
             position: Position
@@ -119,7 +130,10 @@ export class ContentContainer
             canDisplayOverlay,
             getOverrideTarget,
             overlayModel: this.accessor.resolveDropOverlayModel?.('content'),
-            getPositionResolver: () => accessor.getDropPositionResolver?.(),
+            getPositionResolver: () =>
+                accessor.getDropPositionResolver?.(group.id),
+            getScope,
+            livePreview,
         });
 
         this.pointerDropTarget = pointerBackend.createDropTarget(this.element, {
@@ -133,7 +147,10 @@ export class ContentContainer
             className: 'dv-drop-target-content',
             getOverrideTarget,
             overlayModel: this.accessor.resolveDropOverlayModel?.('content'),
-            getPositionResolver: () => accessor.getDropPositionResolver?.(),
+            getPositionResolver: () =>
+                accessor.getDropPositionResolver?.(group.id),
+            getScope,
+            livePreview,
         });
 
         this.addDisposables(

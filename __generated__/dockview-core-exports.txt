@@ -345,6 +345,7 @@ isGroupOptionsWithGroup
 isGroupOptionsWithPanel
 isPanelOptionsWithGroup
 isPanelOptionsWithPanel
+nearestEdgeResolver
 orthogonal
 positionToDirection
 prefersReducedMotion

@@ -142,6 +142,7 @@ export class DockviewGroupPanelApiImpl extends GridviewPanelApiImpl {
     private _pendingSize: SizeEvent | undefined;
     private _isApplyingSize = false;
     private _reportedSize: { width: number; height: number } | undefined;
+    private _holdPendingSize = false;
 
     readonly _onDidLocationChange =
         new Emitter<DockviewGroupPanelLocationChangeEvent>();
@@ -221,7 +222,11 @@ export class DockviewGroupPanelApiImpl extends GridviewPanelApiImpl {
             this._onDidPeekChange,
             this._onDidHeaderDirectionChange,
             this._onDidVisibilityChange.event((event) => {
-                if (event.isVisible && this._pendingSize) {
+                if (
+                    event.isVisible &&
+                    this._pendingSize &&
+                    !this._holdPendingSize
+                ) {
                     const pendingSize = this._pendingSize;
                     this._pendingSize = undefined;
                     super.setSize(pendingSize);
@@ -265,6 +270,17 @@ export class DockviewGroupPanelApiImpl extends GridviewPanelApiImpl {
             super.setSize(event);
         } finally {
             this._isApplyingSize = wasApplyingSize;
+        }
+    }
+
+    /** Run `fn` without consuming a size set while the group was hidden. */
+    _holdingPendingSize(fn: () => void): void {
+        const previous = this._holdPendingSize;
+        this._holdPendingSize = true;
+        try {
+            fn();
+        } finally {
+            this._holdPendingSize = previous;
         }
     }
 

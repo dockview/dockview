@@ -207,6 +207,7 @@ export class PointerDragController extends CompositeDisposable {
                 clientX: lastEvent.clientX,
                 clientY: lastEvent.clientY,
                 pointerEvent: lastEvent,
+                dropped: false,
             };
             onEnd?.(dragEvent, false);
             this._onDragEnd.fire(dragEvent);
@@ -268,6 +269,7 @@ export class PointerDragController extends CompositeDisposable {
             clientX: e.clientX,
             clientY: e.clientY,
             pointerEvent: e,
+            dropped,
         };
 
         if (dropped && this._currentTarget) {

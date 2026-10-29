@@ -131,6 +131,53 @@ describe('events', () => {
             expect(preFireCount).toBe(1);
             expect(postFireCount).toBe(0);
         });
+
+        test('that a held asapEvent fires once, when released', async () => {
+            jest.useRealTimers();
+            const event = new AsapEvent();
+            let count = 0;
+            event.onEvent(() => count++);
+
+            const hold = event.hold();
+            event.fire();
+            await Promise.resolve();
+            event.fire();
+            await Promise.resolve();
+            expect(count).toBe(0);
+
+            hold.dispose();
+            hold.dispose();
+            await Promise.resolve();
+            expect(count).toBe(1);
+        });
+
+        test('that a held asapEvent hands over every value fired meanwhile', async () => {
+            jest.useRealTimers();
+            const event = new AsapEvent<string>();
+            const received: string[][] = [];
+            event.onEvent((values) => received.push([...values]));
+
+            const hold = event.hold();
+            event.fire('a');
+            await Promise.resolve();
+            event.fire('b');
+            await Promise.resolve();
+            hold.dispose();
+            await Promise.resolve();
+
+            expect(received).toEqual([['a', 'b']]);
+        });
+
+        test('that releasing a hold fires nothing when nothing was fired', async () => {
+            jest.useRealTimers();
+            const event = new AsapEvent();
+            let count = 0;
+            event.onEvent(() => count++);
+
+            event.hold().dispose();
+            await Promise.resolve();
+            expect(count).toBe(0);
+        });
     });
 
     it('should emit a value when any event fires', () => {

@@ -293,6 +293,8 @@ export class AsapEvent<T = void> implements IDisposable {
     private _currentFireCount = 0;
     private _pending = new Set<T>();
     private _queued = false;
+    private _holds = 0;
+    private _firedWhileHeld = false;
 
     /**
      * Dispatches once per microtask with the set of values fired since the
@@ -312,7 +314,10 @@ export class AsapEvent<T = void> implements IDisposable {
     fire(value: T): void {
         this._currentFireCount++;
         this._pending.add(value);
+        this.schedule();
+    }
 
+    private schedule(): void {
         if (this._queued) {
             return;
         }
@@ -321,10 +326,34 @@ export class AsapEvent<T = void> implements IDisposable {
 
         queueMicrotask(() => {
             this._queued = false;
+            if (this._holds > 0) {
+                this._firedWhileHeld = true;
+                return;
+            }
             const values = this._pending;
             this._pending = new Set<T>();
             this._onFired.fire(values);
         });
+    }
+
+    /** Withhold the event until released; it then fires once if it fired meanwhile. */
+    hold(): IDisposable {
+        this._holds++;
+        let released = false;
+        return {
+            dispose: () => {
+                if (released) {
+                    return;
+                }
+                released = true;
+                this._holds--;
+                if (this._holds === 0 && this._firedWhileHeld) {
+                    this._firedWhileHeld = false;
+                    this._currentFireCount++;
+                    this.schedule();
+                }
+            },
+        };
     }
 
     dispose(): void {

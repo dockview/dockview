@@ -4,6 +4,8 @@ export interface PointerDragEvent {
     readonly clientX: number;
     readonly clientY: number;
     readonly pointerEvent: PointerEvent;
+    /** On the drag end: whether the drag ended in a drop rather than a cancel. */
+    readonly dropped?: boolean;
 }
 
 export interface PointerDroptargetEvent {

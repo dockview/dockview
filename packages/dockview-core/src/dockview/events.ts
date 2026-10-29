@@ -57,6 +57,11 @@ export class DockviewWillShowOverlayLocationEvent implements IDockviewEvent {
         return this.event.edgeGroup;
     }
 
+    /** Levels above the group the drop would apply to (`dndBranchDrops`); `0` is the group. */
+    get depth(): number {
+        return this.event.depth;
+    }
+
     get defaultPrevented(): boolean {
         return this.event.defaultPrevented;
     }

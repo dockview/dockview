@@ -1,0 +1,147 @@
+---
+title: Accurate drop previews
+sidebar_position: 10
+description: Preview a drop against the layout it will produce, and drop beside a whole row or column instead of a single group.
+---
+
+import { DocRef } from '@site/src/components/ui/reference/docRef';
+
+Four opt-in options change how dragging a group around the grid feels. They all default to `false`, so existing
+layouts keep their current behaviour until you turn them on.
+
+<CodeRunner id="dockview/dnd-branch-drops" />
+
+## Collapse the source while dragging
+
+By default the dragged group stays where it is until it is dropped, so the drop overlay is measured against a layout
+that still contains it. Once the drop lands the source is removed, the layout reflows, and the group can end up
+somewhere other than where the overlay pointed.
+
+With `dndCollapseSource` the dragged group is collapsed out of the grid as soon as the drag starts. The layout reflows
+straight away, the overlay is measured against the layout the drop will produce, and the group lands exactly where the
+overlay showed. Cancelling the drag puts the group back at its size.
+
+It applies when dragging a whole group by its header, or the only tab of a group. Floating groups, popout windows and
+edge groups are left in place, as is the last group in the grid.
+
+<FrameworkSpecific framework="JavaScript">
+    <DocRef declaration="DockviewComponentOptions" methods={['dndCollapseSource']} />
+</FrameworkSpecific>
+
+<FrameworkSpecific framework="React">
+    <DocRef declaration="IDockviewReactProps" methods={['dndCollapseSource']} />
+</FrameworkSpecific>
+
+<FrameworkSpecific framework="Vue">
+    <DocRef declaration="IDockviewVueProps" methods={['dndCollapseSource']} />
+</FrameworkSpecific>
+
+<FrameworkSpecific framework="Angular">
+    <DocRef declaration="DockviewAngularOptions" methods={['dndCollapseSource']} />
+</FrameworkSpecific>
+
+## Drop beside a row or column
+
+An edge drop normally splits the group under the cursor. With `dndBranchDrops` it can also apply to a row or column
+around that group. For example, with two groups stacked in a column, dropping on the right of the top group can place
+the dragged group to the right of the whole column, at its full height.
+
+Along a group's edge, a thin band per enclosing row or column (at most 24px each) targets those regions: the band closest
+to the edge targets the largest enclosing row or column whose edge is that group's edge. The rest of the edge zone
+targets the group itself. The overlay outlines
+the region the drop applies to and previews the half of it the dropped group will take.
+
+<FrameworkSpecific framework="JavaScript">
+    <DocRef declaration="DockviewComponentOptions" methods={['dndBranchDrops']} />
+</FrameworkSpecific>
+
+<FrameworkSpecific framework="React">
+    <DocRef declaration="IDockviewReactProps" methods={['dndBranchDrops']} />
+</FrameworkSpecific>
+
+<FrameworkSpecific framework="Vue">
+    <DocRef declaration="IDockviewVueProps" methods={['dndBranchDrops']} />
+</FrameworkSpecific>
+
+<FrameworkSpecific framework="Angular">
+    <DocRef declaration="DockviewAngularOptions" methods={['dndBranchDrops']} />
+</FrameworkSpecific>
+
+The overlay and drop events report how far up the layout the drop applies through `depth`: `0` is the group itself,
+`1` the row or column around it, and so on. Use it in `onWillShowOverlay` or `onWillDrop` to refine or veto a drop:
+
+```ts
+api.onWillShowOverlay((event) => {
+    // Allow row and column drops, but never stacking into a group.
+    if (event.kind === 'content' && event.position === 'center') {
+        event.preventDefault();
+    }
+});
+
+api.onWillDrop((event) => {
+    console.log(event.position, event.depth);
+});
+```
+
+## Open room instead of drawing the overlay
+
+With `dndLivePreview`, an edge drop is not previewed with the overlay. The groups around it make way instead, opening
+an empty slot exactly where the dragged group will land and at the size it will take. Dropped beside the other groups
+of a row or column, the group takes an equal share of it, the others giving up room in proportion to their sizes: three
+equal groups stay equal. Dropped beside a single group across its row or column, the two share its room equally. The slot stays put until another
+drop is previewed, so the room it opens never moves the target out from under the cursor, and releasing anywhere in the
+layout drops into it. Dragging out of the layout closes it again.
+
+It applies to edge drops on grid groups, including drops beside a row or column, and to the outer layout edges: there
+too the room opens in first or last place across the whole layout, in place of the edge overlay. Stacking drops onto a
+group keep the overlay. With `dndBranchDrops`, a wider band along the layout's own border (48px) drops across the whole
+layout, so the first and last places are easy to reach.
+
+<FrameworkSpecific framework="JavaScript">
+    <DocRef declaration="DockviewComponentOptions" methods={['dndLivePreview']} />
+</FrameworkSpecific>
+
+<FrameworkSpecific framework="React">
+    <DocRef declaration="IDockviewReactProps" methods={['dndLivePreview']} />
+</FrameworkSpecific>
+
+<FrameworkSpecific framework="Vue">
+    <DocRef declaration="IDockviewVueProps" methods={['dndLivePreview']} />
+</FrameworkSpecific>
+
+<FrameworkSpecific framework="Angular">
+    <DocRef declaration="DockviewAngularOptions" methods={['dndLivePreview']} />
+</FrameworkSpecific>
+
+## Drop on the nearest side
+
+By default a group only takes an edge drop near that edge, and its middle drops into the group. With
+`dndNearestEdge`, the pointer drops on whichever side of the group is nearest, measured in proportion to the group's
+size: the group's diagonals split it into four triangles, so there is no zone to avoid in the middle, even on a long,
+narrow group. Once the pointer is on a side, that side is kept until another one is clearly nearer, so the drop does
+not flip back and forth around a diagonal. Dropping into a group to stack is then done on its tabs. With
+`dndBranchDrops`, the rows and columns around the group only take a thin band along its very edge; the rest of each side
+drops on the group itself.
+
+This applies to the content of groups; the outer layout edges and the tab strip keep their behaviour. An app's own
+`dropPositionResolver` takes precedence. The resolver is also available on its own as `nearestEdgeResolver`, to build
+on in a custom resolver.
+
+<FrameworkSpecific framework="JavaScript">
+    <DocRef declaration="DockviewComponentOptions" methods={['dndNearestEdge']} />
+</FrameworkSpecific>
+
+<FrameworkSpecific framework="React">
+    <DocRef declaration="IDockviewReactProps" methods={['dndNearestEdge']} />
+</FrameworkSpecific>
+
+<FrameworkSpecific framework="Vue">
+    <DocRef declaration="IDockviewVueProps" methods={['dndNearestEdge']} />
+</FrameworkSpecific>
+
+<FrameworkSpecific framework="Angular">
+    <DocRef declaration="DockviewAngularOptions" methods={['dndNearestEdge']} />
+</FrameworkSpecific>
+
+The options work independently, but they are designed to be used together: with the source collapsed, the rows and
+columns on offer, and the room opened for the drop, are those of the layout the dragged group leaves behind.

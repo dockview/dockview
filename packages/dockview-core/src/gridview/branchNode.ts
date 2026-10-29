@@ -349,6 +349,28 @@ export class BranchNode extends CompositeDisposable implements IView {
         return this.splitview.getViewSize(index);
     }
 
+    /** Swap the child at `index` for `node`, keeping its size and visibility. */
+    replaceChild(index: number, node: Node): Node {
+        if (index < 0 || index >= this.children.length) {
+            throw new Error('Invalid index');
+        }
+
+        const size = this.splitview.isViewVisible(index)
+            ? this.splitview.getViewSize(index)
+            : Sizing.Invisible(
+                  this.splitview.getViewCachedVisibleSize(index) ?? 0
+              );
+        this.splitview.removeView(index, undefined, true);
+        const child = this._removeChild(index);
+        this.splitview.addView(node, size, index);
+        this._addChild(node, index);
+        return child;
+    }
+
+    setChildSizes(sizes: number[]): void {
+        this.splitview.setViewSizes(sizes);
+    }
+
     resizeChild(index: number, size: number): void {
         if (index < 0 || index >= this.children.length) {
             throw new Error('Invalid index');

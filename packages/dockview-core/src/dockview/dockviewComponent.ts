@@ -14,7 +14,13 @@ import {
 } from '../gridview/gridview';
 import {
     directionToPosition,
+    nearestEdgeResolver,
+    resolveNearestEdge,
     DroptargetOverlayModel,
+    DropOverlayBox,
+    DropTargetLivePreview,
+    DropTargetScope,
+    DropTargetScopeArgs,
     Position,
     PositionResolver,
 } from '../dnd/droptarget';
@@ -142,6 +148,10 @@ import { IRootDropTargetHost } from './rootDropTargetService';
 import { ILiveRegionHost } from './liveRegionService';
 import { IDragGhostSpec } from '../dnd/backend';
 import { DropTargetAnchorContainer } from '../dnd/dropTargetAnchorContainer';
+import { PointerDragController } from '../dnd/pointer/pointerDragController';
+import { LayoutTransition } from './layoutTransition';
+import type { BranchDropTarget } from '../gridview/branchDropTargets';
+import { LiveDropPreview } from './liveDropPreview';
 import { themeAbyss } from './theme';
 import {
     EdgeGroupPosition,
@@ -316,9 +326,41 @@ export interface MovePanelEvent {
  */
 type MovedPanel = { panel: IDockviewPanel; from: DockviewGroupPanel };
 
+/** Band along a group's edge per enclosing row or column (`dndBranchDrops`), in px. */
+const BRANCH_DROP_BAND = 24;
+
+/** Band along the layout border that drops across the whole layout, in px. */
+const LAYOUT_EDGE_DROP_BAND = 48;
+
+function regionBox(views: IGridView[]): DropOverlayBox {
+    const rects = views.map((view) => view.element.getBoundingClientRect());
+    const left = Math.min(...rects.map((r) => r.left));
+    const top = Math.min(...rects.map((r) => r.top));
+    return {
+        left,
+        top,
+        width: Math.max(...rects.map((r) => r.right)) - left,
+        height: Math.max(...rects.map((r) => r.bottom)) - top,
+    };
+}
+
+/** How much nearer another side must be before `dndNearestEdge` switches to it. */
+const NEAREST_EDGE_HYSTERESIS = 0.12;
+
+/** Where a drop lands, or the live preview placeholder to swap for the group. */
+type DropPlacement = {
+    location: number[];
+    size: Sizing;
+    replace?: IGridView;
+};
+
 type MoveGroupOptions = {
     from: { group: DockviewGroupPanel };
-    to: { group: DockviewGroupPanel; position: Position };
+    to: {
+        group: DockviewGroupPanel;
+        position: Position;
+        depth?: number;
+    };
     skipSetActive?: boolean;
 };
 
@@ -332,6 +374,8 @@ type MoveGroupOrPanelOptions = {
         group: DockviewGroupPanel;
         position: Position;
         index?: number;
+        /** Drop beside the row or column `depth` levels above `group` (`dndBranchDrops`). */
+        depth?: number;
     };
     skipSetActive?: boolean;
     keepEmptyGroups?: boolean;
@@ -1185,9 +1229,14 @@ export class DockviewComponent
      * module's compass resolver (undefined when the compass is disabled). Read
      * live by the content drop targets; undefined ⇒ default cursor-quadrant.
      */
-    getDropPositionResolver(): PositionResolver | undefined {
+    getDropPositionResolver(groupId?: string): PositionResolver | undefined {
         if (this.options.dropPositionResolver) {
             return this.options.dropPositionResolver;
+        }
+        if (this.options.dndNearestEdge) {
+            return groupId === undefined
+                ? nearestEdgeResolver
+                : this.nearestEdgeResolverFor(groupId);
         }
         const compass = this._dndCompassService?.resolver;
         const autoEdge = this._moduleRegistry.services.autoEdgeGroupService;
@@ -1748,9 +1797,79 @@ export class DockviewComponent
                 () => {
                     this.rootDropTargetContainer.model?.clear();
                     this.floatingDropTargetContainer.model?.clear();
+                    this.endDragSession();
                 },
                 true
             ),
+            // A live preview commits wherever the pointer is released, before any target below.
+            addDisposableListener(
+                this._shellManager.element,
+                'dragover',
+                (e) => {
+                    if (this._liveDropPreview.target) {
+                        e.preventDefault();
+                    }
+                }
+            ),
+            addDisposableListener(
+                this._shellManager.element,
+                'drop',
+                (e) => {
+                    if (this._liveDropPreview.target) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.commitLiveDropPreview(e);
+                    }
+                },
+                true
+            ),
+            addDisposableListener(
+                this._shellManager.element,
+                'dragleave',
+                (e) => {
+                    // Safari leaves `relatedTarget` null; fall back to the pointer position.
+                    const to = e.relatedTarget;
+                    const left =
+                        to instanceof Node
+                            ? !this.rootElement.contains(to)
+                            : !this.isInShell(e.clientX, e.clientY);
+                    if (left) {
+                        this.closeLiveDropPreview();
+                    }
+                }
+            ),
+            PointerDragController.getInstance().onDragMove((e) => {
+                if (
+                    this._liveDropPreview.target &&
+                    !this.isInShell(e.clientX, e.clientY)
+                ) {
+                    this.closeLiveDropPreview();
+                }
+            }),
+            PointerDragController.getInstance().onDragEnd((e) => {
+                if (
+                    e.dropped &&
+                    this._liveDropPreview.target &&
+                    this.isInShell(e.clientX, e.clientY)
+                ) {
+                    this.commitLiveDropPreview(e.pointerEvent);
+                }
+                this.endDragSession();
+            }),
+            this._liveDropPreview,
+            this._layoutTransition,
+            // A grid changed by the app mid-drag is no longer the one it started with.
+            Event.any(
+                this.onDidAdd,
+                this.onDidRemove
+            )(() => {
+                this._dragStartGrid = undefined;
+                this._branchDropTargetCache.clear();
+            }),
+            this.gridview.onDidViewVisibilityChange(() =>
+                this._branchDropTargetCache.clear()
+            ),
+            this._pendingDragSourceCollapse,
             this.overlayRenderContainer,
             this._onWillDragPanel,
             this._onWillDragGroup,
@@ -1893,6 +2012,25 @@ export class DockviewComponent
                             getData: getPanelData,
                         })
                     );
+
+                    if (event.defaultPrevented) {
+                        return;
+                    }
+
+                    if (
+                        this.options.dndLivePreview &&
+                        this._dragging &&
+                        event.position !== 'center'
+                    ) {
+                        event.preventDefault();
+                        this.showLayoutEdgeDropPreview(
+                            event.position,
+                            event.nativeEvent
+                        );
+                        return;
+                    }
+
+                    this.closeLiveDropPreview();
                 }),
                 rootDropTarget.onDrop((event) =>
                     this.dockToLayoutEdge(event.nativeEvent, event.position)
@@ -3207,6 +3345,8 @@ export class DockviewComponent
 
         if ('theme' in options) {
             this.updateTheme();
+        } else if ('dndBranchDrops' in options) {
+            this.updateDropTargetMounting();
         }
 
         if (
@@ -3769,7 +3909,7 @@ export class DockviewComponent
      * @returns A JSON respresentation of the layout
      */
     toJSON(): SerializedDockview {
-        const data = this.gridview.serialize();
+        const data = this._dragStartGrid ?? this.gridview.serialize();
 
         const panels = this.panels.reduce(
             (collection, panel) => {
@@ -5519,6 +5659,488 @@ export class DockviewComponent
         return re;
     }
 
+    /** Resolve an edge drop on a grid group to an enclosing row or column (`dndBranchDrops`). */
+    resolveBranchDropScope(
+        groupId: string,
+        args: DropTargetScopeArgs
+    ): DropTargetScope | undefined {
+        if (!this.options.dndBranchDrops) {
+            return undefined;
+        }
+
+        const group = this._groups.get(groupId)?.value;
+        if (group?.api.location.type !== 'grid') {
+            return undefined;
+        }
+
+        // Counted without the open room and the dragged group.
+        const targets = this.branchDropTargets(
+            group,
+            args.position,
+            this.options.dndLivePreview
+                ? this._liveDropPreview.placeholder
+                : this.draggedGroupLeaving()
+        );
+        if (targets.length === 0) {
+            return undefined;
+        }
+
+        let distance: number;
+        switch (args.position) {
+            case 'left':
+                distance = args.x;
+                break;
+            case 'right':
+                distance = args.width - args.x;
+                break;
+            case 'top':
+                distance = args.y;
+                break;
+            case 'bottom':
+                distance = args.height - args.y;
+                break;
+        }
+
+        const zone = this.options.dndNearestEdge
+            ? (args.position === 'left' || args.position === 'right'
+                  ? args.width
+                  : args.height) / 2
+            : args.zoneSize;
+        const shareable = this.options.dndNearestEdge
+            ? zone * 0.4
+            : (zone * targets.length) / (targets.length + 1);
+        const band = Math.min(BRANCH_DROP_BAND, shareable / targets.length);
+        const outer = band * targets.length;
+        let depth =
+            distance < outer
+                ? targets.length - Math.floor(Math.max(0, distance) / band)
+                : 0;
+
+        if (
+            this.distanceToLayoutEdge(
+                args.position,
+                args.clientX,
+                args.clientY
+            ) < LAYOUT_EDGE_DROP_BAND &&
+            this.spansLayout(
+                regionBox(targets[targets.length - 1].views),
+                args.position
+            )
+        ) {
+            depth = targets.length;
+        }
+
+        if (depth <= 0) {
+            return undefined;
+        }
+
+        return { depth, box: regionBox(targets[depth - 1].views) };
+    }
+
+    private distanceToLayoutEdge(
+        position: Exclude<Position, 'center'>,
+        clientX: number,
+        clientY: number
+    ): number {
+        const layout = this.gridview.element.getBoundingClientRect();
+        switch (position) {
+            case 'left':
+                return clientX - layout.left;
+            case 'right':
+                return layout.right - clientX;
+            case 'top':
+                return clientY - layout.top;
+            case 'bottom':
+                return layout.bottom - clientY;
+        }
+    }
+
+    private spansLayout(
+        box: DropOverlayBox,
+        position: Exclude<Position, 'center'>
+    ): boolean {
+        const layout = this.gridview.element.getBoundingClientRect();
+        const slack = 16;
+        const near = (a: number, b: number) => Math.abs(a - b) <= slack;
+        const right = box.left + box.width;
+        const bottom = box.top + box.height;
+        if (position === 'left' || position === 'right') {
+            return (
+                near(box.top, layout.top) &&
+                near(bottom, layout.bottom) &&
+                near(
+                    position === 'left' ? box.left : right,
+                    position === 'left' ? layout.left : layout.right
+                )
+            );
+        }
+        return (
+            near(box.left, layout.left) &&
+            near(right, layout.right) &&
+            near(
+                position === 'top' ? box.top : bottom,
+                position === 'top' ? layout.top : layout.bottom
+            )
+        );
+    }
+
+    private groupAlongLayoutEdge(
+        position: Exclude<Position, 'center'>,
+        clientX: number,
+        clientY: number
+    ): DockviewGroupPanel | undefined {
+        let found:
+            | { group: DockviewGroupPanel; off: number; reach: number }
+            | undefined;
+        for (const group of this.groups) {
+            if (
+                group.api.location.type !== 'grid' ||
+                group === this._collapsedDragSource
+            ) {
+                continue;
+            }
+            const r = group.element.getBoundingClientRect();
+            if (r.width === 0 || r.height === 0) {
+                continue;
+            }
+            const off =
+                position === 'left' || position === 'right'
+                    ? Math.max(0, r.top - clientY, clientY - r.bottom)
+                    : Math.max(0, r.left - clientX, clientX - r.right);
+            const reach = {
+                left: -r.left,
+                right: r.right,
+                top: -r.top,
+                bottom: r.bottom,
+            }[position];
+            if (
+                !found ||
+                off < found.off ||
+                (off === found.off && reach > found.reach)
+            ) {
+                found = { group, off, reach };
+            }
+        }
+        return found?.group;
+    }
+
+    private _lastNearestEdge:
+        | { groupId: string; position: Position }
+        | undefined;
+
+    /** A nearest-side resolver that sticks to the side it last chose for `groupId`. */
+    private nearestEdgeResolverFor(groupId: string): PositionResolver {
+        return {
+            resolve: (args) => {
+                const last = this._lastNearestEdge;
+                const result = resolveNearestEdge(
+                    args,
+                    last?.groupId === groupId ? last.position : undefined,
+                    NEAREST_EDGE_HYSTERESIS
+                );
+                if (result) {
+                    this._lastNearestEdge = {
+                        groupId,
+                        position: result.position,
+                    };
+                }
+                return result;
+            },
+        };
+    }
+
+    private readonly _liveDropPreview = new LiveDropPreview();
+    private readonly _layoutTransition = new LayoutTransition(
+        () => this.gridview.element,
+        () => this.overlayRenderContainer.updateAllPositions()
+    );
+    private _dragging = false;
+
+    private _layoutChangeHold: IDisposable | undefined;
+
+    private beginDragSession(): void {
+        this.endDragSession();
+        this._branchDropTargetCache.clear();
+        this._dragging = true;
+        if (this.options.dndCollapseSource || this.options.dndLivePreview) {
+            this._layoutChangeHold = this._bufferOnDidLayoutChange.hold();
+            this._dragStartGrid = this.gridview.serialize();
+        }
+    }
+
+    private endDragSession(): void {
+        this._dragging = false;
+        this._branchDropTargetCache.clear();
+        this._dragStartGrid = undefined;
+        const hold = this._layoutChangeHold;
+        this._layoutChangeHold = undefined;
+        this._lastNearestEdge = undefined;
+        if (this._liveDropPreview.target || this._collapsedDragSource) {
+            this._layoutTransition.run(() => {
+                this._liveDropPreview.clear();
+                this.restoreDragSource();
+            });
+        } else {
+            this.restoreDragSource();
+        }
+        hold?.dispose();
+    }
+
+    private showLayoutEdgeDropPreview(
+        position: Exclude<Position, 'center'>,
+        event: DragEvent | PointerEvent
+    ): void {
+        const group = this.groupAlongLayoutEdge(
+            position,
+            event.clientX,
+            event.clientY
+        );
+        if (!group) {
+            return;
+        }
+        const targets = this.gridview.getBranchDropTargets(
+            group,
+            position,
+            this._liveDropPreview.placeholder
+        );
+        this.showLiveDropPreview(group.id, {
+            position,
+            depth: targets.length,
+        });
+    }
+
+    private closeLiveDropPreview(): void {
+        this._branchDropTargetCache.clear();
+        if (this._liveDropPreview.target) {
+            this._layoutTransition.run(() => this._liveDropPreview.clear());
+        }
+    }
+
+    /** Open room in the layout for a drop instead of drawing the overlay (`dndLivePreview`). */
+    showLiveDropPreview(
+        groupId: string,
+        preview: DropTargetLivePreview
+    ): boolean {
+        if (
+            !this.options.dndLivePreview ||
+            !this._dragging ||
+            preview.position === 'center'
+        ) {
+            return false;
+        }
+
+        const group = this._groups.get(groupId)?.value;
+        if (group?.api.location.type !== 'grid') {
+            // The overlay takes over off the grid, and so does its drop.
+            this.closeLiveDropPreview();
+            return false;
+        }
+
+        const target = {
+            groupId,
+            position: preview.position,
+            depth: preview.depth,
+        };
+        if (this._liveDropPreview.matches(target)) {
+            return true;
+        }
+
+        this._branchDropTargetCache.clear();
+        try {
+            this._layoutTransition.run(() =>
+                this._liveDropPreview.show(target, (placeholder) => {
+                    const placement = this.dropPlacement(
+                        group,
+                        preview.position,
+                        preview.depth
+                    );
+                    return this.gridview.addTransientView(
+                        placeholder,
+                        placement.size,
+                        placement.location,
+                        { share: true, exclude: this._collapsedDragSource }
+                    );
+                })
+            );
+        } catch {
+            this.closeLiveDropPreview();
+            return false;
+        }
+        return true;
+    }
+
+    private readonly _branchDropTargetCache = new Map<
+        string,
+        BranchDropTarget<IGridView>[]
+    >();
+
+    /** {@link Gridview.getBranchDropTargets}, cached until the grid changes. */
+    private branchDropTargets(
+        group: DockviewGroupPanel,
+        position: Position,
+        exclude: IGridView | undefined
+    ): BranchDropTarget<IGridView>[] {
+        const placeholder = this._liveDropPreview.placeholder;
+        const excluded =
+            exclude && exclude === placeholder
+                ? 'room'
+                : ((exclude as DockviewGroupPanel | undefined)?.id ?? '');
+        const key = `${group.id}|${position}|${excluded}`;
+        let targets = this._branchDropTargetCache.get(key);
+        if (!targets) {
+            targets = this.gridview.getBranchDropTargets(
+                group,
+                position,
+                exclude
+            );
+            this._branchDropTargetCache.set(key, targets);
+        }
+        return targets;
+    }
+
+    /** The grid group a drag in progress takes out of the grid when it drops. */
+    private draggedGroupLeaving(): DockviewGroupPanel | undefined {
+        if (this._collapsedDragSource) {
+            return this._collapsedDragSource;
+        }
+        const data = getPanelData();
+        if (data?.viewId !== this.id || data.tabGroupId) {
+            return undefined;
+        }
+        const group = this._groups.get(data.groupId)?.value;
+        if (
+            group?.api.location.type !== 'grid' ||
+            (data.panelId !== null && group.size !== 1)
+        ) {
+            return undefined;
+        }
+        return group;
+    }
+
+    private commitLiveDropPreview(event: DragEvent | PointerEvent): void {
+        const target = this._liveDropPreview.target;
+        const group = target && this._groups.get(target.groupId)?.value;
+        if (!target || !group) {
+            this._liveDropPreview.clear();
+            return;
+        }
+        group.model.handleContentDrop(event, target.position, target.depth);
+    }
+
+    private discardOtherLiveDropPreview(to: {
+        group: DockviewGroupPanel;
+        position: Position;
+        depth?: number;
+    }): void {
+        if (
+            !this._liveDropPreview.matches({
+                groupId: to.group.id,
+                position: to.position,
+                depth: to.depth ?? 0,
+            })
+        ) {
+            this._liveDropPreview.clear();
+        }
+    }
+
+    private isInShell(clientX: number, clientY: number): boolean {
+        const rect = this.rootElement.getBoundingClientRect();
+        return (
+            clientX >= rect.left &&
+            clientX <= rect.right &&
+            clientY >= rect.top &&
+            clientY <= rect.bottom
+        );
+    }
+
+    private _collapsedDragSource: DockviewGroupPanel | undefined;
+    /** Puts back the sizes around the collapsed source on a cancelled drag. */
+    private _expandDragSource:
+        | { location: number[]; expand: () => void }
+        | undefined;
+    /** The grid when the drag started, which `toJSON` reports while a drag reshapes it. */
+    private _dragStartGrid: SerializedGridview<GroupPanelViewState> | undefined;
+    private readonly _pendingDragSourceCollapse = new MutableDisposable();
+
+    /** Hide `group` for the drag (`dndCollapseSource`), a tick later so the drag image is captured first. */
+    private collapseDragSource(group: DockviewGroupPanel): void {
+        this.restoreDragSource();
+
+        if (
+            !this.options.dndCollapseSource ||
+            group.api.location.type !== 'grid' ||
+            this.hasMaximizedGroup() ||
+            this.groups.filter((g) => g.api.location.type === 'grid').length < 2
+        ) {
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            this._pendingDragSourceCollapse.dispose();
+            if (
+                !this._groups.has(group.id) ||
+                group.api.location.type !== 'grid'
+            ) {
+                return;
+            }
+            const location = getGridLocation(group.element);
+            this._layoutTransition.run(() => {
+                this._expandDragSource = {
+                    location,
+                    expand: this.gridview.collapseView(location),
+                };
+            });
+            this._collapsedDragSource = group;
+            this._branchDropTargetCache.clear();
+        }, 0);
+
+        this._pendingDragSourceCollapse.value = Disposable.from(() =>
+            clearTimeout(timer)
+        );
+    }
+
+    private restoreDragSource(): void {
+        this._pendingDragSourceCollapse.dispose();
+
+        const group = this._collapsedDragSource;
+        const expandDragSource = this._expandDragSource;
+        this._collapsedDragSource = undefined;
+        this._expandDragSource = undefined;
+
+        if (!group || !this._groups.has(group.id)) {
+            return;
+        }
+
+        group.api._holdingPendingSize(() => {
+            if (group.api.location.type === 'grid') {
+                const location = getGridLocation(group.element);
+                if (!this.gridview.isViewVisible(location)) {
+                    if (
+                        expandDragSource &&
+                        sequenceEquals(expandDragSource.location, location)
+                    ) {
+                        expandDragSource.expand();
+                    } else {
+                        this.gridview.setViewVisible(location, true);
+                    }
+                    return;
+                }
+            }
+
+            if (!group.api.isVisible) {
+                group.setVisible(true);
+            }
+        });
+    }
+
+    protected override removalSizing(
+        group: DockviewGroupPanel
+    ): Sizing | undefined {
+        return group === this._collapsedDragSource
+            ? undefined
+            : super.removalSizing(group);
+    }
+
     private _moving = false;
     private _updatePositionsFrameId: number | undefined;
 
@@ -5736,7 +6358,14 @@ export class DockviewComponent
     }
 
     moveGroupOrPanel(options: MoveGroupOrPanelOptions): void {
-        this.mutation('move', () => this._doMoveGroupOrPanel(options));
+        this._layoutTransition.finish();
+        this.mutation('move', () => {
+            // History holds the pre-drag grid; from here on the real grid is the one moved.
+            this._dragStartGrid = undefined;
+            this.discardOtherLiveDropPreview(options.to);
+            this._doMoveGroupOrPanel(options);
+        });
+        this.endDragSession();
     }
 
     private _doMoveGroupOrPanel(options: MoveGroupOrPanelOptions): void {
@@ -5767,6 +6396,7 @@ export class DockviewComponent
                     destinationGroup,
                     destinationTarget,
                     destinationIndex,
+                    destinationDepth: options.to.depth,
                     skipSetActive: options.skipSetActive,
                     keepEmptyGroups: options.keepEmptyGroups,
                 });
@@ -5779,6 +6409,7 @@ export class DockviewComponent
                     to: {
                         group: destinationGroup,
                         position: destinationTarget,
+                        depth: options.to.depth,
                     },
                     skipSetActive: options.skipSetActive,
                 });
@@ -5861,7 +6492,10 @@ export class DockviewComponent
 
                 if (
                     sourceGroup.api.location.type === 'grid' &&
-                    destinationGridview === this.gridview
+                    destinationGridview === this.gridview &&
+                    sourceGroup !== this._collapsedDragSource &&
+                    !options.to.depth &&
+                    !this._liveDropPreview.target
                 ) {
                     const sourceLocation = getGridLocation(sourceGroup.element);
                     const [sourceParentLocation, from] = tail(sourceLocation);
@@ -5929,18 +6563,14 @@ export class DockviewComponent
 
                     this.doRemoveGroup(sourceGroup, { skipActive: true });
 
-                    const updatedTargetLocation = getRelativeLocation(
-                        destinationGridview.orientation,
-                        getGridLocation(destinationGroup.element),
-                        destinationTarget
+                    const placement = this.dropPlacement(
+                        destinationGroup,
+                        destinationTarget,
+                        options.to.depth
                     );
 
-                    const newGroup = this.createGroupAtLocation(
-                        updatedTargetLocation,
-                        this.sizingForDrop(
-                            getGridLocation(destinationGroup.element)
-                        ),
-                        undefined,
+                    const newGroup = this.createGroupAtDrop(
+                        placement,
                         destinationGridview
                     );
                     this.movingLock(() =>
@@ -5977,10 +6607,13 @@ export class DockviewComponent
                         );
                     }
 
-                    const newGroup = this.createGroupAtLocation(
-                        targetLocation,
-                        this.sizingForDrop(referenceLocation),
-                        undefined,
+                    const placement = this.dropPlacement(
+                        destinationGroup,
+                        destinationTarget,
+                        options.to.depth
+                    );
+                    const newGroup = this.createGroupAtDrop(
+                        placement,
                         destinationGridview
                     );
                     this.movingLock(() =>
@@ -6003,20 +6636,15 @@ export class DockviewComponent
                 );
 
                 // after deleting the group we need to re-evaulate the ref location
-                const updatedReferenceLocation = getGridLocation(
-                    destinationGroup.element
-                );
-
-                const location = getRelativeLocation(
-                    destinationGridview.orientation,
-                    updatedReferenceLocation,
-                    destinationTarget
+                const placement = this.dropPlacement(
+                    destinationGroup,
+                    destinationTarget,
+                    options.to.depth
                 );
                 this.movingLock(() =>
-                    this.doAddGroup(
+                    this.addGroupAtDrop(
                         targetGroup,
-                        location,
-                        this.sizingForDrop(updatedReferenceLocation),
+                        placement,
                         destinationGridview
                     )
                 );
@@ -6046,16 +6674,14 @@ export class DockviewComponent
                     );
                 }
 
-                const dropLocation = getRelativeLocation(
-                    destinationGridview.orientation,
-                    referenceLocation,
-                    destinationTarget
+                const placement = this.dropPlacement(
+                    destinationGroup,
+                    destinationTarget,
+                    options.to.depth
                 );
 
-                const group = this.createGroupAtLocation(
-                    dropLocation,
-                    this.sizingForDrop(referenceLocation),
-                    undefined,
+                const group = this.createGroupAtDrop(
+                    placement,
                     destinationGridview
                 );
                 this.movingLock(() =>
@@ -6076,6 +6702,7 @@ export class DockviewComponent
         destinationGroup: DockviewGroupPanel;
         destinationTarget: Position;
         destinationIndex?: number;
+        destinationDepth?: number;
         skipSetActive?: boolean;
         keepEmptyGroups?: boolean;
     }): void {
@@ -6085,6 +6712,7 @@ export class DockviewComponent
             destinationGroup,
             destinationTarget,
             destinationIndex,
+            destinationDepth,
         } = options;
 
         const tabGroup = sourceGroup.model
@@ -6163,6 +6791,22 @@ export class DockviewComponent
             !referenceLocation
         ) {
             targetGroup = destinationGroup;
+        } else if (
+            destinationDepth ||
+            this._liveDropPreview.matches({
+                groupId: destinationGroup.id,
+                position: destinationTarget,
+                depth: destinationDepth ?? 0,
+            })
+        ) {
+            targetGroup = this.createGroupAtDrop(
+                this.dropPlacement(
+                    destinationGroup,
+                    destinationTarget,
+                    destinationDepth
+                ),
+                this.getGridviewForGroup(destinationGroup)
+            );
         } else {
             // referenceLocation is relative to the gridview that owns the
             // destination (main, floating or popout), so the new group must
@@ -6199,7 +6843,14 @@ export class DockviewComponent
     }
 
     moveGroup(options: MoveGroupOptions): void {
-        this.mutation('move', () => this._doMoveGroup(options));
+        this._layoutTransition.finish();
+        this.mutation('move', () => {
+            // History holds the pre-drag grid; from here on the real grid is the one moved.
+            this._dragStartGrid = undefined;
+            this.discardOtherLiveDropPreview(options.to);
+            this._doMoveGroup(options);
+        });
+        this.endDragSession();
     }
 
     // Bracket maximize/restore as a 'maximize' transaction. The maximized node
@@ -6305,7 +6956,9 @@ export class DockviewComponent
                 // and sit outside any gridview root.
                 if (
                     from.api.location.type === 'edge' ||
-                    to.api.location.type === 'edge'
+                    to.api.location.type === 'edge' ||
+                    from === this._collapsedDragSource ||
+                    (options.to.depth ?? 0) > 0
                 ) {
                     return false;
                 }
@@ -6402,7 +7055,11 @@ export class DockviewComponent
             } else {
                 switch (from.api.location.type) {
                     case 'grid':
-                        this.gridview.removeView(getGridLocation(from.element));
+                        this.gridview.removeView(
+                            getGridLocation(from.element),
+                            undefined,
+                            { exactSizes: from === this._collapsedDragSource }
+                        );
                         break;
                     case 'floating': {
                         const selectedFloatingGroup =
@@ -6477,11 +7134,10 @@ export class DockviewComponent
                 to.api.location.type === 'popout'
             ) {
                 const destGridview = this.getGridviewForGroup(to);
-                const referenceLocation = getGridLocation(to.element);
-                const dropLocation = getRelativeLocation(
-                    destGridview.orientation,
-                    referenceLocation,
-                    target
+                const placement = this.dropPlacement(
+                    to,
+                    target,
+                    options.to.depth
                 );
 
                 // A reorder keeps its own size unless drops distribute.
@@ -6497,10 +7153,14 @@ export class DockviewComponent
                             ? from.api.width
                             : from.api.height;
                 } else {
-                    size = this.sizingForDrop(referenceLocation);
+                    size = placement.size;
                 }
 
-                destGridview.addView(source, size, dropLocation);
+                if (placement.replace) {
+                    destGridview.replaceView(placement.replace, source);
+                } else {
+                    destGridview.addView(source, size, placement.location);
+                }
                 this.setGroupLocationForRoot(source, destGridview);
             }
         }
@@ -6618,13 +7278,30 @@ export class DockviewComponent
             const disposable = new CompositeDisposable(
                 view.model.onTabDragStart((event) => {
                     this._advancedDnDService?.dispatchWillDragPanel(event);
+                    // A drag from a popout window ends in that window.
+                    if (view.api.location.type !== 'popout') {
+                        this.beginDragSession();
+                    }
+                    if (view.size === 1) {
+                        this.collapseDragSource(view);
+                    }
                 }),
                 view.model.onGroupDragStart((event) => {
                     this._advancedDnDService?.dispatchWillDragGroup(event);
+                    if (view.api.location.type !== 'popout') {
+                        this.beginDragSession();
+                    }
+                    this.collapseDragSource(view);
                 }),
                 view.model.onMove((event) => {
-                    const { groupId, itemId, target, index, tabGroupId } =
-                        event;
+                    const {
+                        groupId,
+                        itemId,
+                        target,
+                        index,
+                        tabGroupId,
+                        depth,
+                    } = event;
                     this.moveGroupOrPanel({
                         from: {
                             groupId: groupId,
@@ -6635,6 +7312,7 @@ export class DockviewComponent
                             group: view,
                             position: target,
                             index,
+                            depth,
                         },
                     });
                 }),
@@ -6653,6 +7331,14 @@ export class DockviewComponent
                     }
 
                     this._advancedDnDService?.dispatchWillShowOverlay(event);
+
+                    if (
+                        !event.defaultPrevented &&
+                        (event.kind !== 'content' ||
+                            event.position === 'center')
+                    ) {
+                        this.closeLiveDropPreview();
+                    }
                 }),
                 view.model.onUnhandledDragOver((event) => {
                     this._onUnhandledDragOver.fire(event);
@@ -6758,6 +7444,98 @@ export class DockviewComponent
         );
     }
 
+    /** Where a group dropped on the `position` side of `to` goes, and the room it takes. */
+    private dropPlacement(
+        to: DockviewGroupPanel,
+        position: Position,
+        depth = 0
+    ): DropPlacement {
+        if (
+            this._liveDropPreview.matches({ groupId: to.id, position, depth })
+        ) {
+            const placeholder = this._liveDropPreview.take();
+            if (placeholder) {
+                return {
+                    location: [],
+                    size: Sizing.Distribute,
+                    replace: placeholder,
+                };
+            }
+        }
+
+        const gridview = this.getGridviewForGroup(to);
+
+        if (depth > 0) {
+            const targets = gridview.getBranchDropTargets(to, position);
+            const target = targets[Math.min(depth, targets.length) - 1];
+            if (target?.location.length === 0) {
+                // Across the drop axis: nest the root in a branch along it, then halve it.
+                if (
+                    gridview.orientation !== getDirectionOrientation(position)
+                ) {
+                    gridview.insertOrthogonalSplitviewAtRoot();
+                }
+                const toEnd = position === 'right' || position === 'bottom';
+                const last = gridview.length - 1;
+                return {
+                    location: [toEnd ? gridview.length : 0],
+                    size: this.sizingForDrop([toEnd ? last : 0]),
+                };
+            }
+            if (target) {
+                return {
+                    location: target.location,
+                    size: this.sizingForDrop([target.index]),
+                };
+            }
+        }
+
+        const referenceLocation = getGridLocation(to.element);
+        return {
+            location: getRelativeLocation(
+                gridview.orientation,
+                referenceLocation,
+                position
+            ),
+            size: this.sizingForDrop(referenceLocation),
+        };
+    }
+
+    private createGroupAtDrop(
+        placement: DropPlacement,
+        gridview: Gridview
+    ): DockviewGroupPanel {
+        if (!placement.replace) {
+            return this.createGroupAtLocation(
+                placement.location,
+                placement.size,
+                undefined,
+                gridview
+            );
+        }
+        const group = this.createGroup();
+        this.addGroupAtDrop(group, placement, gridview);
+        this.setGroupLocationForRoot(group, gridview);
+        return group;
+    }
+
+    private addGroupAtDrop(
+        group: DockviewGroupPanel,
+        placement: DropPlacement,
+        gridview: Gridview
+    ): void {
+        if (placement.replace) {
+            this.doReplaceWithGroup(placement.replace, group, gridview);
+        } else {
+            this.doAddGroup(
+                group,
+                placement.location,
+                placement.size,
+                gridview
+            );
+        }
+    }
+
     private createGroupAtLocation(
         location: number[],
         size?: number | Sizing,
@@ -6859,6 +7637,13 @@ export class DockviewComponent
             : orthogonal(rootOrientation);
     }
 
+    private updateDropTargetMounting(): void {
+        this.rootDropTargetContainer.disabled = !(
+            (this.options.theme ?? themeAbyss).dndOverlayMounting ===
+                'absolute' || this.options.dndBranchDrops
+        );
+    }
+
     private updateTheme(): void {
         const theme = this._options.theme ?? themeAbyss;
         // Apply the theme class only to the shell so edge groups and the
@@ -6893,15 +7678,7 @@ export class DockviewComponent
             );
         }
 
-        switch (theme.dndOverlayMounting) {
-            case 'absolute':
-                this.rootDropTargetContainer.disabled = false;
-                break;
-            case 'relative':
-            default:
-                this.rootDropTargetContainer.disabled = true;
-                break;
-        }
+        this.updateDropTargetMounting();
 
         // Toggle a CSS class so theme stylesheets can scope pure-CSS
         // tab group indicator rules to the 'none' mode only.

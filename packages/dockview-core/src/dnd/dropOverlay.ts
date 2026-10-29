@@ -4,6 +4,7 @@
 import { toggleClass } from '../dom';
 import { clamp } from '../math';
 import {
+    DropOverlayBox,
     DropTargetTargetModel,
     DroptargetOverlayModel,
     MeasuredValue,
@@ -195,6 +196,8 @@ function applyAnchoredBounds(
 /** `boundsChanged: false` lets callers skip redundant work on tight drag loops. */
 export function renderAnchoredOverlay(args: {
     outlineElement: HTMLElement;
+    /** Outline this box (client coordinates) instead of `outlineElement`. */
+    outlineBox?: DropOverlayBox;
     targetModel: DropTargetTargetModel;
     quadrant: Position;
     width: number;
@@ -210,7 +213,8 @@ export function renderAnchoredOverlay(args: {
     );
     const { rightClass, leftClass, topClass, bottomClass, size } = shape;
 
-    const elBox = args.outlineElement.getBoundingClientRect();
+    const elBox =
+        args.outlineBox ?? args.outlineElement.getBoundingClientRect();
     const ta = args.targetModel.getElements(undefined, args.outlineElement);
     const el = ta.root;
     const overlay = ta.overlay;

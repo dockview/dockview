@@ -72,6 +72,10 @@ const COMPONENTS: ComponentGroup[] = [
                 enterprise: true,
             },
             {
+                name: 'dnd-branch-drops',
+                frameworks: ['react', 'vue', 'angular', 'typescript'],
+            },
+            {
                 name: 'dnd-events',
                 frameworks: ['react', 'vue', 'angular', 'typescript'],
             },

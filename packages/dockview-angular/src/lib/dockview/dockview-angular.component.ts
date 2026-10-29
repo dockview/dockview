@@ -158,6 +158,10 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
     @Input() smartGuides?: DockviewOptions['smartGuides'];
     @Input() dndCompass?: DockviewOptions['dndCompass'];
     @Input() dropPositionResolver?: DockviewOptions['dropPositionResolver'];
+    @Input() dndCollapseSource?: DockviewOptions['dndCollapseSource'];
+    @Input() dndBranchDrops?: DockviewOptions['dndBranchDrops'];
+    @Input() dndLivePreview?: DockviewOptions['dndLivePreview'];
+    @Input() dndNearestEdge?: DockviewOptions['dndNearestEdge'];
 
     @Output() ready = new EventEmitter<DockviewReadyEvent>();
     @Output() didDrop = new EventEmitter<DockviewDidDropEvent>();

@@ -17,6 +17,19 @@
     .dv-overlay-render-container {
         position: relative;
     }
+
+    .dv-drop-placeholder {
+        box-sizing: border-box;
+        height: 100%;
+        width: 100%;
+        background-color: var(--dv-drag-over-background-color);
+        border: var(--dv-drag-over-border);
+        animation: dv-drop-placeholder-in 180ms ease-out;
+
+        @media (prefers-reduced-motion: reduce) {
+            animation: none;
+        }
+    }
 }
 
 .dv-groupview {
@@ -98,4 +111,10 @@
     color: var(--dv-activegroup-visiblepanel-tab-color);
     border: 1px solid var(--dv-tab-divider-color);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+@keyframes dv-drop-placeholder-in {
+    from {
+        opacity: 0;
+    }
 }

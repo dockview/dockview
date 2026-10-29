@@ -12,10 +12,14 @@ import {
     DropTargetTargetModel,
     DroptargetEvent,
     DroptargetOverlayModel,
+    DropTargetLivePreview,
+    DropTargetScope,
+    DropTargetScopeArgs,
     IDropTarget,
     MeasuredValue,
     Position,
     PositionResolver,
+    resolveScope,
     WillShowOverlayEvent,
 } from '../droptarget';
 import { PointerDragController } from './pointerDragController';
@@ -43,6 +47,10 @@ export interface PointerDropTargetOptions {
     getPositionResolver?: () => PositionResolver | undefined;
     /** See `DroptargetOptions.isHitTestTransparent`. */
     isHitTestTransparent?: () => boolean;
+    /** See `DroptargetOptions.getScope`. */
+    getScope?: (args: DropTargetScopeArgs) => DropTargetScope | undefined;
+    /** See `DroptargetOptions.livePreview`. */
+    livePreview?: (preview: DropTargetLivePreview) => boolean;
 }
 
 /** Pointer-driven counterpart to `Droptarget` with identical visual output. */
@@ -54,6 +62,7 @@ export class PointerDropTarget
     private _overlayElement: HTMLElement | undefined;
     private _state: Position | undefined;
     private _edge = false;
+    private _depth = 0;
     private _acceptedTargetZonesSet: Set<Position>;
 
     private readonly _onDrop = new Emitter<DroptargetEvent>();
@@ -166,10 +175,24 @@ export class PointerDropTarget
             return;
         }
 
+        const scope =
+            overrideTarget && !resolved.edge
+                ? resolveScope(
+                      this.options,
+                      quadrant,
+                      x,
+                      y,
+                      width,
+                      height,
+                      event
+                  )
+                : undefined;
+
         const willShow = new WillShowOverlayEvent({
             nativeEvent: event.pointerEvent,
             position: quadrant,
             edge: resolved.edge,
+            depth: scope?.depth,
         });
         this._onWillShowOverlay.fire(willShow);
         if (willShow.defaultPrevented) {
@@ -186,17 +209,33 @@ export class PointerDropTarget
             this._clearOwnOverlay();
             this._state = quadrant;
             this._edge = true;
+            this._depth = 0;
             return;
         }
         this._edge = false;
+        this._depth = scope?.depth ?? 0;
+
+        if (
+            this.options.livePreview?.({
+                position: quadrant,
+                depth: this._depth,
+            })
+        ) {
+            const depth = this._depth;
+            this._clearOwnOverlay();
+            this._state = quadrant;
+            this._depth = depth;
+            return;
+        }
 
         if (overrideTarget) {
             renderAnchoredOverlay({
                 outlineElement: outlineEl,
+                outlineBox: scope?.box,
                 targetModel: overrideTarget,
                 quadrant,
-                width,
-                height,
+                width: scope?.box.width ?? width,
+                height: scope?.box.height ?? height,
                 overlayModel: this.options.overlayModel,
                 className: this.options.className,
             });
@@ -240,6 +279,7 @@ export class PointerDropTarget
     private _onDropEvent(event: PointerDragEvent): void {
         const state = this._state;
         const edge = this._edge;
+        const depth = this._depth;
         const overrideTarget = this.options.getOverrideTarget?.();
         this._removeOverlay();
         overrideTarget?.clear();
@@ -248,6 +288,7 @@ export class PointerDropTarget
                 position: state,
                 nativeEvent: event.pointerEvent,
                 edge,
+                depth,
             });
         }
     }
@@ -338,6 +379,7 @@ export class PointerDropTarget
 
     private _removeOverlay(): void {
         this._edge = false;
+        this._depth = 0;
         if (this._targetElement) {
             this._state = undefined;
             this._targetElement.parentElement?.classList.remove(

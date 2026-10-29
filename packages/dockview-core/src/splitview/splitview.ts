@@ -370,6 +370,17 @@ export class Splitview {
         return this.viewItems[index].size;
     }
 
+    /** Set the size of every visible view at once; hidden views stay at `0`. */
+    setViewSizes(sizes: number[]): void {
+        for (let i = 0; i < this.viewItems.length; i++) {
+            const item = this.viewItems[i];
+            if (item.visible && typeof sizes[i] === 'number') {
+                item.size = clamp(sizes[i], item.minimumSize, item.maximumSize);
+            }
+        }
+        this.relayout();
+    }
+
     resizeView(index: number, size: number): void {
         if (index < 0 || index >= this.viewItems.length) {
             return;

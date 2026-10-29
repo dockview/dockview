@@ -159,6 +159,7 @@ export {
     type PositionResolver,
     type PositionResolverArgs,
     type PositionResolverResult,
+    nearestEdgeResolver,
 } from './dnd/droptarget';
 
 export {

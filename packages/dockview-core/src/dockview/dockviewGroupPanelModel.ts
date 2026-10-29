@@ -65,6 +65,7 @@ interface GroupMoveEvent {
     target: Position;
     index?: number;
     tabGroupId?: string;
+    depth?: number;
 }
 
 interface CoreGroupOptions {
@@ -165,9 +166,15 @@ export class DockviewDidDropEvent extends DockviewEvent {
 
 export class DockviewWillDropEvent extends DockviewDidDropEvent {
     private readonly _kind: DockviewGroupDropLocation;
+    private readonly _depth: number;
 
     get kind(): DockviewGroupDropLocation {
         return this._kind;
+    }
+
+    /** Levels above the group the drop applies to (`dndBranchDrops`); `0` is the group. */
+    get depth(): number {
+        return this._depth;
     }
 
     constructor(options: {
@@ -179,10 +186,12 @@ export class DockviewWillDropEvent extends DockviewDidDropEvent {
         kind: DockviewGroupDropLocation;
         group?: DockviewGroupPanel;
         api: DockviewApi;
+        depth?: number;
     }) {
         super(options);
 
         this._kind = options.kind;
+        this._depth = options.depth ?? 0;
     }
 }
 
@@ -729,7 +738,8 @@ export class DockviewGroupPanelModel
                     event.nativeEvent,
                     event.position,
                     undefined,
-                    event.edge
+                    event.edge,
+                    event.depth
                 );
             }),
             this.contentContainer.pointerDropTarget.onDrop((event) => {
@@ -738,7 +748,8 @@ export class DockviewGroupPanelModel
                     event.nativeEvent,
                     event.position,
                     undefined,
-                    event.edge
+                    event.edge,
+                    event.depth
                 );
             }),
             this.tabsContainer.onWillShowOverlay((event) => {
@@ -1944,12 +1955,29 @@ export class DockviewGroupPanelModel
         return this.canDisplayOverlay(event, position, 'content');
     }
 
+    /** Drop on this group's content from elsewhere (a live drop preview). */
+    handleContentDrop(
+        event: DragEvent | PointerEvent,
+        position: Position,
+        depth = 0
+    ): void {
+        this.handleDropEvent(
+            'content',
+            event,
+            position,
+            undefined,
+            false,
+            depth
+        );
+    }
+
     private handleDropEvent(
         type: 'header' | 'content',
         event: DragEvent | PointerEvent,
         position: Position,
         index?: number,
-        edge?: boolean
+        edge?: boolean,
+        depth = 0
     ): void {
         if (this.locked === 'no-drop-target') {
             return;
@@ -1983,6 +2011,7 @@ export class DockviewGroupPanelModel
             kind: getKind(),
             group: this.groupPanel,
             api: this._api,
+            depth,
         });
 
         this._onWillDrop.fire(willDropEvent);
@@ -2028,6 +2057,7 @@ export class DockviewGroupPanelModel
                     groupId: groupId,
                     index,
                     tabGroupId: data.tabGroupId,
+                    depth,
                 });
                 return;
             }
@@ -2062,6 +2092,7 @@ export class DockviewGroupPanelModel
                 groupId: data.groupId,
                 itemId: data.panelId,
                 index,
+                depth,
             });
         } else {
             this._onDidDrop.fire(

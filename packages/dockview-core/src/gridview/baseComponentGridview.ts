@@ -295,6 +295,20 @@ export abstract class BaseGrid<T extends IGridPanelView>
         this._onDidAdd.fire(group);
     }
 
+    /** Put `group` exactly where `existing` is, at its size. */
+    protected doReplaceWithGroup(
+        existing: IGridView,
+        group: T,
+        gridview: Gridview = this.gridview
+    ): void {
+        gridview.replaceView(existing, group);
+        this._onDidAdd.fire(group);
+    }
+
+    protected removalSizing(_group: T): Sizing | undefined {
+        return Sizing.Distribute;
+    }
+
     protected doRemoveGroup(
         group: T,
         options?: { skipActive?: boolean; skipDispose?: boolean }
@@ -305,7 +319,9 @@ export abstract class BaseGrid<T extends IGridPanelView>
 
         const item = this._groups.get(group.id);
 
-        const view = this.gridview.remove(group, Sizing.Distribute);
+        const view = this.gridview.remove(group, this.removalSizing(group), {
+            exactSizes: this.removalSizing(group) === undefined,
+        });
 
         if (item && !options?.skipDispose) {
             item.disposable.dispose();
