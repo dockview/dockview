@@ -19,9 +19,9 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/img/brand/apple-touch-icon-180.png">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"Dockview","description":"A zero dependency docking layout manager for building IDE-like interfaces with tabs, groups, grids, splitviews, drag and drop, floating panels, and popout windows. Touch and mobile ready. Supports React, Vue, Angular, and vanilla TypeScript.","url":"https://dockview.dev","codeRepository":"https://github.com/dockview/dockview","programmingLanguage":["TypeScript","JavaScript"],"runtimePlatform":["Browser"],"license":"https://opensource.org/licenses/MIT","operatingSystem":"Any","applicationCategory":"DeveloperApplication","keywords":["layout manager","docking","tabs","drag and drop","react","vue","angular","typescript","splitview","gridview","floating panels","popout windows","touch","mobile","zero dependency"]}</script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&amp;display=swap"><link rel="stylesheet" href="/assets/css/styles.89098cf8.css">
-<script src="/assets/js/runtime~main.aa07a585.js" defer="defer"></script>
-<script src="/assets/js/main.139f366c.js" defer="defer"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&amp;display=swap"><link rel="stylesheet" href="/assets/css/styles.95c6cd91.css">
+<script src="/assets/js/runtime~main.82ed922b.js" defer="defer"></script>
+<script src="/assets/js/main.8908b157.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -31,7 +31,10 @@
 <div style="height:500px;border:1px solid var(--ifm-toc-border-color);border-radius:8px;background:var(--ifm-background-surface-color);overflow:hidden"></div>
 <table class="doc-ref-table"><tbody><tr><th style="width:40%;display:flex"><div style="display:flex;flex-direction:column;align-items:start"><h6 style="font-family:monospace;font-size:1.2em">onDidLayoutChange</h6><div style="display:flex;flex-direction:column;align-items:start"></div></div></th><th style="width:60%"><div><div><div><div class="doc-text"><span>Invoked when any layout change occures, an aggregation of many events.</span></div><div></div></div></div><div class="doc-code-block"><pre class="prism-code language-tsx doc-code" style="color:#393A34;background-color:#f6f8fa"><div class="token-line" style="color:#393A34"><span class="token plain">onDidLayoutChange</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token maybe-class-name">Event</span><span class="token operator" style="color:#393A34">&lt;</span><span class="token keyword" style="color:#00009f">void</span><span class="token operator" style="color:#393A34">&gt;</span></div></pre></div></div></th></tr><tr><th style="width:40%;display:flex"><div style="display:flex;flex-direction:column;align-items:start"><h6 style="font-family:monospace;font-size:1.2em">toJSON</h6><div style="display:flex;flex-direction:column;align-items:start"></div></div></th><th style="width:60%"><div><div><div><div class="doc-text"><span>Create a serialized object of the current component.</span></div><div></div></div></div><div class="doc-code-block"><pre class="prism-code language-tsx doc-code" style="color:#393A34;background-color:#f6f8fa"><div class="token-line" style="color:#393A34"><span class="token function" style="color:#d73a49">toJSON</span><span class="token punctuation" style="color:#393A34">(</span><span class="token punctuation" style="color:#393A34">)</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token maybe-class-name doc-type-link" role="button" tabindex="0" title="Show SerializedDockview">SerializedDockview</span></div></pre></div></div></th></tr></tbody></table>
 <p>To retrieve the current state of Dockview call <code>toJSON()</code>.
-You can listen to the event <code>onDidLayoutChange</code> to determine when the layout has changed.</p>
+You can listen to the event <code>onDidLayoutChange</code> to determine when the layout has changed.
+The event&#x27;s <code>reasons</code> set says what changed (<code>&#x27;geometry&#x27;</code>, <code>&#x27;structure&#x27;</code>,
+<code>&#x27;activePanel&#x27;</code>, <code>&#x27;panelTitle&#x27;</code> or <code>&#x27;panelParameters&#x27;</code>), should you want to
+persist some changes and not others.</p>
 <!-- -->
 <!-- -->
 <!-- -->
