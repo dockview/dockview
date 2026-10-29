@@ -14390,6 +14390,79 @@ describe('dockviewComponent', () => {
             fresh.dispose();
         });
 
+        test('edge group locked and hideHeader survive a toJSON/fromJSON round-trip on a fresh component', () => {
+            const c1 = document.createElement('div');
+            const dv = createFixedDockview(c1, ['left']);
+            dv.layout(1000, 800);
+            dv.addPanel({
+                id: 'edge1',
+                component: 'default',
+                position: { referenceGroup: 'left-group' },
+            });
+            const edgeGroup = dv.getEdgeGroupPanel('left')!;
+            edgeGroup.locked = 'no-drop-target';
+            edgeGroup.header.hidden = true;
+
+            const state = dv.toJSON();
+            dv.dispose();
+            expect(state.edgeGroups?.left?.group).toMatchObject({
+                locked: 'no-drop-target',
+                hideHeader: true,
+            });
+
+            // a fresh component that has not called addEdgeGroup; fromJSON
+            // auto-creates the edge group and must apply the group flags
+            const c2 = document.createElement('div');
+            const fresh = createFixedDockview(c2, []);
+            fresh.layout(1000, 800);
+            fresh.fromJSON(state);
+
+            const restored = fresh.getEdgeGroupPanel('left')!;
+            expect(restored.locked).toBe('no-drop-target');
+            expect(restored.header.hidden).toBe(true);
+            expect(restored.panels.map((p) => p.id)).toEqual(['edge1']);
+
+            fresh.dispose();
+        });
+
+        test('fromJSON applies locked and hideHeader to an edge group that already exists', () => {
+            const c = document.createElement('div');
+            const dv = createFixedDockview(c, ['right']);
+            dv.layout(1000, 800);
+            dv.addPanel({
+                id: 'edge1',
+                component: 'default',
+                position: { referenceGroup: 'right-group' },
+            });
+            const edgeGroup = dv.getEdgeGroupPanel('right')!;
+            edgeGroup.locked = true;
+            edgeGroup.header.hidden = true;
+            const state = dv.toJSON();
+
+            // the group was created by addEdgeGroup before the load, so the
+            // serialized state has to win over its current flags
+            edgeGroup.locked = false;
+            edgeGroup.header.hidden = false;
+            dv.fromJSON(state);
+
+            const reloaded = dv.getEdgeGroupPanel('right')!;
+            expect(reloaded.locked).toBe(true);
+            expect(reloaded.header.hidden).toBe(true);
+
+            // and an unlocked, header-visible saved group resets them again
+            reloaded.locked = true;
+            reloaded.header.hidden = true;
+            delete state.edgeGroups!.right!.group!.locked;
+            delete state.edgeGroups!.right!.group!.hideHeader;
+            dv.fromJSON(state);
+
+            const reset = dv.getEdgeGroupPanel('right')!;
+            expect(reset.locked).toBe(false);
+            expect(reset.header.hidden).toBe(false);
+
+            dv.dispose();
+        });
+
         test('an expanded-but-hidden edge group serializes its cached size, not 0', () => {
             const c = document.createElement('div');
             const dv = new DockviewComponent(c, {

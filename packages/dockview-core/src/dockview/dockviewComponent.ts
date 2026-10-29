@@ -1590,6 +1590,20 @@ export class DockviewComponent
         );
     }
 
+    /**
+     * Whether `group` is the only group in the grid. Edge, floating and popout
+     * groups live outside the grid: they are never the last group, nor count
+     * toward it (`noPanelsOverlay: 'emptyGroup'` keeps the grid non-empty).
+     */
+    isLastGridGroup(group: DockviewGroupPanel): boolean {
+        if (group.api.location.type !== 'grid') {
+            return false;
+        }
+        return !this.groups.some(
+            (other) => other !== group && other.api.location.type === 'grid'
+        );
+    }
+
     /** Ping `onDidLayoutChange` (coalesced) with why the layout changed. */
     fireLayoutChange(reason: LayoutChangeReason): void {
         this._bufferOnDidLayoutChange.fire(reason);
@@ -4340,7 +4354,11 @@ export class DockviewComponent
                 | GroupPanelViewState
                 | undefined;
             if (groupState) {
-                const { views, activeView } = groupState;
+                const { views, activeView, locked, hideHeader } = groupState;
+                // `addEdgeGroup` builds the group with defaults; the saved
+                // group state is the authority, as on the grid path.
+                edgeGroup.locked = locked ?? false;
+                edgeGroup.header.hidden = !!hideHeader;
                 const createdPanels: IDockviewPanel[] = [];
 
                 for (const panelId of views) {
@@ -4591,7 +4609,7 @@ export class DockviewComponent
                 // keeping the last one when `noPanelsOverlay` asks for it
                 const keepLast =
                     this.options.noPanelsOverlay === 'emptyGroup' &&
-                    this._groups.size === 1;
+                    this.isLastGridGroup(group);
                 if (
                     !this.closeEmptyGroups &&
                     !keepLast &&

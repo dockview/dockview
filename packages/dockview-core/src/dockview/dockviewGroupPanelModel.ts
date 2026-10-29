@@ -1583,7 +1583,8 @@ export class DockviewGroupPanelModel
 
     private doClose(panel: IDockviewPanel): void {
         const isLast =
-            this.panels.length === 1 && this.accessor.groups.length === 1;
+            this.panels.length === 1 &&
+            this.accessor.isLastGridGroup(this.groupPanel);
 
         this.accessor.removePanel(
             panel,
