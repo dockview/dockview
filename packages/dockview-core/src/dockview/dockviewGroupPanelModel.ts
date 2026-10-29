@@ -1523,7 +1523,8 @@ export class DockviewGroupPanelModel
         this.invalidateHeaderSize();
 
         if (this._activePanel === panel) {
-            this.contentContainer.renderPanel(panel, { asActive: true });
+            // already on display: a re-render would remount the content
+            this.contentContainer.openPanel(panel);
             return;
         }
 

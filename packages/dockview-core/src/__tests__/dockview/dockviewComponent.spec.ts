@@ -1467,6 +1467,224 @@ describe('dockviewComponent', () => {
         });
     });
 
+    describe('panel.api.setActive() on the already-active panel', () => {
+        test('does not remount the content, fire show/hide or steal focus', () => {
+            document.body.appendChild(container);
+            dockview.layout(1000, 1000);
+            const panel1 = dockview.addPanel({
+                id: 'panel1',
+                component: 'default',
+            });
+            dockview.addPanel({ id: 'panel2', component: 'default' });
+            panel1.api.setActive();
+            expect(panel1.api.isActive).toBe(true);
+
+            const contentElement = panel1.view.content.element;
+            const parent = contentElement.parentElement;
+            const input = document.createElement('input');
+            contentElement.appendChild(input);
+            input.focus();
+            expect(document.activeElement).toBe(input);
+
+            const onShow = jest.fn();
+            const onHide = jest.fn();
+            panel1.view.content.onShow = onShow;
+            panel1.view.content.onHide = onHide;
+            const onDidVisibilityChange = jest.fn();
+            const onDidActiveChange = jest.fn();
+            const disposable = new CompositeDisposable(
+                panel1.api.onDidVisibilityChange(onDidVisibilityChange),
+                panel1.api.onDidActiveChange(onDidActiveChange)
+            );
+
+            panel1.api.setActive();
+
+            expect(onHide).not.toHaveBeenCalled();
+            expect(onShow).not.toHaveBeenCalled();
+            expect(onDidVisibilityChange).not.toHaveBeenCalled();
+            expect(onDidActiveChange).not.toHaveBeenCalled();
+            expect(contentElement.parentElement).toBe(parent);
+            expect(document.activeElement).toBe(input);
+            expect(dockview.activePanel).toBe(panel1);
+
+            disposable.dispose();
+            container.remove();
+        });
+
+        test('still activates the group of an inactive group', () => {
+            dockview.layout(1000, 1000);
+            const panel1 = dockview.addPanel({
+                id: 'panel1',
+                component: 'default',
+            });
+            const panel2 = dockview.addPanel({
+                id: 'panel2',
+                component: 'default',
+                position: { referencePanel: 'panel1', direction: 'right' },
+            });
+            expect(dockview.activeGroup).toBe(panel2.api.group);
+            expect(panel1.api.group.activePanel).toBe(panel1);
+            expect(panel1.api.isActive).toBe(false);
+
+            const onShow = jest.fn();
+            const onHide = jest.fn();
+            panel1.view.content.onShow = onShow;
+            panel1.view.content.onHide = onHide;
+
+            panel1.api.setActive();
+
+            expect(dockview.activeGroup).toBe(panel1.api.group);
+            expect(dockview.activePanel).toBe(panel1);
+            expect(panel1.api.isActive).toBe(true);
+            expect(onHide).not.toHaveBeenCalled();
+            expect(onShow).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('adjacentGroup outside the main grid', () => {
+        test('main grid: steps between grid groups and wraps round', () => {
+            dockview.layout(1000, 1000);
+            const grid1 = dockview.addPanel({
+                id: 'grid1',
+                component: 'default',
+            });
+            const grid2 = dockview.addPanel({
+                id: 'grid2',
+                component: 'default',
+                position: { referencePanel: 'grid1', direction: 'right' },
+            });
+
+            expect(dockview.adjacentGroup(grid1.api.group, false)?.id).toBe(
+                grid2.api.group.id
+            );
+            expect(dockview.adjacentGroup(grid1.api.group, true)?.id).toBe(
+                grid2.api.group.id
+            );
+            expect(dockview.adjacentGroup(grid2.api.group, false)?.id).toBe(
+                grid1.api.group.id
+            );
+        });
+
+        test('floating window: finds the neighbour within the same window', () => {
+            dockview.layout(1000, 1000);
+            const grid1 = dockview.addPanel({
+                id: 'grid1',
+                component: 'default',
+            });
+            const float1 = dockview.addPanel({
+                id: 'float1',
+                component: 'default',
+                floating: true,
+            });
+            const floatGroup1 = float1.api.group;
+            expect(floatGroup1.api.location.type).toBe('floating');
+
+            // a lone group has no neighbour within its window
+            expect(
+                dockview.adjacentGroup(floatGroup1, false)?.id
+            ).toBeUndefined();
+            expect(
+                dockview.adjacentGroup(floatGroup1, true)?.id
+            ).toBeUndefined();
+
+            const float2 = dockview.addPanel({
+                id: 'float2',
+                component: 'default',
+                position: { referencePanel: 'grid1', direction: 'right' },
+            });
+            dockview.moveGroupOrPanel({
+                from: { groupId: float2.group.id },
+                to: { group: floatGroup1, position: 'right' },
+            });
+            const floatGroup2 = float2.api.group;
+            expect(floatGroup2.api.location.type).toBe('floating');
+            expect(floatGroup2).not.toBe(floatGroup1);
+            expect(dockview.floatingGroups).toHaveLength(1);
+
+            expect(dockview.adjacentGroup(floatGroup1, false)?.id).toBe(
+                floatGroup2.id
+            );
+            expect(dockview.adjacentGroup(floatGroup1, true)?.id).toBe(
+                floatGroup2.id
+            );
+            expect(dockview.adjacentGroup(floatGroup2, false)?.id).toBe(
+                floatGroup1.id
+            );
+            expect(dockview.adjacentGroup(floatGroup2, true)?.id).toBe(
+                floatGroup1.id
+            );
+
+            // the grid is unaffected by the floating window
+            expect(dockview.adjacentGroup(grid1.api.group, false)?.id).toBe(
+                grid1.api.group.id
+            );
+        });
+
+        test('popout window: finds the neighbour within the same window', async () => {
+            window.open = () => {
+                const popoutWindow = setupMockWindow();
+                (popoutWindow as Window).focus = jest.fn();
+                return popoutWindow;
+            };
+            dockview.layout(1000, 1000);
+            dockview.addPanel({ id: 'grid1', component: 'default' });
+            const grid2 = dockview.addPanel({
+                id: 'grid2',
+                component: 'default',
+                position: { referencePanel: 'grid1', direction: 'right' },
+            });
+            const panel3 = dockview.addPanel({
+                id: 'panel3',
+                component: 'default',
+                position: { referencePanel: 'grid2', direction: 'right' },
+            });
+            expect(await dockview.addPopoutGroup(panel3)).toBeTruthy();
+            const popoutGroup = panel3.api.group;
+            expect(popoutGroup.api.location.type).toBe('popout');
+
+            expect(
+                dockview.adjacentGroup(popoutGroup, false)?.id
+            ).toBeUndefined();
+            expect(
+                dockview.adjacentGroup(popoutGroup, true)?.id
+            ).toBeUndefined();
+
+            dockview.moveGroupOrPanel({
+                from: { groupId: grid2.group.id },
+                to: { group: popoutGroup, position: 'right' },
+            });
+            const popoutGroup2 = grid2.api.group;
+            expect(popoutGroup2.api.location.type).toBe('popout');
+
+            expect(dockview.adjacentGroup(popoutGroup, false)?.id).toBe(
+                popoutGroup2.id
+            );
+            expect(dockview.adjacentGroup(popoutGroup2, true)?.id).toBe(
+                popoutGroup.id
+            );
+
+            dockview.dispose();
+        });
+
+        test('edge group: has no neighbour', () => {
+            dockview.layout(1000, 1000);
+            dockview.addPanel({ id: 'grid1', component: 'default' });
+            dockview.addEdgeGroup('left', { id: 'edge' });
+            const edgePanel = dockview.addPanel({
+                id: 'e1',
+                component: 'default',
+                position: { referenceGroup: 'edge' },
+            });
+            const edgeGroup = edgePanel.api.group;
+            expect(edgeGroup.api.location.type).toBe('edge');
+
+            expect(
+                dockview.adjacentGroup(edgeGroup, false)?.id
+            ).toBeUndefined();
+            expect(dockview.adjacentGroup(edgeGroup, true)?.id).toBeUndefined();
+        });
+    });
+
     test('moveGroupOrPanel with skipSetActive should not activate group/panel', () => {
         const container = document.createElement('div');
 
