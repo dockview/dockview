@@ -18,7 +18,30 @@ export interface AngularRendererOptions<T = unknown> {
     component: Type<T> | TemplateRef<T>;
     injector: Injector;
     environmentInjector?: EnvironmentInjector;
+    /**
+     * Init fields forwarded to the component on top of
+     * {@link FORWARDED_INIT_KEYS} (e.g. `title` for paneview parts).
+     */
+    extraInputs?: readonly string[];
 }
+
+/**
+ * Init fields every renderer forwards as component inputs. Other fields core
+ * passes (e.g. a dockview panel's `title`) are not inputs in any binding.
+ */
+export const FORWARDED_INIT_KEYS: readonly string[] = [
+    // panel / tab renderers
+    'params',
+    'api',
+    'containerApi',
+    'tabLocation',
+    // context menu item renderers: tab menu (`panel`), chip menu (`tabGroup`)
+    'panel',
+    'tabGroup',
+    'group',
+    'close',
+    'componentProps',
+];
 
 /**
  * An `OnPush` boundary that hosts a single dockview panel component in its
@@ -74,37 +97,12 @@ export class AngularRenderer<T = unknown>
     }
 
     init(parameters: Parameters): void {
-        // Forward the known user-facing fields from panel/tab renderers
-        // and context menu item renderers. Other internal fields (e.g. 'title')
-        // are excluded here; update() further guards with `key in instance`.
         const filtered: Record<string, unknown> = {};
-        // Panel / tab renderer fields
-        if ('params' in parameters) {
-            filtered['params'] = parameters['params'];
-        }
-        if ('api' in parameters) {
-            filtered['api'] = parameters['api'];
-        }
-        if ('containerApi' in parameters) {
-            filtered['containerApi'] = parameters['containerApi'];
-        }
-        // Context menu item renderer fields: IContextMenuItemComponentProps
-        // (tab menu, carries `panel`) and IChipContextMenuItemComponentProps
-        // (chip menu, carries `tabGroup`).
-        if ('panel' in parameters) {
-            filtered['panel'] = parameters['panel'];
-        }
-        if ('tabGroup' in parameters) {
-            filtered['tabGroup'] = parameters['tabGroup'];
-        }
-        if ('group' in parameters) {
-            filtered['group'] = parameters['group'];
-        }
-        if ('close' in parameters) {
-            filtered['close'] = parameters['close'];
-        }
-        if ('componentProps' in parameters) {
-            filtered['componentProps'] = parameters['componentProps'];
+        const keys = FORWARDED_INIT_KEYS.concat(this.options.extraInputs ?? []);
+        for (const key of keys) {
+            if (key in parameters) {
+                filtered[key] = parameters[key];
+            }
         }
 
         if (this._element) {

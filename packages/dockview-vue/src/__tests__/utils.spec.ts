@@ -340,6 +340,31 @@ describe('mountVueComponent', () => {
         expect(parent.appContext.provides).toEqual({ existing: 'value' });
         expect('fromInstance' in parent.appContext.provides).toBe(false);
     });
+
+    test('update merges onto the previous update, not the initial props', () => {
+        const cloneVNodeMock = cloneVNode as Mock;
+        const parent = { appContext: { components: {}, provides: {} } } as any;
+
+        const handle = mountVueComponent(
+            { template: '<div/>' } as any,
+            parent,
+            { a: 1 } as any,
+            document.createElement('div')
+        );
+
+        handle.update({ b: 2 });
+        expect(cloneVNodeMock).toHaveBeenLastCalledWith(expect.anything(), {
+            a: 1,
+            b: 2,
+        });
+
+        handle.update({ c: 3 });
+        expect(cloneVNodeMock).toHaveBeenLastCalledWith(expect.anything(), {
+            a: 1,
+            b: 2,
+            c: 3,
+        });
+    });
 });
 
 describe('VueHeaderActionsRenderer', () => {

@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Component, DebugElement } from '@angular/core';
+import { ApplicationRef, Component, DebugElement } from '@angular/core';
 import { By } from '@angular/platform-browser';
 
 import { PaneviewAngularComponent } from '../lib/paneview/paneview-angular.component';
@@ -272,5 +272,47 @@ describe('PaneviewAngularComponent Integration', () => {
 
         expect(hostComponent.api).toBeDefined();
         expect(hostComponent.headerComponents).toBeDefined();
+    });
+});
+
+@Component({
+    standalone: true,
+    selector: 'probe-pane-title',
+    template: '<div class="probe-pane-title">{{ title }}</div>',
+})
+class ProbePaneTitleComponent {
+    title?: string;
+}
+
+/**
+ * Paneview body and header components receive the panel `title` as an input,
+ * as the React and Vue paneview bindings do.
+ */
+describe('PaneviewAngularComponent title input', () => {
+    it('forwards the panel title to body and header components', () => {
+        TestBed.configureTestingModule({ imports: [PaneviewAngularComponent] });
+        const fixture = TestBed.createComponent(PaneviewAngularComponent);
+        const component = fixture.componentInstance;
+        component.components = { probe: ProbePaneTitleComponent };
+        component.headerComponents = { header: ProbePaneTitleComponent };
+        fixture.detectChanges();
+
+        const api = component.getPaneviewApi()!;
+        api.layout(500, 500);
+        api.addPanel({
+            id: 'p1',
+            component: 'probe',
+            headerComponent: 'header',
+            title: 'Probe Title',
+        });
+        TestBed.inject(ApplicationRef).tick();
+
+        const texts = Array.from(
+            fixture.nativeElement.querySelectorAll('.probe-pane-title')
+        ).map((el) => (el as HTMLElement).textContent);
+        expect(texts).toEqual(['Probe Title', 'Probe Title']);
+
+        api.dispose();
+        fixture.destroy();
     });
 });

@@ -250,6 +250,15 @@ class ProbeTabComponent {}
 
 @Component({
     standalone: true,
+    selector: 'probe-tab-location',
+    template: '<div class="probe-tab-location">{{ tabLocation }}</div>',
+})
+class ProbeTabLocationComponent {
+    tabLocation?: string;
+}
+
+@Component({
+    standalone: true,
     selector: 'probe-tab-alt',
     template: '<div class="probe-tab-alt">tab-alt</div>',
 })
@@ -363,6 +372,20 @@ describe('DockviewAngularComponent renderer inputs', () => {
             api.addPanel({ id: 'p4', component: 'probe' });
             appRef.tick();
             expect(count('.dv-default-tab')).toBe(2);
+        });
+
+        it('passes tabLocation to the tab component', () => {
+            const api = init({
+                defaultTabComponent: ProbeTabLocationComponent,
+            });
+
+            api.addPanel({ id: 'p1', component: 'probe' });
+            appRef.tick();
+
+            expect(
+                fixture.nativeElement.querySelector('.probe-tab-location')
+                    .textContent
+            ).toBe('header');
         });
     });
 
