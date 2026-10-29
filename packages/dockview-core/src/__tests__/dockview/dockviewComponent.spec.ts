@@ -8351,6 +8351,79 @@ describe('dockviewComponent', () => {
                 ).not.toBe((restored as any).gridview);
             });
 
+            test('z-order and aria-label follow the promoted anchor when the original anchor leaves the window', () => {
+                const dockview = make();
+                dockview.layout(1000, 500);
+
+                const panel1 = dockview.addPanel({
+                    id: 'panel_1',
+                    component: 'default',
+                });
+                const panel2 = dockview.addPanel({
+                    id: 'panel_2',
+                    component: 'default',
+                    floating: true,
+                });
+                const panel3 = dockview.addPanel({
+                    id: 'panel_3',
+                    component: 'default',
+                    position: { referencePanel: 'panel_1', direction: 'right' },
+                });
+
+                // build a 2-group floating window; panel2's group is the anchor
+                dockview.moveGroupOrPanel({
+                    from: { groupId: panel3.group.id },
+                    to: { group: panel2.group, position: 'right' },
+                });
+
+                const fg = dockview.floatingGroups[0];
+                expect(fg.group).toBe(panel2.group);
+
+                // move the original anchor back to the grid; panel3's group is
+                // promoted to anchor
+                dockview.moveGroupOrPanel({
+                    from: { groupId: panel2.group.id },
+                    to: { group: panel1.group, position: 'right' },
+                });
+                expect(dockview.floatingGroups).toHaveLength(1);
+                expect(fg.group).toBe(panel3.group);
+
+                const bringToFront = jest.spyOn(fg.overlay, 'bringToFront');
+
+                // activating the departed group must not raise the window
+                panel1.api.setActive();
+                panel2.api.setActive();
+                expect(bringToFront).not.toHaveBeenCalled();
+
+                // activating the promoted anchor does
+                panel3.api.setActive();
+                expect(bringToFront).toHaveBeenCalledTimes(1);
+
+                // the dialog's accessible name follows the promoted anchor's
+                // active panel, not the departed group's
+                expect(fg.overlay.element.getAttribute('aria-label')).toBe(
+                    'panel_3'
+                );
+                dockview.addPanel({
+                    id: 'panel_4',
+                    component: 'default',
+                    title: 'departed',
+                    position: { referenceGroup: panel2.group },
+                });
+                expect(fg.overlay.element.getAttribute('aria-label')).toBe(
+                    'panel_3'
+                );
+                dockview.addPanel({
+                    id: 'panel_5',
+                    component: 'default',
+                    title: 'promoted',
+                    position: { referenceGroup: panel3.group },
+                });
+                expect(fg.overlay.element.getAttribute('aria-label')).toBe(
+                    'promoted'
+                );
+            });
+
             test('the floating title bar retargets when its anchor group leaves the window', () => {
                 const dockview = make(); // default dragHandle is 'titlebar'
                 dockview.layout(1000, 500);
