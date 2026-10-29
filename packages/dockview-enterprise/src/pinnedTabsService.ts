@@ -627,6 +627,18 @@ export class PinnedTabsService
             this._host.onDidRemovePanel((panel) => {
                 this._pinnedIds.delete(panel.id);
             }),
+            // A cross-group move carries the panel's pinned flag with it but
+            // fires no pin-change event, so re-assert the invariant on the
+            // destination. A within-group move (from === to) is left alone:
+            // the drop resolver already placed it, and its deferred flip is
+            // still pending.
+            this._host.onDidMovePanel(({ from, to }) => {
+                if (from === to) {
+                    return;
+                }
+                this.enforceOrder(to);
+                to.model.header.refreshOverflow();
+            }),
             // A restore populates panels' `isPinned` directly (not via the
             // gated setter), so seed the store from them and re-assert the
             // invariant once the layout is fully built.
