@@ -33,6 +33,7 @@ import {
     DockviewOrigin,
     DockviewPanelPinnedChangeEvent,
     GroupNavigationDirection,
+    MovePanelEvent,
     SerializedDockview,
 } from './dockviewComponent';
 import { DockviewWillDropEvent } from './dockviewGroupPanelModel';
@@ -613,6 +614,10 @@ export interface IPinnedTabsHost {
     /** Fires when a panel is removed; the service prunes it from its pinned
      *  bookkeeping so a closed pinned panel's id can't leak. */
     readonly onDidRemovePanel: Event<IDockviewPanel>;
+    /** Fires once a panel's relocation has settled. A cross-group move carries
+     *  no pin-change event, so the service re-asserts the pinned-first
+     *  invariant on the destination group here. */
+    readonly onDidMovePanel: Event<MovePanelEvent>;
 }
 
 /**
