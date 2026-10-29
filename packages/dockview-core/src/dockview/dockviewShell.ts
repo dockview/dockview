@@ -664,7 +664,11 @@ export class ShellManager implements IDisposable {
         this._viewConfigs.set(position, options);
 
         const view = new EdgeGroupView(
-            { collapsedSize: this._defaultCollapsedSize, ...options },
+            {
+                ...options,
+                collapsedSize:
+                    options.collapsedSize ?? this._defaultCollapsedSize,
+            },
             group,
             isHorizontal(position) ? 'horizontal' : 'vertical',
             this._axisFor(position)
