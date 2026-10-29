@@ -44,6 +44,11 @@ function twoGroups(dockview: DockviewComponent) {
     return { p1, p2, p3, g1: p1.group, g2: p2.group };
 }
 
+/** The groups that live in the grid itself (not edge, floating or popout). */
+function gridGroups(dockview: DockviewComponent) {
+    return dockview.groups.filter((g) => g.api.location.type === 'grid');
+}
+
 function panelIds(dockview: DockviewComponent, groupId: string): string[] {
     return dockview.getPanel(groupId)!.panels.map((p) => p.id);
 }
@@ -102,6 +107,57 @@ describe('closeEmptyGroups', () => {
 
             expect(dockview.size).toBe(1);
             expect(dockview.totalPanels).toBe(0);
+        });
+
+        test('closeAllGroups() keeps the last grid group when an edge group is present', () => {
+            const dockview = createDockview({ noPanelsOverlay: 'emptyGroup' });
+            const { g2 } = twoGroups(dockview);
+            dockview.addEdgeGroup('left', { id: 'left-group' });
+            dockview.addPanel({
+                id: 'e1',
+                component: 'default',
+                position: { referenceGroup: 'left-group' },
+            });
+
+            dockview.closeAllGroups();
+
+            expect(dockview.totalPanels).toBe(0);
+            expect(gridGroups(dockview).map((g) => g.id)).toEqual([g2.id]);
+            // the edge group is structural: it empties but is never removed
+            expect(dockview.getEdgeGroupPanel('left')!.panels).toHaveLength(0);
+        });
+
+        test('closeAllGroups() does not count a floating group as the last group', () => {
+            const dockview = createDockview({ noPanelsOverlay: 'emptyGroup' });
+            const { p3, g1, g2 } = twoGroups(dockview);
+            dockview.addFloatingGroup(p3);
+            const floating = p3.group;
+            expect(floating).not.toBe(g2);
+
+            dockview.closeAllGroups();
+
+            expect(dockview.totalPanels).toBe(0);
+            expect(gridGroups(dockview).map((g) => g.id)).toEqual([g2.id]);
+            expect(dockview.groups).not.toContain(g1);
+            expect(dockview.groups).not.toContain(floating);
+        });
+
+        test("closing the only panel of an edge group never keeps it as the 'last group'", () => {
+            const dockview = createDockview({ noPanelsOverlay: 'emptyGroup' });
+            dockview.addEdgeGroup('left', { id: 'left-group' });
+            const e1 = dockview.addPanel({
+                id: 'e1',
+                component: 'default',
+                position: { referenceGroup: 'left-group' },
+            });
+            const spy = jest.spyOn(dockview, 'removePanel');
+
+            e1.api.close();
+
+            // the keep-last rule is for grid groups: an edge group's panel is
+            // removed on the ordinary path, leaving the group to collapse
+            expect(spy).toHaveBeenCalledWith(e1, undefined);
+            expect(dockview.getEdgeGroupPanel('left')!.panels).toHaveLength(0);
         });
 
         test('popping out a lone panel takes its group along', async () => {
@@ -252,6 +308,26 @@ describe('closeEmptyGroups', () => {
 
             expect(dockview.size).toBe(1);
             expect(dockview.totalPanels).toBe(0);
+        });
+
+        test('closeAllGroups() keeps the last grid group when an edge group is present', () => {
+            const dockview = createDockview({
+                closeEmptyGroups: false,
+                noPanelsOverlay: 'emptyGroup',
+            });
+            const { g2 } = twoGroups(dockview);
+            dockview.addEdgeGroup('left', { id: 'left-group' });
+            dockview.addPanel({
+                id: 'e1',
+                component: 'default',
+                position: { referenceGroup: 'left-group' },
+            });
+
+            dockview.closeAllGroups();
+
+            expect(dockview.totalPanels).toBe(0);
+            expect(gridGroups(dockview).map((g) => g.id)).toEqual([g2.id]);
+            expect(dockview.getEdgeGroupPanel('left')!.panels).toHaveLength(0);
         });
 
         test('clear() removes everything', () => {
