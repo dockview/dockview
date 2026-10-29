@@ -2124,6 +2124,101 @@ describe('dockviewGroupPanelModel', () => {
             expect(tabGroup.panelIds).toEqual(['panel2']);
         });
 
+        test('removePanelFromTabGroup keeps the remaining members contiguous', () => {
+            for (const id of ['panel1', 'panel2', 'panel3', 'panel4']) {
+                groupview.model.openPanel(new TestPanel(id, panelApi));
+            }
+            const tabGroup = groupview.model.createTabGroup();
+            groupview.model.addPanelToTabGroup(tabGroup.id, 'panel1');
+            groupview.model.addPanelToTabGroup(tabGroup.id, 'panel2');
+            groupview.model.addPanelToTabGroup(tabGroup.id, 'panel3');
+
+            // Removing the middle member must not leave it sitting between
+            // the two remaining members in the strip.
+            groupview.model.removePanelFromTabGroup('panel2');
+
+            expect(tabGroup.panelIds).toEqual(['panel1', 'panel3']);
+            expect(groupview.model.panels.map((p) => p.id)).toEqual([
+                'panel1',
+                'panel3',
+                'panel2',
+                'panel4',
+            ]);
+            expect((groupview.model as any).tabsContainer.tabs.panels).toEqual([
+                'panel1',
+                'panel3',
+                'panel2',
+                'panel4',
+            ]);
+        });
+
+        test('removePanelFromTabGroup leaves an edge member where it is', () => {
+            for (const id of ['panel1', 'panel2', 'panel3']) {
+                groupview.model.openPanel(new TestPanel(id, panelApi));
+            }
+            const tabGroup = groupview.model.createTabGroup();
+            groupview.model.addPanelToTabGroup(tabGroup.id, 'panel1');
+            groupview.model.addPanelToTabGroup(tabGroup.id, 'panel2');
+            groupview.model.addPanelToTabGroup(tabGroup.id, 'panel3');
+
+            groupview.model.removePanelFromTabGroup('panel1');
+            groupview.model.removePanelFromTabGroup('panel3');
+
+            expect(tabGroup.panelIds).toEqual(['panel2']);
+            expect(groupview.model.panels.map((p) => p.id)).toEqual([
+                'panel1',
+                'panel2',
+                'panel3',
+            ]);
+        });
+
+        test('addPanelToTabGroup after a middle removal keeps panelIds in strip order', () => {
+            for (const id of ['panel1', 'panel2', 'panel3', 'panel4']) {
+                groupview.model.openPanel(new TestPanel(id, panelApi));
+            }
+            const tabGroup = groupview.model.createTabGroup();
+            groupview.model.addPanelToTabGroup(tabGroup.id, 'panel1');
+            groupview.model.addPanelToTabGroup(tabGroup.id, 'panel2');
+            groupview.model.addPanelToTabGroup(tabGroup.id, 'panel3');
+            groupview.model.removePanelFromTabGroup('panel2');
+
+            groupview.model.addPanelToTabGroup(tabGroup.id, 'panel4');
+
+            expect(tabGroup.panelIds).toEqual(['panel1', 'panel3', 'panel4']);
+            const order = groupview.model.panels.map((p) => p.id);
+            expect(order).toEqual(['panel1', 'panel3', 'panel4', 'panel2']);
+            // The group's panelIds read in strip order.
+            expect(
+                order.filter((id) => tabGroup.panelIds.includes(id))
+            ).toEqual([...tabGroup.panelIds]);
+        });
+
+        test('movePanelBetweenGroups into an empty group keeps the source group contiguous', () => {
+            for (const id of ['panel1', 'panel2', 'panel3', 'panel4']) {
+                groupview.model.openPanel(new TestPanel(id, panelApi));
+            }
+            const groupA = groupview.model.createTabGroup();
+            groupview.model.addPanelToTabGroup(groupA.id, 'panel1');
+            groupview.model.addPanelToTabGroup(groupA.id, 'panel2');
+            groupview.model.addPanelToTabGroup(groupA.id, 'panel3');
+            const groupB = groupview.model.createTabGroup();
+
+            // A's middle member becomes B's only member: it must leave A's
+            // span rather than sit between panel1 and panel3.
+            groupview.model.movePanelBetweenGroups('panel2', groupB.id);
+
+            expect(groupA.panelIds).toEqual(['panel1', 'panel3']);
+            expect(groupB.panelIds).toEqual(['panel2']);
+            const order = groupview.model.panels.map((p) => p.id);
+            expect(order).toEqual(['panel1', 'panel3', 'panel2', 'panel4']);
+            expect((groupview.model as any).tabsContainer.tabs.panels).toEqual(
+                order
+            );
+            expect(order.filter((id) => groupA.panelIds.includes(id))).toEqual([
+                ...groupA.panelIds,
+            ]);
+        });
+
         test('label and color update fires onDidTabGroupChange', () => {
             const tabGroup = groupview.model.createTabGroup({
                 label: 'Test',

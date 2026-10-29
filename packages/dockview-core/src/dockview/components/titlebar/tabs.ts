@@ -49,6 +49,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
     private readonly _scrollbar: Scrollbar | null = null;
 
     private _tabs: IValueDisposable<Tab>[] = [];
+    private _overflowRefreshPending = false;
     private readonly _tabMap = new Map<string, IValueDisposable<Tab>>();
     private selectedIndex = -1;
     private _showTabsOverflowControl = false;
@@ -1167,6 +1168,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         const value: IValueDisposable<Tab> = { value: tab, disposable };
 
         this.addTab(value, index);
+        this._scheduleOverflowRefresh();
 
         // A new tab may have been inserted between a chip and its
         // group's first tab, so reposition all chips to stay correct.
@@ -1182,6 +1184,12 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
     }
 
     delete(id: string): void {
+        // Unknown ids are a no-op: `splice(-1, 1)` would drop the last tab.
+        const index = this.indexOf(id);
+        if (index === -1) {
+            return;
+        }
+
         if (this._animState?.sourceTabId === id) {
             this.resetTabTransforms();
             this._animState = null;
@@ -1190,17 +1198,13 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         // Force-clean any pending transitionend listener
         this._tabGroupManager.cleanupTransition(id);
 
-        const index = this.indexOf(id);
-        const tabToRemove = this._tabs.splice(index, 1)[0];
+        const { value, disposable } = this._tabs.splice(index, 1)[0];
         this._tabMap.delete(id);
 
-        if (tabToRemove) {
-            const { value, disposable } = tabToRemove;
-
-            disposable.dispose();
-            value.dispose();
-            value.element.remove();
-        }
+        disposable.dispose();
+        value.dispose();
+        value.element.remove();
+        this._scheduleOverflowRefresh();
 
         // If a non-source tab was removed during active drag, refresh positions
         if (this._animState) {
@@ -1236,6 +1240,27 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         if (this.selectedIndex < 0) {
             this.selectedIndex = index;
         }
+    }
+
+    /** Re-evaluate overflow after the tab list changed: the `OverflowObserver`
+     *  only fires when the strip itself resizes. Coalesced on a microtask and
+     *  evaluated the way the observer does. */
+    private _scheduleOverflowRefresh(): void {
+        if (this._overflowRefreshPending || !this._showTabsOverflowControl) {
+            return;
+        }
+        this._overflowRefreshPending = true;
+        queueMicrotask(() => {
+            this._overflowRefreshPending = false;
+            if (this.isDisposed || !this._showTabsOverflowControl) {
+                return;
+            }
+            const el = this._tabsList;
+            const hasOverflow =
+                el.scrollWidth > el.clientWidth ||
+                el.scrollHeight > el.clientHeight;
+            this.toggleDropdown({ reset: !hasOverflow });
+        });
     }
 
     private toggleDropdown(options: { reset: boolean }): void {

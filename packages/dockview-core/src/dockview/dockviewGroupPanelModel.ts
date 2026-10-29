@@ -971,6 +971,7 @@ export class DockviewGroupPanelModel
         if (sourceGroup) {
             sourceGroup.removePanel(sourcePanelId);
             this._panelToTabGroup.delete(sourcePanelId);
+            this._moveOutOfGroupSpan(sourceGroup, sourcePanelId);
             this._onDidRemovePanelFromTabGroup.fire({
                 tabGroup: sourceGroup,
                 panelId: sourcePanelId,
@@ -1124,6 +1125,7 @@ export class DockviewGroupPanelModel
         this._bracketTabGroupMutation(() => {
             tabGroup.removePanel(panelId);
             this._panelToTabGroup.delete(panelId);
+            this._moveOutOfGroupSpan(tabGroup, panelId);
             this._onDidRemovePanelFromTabGroup.fire({ tabGroup, panelId });
 
             // Auto-destroy empty groups
@@ -1131,6 +1133,37 @@ export class DockviewGroupPanelModel
                 tabGroup.dispose();
             }
         });
+    }
+
+    /** Keep a group's members contiguous: a panel that left `tabGroup` while
+     *  sitting between two members moves to just after the group. No-op for an
+     *  edge member or a panel no longer in this model. */
+    private _moveOutOfGroupSpan(tabGroup: TabGroup, panelId: string): void {
+        const currentIndex = this._panels.findIndex((p) => p.id === panelId);
+        if (currentIndex === -1 || tabGroup.isEmpty) {
+            return;
+        }
+        const memberIds = tabGroup.panelIds;
+        const firstIdx = this._panels.findIndex((p) => p.id === memberIds[0]);
+        const lastIdx = this._panels.findIndex(
+            (p) => p.id === memberIds[memberIds.length - 1]
+        );
+        if (
+            firstIdx === -1 ||
+            lastIdx === -1 ||
+            currentIndex < firstIdx ||
+            currentIndex > lastIdx
+        ) {
+            return;
+        }
+
+        const [panel] = this._panels.splice(currentIndex, 1);
+        // Removing it shifted the last member down by one, so `lastIdx` is
+        // now the slot right after the group.
+        this._panels.splice(lastIdx, 0, panel);
+
+        this.tabsContainer.delete(panelId);
+        this.tabsContainer.openPanel(panel, lastIdx);
     }
 
     getTabGroups(): readonly ITabGroup[] {

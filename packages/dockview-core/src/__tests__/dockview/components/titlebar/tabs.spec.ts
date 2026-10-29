@@ -767,6 +767,139 @@ describe('tabs', () => {
 
             expect(() => cut.delete('panel1')).not.toThrow();
         });
+
+        test('an unknown id is a no-op and does not remove the last tab', () => {
+            const { tabs } = createTabsForDropTest();
+            tabs.openPanel(createMockPanel('p1'));
+            tabs.openPanel(createMockPanel('p2'));
+
+            tabs.delete('does-not-exist');
+
+            expect(tabs.panels).toEqual(['p1', 'p2']);
+            expect(tabs.indexOf('p2')).toBe(1);
+        });
+    });
+
+    describe('overflow re-evaluation on tab list changes', () => {
+        function createOverflowTabs() {
+            const accessor = fromPartial<DockviewComponent>({
+                id: 'test-accessor-id',
+                options: {},
+                onDidOptionsChange: jest
+                    .fn()
+                    .mockReturnValue({ dispose: jest.fn() }),
+            });
+            const group = fromPartial<DockviewGroupPanel>({
+                id: 'test-group-id',
+                locked: false,
+                model: fromPartial({
+                    getTabGroups: jest.fn().mockReturnValue([]),
+                    getTabGroupForPanel: jest.fn().mockReturnValue(null),
+                }),
+            });
+            const tabs = new Tabs(group, accessor, {
+                showTabsOverflowControl: true,
+            });
+            // A 100px wide strip; each tab is 50px, laid out in order, so
+            // the strip overflows from the third tab on.
+            const tabsList = (tabs as any)._tabsList as HTMLElement;
+            jest.spyOn(tabsList, 'getBoundingClientRect').mockReturnValue(
+                fromPartial<DOMRect>({
+                    left: 0,
+                    top: 0,
+                    width: 100,
+                    height: 30,
+                })
+            );
+            jest.spyOn(tabsList, 'clientWidth', 'get').mockReturnValue(100);
+            jest.spyOn(tabsList, 'scrollWidth', 'get').mockImplementation(
+                () => tabs.size * 50
+            );
+            const layout = () => {
+                getTabElements(tabs).forEach((el, i) => {
+                    jest.spyOn(el, 'getBoundingClientRect').mockReturnValue(
+                        fromPartial<DOMRect>({
+                            left: i * 50,
+                            top: 0,
+                            width: 50,
+                            height: 30,
+                        })
+                    );
+                });
+            };
+            const events: { tabs: string[]; reset: boolean }[] = [];
+            tabs.onOverflowTabsChange((e) => events.push(e));
+            return { tabs, layout, events };
+        }
+
+        test('adding a tab that no longer fits surfaces it in the dropdown', async () => {
+            const { tabs, layout, events } = createOverflowTabs();
+            tabs.openPanel(createMockPanel('p1'));
+            tabs.openPanel(createMockPanel('p2'));
+            tabs.openPanel(createMockPanel('p3'));
+            layout();
+
+            await Promise.resolve();
+
+            expect(events.length).toBeGreaterThan(0);
+            expect(events[events.length - 1]).toEqual(
+                expect.objectContaining({ tabs: ['p3'], reset: false })
+            );
+        });
+
+        test('removing the clipped tab clears the dropdown', async () => {
+            const { tabs, layout, events } = createOverflowTabs();
+            tabs.openPanel(createMockPanel('p1'));
+            tabs.openPanel(createMockPanel('p2'));
+            tabs.openPanel(createMockPanel('p3'));
+            layout();
+            await Promise.resolve();
+            events.length = 0;
+
+            tabs.delete('p3');
+            await Promise.resolve();
+
+            expect(events.length).toBeGreaterThan(0);
+            expect(events[events.length - 1]).toEqual(
+                expect.objectContaining({ tabs: [], reset: true })
+            );
+        });
+
+        test('a burst of changes is coalesced into one re-evaluation', async () => {
+            const { tabs, layout, events } = createOverflowTabs();
+            tabs.openPanel(createMockPanel('p1'));
+            tabs.openPanel(createMockPanel('p2'));
+            tabs.openPanel(createMockPanel('p3'));
+            tabs.delete('p2');
+            layout();
+
+            await Promise.resolve();
+
+            expect(events).toHaveLength(1);
+            expect(events[0]).toEqual(
+                expect.objectContaining({ tabs: [], reset: true })
+            );
+        });
+
+        test('no re-evaluation when the overflow control is disabled', async () => {
+            const { tabs, events } = createOverflowTabs();
+            tabs.showTabsOverflowControl = false;
+
+            tabs.openPanel(createMockPanel('p1'));
+            await Promise.resolve();
+
+            expect(events).toHaveLength(0);
+        });
+
+        test('a pending re-evaluation is dropped once the tabs are disposed', async () => {
+            const { tabs, events } = createOverflowTabs();
+            tabs.openPanel(createMockPanel('p1'));
+            tabs.dispose();
+
+            await Promise.resolve();
+
+            expect(events).toHaveLength(0);
+        });
     });
 
     describe('keyboard tab close', () => {
