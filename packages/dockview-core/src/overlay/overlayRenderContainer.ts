@@ -83,6 +83,18 @@ export interface IRenderable {
  */
 const SCHEDULED = -1;
 
+/**
+ * A collapsed edge group hides its content container (`display: none`), so the
+ * container measures 0x0 for as long as the group stays collapsed. That is a
+ * real collapse, not a container awaiting layout, and the overlay must hide
+ * with it. Only the auto-hide peek shows such a panel, and it does so by
+ * force-showing the overlay over a box of its own (`repositionPanelOverlay`).
+ */
+function isInCollapsedEdgeGroup(panel: IDockviewPanel): boolean {
+    const api = panel.group.api;
+    return api.location.type === 'edge' && api.isCollapsed();
+}
+
 function createFocusableElement(): HTMLDivElement {
     const element = document.createElement('div');
     element.tabIndex = -1;
@@ -278,10 +290,10 @@ export class OverlayRenderContainer extends CompositeDisposable {
          * deliberately leaves scheduled work alone: `repositionPanelOverlay`
          * (the auto-hide peek) schedules a frame carrying the sticky
          * `forceVisible`/`clip` state which `attach` does not re-apply, and a
-         * peeked panel's `api.isVisible` is false — so discarding that frame
-         * leaves `visibilityChanged` to hide the overlay and the peek renders
-         * nothing. A newly created entry already holds a fresh generation, so
-         * the stale closures a `detatch` left behind are fenced off either way.
+         * peeked panel's group is collapsed — so discarding that frame leaves
+         * the frame pass to hide the overlay and the peek renders nothing. A
+         * newly created entry already holds a fresh generation, so the stale
+         * closures a `detatch` left behind are fenced off either way.
          */
         if (mapEntry.referenceContainer !== referenceContainer) {
             mapEntry.generation = ++this._generation;
@@ -299,8 +311,24 @@ export class OverlayRenderContainer extends CompositeDisposable {
              * positioned has no left/top/width/height, and `.dv-render-overlay`
              * defaults to 100%/100% — retaining "previous" geometry there would
              * pin the content over the whole container.
+             *
+             * Not armed when the new container belongs to a collapsed edge
+             * group: it measures 0x0 because the group is collapsed, not
+             * because it awaits layout, and the panel still reports visible
+             * (edge collapse fires no visibility event). Retaining here would
+             * keep the body painted, and interactive, at its old grid cell.
              */
-            mapEntry.retainPreviousGeometry = mapEntry.positioned;
+            mapEntry.retainPreviousGeometry =
+                mapEntry.positioned && !isInCollapsedEdgeGroup(panel);
+
+            // Hide now rather than on the next frame: the overlay is still
+            // painted at its previous box, which a drop into a collapsed strip
+            // leaves on screen otherwise. The frame pass re-shows it if the
+            // peek force-shows the panel.
+            if (!mapEntry.forceVisible && isInCollapsedEdgeGroup(panel)) {
+                mapEntry.element.style.visibility = 'hidden';
+                mapEntry.element.style.pointerEvents = 'none';
+            }
         }
 
         const generation = mapEntry.generation;
@@ -396,10 +424,17 @@ export class OverlayRenderContainer extends CompositeDisposable {
                 // the peek (set via `repositionPanelOverlay`). Read them at paint
                 // time so an unrelated `resize()` (visibility / layout) can't
                 // clobber a force-shown, clipped peek panel back to hidden. A
-                // peeked panel's `isVisible` is false (its group is collapsed),
-                // so without the sticky force it would render nothing.
+                // peeked panel's group is collapsed, so without the sticky
+                // force it would render nothing.
                 const forceVisible = entry.forceVisible ?? false;
                 const clip = entry.clip;
+
+                // A panel in a collapsed edge group still reports visible (edge
+                // collapse fires no visibility event), so its collapse is read
+                // from the group. The peek force-shows it over its own box.
+                const hidden =
+                    !forceVisible &&
+                    (!panel.api.isVisible || isInCollapsedEdgeGroup(panel));
 
                 const box = this.positionCache.getPosition(
                     referenceContainer.element
@@ -415,11 +450,16 @@ export class OverlayRenderContainer extends CompositeDisposable {
                     entry.retainPreviousGeometry &&
                     (width === 0 || height === 0)
                 ) {
-                    if (!panel.api.isVisible && !forceVisible) {
+                    if (hidden) {
                         focusContainer.style.visibility = 'hidden';
                         focusContainer.style.pointerEvents = 'none';
                     }
-                    return;
+                    // A collapsed edge's 0x0 is a real collapse: nothing to
+                    // wait for, so stop retaining and let the next non-zero
+                    // measure (peek or expand) position the overlay.
+                    if (!isInCollapsedEdgeGroup(panel)) {
+                        return;
+                    }
                 }
 
                 entry.retainPreviousGeometry = false;
@@ -436,7 +476,7 @@ export class OverlayRenderContainer extends CompositeDisposable {
                 // leave a hidden panel visually visible at a stale position,
                 // because onDidDimensionsChange skips non-visible panels and
                 // never recomputes their box on subsequent resizes.
-                if (panel.api.isVisible || forceVisible) {
+                if (!hidden) {
                     focusContainer.style.visibility = '';
                     focusContainer.style.pointerEvents = '';
                 } else {
