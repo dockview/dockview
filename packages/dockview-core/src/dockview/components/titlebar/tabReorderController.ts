@@ -354,10 +354,13 @@ export class TabReorderController extends CompositeDisposable {
             insertionIndex -
             (sourceIndex !== -1 && sourceIndex < insertionIndex ? 1 : 0);
 
+        // Same slot, same group (or none): the move would remove and re-add
+        // the tab, which also dissolves a group it is the only member of.
         if (
             index === sourceIndex &&
-            !targetTabGroupId &&
-            !this.group.model.getTabGroupForPanel(animState.sourceTabId)
+            targetTabGroupId ===
+                (this.group.model.getTabGroupForPanel(animState.sourceTabId)
+                    ?.id ?? null)
         ) {
             return null;
         }
@@ -793,10 +796,62 @@ export class TabReorderController extends CompositeDisposable {
                 isGroupDrag
             );
             if (resolved) {
-                return resolved;
+                return resolved.targetTabGroupId
+                    ? resolved
+                    : (this._keepSourceGroupAtOwnSlot(
+                          mousePos,
+                          resolved.insertionIndex,
+                          accUpTo
+                      ) ?? resolved);
             }
         }
-        return { insertionIndex, targetTabGroupId: null };
+        return (
+            this._keepSourceGroupAtOwnSlot(
+                mousePos,
+                insertionIndex,
+                accUpTo
+            ) ?? {
+                insertionIndex,
+                targetTabGroupId: null,
+            }
+        );
+    }
+
+    /** A single tab released at its own slot that no other group claimed stays
+     *  in its group (the ranges above exclude the source, so a lone or last
+     *  member's own slot has no range). At the first slot the chip edge gates it. */
+    private _keepSourceGroupAtOwnSlot(
+        mousePos: number,
+        insertionIndex: number,
+        accUpTo: number
+    ): { insertionIndex: number; targetTabGroupId: string | null } | null {
+        const animState = this._animState!;
+        const sourceIndex = animState.sourceIndex;
+        if (
+            animState.sourceGroupPanelIds ||
+            sourceIndex === -1 ||
+            (insertionIndex !== sourceIndex &&
+                insertionIndex !== sourceIndex + 1)
+        ) {
+            return null;
+        }
+        const tg = this.group.model
+            .getTabGroups()
+            .find((candidate) =>
+                candidate.panelIds.includes(animState.sourceTabId)
+            );
+        if (!tg) {
+            return null;
+        }
+        if (tg.panelIds[0] === animState.sourceTabId) {
+            const chipSize = animState.chipSizes.get(tg.id) ?? 0;
+            const chipOriginalEnd =
+                animState.containerStart + accUpTo + chipSize;
+            if (mousePos < chipOriginalEnd) {
+                return null;
+            }
+        }
+        return { insertionIndex, targetTabGroupId: tg.id };
     }
 
     /**

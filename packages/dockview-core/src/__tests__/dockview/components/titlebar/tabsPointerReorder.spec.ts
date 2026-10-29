@@ -280,4 +280,106 @@ describe('tabs - pointer reorder with tab groups', () => {
         expect(tg.panelIds).toEqual(['p1', 'p2', 'p3']);
         expect(group.model.getTabGroupForPanel('p2')?.id).toBe(tg.id);
     });
+
+    test('the only tab of a group released at its own slot stays grouped', async () => {
+        // Strip: [p0][chip][p1][p2]; p1 is its group's sole member. Released
+        // where it started (past the chip), it must not be ejected.
+        const group = addPanels(['p0', 'p1', 'p2']);
+        const tg = await createTabGroup(group, ['p1']);
+        layoutStrip(group);
+
+        pointerDrag(tabElement(group, 'p1'), 190, 190);
+
+        expect(panelIds(group)).toEqual(['p0', 'p1', 'p2']);
+        expect(tg.panelIds).toEqual(['p1']);
+        expect(group.model.getTabGroupForPanel('p1')?.id).toBe(tg.id);
+    });
+
+    test('the only tab of a leading group released at its own slot stays grouped', async () => {
+        // Strip: [chip][p1][p2]
+        const group = addPanels(['p1', 'p2']);
+        const tg = await createTabGroup(group, ['p1']);
+        layoutStrip(group);
+
+        pointerDrag(tabElement(group, 'p1'), 90, 90);
+
+        expect(panelIds(group)).toEqual(['p1', 'p2']);
+        expect(tg.panelIds).toEqual(['p1']);
+        expect(group.model.getTabGroupForPanel('p1')?.id).toBe(tg.id);
+    });
+
+    test('the last tab of a 3-member group released at its own slot stays grouped', async () => {
+        // Strip: [chip][p1][p2][p3]
+        const group = addPanels(['p1', 'p2', 'p3']);
+        const tg = await createTabGroup(group, ['p1', 'p2', 'p3']);
+        layoutStrip(group);
+
+        pointerDrag(tabElement(group, 'p3'), 290, 290);
+
+        expect(panelIds(group)).toEqual(['p1', 'p2', 'p3']);
+        expect(tg.panelIds).toEqual(['p1', 'p2', 'p3']);
+        expect(group.model.getTabGroupForPanel('p3')?.id).toBe(tg.id);
+    });
+
+    test('the first tab of a 3-member group released at its own slot stays grouped', async () => {
+        const group = addPanels(['p1', 'p2', 'p3']);
+        const tg = await createTabGroup(group, ['p1', 'p2', 'p3']);
+        layoutStrip(group);
+
+        pointerDrag(tabElement(group, 'p1'), 90, 90);
+
+        expect(panelIds(group)).toEqual(['p1', 'p2', 'p3']);
+        expect(tg.panelIds).toEqual(['p1', 'p2', 'p3']);
+        expect(group.model.getTabGroupForPanel('p1')?.id).toBe(tg.id);
+    });
+
+    test('the last member released at its own slot short of the next chip stays grouped', async () => {
+        // Strip: [chipA][p1][p2][chipB][p3]. p2 is the last member of A and
+        // sits right before B's chip. Released at its own slot (slot 1) with
+        // the cursor short of B's chip edge (180 once the source collapses),
+        // B declines it and it must stay in A rather than be ejected.
+        const group = addPanels(['p1', 'p2', 'p3']);
+        const tgA = await createTabGroup(group, ['p1', 'p2']);
+        const tgB = await createTabGroup(group, ['p3']);
+        layoutStrip(group);
+
+        pointerDrag(tabElement(group, 'p2'), 190, 160);
+
+        expect(panelIds(group)).toEqual(['p1', 'p2', 'p3']);
+        expect(tgA.panelIds).toEqual(['p1', 'p2']);
+        expect(tgB.panelIds).toEqual(['p3']);
+        expect(group.model.getTabGroupForPanel('p2')?.id).toBe(tgA.id);
+    });
+
+    test('resolveTabDrop is null when neither the slot nor the group changes', async () => {
+        const group = addPanels(['p0', 'p1', 'p2']);
+        const tg = await createTabGroup(group, ['p1']);
+        const reorder = (group.model as any).tabsContainer.tabs._reorder;
+        const state = (targetTabGroupId: string | null) => ({
+            sourceTabId: 'p1',
+            sourceIndex: 1,
+            currentInsertionIndex: 1,
+            targetTabGroupId,
+        });
+
+        expect(reorder.resolveTabDrop(state(tg.id))).toBeNull();
+        // Same slot but leaving the group still commits.
+        expect(reorder.resolveTabDrop(state(null))).toEqual({
+            index: 1,
+            targetTabGroupId: null,
+        });
+    });
+
+    test('the only tab of a group released over its chip is ejected', async () => {
+        // Strip: [p0][chip][p1][p2]; release with the cursor over the chip
+        const group = addPanels(['p0', 'p1', 'p2']);
+        const tg = await createTabGroup(group, ['p1']);
+        layoutStrip(group);
+
+        pointerDrag(tabElement(group, 'p1'), 190, 120);
+
+        expect(panelIds(group)).toEqual(['p0', 'p1', 'p2']);
+        expect(tg.panelIds).toEqual([]);
+        expect(group.model.getTabGroupForPanel('p1')).toBeUndefined();
+    });
 });
