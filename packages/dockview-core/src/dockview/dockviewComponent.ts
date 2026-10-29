@@ -5875,6 +5875,12 @@ export class DockviewComponent
                  * moved into a newly created group like any other panel.
                  */
 
+                if (sourceGroup === destinationGroup) {
+                    // A lone panel cannot split its own group: removing the
+                    // group would leave nothing to re-attach to, so no-op.
+                    return;
+                }
+
                 const [targetParentLocation, to] = tail(targetLocation);
 
                 if (

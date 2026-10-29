@@ -1501,11 +1501,15 @@ export class DockviewGroupPanelModel
             skipSetGroupActive?: boolean;
         } = {}
     ): void {
+        // Clamp before any mutation: the panel may already have left its
+        // source group, so a throw here would orphan it.
         if (
             typeof options.index !== 'number' ||
             options.index > this.panels.length
         ) {
             options.index = this.panels.length;
+        } else if (options.index < 0) {
+            options.index = 0;
         }
 
         const skipSetActive = !!options.skipSetActive;
