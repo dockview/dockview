@@ -1048,6 +1048,7 @@ export class DockviewGroupPanelModel
         for (let i = 0; i < this._panels.length; i++) {
             this.tabsContainer.openPanel(this._panels[i], i);
         }
+        this._syncActiveTab();
 
         this.tabsContainer.updateTabGroups();
     }
@@ -1077,8 +1078,30 @@ export class DockviewGroupPanelModel
         this._panels.splice(adjustedIndex, 0, panel);
 
         // Reorder in the tabs container to match
-        this.tabsContainer.delete(panelId);
-        this.tabsContainer.openPanel(panel, adjustedIndex);
+        this._reinsertTab(panel, adjustedIndex);
+    }
+
+    /** Move `panel`'s tab to `index` by delete + re-open. The fresh `Tab`
+     *  renders inactive under a new DOM id, so the active highlight and the
+     *  tabpanel's `aria-labelledby` are re-applied when it is the active one. */
+    private _reinsertTab(panel: IDockviewPanel, index: number): void {
+        this.tabsContainer.delete(panel.id);
+        this.tabsContainer.openPanel(panel, index);
+        if (panel === this._activePanel) {
+            this._syncActiveTab();
+        }
+    }
+
+    /** Point the strip's active highlight and the tabpanel's
+     *  `aria-labelledby` at `_activePanel`'s current tab element. */
+    private _syncActiveTab(): void {
+        if (!this._activePanel) {
+            return;
+        }
+        this.tabsContainer.setActivePanel(this._activePanel);
+        this.contentContainer.setLabelledBy(
+            this.tabsContainer.getTabId(this._activePanel.id)
+        );
     }
 
     /**
@@ -1162,8 +1185,7 @@ export class DockviewGroupPanelModel
         // now the slot right after the group.
         this._panels.splice(lastIdx, 0, panel);
 
-        this.tabsContainer.delete(panelId);
-        this.tabsContainer.openPanel(panel, lastIdx);
+        this._reinsertTab(panel, lastIdx);
     }
 
     getTabGroups(): readonly ITabGroup[] {
@@ -1860,12 +1882,7 @@ export class DockviewGroupPanelModel
         this._activePanel = panel;
 
         if (panel) {
-            this.tabsContainer.setActivePanel(panel);
-
-            // Point the tabpanel's `aria-labelledby` at the now-active tab.
-            this.contentContainer.setLabelledBy(
-                this.tabsContainer.getTabId(panel.id)
-            );
+            this._syncActiveTab();
 
             this.contentContainer.openPanel(panel);
 
