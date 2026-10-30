@@ -203,7 +203,10 @@ export class SplitviewComponent
             this.disableResizing = options.disableAutoResizing ?? false;
         }
 
-        if (typeof options.orientation === 'string') {
+        if (
+            typeof options.orientation === 'string' &&
+            options.orientation !== this.splitview.orientation
+        ) {
             this.splitview.orientation = options.orientation;
             // each panel maps (size, orthogonalSize) to (width, height) from
             // its own orientation, so it must follow the splitview's before
