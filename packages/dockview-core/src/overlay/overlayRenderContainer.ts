@@ -93,6 +93,34 @@ function isInCollapsedEdgeGroup(panel: IDockviewPanel): boolean {
     return api.location.type === 'edge' && api.isCollapsed();
 }
 
+/** Hide or show an overlay: a hidden one must not take pointer events either. */
+function setHidden(style: CSSStyleDeclaration, hidden: boolean): void {
+    style.visibility = hidden ? 'hidden' : '';
+    style.pointerEvents = hidden ? 'none' : '';
+}
+
+/**
+ * The `clip-path` that confines an overlay at `box` (page coordinates, from
+ * `getDomNodePagePosition`) to the peek's reveal window `clip` (a viewport
+ * rect), so an `always` panel emerges from the strip's inner edge as the
+ * container slides rather than appearing on the dock side of it. The viewport
+ * rect is shifted by the scroll offset first, or the clip is wrong in a
+ * scrolled document.
+ */
+function peekClipPath(
+    box: { left: number; top: number; width: number; height: number },
+    clip: DOMRect,
+    view: Window | null
+): string {
+    const sx = view?.scrollX ?? 0;
+    const sy = view?.scrollY ?? 0;
+    const insetTop = Math.max(0, clip.top + sy - box.top);
+    const insetLeft = Math.max(0, clip.left + sx - box.left);
+    const insetRight = Math.max(0, box.left + box.width - (clip.right + sx));
+    const insetBottom = Math.max(0, box.top + box.height - (clip.bottom + sy));
+    return `inset(${insetTop}px ${insetRight}px ${insetBottom}px ${insetLeft}px)`;
+}
+
 function createFocusableElement(): HTMLDivElement {
     const element = document.createElement('div');
     element.tabIndex = -1;
@@ -319,8 +347,7 @@ export class OverlayRenderContainer extends CompositeDisposable {
                 mapEntry.positioned && !collapsedEdge;
 
             if (collapsedEdge && !mapEntry.forceVisible) {
-                mapEntry.element.style.visibility = 'hidden';
-                mapEntry.element.style.pointerEvents = 'none';
+                setHidden(mapEntry.element.style, true);
             }
         }
 
@@ -442,8 +469,7 @@ export class OverlayRenderContainer extends CompositeDisposable {
                     // box (as a hidden grid panel does) until expand or peek.
                     if (collapsedEdge && !forceVisible) {
                         entry.retainPreviousGeometry = false;
-                        focusContainer.style.visibility = 'hidden';
-                        focusContainer.style.pointerEvents = 'none';
+                        setHidden(focusContainer.style, true);
                         // a closing peek leaves its clip and lift behind
                         focusContainer.style.clipPath = '';
                         focusContainer.style.zIndex = '';
@@ -451,8 +477,7 @@ export class OverlayRenderContainer extends CompositeDisposable {
                     }
                     if (entry.retainPreviousGeometry) {
                         if (hidden) {
-                            focusContainer.style.visibility = 'hidden';
-                            focusContainer.style.pointerEvents = 'none';
+                            setHidden(focusContainer.style, true);
                         }
                         return;
                     }
@@ -472,13 +497,7 @@ export class OverlayRenderContainer extends CompositeDisposable {
                 // leave a hidden panel visually visible at a stale position,
                 // because onDidDimensionsChange skips non-visible panels and
                 // never recomputes their box on subsequent resizes.
-                if (!hidden) {
-                    focusContainer.style.visibility = '';
-                    focusContainer.style.pointerEvents = '';
-                } else {
-                    focusContainer.style.visibility = 'hidden';
-                    focusContainer.style.pointerEvents = 'none';
-                }
+                setHidden(focusContainer.style, hidden);
                 // When force-shown for an auto-hide peek, lift the overlay above
                 // the peek's own (opaque) backdrop so the content is visible.
                 // For a floating panel the stacking is owned by
@@ -493,32 +512,14 @@ export class OverlayRenderContainer extends CompositeDisposable {
                     focusContainer.style.zIndex = '';
                 }
 
-                // Clip to the peek's reveal window so an `always` panel emerges
-                // from the strip's inner edge as the container slides, rather
-                // than appearing on the dock side of it. `box` is in page
-                // coordinates (`getDomNodePagePosition`) but `clip` is a
-                // viewport rect, so shift it by the scroll offset before taking
-                // the inset (otherwise the clip is wrong in a scrolled document).
-                if (clip) {
-                    const view = this.element.ownerDocument.defaultView;
-                    const sx = view?.scrollX ?? 0;
-                    const sy = view?.scrollY ?? 0;
-                    const top = clip.top + sy;
-                    const left = clip.left + sx;
-                    const insetTop = Math.max(0, top - box.top);
-                    const insetLeft = Math.max(0, left - box.left);
-                    const insetRight = Math.max(
-                        0,
-                        box.left + width - (clip.right + sx)
-                    );
-                    const insetBottom = Math.max(
-                        0,
-                        box.top + height - (clip.bottom + sy)
-                    );
-                    focusContainer.style.clipPath = `inset(${insetTop}px ${insetRight}px ${insetBottom}px ${insetLeft}px)`;
-                } else {
-                    focusContainer.style.clipPath = '';
-                }
+                // Clip to the peek's reveal window while force-shown.
+                focusContainer.style.clipPath = clip
+                    ? peekClipPath(
+                          box,
+                          clip,
+                          this.element.ownerDocument.defaultView
+                      )
+                    : '';
 
                 toggleClass(
                     focusContainer,
@@ -560,8 +561,7 @@ export class OverlayRenderContainer extends CompositeDisposable {
                 }
                 focusContainer.style.pointerEvents = '';
             } else {
-                focusContainer.style.visibility = 'hidden';
-                focusContainer.style.pointerEvents = 'none';
+                setHidden(focusContainer.style, true);
             }
         };
 
