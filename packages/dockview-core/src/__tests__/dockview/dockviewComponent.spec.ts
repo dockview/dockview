@@ -12880,16 +12880,17 @@ describe('dockviewComponent', () => {
                 expect(dockview.activeGroup).toBe(p2.group);
                 expect(p1.api.isGroupActive).toBe(true);
                 // the destination was already active, so its state never
-                // re-fired; the tracker must still be seeded from it
-                expect(events).toEqual([]);
+                // re-fired; the crossing from an inactive group into it is
+                // reported by the move itself
+                expect(events).toEqual([true]);
 
                 dockview.doSetGroupActive(p0.group);
                 expect(p1.api.isGroupActive).toBe(false);
-                expect(events).toEqual([false]);
+                expect(events).toEqual([true, false]);
 
                 dockview.doSetGroupActive(p2.group);
                 expect(p1.api.isGroupActive).toBe(true);
-                expect(events).toEqual([false, true]);
+                expect(events).toEqual([true, false, true]);
             });
 
             test('panel moved into a group that is then activated keeps tracking that group', () => {
@@ -12919,19 +12920,150 @@ describe('dockviewComponent', () => {
                 expect(p1.group).toBe(p2.group);
                 expect(dockview.activeGroup).toBe(p2.group);
                 expect(p1.api.isGroupActive).toBe(true);
-                // the tracker is seeded from the destination group, which was
-                // inactive when p1 arrived, so its activation is reported
-                expect(events).toEqual([true]);
+                // p1 left an active group for an inactive one, which was then
+                // activated: both transitions are reported, in order
+                expect(events).toEqual([false, true]);
                 // the emptied source group is gone
                 expect(dockview.groups).not.toContain(sourceGroup);
 
                 dockview.doSetGroupActive(p0.group);
                 expect(p1.api.isGroupActive).toBe(false);
-                expect(events).toEqual([true, false]);
+                expect(events).toEqual([false, true, false]);
 
                 dockview.doSetGroupActive(p1.group);
                 expect(p1.api.isGroupActive).toBe(true);
-                expect(events).toEqual([true, false, true]);
+                expect(events).toEqual([false, true, false, true]);
+            });
+
+            function recordGroupActive(panels: IDockviewPanel[]) {
+                const events: Record<string, boolean[]> = {};
+                for (const panel of panels) {
+                    events[panel.id] = [];
+                    panel.api.onDidActiveGroupChange((e) =>
+                        events[panel.id].push(e.isActive)
+                    );
+                }
+                return events;
+            }
+
+            /**
+             * The last value a panel reported through `onDidActiveGroupChange`
+             * must agree with `api.isGroupActive` once the mutation settles,
+             * and the stream never repeats a value.
+             */
+            function expectGroupActiveSettled(
+                panels: IDockviewPanel[],
+                events: Record<string, boolean[]>
+            ) {
+                for (const panel of panels) {
+                    const stream = events[panel.id];
+                    for (let i = 1; i < stream.length; i++) {
+                        expect(stream[i]).not.toBe(stream[i - 1]);
+                    }
+                    if (stream.length > 0) {
+                        expect(stream[stream.length - 1]).toBe(
+                            panel.api.isGroupActive
+                        );
+                    }
+                }
+            }
+
+            test('moveTo out of the active group reports leaving it before the destination activates', () => {
+                const dockview = create();
+                const { p1, p2, p3 } = arrangeMove(dockview);
+                const panels = [p1, p2, p3];
+                const events = recordGroupActive(panels);
+
+                p1.api.moveTo({ group: p2.group, position: 'center' });
+
+                expect(p1.group).toBe(p2.group);
+                expect(dockview.activeGroup).toBe(p2.group);
+                expect(p1.api.isGroupActive).toBe(true);
+                expect(p2.api.isGroupActive).toBe(true);
+                expect(p3.api.isGroupActive).toBe(false);
+
+                // p1 is re-homed into the inactive destination first, and only
+                // then is that destination activated
+                expect(events).toEqual({
+                    p1: [false, true],
+                    p2: [true],
+                    p3: [false],
+                });
+                expectGroupActiveSettled(panels, events);
+            });
+
+            test('moveTo with skipSetActive out of the active group reports the moved panel leaving it', () => {
+                const dockview = create();
+                const { p1, p2, p3 } = arrangeMove(dockview);
+                const panels = [p1, p2, p3];
+                const events = recordGroupActive(panels);
+
+                p1.api.moveTo({
+                    group: p2.group,
+                    position: 'center',
+                    skipSetActive: true,
+                });
+
+                expect(p1.group).toBe(p2.group);
+                expect(dockview.activeGroup).toBe(p3.group);
+                expect(p1.api.isGroupActive).toBe(false);
+                expect(p2.api.isGroupActive).toBe(false);
+                expect(p3.api.isGroupActive).toBe(true);
+
+                // nothing is activated, so the only transition is p1's
+                expect(events).toEqual({ p1: [false], p2: [], p3: [] });
+                expectGroupActiveSettled(panels, events);
+            });
+
+            test('merging the active group into an inactive group reports each panel leaving then arriving', () => {
+                const dockview = create();
+                const { p1, p2, p3 } = arrangeMove(dockview);
+                const panels = [p1, p2, p3];
+                const events = recordGroupActive(panels);
+
+                p1.group.api.moveTo({ group: p2.group, position: 'center' });
+
+                expect(p1.group).toBe(p2.group);
+                expect(p3.group).toBe(p2.group);
+                expect(dockview.activeGroup).toBe(p2.group);
+                expect(p1.api.isGroupActive).toBe(true);
+                expect(p2.api.isGroupActive).toBe(true);
+                expect(p3.api.isGroupActive).toBe(true);
+
+                expect(events).toEqual({
+                    p1: [false, true],
+                    p2: [true],
+                    p3: [false, true],
+                });
+                expectGroupActiveSettled(panels, events);
+            });
+
+            test('panel re-homed from an active floating group into an inactive grid group reports leaving then arriving', () => {
+                const dockview = create();
+                const { p1, p2, p3 } = arrangeMove(dockview);
+
+                dockview.addFloatingGroup(p1);
+                expect(p1.api.location.type).toBe('floating');
+                expect(p1.api.isGroupActive).toBe(true);
+                expect(p2.api.isGroupActive).toBe(false);
+
+                const panels = [p1, p2, p3];
+                const events = recordGroupActive(panels);
+
+                p1.api.moveTo({ group: p2.group, position: 'center' });
+
+                expect(p1.group).toBe(p2.group);
+                expect(p1.api.location.type).toBe('grid');
+                expect(dockview.activeGroup).toBe(p2.group);
+                expect(p1.api.isGroupActive).toBe(true);
+
+                expect(events).toEqual({
+                    p1: [false, true],
+                    p2: [true],
+                    p3: [],
+                });
+                expectGroupActiveSettled(panels, events);
+                expect(dockview.floatingGroups).toHaveLength(0);
             });
         });
 

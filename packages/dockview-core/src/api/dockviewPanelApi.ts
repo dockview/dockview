@@ -133,11 +133,21 @@ export class DockviewPanelApiImpl
 
     set group(value: DockviewGroupPanel) {
         if (this._group !== value) {
+            const wasGroupActive = this._group.isActive;
+
             this._group = value;
 
             this._onDidGroupChange.fire({});
 
             this.setupGroupEventListeners();
+
+            // The old group never re-fires its state, so a panel crossing
+            // groups of differing active state must report that crossing itself.
+            if (wasGroupActive !== this.isGroupActive) {
+                this._onDidActiveGroupChange.fire({
+                    isActive: this.isGroupActive,
+                });
+            }
 
             this.fireLocationChange();
         }

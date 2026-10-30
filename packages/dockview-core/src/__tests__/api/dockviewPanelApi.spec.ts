@@ -566,6 +566,130 @@ describe('groupPanelApi', () => {
         disposable.dispose();
     });
 
+    describe('group change reports the active-group transition', () => {
+        function createNextGroup(isActive: boolean) {
+            const onDidActiveChange = new Emitter<any>();
+            const group = fromPartial<DockviewGroupPanel>({
+                id: 'next_group',
+                isActive,
+                api: {
+                    onDidVisibilityChange: jest.fn(),
+                    onDidLocationChange: jest.fn(),
+                    onDidActiveChange: onDidActiveChange.event,
+                },
+                model: { isPanelActive: jest.fn() },
+            });
+            return { group, onDidActiveChange };
+        }
+
+        test('active to inactive reports false and keeps tracking the new group', () => {
+            const { cut, panel } = createFixture({ group: { isActive: true } });
+            const { group: nextGroup, onDidActiveChange } =
+                createNextGroup(false);
+
+            const events: boolean[] = [];
+            const disposable = cut.onDidActiveGroupChange((e) => {
+                events.push(e.isActive);
+            });
+
+            (panel as any).group = nextGroup;
+            cut.group = nextGroup;
+            expect(cut.isGroupActive).toBe(false);
+            expect(events).toEqual([false]);
+
+            // the tracker agrees with what was just reported: an unchanged
+            // state is not re-reported...
+            onDidActiveChange.fire({});
+            expect(events).toEqual([false]);
+
+            // ...and the next real change is
+            (nextGroup as any).isActive = true;
+            onDidActiveChange.fire({});
+            expect(events).toEqual([false, true]);
+
+            disposable.dispose();
+        });
+
+        test('inactive to active reports true and keeps tracking the new group', () => {
+            const { cut, panel } = createFixture({
+                group: { isActive: false },
+            });
+            const { group: nextGroup, onDidActiveChange } =
+                createNextGroup(true);
+
+            const events: boolean[] = [];
+            const disposable = cut.onDidActiveGroupChange((e) => {
+                events.push(e.isActive);
+            });
+
+            (panel as any).group = nextGroup;
+            cut.group = nextGroup;
+            expect(cut.isGroupActive).toBe(true);
+            expect(events).toEqual([true]);
+
+            onDidActiveChange.fire({});
+            expect(events).toEqual([true]);
+
+            (nextGroup as any).isActive = false;
+            onDidActiveChange.fire({});
+            expect(events).toEqual([true, false]);
+
+            disposable.dispose();
+        });
+
+        test.each([
+            false,
+            true,
+        ])('unchanged active state (%s) reports nothing', (isActive) => {
+            const { cut, panel } = createFixture({ group: { isActive } });
+            const { group: nextGroup, onDidActiveChange } =
+                createNextGroup(isActive);
+
+            const events: boolean[] = [];
+            const disposable = cut.onDidActiveGroupChange((e) => {
+                events.push(e.isActive);
+            });
+
+            (panel as any).group = nextGroup;
+            cut.group = nextGroup;
+            expect(cut.isGroupActive).toBe(isActive);
+            expect(events).toEqual([]);
+
+            (nextGroup as any).isActive = !isActive;
+            onDidActiveChange.fire({});
+            expect(events).toEqual([!isActive]);
+
+            disposable.dispose();
+        });
+
+        test('fires after onDidGroupChange so listeners see the new group', () => {
+            const { cut, panel } = createFixture({ group: { isActive: true } });
+            const { group: nextGroup } = createNextGroup(false);
+
+            const log: string[] = [];
+            const disposables = [
+                cut.onDidGroupChange(() => {
+                    log.push(`group:${cut.group.id}`);
+                }),
+                cut.onDidActiveGroupChange((e) => {
+                    log.push(`active:${e.isActive}:${cut.group.id}`);
+                }),
+            ];
+
+            (panel as any).group = nextGroup;
+            cut.group = nextGroup;
+
+            expect(log).toEqual([
+                'group:next_group',
+                'active:false:next_group',
+            ]);
+
+            for (const disposable of disposables) {
+                disposable.dispose();
+            }
+        });
+    });
+
     test('group active change is ignored when group is not the panel group', () => {
         const { cut, group, emitters, panel } = createFixture();
         (panel as any).group = fromPartial<DockviewGroupPanel>({
