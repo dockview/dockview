@@ -67,6 +67,36 @@ describe('onDidLayoutChange reasons', () => {
         expect(pings).toEqual([['activePanel']]);
     });
 
+    test('a tab switch pings with geometry only when the constraints differ', async () => {
+        const p1 = dockview.addPanel({ id: 'p1', component: 'default' });
+        const p2 = dockview.addPanel({ id: 'p2', component: 'default' });
+        const p3 = dockview.addPanel({
+            id: 'p3',
+            component: 'default',
+            minimumHeight: 300,
+        });
+        await flush();
+        pings.length = 0;
+
+        // p3 (min 300) -> p1 (min 100): the group's constraints change, so
+        // the switch relayouts the group as well
+        p1.api.setActive();
+        await flush();
+        expect(pings).toEqual([['activePanel', 'geometry']]);
+        pings.length = 0;
+
+        // p1 -> p2: equal constraints, nothing to relayout
+        p2.api.setActive();
+        await flush();
+        expect(pings).toEqual([['activePanel']]);
+        pings.length = 0;
+
+        // p2 (min 100) -> p3 (min 300): constraints change again
+        p3.api.setActive();
+        await flush();
+        expect(pings).toEqual([['activePanel', 'geometry']]);
+    });
+
     test('setTitle pings with exactly panelTitle', async () => {
         const p1 = dockview.addPanel({ id: 'p1', component: 'default' });
         await flush();

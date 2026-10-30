@@ -157,6 +157,11 @@ export class DockviewGroupPanel
             this.model.onDidActivePanelChange((event) => {
                 this.api._onDidActivePanelChange.fire(event);
                 this.notifyIfConstraintsChanged();
+            }),
+            // removing the last panel clears the active panel without an
+            // active-panel event, so the grid must be told here
+            this.model.onDidRemovePanel(() => {
+                this.notifyIfConstraintsChanged();
             })
         );
     }

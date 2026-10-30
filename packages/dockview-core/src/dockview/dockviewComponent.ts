@@ -4604,14 +4604,21 @@ export class DockviewComponent
                     continue;
                 }
 
+                const keepLast =
+                    this.options.noPanelsOverlay === 'emptyGroup' &&
+                    this.isLastGridGroup(group);
+
+                // closing the (zero) panels of an already-empty group would
+                // remove the group itself, which `noPanelsOverlay` keeps
+                if (keepLast && group.model.size === 0) {
+                    continue;
+                }
+
                 group.model.closeAllPanels();
 
                 // with `closeEmptyGroups: false` the panels' removal leaves
                 // the group behind; closing all groups still removes it,
                 // keeping the last one when `noPanelsOverlay` asks for it
-                const keepLast =
-                    this.options.noPanelsOverlay === 'emptyGroup' &&
-                    this.isLastGridGroup(group);
                 if (
                     !this.closeEmptyGroups &&
                     !keepLast &&
@@ -5271,6 +5278,13 @@ export class DockviewComponent
             }
 
             const target = toTarget(<Direction>options.direction || 'within');
+
+            // An edge group is a structural slot with no grid neighbours.
+            if (referenceGroup.api.location.type === 'edge') {
+                throw new Error(
+                    `dockview: cannot add a group relative to edge group ${referenceGroup.id}; edge groups cannot be split`
+                );
+            }
 
             // A floating / popout reference splits its own window; the new
             // group is created in, and tagged for, that gridview.
@@ -6246,7 +6260,9 @@ export class DockviewComponent
         const to = options.to.group;
         const target = options.to.position;
 
-        if (target === 'center' && from === to) {
+        // A group cannot be placed relative to itself: detaching it first
+        // would leave no reference to re-attach to.
+        if (from === to) {
             return;
         }
 
