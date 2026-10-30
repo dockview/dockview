@@ -946,6 +946,126 @@ describe('componentSplitview', () => {
             splitview.dispose();
         });
 
+        test('re-applying the current orientation leaves the layout untouched', () => {
+            const splitview = createCut(Orientation.HORIZONTAL);
+            const api = new SplitviewApi(splitview);
+
+            splitview.layout(800, 200);
+
+            const panel1 = splitview.addPanel({
+                id: 'panel1',
+                component: 'default',
+            });
+            const panel2 = splitview.addPanel({
+                id: 'panel2',
+                component: 'default',
+            });
+
+            const orientationSetter = jest.spyOn(panel1, 'orientation', 'set');
+
+            splitview.updateOptions({ orientation: Orientation.HORIZONTAL });
+
+            expect(api.orientation).toBe(Orientation.HORIZONTAL);
+            expect(api.width).toBe(800);
+            expect(api.height).toBe(200);
+            expect(panel1.api.width).toBe(400);
+            expect(panel1.api.height).toBe(200);
+            expect(panel2.api.width).toBe(400);
+            expect(panel2.api.height).toBe(200);
+            expect(orientationSetter).not.toHaveBeenCalled();
+
+            splitview.dispose();
+        });
+
+        test('switching orientation with proportionalLayout disabled rescales every panel', () => {
+            const splitview = new SplitviewComponent(container, {
+                orientation: Orientation.HORIZONTAL,
+                proportionalLayout: false,
+                createComponent: (options) =>
+                    new TestPanel(options.id, options.name),
+            });
+            const api = new SplitviewApi(splitview);
+
+            splitview.layout(800, 200);
+
+            const panel1 = splitview.addPanel({
+                id: 'panel1',
+                component: 'default',
+            });
+            const panel2 = splitview.addPanel({
+                id: 'panel2',
+                component: 'default',
+            });
+            panel1.api.setSize({ size: 300 });
+
+            expect(panel1.api.width).toBe(300);
+            expect(panel2.api.width).toBe(500);
+
+            splitview.updateOptions({ orientation: Orientation.VERTICAL });
+
+            expect(api.width).toBe(800);
+            expect(api.height).toBe(200);
+            expect(panel1.api.width).toBe(800);
+            expect(panel1.api.height).toBe(75);
+            expect(panel2.api.width).toBe(800);
+            expect(panel2.api.height).toBe(125);
+
+            splitview.updateOptions({ orientation: Orientation.HORIZONTAL });
+
+            expect(panel1.api.width).toBe(300);
+            expect(panel1.api.height).toBe(200);
+            expect(panel2.api.width).toBe(500);
+            expect(panel2.api.height).toBe(200);
+
+            splitview.dispose();
+        });
+
+        test('switching orientation rescales the cached size of a hidden panel', () => {
+            const splitview = createCut(Orientation.HORIZONTAL);
+
+            splitview.layout(800, 200);
+
+            const panel1 = splitview.addPanel({
+                id: 'panel1',
+                component: 'default',
+            });
+            const panel2 = splitview.addPanel({
+                id: 'panel2',
+                component: 'default',
+            });
+            const panel3 = splitview.addPanel({
+                id: 'panel3',
+                component: 'default',
+            });
+            panel1.api.setSize({ size: 400 });
+            panel2.api.setSize({ size: 200 });
+            expect(
+                [panel1, panel2, panel3].map((panel) => panel.api.width)
+            ).toEqual([400, 200, 200]);
+
+            splitview.setVisible(panel2, false);
+            expect(splitview.splitview.getViewCachedVisibleSize(1)).toBe(200);
+            expect(panel1.api.width).toBe(400);
+            expect(panel3.api.width).toBe(400);
+
+            splitview.updateOptions({ orientation: Orientation.VERTICAL });
+
+            // the cached size follows the panel onto the 200px axis
+            expect(splitview.splitview.getViewCachedVisibleSize(1)).toBe(50);
+            expect(panel1.api.height).toBe(100);
+            expect(panel3.api.height).toBe(100);
+
+            splitview.setVisible(panel2, true);
+
+            expect(panel2.api.width).toBe(800);
+            expect(panel2.api.height).toBe(50);
+            expect(
+                panel1.api.height + panel2.api.height + panel3.api.height
+            ).toBe(200);
+
+            splitview.dispose();
+        });
+
         test('updates disableResizing when disableAutoResizing is provided', () => {
             const splitview = createCut(Orientation.HORIZONTAL);
             expect(splitview.disableResizing).toBe(false);

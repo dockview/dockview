@@ -189,11 +189,19 @@ export class Splitview {
     }
 
     set orientation(value: Orientation) {
+        if (this._orientation === value) {
+            return;
+        }
+
         this._orientation = value;
 
         const tmp = this.size;
         this.size = this.orthogonalSize;
         this.orthogonalSize = tmp;
+
+        // views keep their share of the old axis, so the next `layout` has
+        // no delta left to push onto the last view
+        this.rescaleViews(this.size);
 
         removeClasses(this.element, 'dv-horizontal', 'dv-vertical');
         this.element.classList.add(
@@ -870,6 +878,25 @@ export class Splitview {
             emptyDelta -= viewDelta;
             item.size = size;
         }
+    }
+
+    private rescaleViews(size: number): void {
+        let contentSize = 0;
+        for (const item of this.viewItems) {
+            contentSize += item.size;
+        }
+
+        if (size <= 0 || contentSize <= 0) {
+            return;
+        }
+
+        const factor = size / contentSize;
+        let rescaledSize = 0;
+        for (const item of this.viewItems) {
+            item.scale(factor);
+            rescaledSize += item.size;
+        }
+        this._contentSize = rescaledSize;
     }
 
     private saveProportions(): void {
