@@ -2219,6 +2219,182 @@ describe('dockviewGroupPanelModel', () => {
             ]);
         });
 
+        describe('active tab survives a contiguity reinsertion', () => {
+            // The tab element carrying `dv-active-tab`, asserted to be the
+            // only one and to match the model's `activePanel` and the
+            // tabpanel's `aria-labelledby`.
+            const expectActiveTabIs = (panelId: string) => {
+                const model = groupview.model as any;
+                const tabs = model.tabsContainer.tabs.tabs as {
+                    panel: IDockviewPanel;
+                    element: HTMLElement;
+                }[];
+                const active = tabs.filter((t) =>
+                    t.element.classList.contains('dv-active-tab')
+                );
+                expect(active.map((t) => t.panel.id)).toEqual([panelId]);
+                expect(groupview.model.activePanel?.id).toBe(panelId);
+                expect(active[0].element.getAttribute('aria-selected')).toBe(
+                    'true'
+                );
+                expect(active[0].element.tabIndex).toBe(0);
+                for (const t of tabs) {
+                    if (t !== active[0]) {
+                        expect(
+                            t.element.classList.contains('dv-inactive-tab')
+                        ).toBe(true);
+                        expect(t.element.getAttribute('aria-selected')).toBe(
+                            'false'
+                        );
+                        expect(t.element.tabIndex).toBe(-1);
+                    }
+                }
+                expect(
+                    model.contentContainer.element.getAttribute(
+                        'aria-labelledby'
+                    )
+                ).toBe(active[0].element.id);
+            };
+
+            let activeEvents: unknown[];
+
+            beforeEach(() => {
+                for (const id of ['panel1', 'panel2', 'panel3', 'panel4']) {
+                    groupview.model.openPanel(new TestPanel(id, panelApi));
+                }
+                activeEvents = [];
+            });
+
+            const watchActive = () =>
+                groupview.model.onDidActivePanelChange((e) =>
+                    activeEvents.push(e)
+                );
+
+            test('removePanelFromTabGroup of the active panel', () => {
+                const tabGroup = groupview.model.createTabGroup();
+                groupview.model.addPanelToTabGroup(tabGroup.id, 'panel1');
+                groupview.model.addPanelToTabGroup(tabGroup.id, 'panel2');
+                groupview.model.addPanelToTabGroup(tabGroup.id, 'panel3');
+                groupview.model.openPanel(groupview.model.panels[1]);
+                expectActiveTabIs('panel2');
+                watchActive();
+
+                groupview.model.removePanelFromTabGroup('panel2');
+
+                expect(groupview.model.panels.map((p) => p.id)).toEqual([
+                    'panel1',
+                    'panel3',
+                    'panel2',
+                    'panel4',
+                ]);
+                expectActiveTabIs('panel2');
+                expect(activeEvents).toHaveLength(0);
+            });
+
+            test('removePanelFromTabGroup of an inactive panel', () => {
+                const tabGroup = groupview.model.createTabGroup();
+                groupview.model.addPanelToTabGroup(tabGroup.id, 'panel1');
+                groupview.model.addPanelToTabGroup(tabGroup.id, 'panel2');
+                groupview.model.addPanelToTabGroup(tabGroup.id, 'panel3');
+                groupview.model.openPanel(groupview.model.panels[0]);
+                watchActive();
+
+                groupview.model.removePanelFromTabGroup('panel2');
+
+                expect(groupview.model.panels.map((p) => p.id)).toEqual([
+                    'panel1',
+                    'panel3',
+                    'panel2',
+                    'panel4',
+                ]);
+                expectActiveTabIs('panel1');
+                expect(activeEvents).toHaveLength(0);
+            });
+
+            test('addPanelToTabGroup of the active panel', () => {
+                const tabGroup = groupview.model.createTabGroup();
+                groupview.model.addPanelToTabGroup(tabGroup.id, 'panel1');
+                groupview.model.addPanelToTabGroup(tabGroup.id, 'panel2');
+                // panel4 is active and sits after panel3; joining the group
+                // moves it next to panel2 via `_enforceContiguity`.
+                watchActive();
+
+                groupview.model.addPanelToTabGroup(tabGroup.id, 'panel4');
+
+                expect(groupview.model.panels.map((p) => p.id)).toEqual([
+                    'panel1',
+                    'panel2',
+                    'panel4',
+                    'panel3',
+                ]);
+                expectActiveTabIs('panel4');
+                expect(activeEvents).toHaveLength(0);
+            });
+
+            test('movePanelBetweenGroups of the active panel into an empty group', () => {
+                const groupA = groupview.model.createTabGroup();
+                groupview.model.addPanelToTabGroup(groupA.id, 'panel1');
+                groupview.model.addPanelToTabGroup(groupA.id, 'panel2');
+                groupview.model.addPanelToTabGroup(groupA.id, 'panel3');
+                const groupB = groupview.model.createTabGroup();
+                groupview.model.openPanel(groupview.model.panels[1]);
+                watchActive();
+
+                groupview.model.movePanelBetweenGroups('panel2', groupB.id);
+
+                expect(groupview.model.panels.map((p) => p.id)).toEqual([
+                    'panel1',
+                    'panel3',
+                    'panel2',
+                    'panel4',
+                ]);
+                expectActiveTabIs('panel2');
+                expect(activeEvents).toHaveLength(0);
+            });
+
+            test('moveTabGroup rebuilds the strip around the active panel', () => {
+                const tabGroup = groupview.model.createTabGroup();
+                groupview.model.addPanelToTabGroup(tabGroup.id, 'panel1');
+                groupview.model.addPanelToTabGroup(tabGroup.id, 'panel2');
+                groupview.model.openPanel(groupview.model.panels[2]);
+                watchActive();
+
+                groupview.model.moveTabGroup(tabGroup.id, 4);
+
+                expect(groupview.model.panels.map((p) => p.id)).toEqual([
+                    'panel3',
+                    'panel4',
+                    'panel1',
+                    'panel2',
+                ]);
+                expectActiveTabIs('panel3');
+                expect(activeEvents).toHaveLength(0);
+            });
+
+            test('moveTabGroup with no active panel leaves every tab inactive', () => {
+                const tabGroup = groupview.model.createTabGroup();
+                for (const id of ['panel1', 'panel2', 'panel3', 'panel4']) {
+                    groupview.model.addPanelToTabGroup(tabGroup.id, id);
+                }
+                // Collapsing the only group leaves nothing to activate.
+                tabGroup.collapse();
+                expect(groupview.model.activePanel).toBeUndefined();
+                watchActive();
+
+                groupview.model.moveTabGroup(tabGroup.id, 0);
+
+                const tabs = (groupview.model as any).tabsContainer.tabs
+                    .tabs as { element: HTMLElement }[];
+                expect(
+                    tabs.filter((t) =>
+                        t.element.classList.contains('dv-active-tab')
+                    )
+                ).toHaveLength(0);
+                expect(groupview.model.activePanel).toBeUndefined();
+                expect(activeEvents).toHaveLength(0);
+            });
+        });
+
         test('label and color update fires onDidTabGroupChange', () => {
             const tabGroup = groupview.model.createTabGroup({
                 label: 'Test',
