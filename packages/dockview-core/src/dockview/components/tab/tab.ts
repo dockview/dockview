@@ -192,14 +192,24 @@ export class Tab extends CompositeDisposable {
                     },
                 };
             },
-            // 30/-10 matches the HTML5 setDragImage offset that has been
-            // shipped for years; pointer backend wraps in PointerGhost,
-            // HTML5 backend feeds into setDragImage.
-            createGhost: () => ({
-                element: this._buildGhostElement(),
-                offsetX: 30,
-                offsetY: -10,
-            }),
+            // HTML5 anchors the ghost at the grab point inside the tab so the
+            // preview stays under the cursor where the tab was picked up;
+            // pointer backend keeps the 30/-10 offset it wraps in PointerGhost.
+            createGhost: (event) => {
+                const element = this._buildGhostElement();
+
+                if (event instanceof PointerEvent) {
+                    return { element, offsetX: 30, offsetY: -10 };
+                }
+
+                const { left, top } = this.element.getBoundingClientRect();
+
+                return {
+                    element,
+                    offsetX: event.clientX - left,
+                    offsetY: event.clientY - top,
+                };
+            },
             onDragStart: (event) => {
                 this._onDragStart.fire(event);
                 // A vetoed drag (`onWillDragPanel` called `preventDefault()`)

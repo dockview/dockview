@@ -504,6 +504,96 @@ describe('tab', () => {
         });
     });
 
+    describe('drag preview', () => {
+        afterEach(() => {
+            LocalSelectionTransfer.getInstance().clearData(
+                PanelTransfer.prototype
+            );
+        });
+
+        const createTab = (): Tab => {
+            const accessor = fromPartial<DockviewComponent>({
+                onDidOptionsChange: jest
+                    .fn()
+                    .mockReturnValue({ dispose: jest.fn() }),
+                id: 'componentId',
+                options: {},
+            });
+            const groupPanel = fromPartial<DockviewGroupPanel>({
+                id: 'groupId',
+            });
+
+            return new Tab(
+                { id: 'panelId' } as IDockviewPanel,
+                accessor,
+                groupPanel
+            );
+        };
+
+        test('anchors the HTML5 ghost at the grab point inside the tab', () => {
+            const cut = createTab();
+            jest.spyOn(cut.element, 'getBoundingClientRect').mockReturnValue({
+                left: 10,
+                top: 5,
+            } as DOMRect);
+
+            const setDragImage = jest.fn();
+            const event = Object.assign(new Event('dragstart'), {
+                clientX: 50,
+                clientY: 30,
+                dataTransfer: {
+                    setDragImage,
+                    setData: jest.fn(),
+                    items: { length: 0 },
+                },
+            });
+            fireEvent(cut.element, event);
+
+            expect(setDragImage).toHaveBeenCalledTimes(1);
+            const [ghost, x, y] = setDragImage.mock.calls[0];
+            expect(ghost.classList.contains('dv-tab-ghost-drag')).toBe(true);
+            expect(x).toBe(40);
+            expect(y).toBe(25);
+
+            cut.dispose();
+        });
+
+        test('keeps the 30/-10 offset for the pointer (touch) ghost', () => {
+            jest.useFakeTimers();
+            const cut = createTab();
+            jest.spyOn(cut.element, 'getBoundingClientRect').mockReturnValue({
+                left: 10,
+                top: 5,
+            } as DOMRect);
+
+            fireEvent.pointerDown(cut.element, {
+                pointerId: 1,
+                pointerType: 'touch',
+                clientX: 0,
+                clientY: 0,
+            });
+            jest.advanceTimersByTime(300);
+            fireEvent.pointerMove(window, {
+                pointerId: 1,
+                pointerType: 'touch',
+                clientX: 50,
+                clientY: 0,
+            });
+
+            // The HTML5 ghost of a previous test is only removed on the next
+            // tick, so take the ghost this drag just appended.
+            const ghosts =
+                document.querySelectorAll<HTMLElement>('.dv-tab-ghost-drag');
+            const ghost = ghosts[ghosts.length - 1];
+            expect(ghost).toBeDefined();
+            expect(ghost.style.transform).toBe('translate3d(-30px, 10px, 0)');
+
+            PointerDragController.getInstance().cancel();
+            cut.dispose();
+            jest.useRealTimers();
+        });
+    });
+
     describe('contextmenu event', () => {
         test('right-clicking a tab calls contextMenuService.show with the panel and group', () => {
             const showMock = jest.fn();
