@@ -109,6 +109,33 @@ describe('closeEmptyGroups', () => {
             expect(dockview.totalPanels).toBe(0);
         });
 
+        test("closeAllGroups() keeps an already-empty last group under noPanelsOverlay 'emptyGroup'", () => {
+            const dockview = createDockview({ noPanelsOverlay: 'emptyGroup' });
+            const p1 = dockview.addPanel({ id: 'p1', component: 'default' });
+            const g = p1.group;
+
+            p1.api.close();
+            expect(dockview.groups).toEqual([g]);
+
+            dockview.closeAllGroups();
+
+            expect(dockview.groups).toEqual([g]);
+            expect(dockview.totalPanels).toBe(0);
+        });
+
+        test('closeAllGroups() removes an already-empty last group by default', () => {
+            const dockview = createDockview({});
+            const p1 = dockview.addPanel({ id: 'p1', component: 'default' });
+            const g = p1.group;
+
+            dockview.api.removePanel(p1, { removeEmptyGroup: false });
+            expect(dockview.groups).toEqual([g]);
+
+            dockview.closeAllGroups();
+
+            expect(dockview.size).toBe(0);
+        });
+
         test('closeAllGroups() keeps the last grid group when an edge group is present', () => {
             const dockview = createDockview({ noPanelsOverlay: 'emptyGroup' });
             const { g2 } = twoGroups(dockview);

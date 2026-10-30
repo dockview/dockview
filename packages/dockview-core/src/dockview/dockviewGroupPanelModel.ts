@@ -1792,10 +1792,6 @@ export class DockviewGroupPanelModel
             });
         }
 
-        if (this._activePanel && this.panels.length === 0) {
-            this.doSetActivePanel(undefined);
-        }
-
         if (!options?.skipSetActive) {
             this.updateContainer();
         }
@@ -1826,6 +1822,12 @@ export class DockviewGroupPanelModel
 
         // Remove panel from its tab group (auto-destroys empty groups)
         this.removePanelFromTabGroup(panel.id);
+
+        // The active panel is always one of the group's panels: clear it
+        // before announcing the removal so listeners see the emptied group.
+        if (this._activePanel === panel && this._panels.length === 0) {
+            this.doSetActivePanel(undefined);
+        }
 
         this._onDidRemovePanel.fire({ panel });
     }
