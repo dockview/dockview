@@ -144,7 +144,7 @@ to `onDidChangeHistory` to keep them in sync as the stacks change.
 <DocRef declaration="DockviewApi" methods={['undo', 'redo', 'canUndo', 'canRedo', 'clearHistory', 'onDidChangeHistory']} />
 
 `onDidChangeHistory` fires whenever the undo/redo stacks change (on every push,
-undo, redo and clear) and carries the reactive state:
+undo, redo and clear, which its `reason` names) and carries the reactive state:
 
 <DocRef declaration="LayoutHistoryChangeEvent" />
 
