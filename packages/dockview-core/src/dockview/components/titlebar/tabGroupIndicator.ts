@@ -47,7 +47,7 @@ export interface TabGroupIndicatorContext {
 export interface ITabGroupIndicator {
     readonly underlines: ReadonlyMap<string, HTMLElement>;
     positionUnderlines(): void;
-    trackUnderlines(): void;
+    trackUnderlines(durationMs?: number): void;
     syncUnderlineElements(activeGroupIds: Set<string>): void;
     getUnderline(groupId: string): HTMLElement | undefined;
     dispose(): void;
@@ -81,15 +81,15 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
 
     /**
      * Continuously reposition underlines every frame for the duration
-     * of a tab transition (~200ms), so the underline tracks tab sizes.
+     * of a tab transition, so the underline tracks tab sizes.
      */
-    trackUnderlines(): void {
+    trackUnderlines(durationMs = 250): void {
         if (this._rafId !== null) {
             cancelAnimationFrame(this._rafId);
         }
 
         const start = performance.now();
-        const duration = 250; // slightly longer than transition to ensure we catch the end
+        const duration = durationMs;
 
         const tick = () => {
             this._positionUnderlinesSync();
@@ -311,9 +311,10 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
             const isAnimating =
                 tg.collapsed ||
                 tg.panelIds.some((pid) => {
-                    const te = tabMap.get(pid);
-                    return te?.value.element.classList.contains(
-                        'dv-tab--group-expanding'
+                    const cls = tabMap.get(pid)?.value.element.classList;
+                    return (
+                        cls?.contains('dv-tab--group-expanding') ||
+                        cls?.contains('dv-tab--group-collapsing')
                     );
                 });
 
