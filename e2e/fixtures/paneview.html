@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>dockview paneview e2e fixture</title>
+        <style>
+            html,
+            body,
+            #app {
+                margin: 0;
+                height: 100%;
+                width: 100%;
+            }
+        </style>
+        <link
+            rel="stylesheet"
+            href="/packages/dockview-core/dist/styles/dockview.css"
+        />
+        <script src="/packages/dockview/dist/dockview.js"></script>
+    </head>
+    <body>
+        <!-- A dark theme so `--dv-separator-border` is defined; otherwise the
+             border shorthand is invalid-at-computed-value and reads as 0. -->
+        <div id="app" class="dockview-theme-abyss"></div>
+        <script>
+            (function () {
+                const lib = window['dockview'];
+                const el = document.getElementById('app');
+                const paneview = new lib.PaneviewComponent(el, {
+                    createComponent: () => ({
+                        element: document.createElement('div'),
+                        init() {},
+                        layout() {},
+                        dispose() {},
+                        update() {},
+                    }),
+                });
+                paneview.layout(400, 600);
+                paneview.addPanel({ id: 'p1', component: 'default', title: 'P1' });
+                paneview.addPanel({ id: 'p2', component: 'default', title: 'P2' });
+                paneview.addPanel({ id: 'p3', component: 'default', title: 'P3' });
+                window.__ready = true;
+            })();
+        </script>
+    </body>
+</html>
