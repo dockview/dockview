@@ -13,12 +13,16 @@ import {
 } from '../dnd/droptarget';
 import { html5Backend, pointerBackend } from '../dnd/backend';
 import { getPanelData } from '../dnd/dataTransfer';
+import { getHitTestRoot } from '../dom';
 import {
     DockviewComponentOptions,
     isAnyEdgeGroupEnabled,
     isEdgeGroupEnabled,
 } from './options';
 import { defineModule } from './modules';
+
+type Edge = keyof EdgeThresholds;
+const EDGES: readonly Edge[] = ['left', 'right', 'top', 'bottom'];
 
 const DEFAULT_ACTIVATION = 10;
 const AUTO_EDGE_ACTIVATION = 32;
@@ -86,7 +90,7 @@ function resolveRootEdgeThresholds(
     if (!isBandWidened(options, hasEdgeDragReveal)) {
         return undefined;
     }
-    const band = (edge: keyof EdgeThresholds): number =>
+    const band = (edge: Edge): number =>
         isEdgeGroupEnabled(options.dockToEdgeGroups, edge)
             ? AUTO_EDGE_ACTIVATION
             : DEFAULT_ACTIVATION;
@@ -113,6 +117,25 @@ function createEdgeBandResolver(thresholds: EdgeThresholds): PositionResolver {
             return position ? { position, edge: false } : null;
         },
     };
+}
+
+const GROUP_HEADER_SELECTOR = '.dv-tabs-and-actions-container';
+
+/**
+ * Whether the pointer is over a group header. An HTML5 drag event targets the
+ * element under the pointer; a pointer-backend drag needs a hit-test.
+ */
+function isOverGroupHeader(
+    event: DragEvent | PointerEvent,
+    root: HTMLElement
+): boolean {
+    const element = event.type.startsWith('drag')
+        ? event.target
+        : getHitTestRoot(root).elementFromPoint?.(event.clientX, event.clientY);
+    return (
+        element instanceof Element &&
+        element.closest(GROUP_HEADER_SELECTOR) !== null
+    );
 }
 
 export interface IRootDropTargetHost {
@@ -157,6 +180,8 @@ export class RootDropTargetService implements IRootDropTargetService {
     private readonly _host: IRootDropTargetHost;
     /** Per-edge band, kept in step with the overlay model by `setOptions`. */
     private _edgeBandResolver: PositionResolver | undefined;
+    /** Edges given the widened band, where group headers win over it. */
+    private _widenedEdges: ReadonlySet<Position> = new Set();
 
     readonly onWillShowOverlay: Event<WillShowOverlayEvent>;
     readonly onDrop: Event<DroptargetEvent>;
@@ -167,6 +192,16 @@ export class RootDropTargetService implements IRootDropTargetService {
             event: DragEvent | PointerEvent,
             position: Position
         ): boolean => {
+            // A header on a widened edge is a drop target in its own right.
+            // The pointer backend reaches it first (innermost target wins); the
+            // HTML5 backend runs this capture listener first, so step aside.
+            if (
+                this._widenedEdges.has(position) &&
+                isOverGroupHeader(event, host.element)
+            ) {
+                return false;
+            }
+
             const data = getPanelData();
 
             if (data) {
@@ -272,6 +307,11 @@ export class RootDropTargetService implements IRootDropTargetService {
             this._edgeBandResolver = thresholds
                 ? createEdgeBandResolver(thresholds)
                 : undefined;
+            this._widenedEdges = new Set(
+                EDGES.filter(
+                    (edge) => thresholds?.[edge] === AUTO_EDGE_ACTIVATION
+                )
+            );
         }
     }
 

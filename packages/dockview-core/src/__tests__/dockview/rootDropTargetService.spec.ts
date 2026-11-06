@@ -106,7 +106,8 @@ describe('RootDropTargetService', () => {
         function resolveAt(
             options: Partial<DockviewComponentOptions>,
             clientX: number,
-            clientY: number
+            clientY: number,
+            over: 'layout' | 'header' | 'content' = 'layout'
         ): Position | undefined {
             const host = fromPartial<IRootDropTargetHost>({
                 ...createHost(options),
@@ -129,11 +130,22 @@ describe('RootDropTargetService', () => {
                 position = e.position;
             });
 
-            fireEvent.dragEnter(host.element);
-            fireEvent(
-                host.element,
-                createOffsetDragOverEvent({ clientX, clientY })
-            );
+            // The element under the pointer: the root itself, or something
+            // inside a group's header or content.
+            let target = host.element;
+            if (over !== 'layout') {
+                const container = document.createElement('div');
+                container.className =
+                    over === 'header'
+                        ? 'dv-tabs-and-actions-container'
+                        : 'dv-content-container';
+                target = document.createElement('div');
+                container.appendChild(target);
+                host.element.appendChild(container);
+            }
+
+            fireEvent.dragEnter(target);
+            fireEvent(target, createOffsetDragOverEvent({ clientX, clientY }));
 
             service.dispose();
             return position;
@@ -176,6 +188,41 @@ describe('RootDropTargetService', () => {
                 )
             ).toBe('top');
             expect(resolve).toHaveBeenCalled();
+        });
+
+        /**
+         * Near an enabled edge a group header wins over the root band, as it
+         * already does under the pointer backend (innermost target first). The
+         * HTML5 backend runs the root's capture listener first, so the root
+         * has to step aside itself.
+         */
+        describe('group headers on an enabled edge', () => {
+            const TOP = { dockToEdgeGroups: { top: true } };
+
+            test('the root declines over a header, in both sub-bands', () => {
+                expect(resolveAt(TOP, WIDTH / 2, 4, 'header')).toBeUndefined();
+                expect(resolveAt(TOP, WIDTH / 2, 20, 'header')).toBeUndefined();
+            });
+
+            test('the root still claims the band over panel content', () => {
+                expect(resolveAt(TOP, WIDTH / 2, 4, 'content')).toBe('top');
+                expect(resolveAt(TOP, WIDTH / 2, 20, 'content')).toBe('top');
+            });
+
+            test('a disabled edge keeps its default band over a header', () => {
+                expect(resolveAt(PER_EDGE, WIDTH / 2, 5, 'header')).toBe('top');
+            });
+
+            test('a custom `dndEdges` band is left alone', () => {
+                const custom: Partial<DockviewComponentOptions> = {
+                    ...TOP,
+                    dndEdges: {
+                        activationSize: { type: 'pixels', value: 32 },
+                        size: { type: 'pixels', value: 20 },
+                    },
+                };
+                expect(resolveAt(custom, WIDTH / 2, 20, 'header')).toBe('top');
+            });
         });
     });
 });

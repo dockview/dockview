@@ -6,12 +6,16 @@ import { test, expect, Page } from '@playwright/test';
  * to the enabled edges: a disabled edge keeps the default 10px band, or it
  * covers the tab bar of every group touching that edge.
  *
- * HTML5 backend: its `dragover` listeners run in the capture phase, so the
- * root target sees the event before any tab and claims it anywhere inside its
- * band. Real-browser only: the outcome depends on live header geometry.
+ * HTML5 backend unless stated: its `dragover` listeners run in the capture
+ * phase, so the root target sees the event before any tab. Real-browser only:
+ * the outcome depends on live header geometry.
  */
-const setup = async (page: Page, edges: unknown) => {
-    await page.goto('/e2e/fixtures/index.html?dnd=html5&compass=0');
+const setup = async (
+    page: Page,
+    edges: unknown,
+    dnd: 'html5' | 'pointer' = 'html5'
+) => {
+    await page.goto(`/e2e/fixtures/index.html?dnd=${dnd}&compass=0`);
     await page.waitForFunction(() => (window as any).__ready === true);
     await page.evaluate(
         (e) => (window as any).__dv.setupTopRowWithEdgeGroups(e),
@@ -78,25 +82,66 @@ test('a tab dropped on a top-row tab bar joins that group when the top edge is d
         .toEqual([['a1'], ['a2', 'b1', 'b2']]);
 });
 
-test('an enabled top edge still gets the widened band', async ({ page }) => {
-    await setup(page, { top: true });
+/**
+ * On an enabled edge a group header wins over the root band, in both sub-bands
+ * and under both backends, so a tab bar touching the edge stays a tab bar.
+ * The pointer backend already resolved the innermost target first; this pins
+ * HTML5 to the same outcome.
+ */
+for (const dnd of ['html5', 'pointer'] as const) {
+    for (const dy of [4, 20]) {
+        test(`${dnd}: a tab dropped ${dy}px into a tab bar on an enabled top edge joins that group`, async ({
+            page,
+        }) => {
+            await setup(page, { top: true }, dnd);
+
+            await dragTabOntoTab(page, 'a2', 'b1', dy);
+            await expect(
+                page.locator('.dv-drop-target-selection.dv-drop-target-top')
+            ).toHaveCount(0);
+            await expect(page.locator('.dv-auto-edge-band')).toHaveCount(0);
+            await page.mouse.up();
+
+            await expect
+                .poll(() => groupPanelIds(page))
+                .toEqual([['a1'], ['a2', 'b1', 'b2']]);
+            expect(
+                await page.evaluate(() =>
+                    (window as any).__dv.edgeGroupExists('top')
+                )
+            ).toBe(false);
+        });
+    }
+}
+
+test('an enabled edge still gets the widened band over panel content', async ({
+    page,
+}) => {
+    await setup(page, { left: true });
 
     const rootBox = (await page.locator('.dv-dockview').boundingBox())!;
-    const dst = await dragTabOntoTab(page, 'a2', 'b1', 20);
-    // Past the default 10px band, within the widened 32px one.
-    expect(dst.y + 20 - rootBox.y).toBeGreaterThan(10);
-    expect(dst.y + 20 - rootBox.y).toBeLessThan(32);
+    const src = (await page
+        .locator('.dv-tab', { hasText: /^b2$/ })
+        .boundingBox())!;
+    await page.mouse.move(src.x + 10, src.y + src.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(src.x + 18, src.y + src.height / 2, { steps: 3 });
+    // Past the default 10px band and the 16px outer band, within the 32px one.
+    await page.mouse.move(rootBox.x + 20, rootBox.y + rootBox.height / 2, {
+        steps: 20,
+    });
     await expect(
-        page.locator('.dv-drop-target-selection.dv-drop-target-top')
+        page.locator('.dv-drop-target-selection.dv-drop-target-left')
     ).toHaveCount(1);
     await page.mouse.up();
 
-    // Dropped in the inner sub-band: a new full-width group above the row.
+    // The inner sub-band: a grid split at the left edge, not an edge group.
     await expect
         .poll(() => groupPanelIds(page))
-        .toEqual([['a1'], ['b1', 'b2'], ['a2']]);
-    // A grid split above the row.
-    expect(await groupTop(page, 'a2')).toBeLessThan(await groupTop(page, 'b1'));
+        .toEqual([['a1', 'a2'], ['b1'], ['b2']]);
+    expect(
+        await page.evaluate(() => (window as any).__dv.edgeGroupExists('left'))
+    ).toBe(false);
 });
 
 test('a drop hugging a disabled top edge splits the grid, it does not create an edge group', async ({
