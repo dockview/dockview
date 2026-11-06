@@ -6,6 +6,20 @@ import { GridviewAngularComponent } from '../lib/gridview/gridview-angular.compo
 import { GridviewApi } from 'dockview';
 import { setupTestBed, getTestComponents } from './__test_utils__/test-helpers';
 
+/** Records every instance so the test can read the inputs it was given. */
+@Component({
+    standalone: true,
+    selector: 'container-api-probe',
+    template: '<div class="container-api-probe"></div>',
+})
+class ContainerApiProbeComponent {
+    static instances: ContainerApiProbeComponent[] = [];
+    containerApi?: GridviewApi;
+    constructor() {
+        ContainerApiProbeComponent.instances.push(this);
+    }
+}
+
 describe('GridviewAngularComponent', () => {
     let component: GridviewAngularComponent;
     let fixture: ComponentFixture<GridviewAngularComponent>;
@@ -209,6 +223,21 @@ describe('GridviewAngularComponent', () => {
             className: 'test-class',
             hideBorders: true,
         });
+    });
+
+    it('passes containerApi to panel components', () => {
+        ContainerApiProbeComponent.instances = [];
+        component.components = { probe: ContainerApiProbeComponent };
+        fixture.detectChanges();
+
+        const api = component.getGridviewApi()!;
+        api.layout(500, 500);
+        api.addPanel({ id: 'p1', component: 'probe' });
+
+        expect(ContainerApiProbeComponent.instances).toHaveLength(1);
+        expect(
+            ContainerApiProbeComponent.instances[0].containerApi
+        ).toBeInstanceOf(GridviewApi);
     });
 });
 

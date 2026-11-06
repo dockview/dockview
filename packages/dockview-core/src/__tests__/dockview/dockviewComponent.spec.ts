@@ -605,6 +605,83 @@ describe('dockviewComponent', () => {
     });
 
     describe('move group', () => {
+        describe('onto its own edge', () => {
+            beforeEach(() => dockview.layout(1000, 1000));
+
+            /** The layout as serialized, with the groups still in it. */
+            function snapshot(): string {
+                return JSON.stringify(dockview.toJSON());
+            }
+
+            test('moveGroup is a no-op and fires no move event', () => {
+                const p1 = dockview.addPanel({
+                    id: 'p1',
+                    component: 'default',
+                });
+                const g = p1.group;
+                const moved: unknown[] = [];
+                dockview.onDidMovePanel((e) => moved.push(e));
+                const before = snapshot();
+
+                expect(() =>
+                    dockview.moveGroup({
+                        from: { group: g },
+                        to: { group: g, position: 'right' },
+                    })
+                ).not.toThrow();
+
+                expect(dockview.groups).toEqual([g]);
+                expect(p1.group).toBe(g);
+                expect(getGridLocation(g.element)).toEqual([0]);
+                expect(snapshot()).toBe(before);
+                expect(moved).toHaveLength(0);
+            });
+
+            test('moveGroupOrPanel with only a groupId is a no-op', () => {
+                const p1 = dockview.addPanel({
+                    id: 'p1',
+                    component: 'default',
+                });
+                const g = p1.group;
+                const before = snapshot();
+
+                expect(() =>
+                    dockview.moveGroupOrPanel({
+                        from: { groupId: g.id },
+                        to: { group: g, position: 'right' },
+                    })
+                ).not.toThrow();
+
+                expect(dockview.groups).toEqual([g]);
+                expect(snapshot()).toBe(before);
+            });
+
+            test('across the other axis with a sibling group is a no-op', () => {
+                const p1 = dockview.addPanel({
+                    id: 'p1',
+                    component: 'default',
+                });
+                const p2 = dockview.addPanel({
+                    id: 'p2',
+                    component: 'default',
+                    position: { referencePanel: 'p1', direction: 'right' },
+                });
+                const g = p1.group;
+                const before = snapshot();
+
+                expect(() =>
+                    dockview.moveGroup({
+                        from: { group: g },
+                        to: { group: g, position: 'bottom' },
+                    })
+                ).not.toThrow();
+
+                expect(dockview.groups).toEqual([g, p2.group]);
+                expect(getGridLocation(g.element)).toEqual([0]);
+                expect(snapshot()).toBe(before);
+            });
+        });
+
         test('that moving a popup group into the grid manages view disposals correctly', async () => {
             window.open = () => setupMockWindow();
 
@@ -14731,6 +14808,42 @@ describe('dockviewComponent', () => {
             }
             return dv;
         }
+
+        test('addGroup relative to an edge group with a direction throws before changing anything', () => {
+            const c = document.createElement('div');
+            const dv = createFixedDockview(c, ['left']);
+            dv.layout(1000, 500);
+            dv.addPanel({ id: 'p1', component: 'default' });
+            const edgePanel = dv.addPanel({
+                id: 'e1',
+                component: 'default',
+                position: { referenceGroup: 'left-group' },
+            });
+            const edgeGroup = dv.getEdgeGroupPanel('left')!;
+            expect(edgePanel.group).toBe(edgeGroup);
+            const groupCount = dv.groups.length;
+            const before = JSON.stringify(dv.toJSON());
+            const added: unknown[] = [];
+            dv.onDidAddGroup((g) => added.push(g));
+
+            expect(() =>
+                dv.addGroup({ referenceGroup: edgeGroup, direction: 'right' })
+            ).toThrow(/edge group/);
+            expect(() =>
+                dv.addGroup({ referencePanel: edgePanel, direction: 'below' })
+            ).toThrow(/edge group/);
+            expect(() =>
+                dv.addGroup({
+                    referenceGroup: 'left-group',
+                    direction: 'above',
+                })
+            ).toThrow(/edge group/);
+
+            expect(dv.groups).toHaveLength(groupCount);
+            expect(added).toHaveLength(0);
+            expect(JSON.stringify(dv.toJSON())).toBe(before);
+            dv.dispose();
+        });
 
         test('getEdgeGroup returns DockviewGroupPanelApi for configured positions', () => {
             const c = document.createElement('div');

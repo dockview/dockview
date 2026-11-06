@@ -4,7 +4,12 @@ import {
     EnvironmentInjector,
     TemplateRef,
 } from '@angular/core';
-import { SplitviewPanel, IFrameworkPart } from 'dockview';
+import {
+    SplitviewPanel,
+    SplitviewApi,
+    PanelViewInitParameters,
+    IFrameworkPart,
+} from 'dockview';
 import { AngularRenderer } from '../utils/angular-renderer';
 
 export class AngularSplitviewPanel extends SplitviewPanel {
@@ -27,6 +32,9 @@ export class AngularSplitviewPanel extends SplitviewPanel {
         renderer.init({
             params: this._params?.params ?? {},
             api: this.api,
+            containerApi: new SplitviewApi(
+                (this._params as PanelViewInitParameters).accessor
+            ),
         });
         this.element.appendChild(renderer.element);
         return renderer;

@@ -341,5 +341,48 @@ describe('dockviewGroupPanel', () => {
 
             dockview.dispose();
         });
+
+        test('a group that is emptied but kept drops the removed panel constraints', () => {
+            const { dockview, p1, p2 } = createDockview();
+            const group = p2.group;
+            expect(dockview.minimumHeight).toBe(400);
+
+            let changes = 0;
+            group.onDidChange(() => changes++);
+
+            // p1 is not active: nothing the grid sees changes
+            dockview.removePanel(p1);
+            expect(changes).toBe(0);
+            expect(dockview.minimumHeight).toBe(400);
+
+            dockview.removePanel(p2, { removeEmptyGroup: false });
+
+            expect(dockview.groups).toContain(group);
+            expect(group.panels).toHaveLength(0);
+            expect(group.minimumHeight).toBe(100);
+            expect(changes).toBe(1);
+            expect(dockview.minimumHeight).toBe(200);
+
+            dockview.dispose();
+        });
+
+        test('removing the active panel notifies the grid exactly once', () => {
+            const { dockview, p1, p2 } = createDockview();
+            const group = p2.group;
+            expect(dockview.minimumHeight).toBe(400);
+
+            let changes = 0;
+            group.onDidChange(() => changes++);
+
+            // p2 (min 300) leaves and p1 (min 100) takes over
+            dockview.removePanel(p2);
+
+            expect(group.activePanel).toBe(p1);
+            expect(group.minimumHeight).toBe(100);
+            expect(changes).toBe(1);
+            expect(dockview.minimumHeight).toBe(200);
+
+            dockview.dispose();
+        });
     });
 });
