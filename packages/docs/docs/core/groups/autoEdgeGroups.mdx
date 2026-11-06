@@ -71,7 +71,9 @@ While dragging a panel toward the layout edge there are two drop zones:
 
 The bands apply only to the edges you enable. An edge left out of `dockToEdgeGroups` keeps the standard `dndEdges` drop zone.
 
-Where a group's tab bar touches an enabled edge, the tab bar keeps working as a tab bar: dropping on it adds the panel to that group. To dock over it, use the **edge drop strip**, a thin drop zone along the outermost edge of the layout that appears on each enabled edge while you drag and sits above the tab bars. It is 8px thick by default; set `--dv-edge-drop-strip-size` to change it (up to 16px). The strip is not shown when you supply your own `dropPositionResolver`.
+Where a group's tab bar touches an enabled edge, the tab bar keeps working as a tab bar: dropping on it adds the panel to that group. To dock over it, use the **edge drop strip**, a thin drop zone along the outermost edge of the layout that appears on each enabled edge while you drag and sits above the tab bars. It is 8px thick by default; set `--dv-edge-drop-strip-size` to change it. The strip is not shown when you supply your own `dropPositionResolver`.
+
+In an `onWillDrop` listener, `event.edgeGroup` is `true` for a drop that will dock as an edge group, and `false` for one that splits the layout.
 
 A newly revealed edge group is created **collapsed**: the drop adds a tab to its strip rather than popping the group open. Dropping onto an edge that already exists simply adds the panel to its tabs and leaves the group's collapsed/expanded state untouched. Combine with [auto-hide edge groups](/docs/core/groups/autoHideEdgeGroups) so a revealed edge peeks open on click.
 

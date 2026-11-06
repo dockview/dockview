@@ -124,6 +124,29 @@ for (const dnd of ['html5', 'pointer'] as const) {
     });
 }
 
+for (const dnd of ['html5', 'pointer'] as const) {
+    test(`${dnd}: a themed strip wider than the 16px band docks across its width`, async ({
+        page,
+    }) => {
+        await setup(page, { top: true }, dnd);
+        await page.addStyleTag({
+            content:
+                '.dv-shell.dockview-theme-abyss { --dv-edge-drop-strip-size: 24px; }',
+        });
+
+        await dragTabOntoTab(page, 'a2', 'b1', 20);
+        await page.mouse.up();
+
+        await expect
+            .poll(() =>
+                page.evaluate(() =>
+                    (window as any).__dv.edgeGroupPanelIds('top')
+                )
+            )
+            .toEqual(['a2']);
+    });
+}
+
 test('no edge drop strip is shown on a disabled edge', async ({ page }) => {
     await setup(page, { left: true, right: true, bottom: true });
 

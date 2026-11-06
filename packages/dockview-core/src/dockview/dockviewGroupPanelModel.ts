@@ -165,9 +165,16 @@ export class DockviewDidDropEvent extends DockviewEvent {
 
 export class DockviewWillDropEvent extends DockviewDidDropEvent {
     private readonly _kind: DockviewGroupDropLocation;
+    private readonly _edgeGroup: boolean;
 
     get kind(): DockviewGroupDropLocation {
         return this._kind;
+    }
+
+    /** A layout-edge drop that docks as an edge group (dock-to-edge), rather
+     *  than splitting the layout. */
+    get edgeGroup(): boolean {
+        return this._edgeGroup;
     }
 
     constructor(options: {
@@ -179,10 +186,12 @@ export class DockviewWillDropEvent extends DockviewDidDropEvent {
         kind: DockviewGroupDropLocation;
         group?: DockviewGroupPanel;
         api: DockviewApi;
+        edgeGroup?: boolean;
     }) {
         super(options);
 
         this._kind = options.kind;
+        this._edgeGroup = !!options.edgeGroup;
     }
 }
 
@@ -729,7 +738,8 @@ export class DockviewGroupPanelModel
                     event.nativeEvent,
                     event.position,
                     undefined,
-                    event.edge
+                    event.edge,
+                    event.edgeGroup
                 );
             }),
             this.contentContainer.pointerDropTarget.onDrop((event) => {
@@ -738,7 +748,8 @@ export class DockviewGroupPanelModel
                     event.nativeEvent,
                     event.position,
                     undefined,
-                    event.edge
+                    event.edge,
+                    event.edgeGroup
                 );
             }),
             this.tabsContainer.onWillShowOverlay((event) => {
@@ -2007,7 +2018,8 @@ export class DockviewGroupPanelModel
         event: DragEvent | PointerEvent,
         position: Position,
         index?: number,
-        edge?: boolean
+        edge?: boolean,
+        edgeGroup?: boolean
     ): void {
         if (this.locked === 'no-drop-target') {
             return;
@@ -2016,7 +2028,7 @@ export class DockviewGroupPanelModel
         // An `edge` content drop (a resolver's outer "dock to the layout edge"
         // cell) docks against the whole layout, not this group.
         if (type === 'content' && edge) {
-            this.accessor.dockToLayoutEdge(event, position);
+            this.accessor.dockToLayoutEdge(event, position, edgeGroup);
             return;
         }
 

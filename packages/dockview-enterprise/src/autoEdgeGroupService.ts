@@ -329,15 +329,14 @@ export class AutoEdgeGroupService
     }
 
     private _onWillShowOverlay(e: DockviewWillShowOverlayLocationEvent): void {
-        // Show the edge-group indicator line iff the pointer is in the true
-        // outer band, purely by depth, so it never lights up for a compass
-        // outer-ring cell (grid-edge dock, further in) or a normal group split.
+        // Show the edge-group indicator line for an edge-group cell (the edge
+        // drop strip), else iff the pointer is in the true outer band, so it
+        // never lights up for a compass outer-ring cell or a normal split.
         if (!this._isEdgeEnabled(e.position)) {
             this._hide();
             return;
         }
-        const rect = this.host.getDropZoneRect();
-        if (edgeDepth(e.position, e.nativeEvent, rect) <= OUTER_BAND) {
+        if (e.edgeGroup || this._inOuterBand(e.position, e.nativeEvent)) {
             this._show(e.position);
         } else {
             this._hide();
@@ -353,18 +352,28 @@ export class AutoEdgeGroupService
         if (!data) {
             return;
         }
-        const rect = this.host.getDropZoneRect();
-        if (edgeDepth(e.position, e.nativeEvent, rect) > OUTER_BAND) {
+        if (!e.edgeGroup && !this._inOuterBand(e.position, e.nativeEvent)) {
             // Inner band (root path) → let core split the grid.
             return;
         }
-        // Outer band → we own it. Preempt the core commit and reveal the edge
-        // group. Revealed edges come in as pinnable tool windows (auto-hide).
+        // An edge-group drop (the strip) or the outer band → we own it. Preempt
+        // the core commit and reveal the edge group. Revealed edges come in as
+        // pinnable tool windows (auto-hide).
         e.preventDefault();
         this.host.revealEdgeGroupWithData(
             e.position,
             { groupId: data.groupId, panelId: data.panelId ?? undefined },
             { autoHide: true }
+        );
+    }
+
+    private _inOuterBand(
+        position: EdgeGroupPosition,
+        event: DragEvent | PointerEvent
+    ): boolean {
+        return (
+            edgeDepth(position, event, this.host.getDropZoneRect()) <=
+            OUTER_BAND
         );
     }
 
