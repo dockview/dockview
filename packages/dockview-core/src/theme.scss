@@ -12,6 +12,9 @@
     // that blank `--dv-drag-over-background-color` (e.g. the spaced themes);
     // override per theme to match.
     --dv-edge-dock-indicator-color: rgba(56, 139, 253, 0.9);
+    // Thickness of the drag-time edge drop strip (auto edge groups): the
+    // outermost band of an enabled edge that docks over group headers.
+    --dv-edge-drop-strip-size: 8px;
     --dv-tabs-container-scrollbar-color: #888;
     --dv-icon-hover-background-color: rgba(90, 93, 94, 0.31);
     --dv-floating-box-shadow:

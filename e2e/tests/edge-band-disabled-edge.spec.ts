@@ -83,36 +83,68 @@ test('a tab dropped on a top-row tab bar joins that group when the top edge is d
 });
 
 /**
- * On an enabled edge a group header wins over the root band, in both sub-bands
- * and under both backends, so a tab bar touching the edge stays a tab bar.
- * The pointer backend already resolved the innermost target first; this pins
- * HTML5 to the same outcome.
+ * On an enabled edge a group header wins over the root band, under both
+ * backends, so a tab bar touching the edge stays a tab bar. Docking stays
+ * reachable over it through the drag-time edge drop strip: the outermost 8px
+ * of the content area, layered above the headers.
  */
 for (const dnd of ['html5', 'pointer'] as const) {
-    for (const dy of [4, 20]) {
-        test(`${dnd}: a tab dropped ${dy}px into a tab bar on an enabled top edge joins that group`, async ({
-            page,
-        }) => {
-            await setup(page, { top: true }, dnd);
+    test(`${dnd}: a tab dropped 20px into a tab bar on an enabled top edge joins that group`, async ({
+        page,
+    }) => {
+        await setup(page, { top: true }, dnd);
 
-            await dragTabOntoTab(page, 'a2', 'b1', dy);
-            await expect(
-                page.locator('.dv-drop-target-selection.dv-drop-target-top')
-            ).toHaveCount(0);
-            await expect(page.locator('.dv-auto-edge-band')).toHaveCount(0);
-            await page.mouse.up();
+        await dragTabOntoTab(page, 'a2', 'b1', 20);
+        await expect(
+            page.locator('.dv-drop-target-selection.dv-drop-target-top')
+        ).toHaveCount(0);
+        await expect(page.locator('.dv-auto-edge-band')).toHaveCount(0);
+        await page.mouse.up();
 
-            await expect
-                .poll(() => groupPanelIds(page))
-                .toEqual([['a1'], ['a2', 'b1', 'b2']]);
-            expect(
-                await page.evaluate(() =>
-                    (window as any).__dv.edgeGroupExists('top')
+        await expect
+            .poll(() => groupPanelIds(page))
+            .toEqual([['a1'], ['a2', 'b1', 'b2']]);
+        expect(
+            await page.evaluate(() =>
+                (window as any).__dv.edgeGroupExists('top')
+            )
+        ).toBe(false);
+    });
+
+    test(`${dnd}: a tab dropped on the edge strip over a top-row header docks a top edge group`, async ({
+        page,
+    }) => {
+        await setup(page, { top: true }, dnd);
+
+        await dragTabOntoTab(page, 'a2', 'b1', 3);
+        await expect(page.locator('.dv-edge-drop-strip')).toHaveCount(1);
+        await expect(page.locator('.dv-auto-edge-band')).toBeVisible();
+        await page.mouse.up();
+
+        await expect
+            .poll(() =>
+                page.evaluate(() =>
+                    (window as any).__dv.edgeGroupPanelIds('top')
                 )
-            ).toBe(false);
-        });
-    }
+            )
+            .toEqual(['a2']);
+        // The strips are gone once the drag ends.
+        await expect(page.locator('.dv-edge-drop-strip')).toHaveCount(0);
+    });
 }
+
+test('no edge drop strip is shown on a disabled edge', async ({ page }) => {
+    await setup(page, { left: true, right: true, bottom: true });
+
+    await dragTabOntoTab(page, 'a2', 'b1', 3);
+    const positions = await page.evaluate(() =>
+        Array.from(
+            document.querySelectorAll<HTMLElement>('.dv-edge-drop-strip')
+        ).map((el) => el.dataset.position)
+    );
+    await page.mouse.up();
+    expect(positions.sort()).toEqual(['bottom', 'left', 'right']);
+});
 
 test('an enabled edge still gets the widened band over panel content', async ({
     page,

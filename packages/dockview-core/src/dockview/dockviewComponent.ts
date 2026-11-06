@@ -14,6 +14,9 @@ import {
 } from '../gridview/gridview';
 import {
     directionToPosition,
+    DroptargetEvent,
+    DroptargetOptions,
+    WillShowOverlayEvent,
     DroptargetOverlayModel,
     Position,
     PositionResolver,
@@ -140,7 +143,7 @@ import { StrictEventsSequencing } from './strictEventsSequencing';
 import { PopupService } from './components/popupService';
 import { IRootDropTargetHost } from './rootDropTargetService';
 import { ILiveRegionHost } from './liveRegionService';
-import { IDragGhostSpec } from '../dnd/backend';
+import { html5Backend, IDragGhostSpec, pointerBackend } from '../dnd/backend';
 import { DropTargetAnchorContainer } from '../dnd/dropTargetAnchorContainer';
 import { themeAbyss } from './theme';
 import {
@@ -1205,6 +1208,60 @@ export class DockviewComponent
     }
 
     /**
+     * Route a layout-edge drop target's events: its overlay raises the public
+     * `kind: 'edge'` overlay event and its drop docks at the layout edge.
+     */
+    private wireEdgeDropTarget(target: {
+        readonly onWillShowOverlay: Event<WillShowOverlayEvent>;
+        readonly onDrop: Event<DroptargetEvent>;
+    }): IDisposable[] {
+        return [
+            target.onWillShowOverlay((event) => {
+                if (this.gridview.length > 0 && event.position === 'center') {
+                    // option only available when no panels in primary grid
+                    return;
+                }
+                this._onWillShowOverlay.fire(
+                    new DockviewWillShowOverlayLocationEvent(event, {
+                        kind: 'edge',
+                        panel: undefined,
+                        api: this._api,
+                        group: undefined,
+                        getData: getPanelData,
+                    })
+                );
+            }),
+            target.onDrop((event) =>
+                this.dockToLayoutEdge(event.nativeEvent, event.position)
+            ),
+        ];
+    }
+
+    createEdgeDropTarget(
+        element: HTMLElement,
+        position: EdgeGroupPosition
+    ): IDisposable {
+        const options: DroptargetOptions = {
+            acceptedTargetZones: [position],
+            canDisplayOverlay: () => getPanelData()?.viewId === this.id,
+            // An `edge` cell: the target keeps the position for the drop but
+            // renders no overlay; the caller owns the highlight.
+            getPositionResolver: () => ({
+                resolve: () => ({ position, edge: true }),
+            }),
+        };
+        const targets = [
+            html5Backend.createDropTarget(element, options),
+            pointerBackend.createDropTarget(element, options),
+        ];
+        const disposables = new CompositeDisposable(...targets);
+        for (const target of targets) {
+            disposables.addDisposables(...this.wireEdgeDropTarget(target));
+        }
+        return disposables;
+    }
+
+    /**
      * Dock the dragged item against the whole-layout edge at `position` (the
      * orthogonalized root group), as the layout-edge drop zones do. Shared by
      * the root drop target and by an `edge`-flagged drop on a group content
@@ -1890,30 +1947,7 @@ export class DockviewComponent
         // the module is independently removable.
         const rootDropTarget = this._rootDropTargetService;
         if (rootDropTarget) {
-            this.addDisposables(
-                rootDropTarget.onWillShowOverlay((event) => {
-                    if (
-                        this.gridview.length > 0 &&
-                        event.position === 'center'
-                    ) {
-                        // option only available when no panels in primary grid
-                        return;
-                    }
-
-                    this._onWillShowOverlay.fire(
-                        new DockviewWillShowOverlayLocationEvent(event, {
-                            kind: 'edge',
-                            panel: undefined,
-                            api: this._api,
-                            group: undefined,
-                            getData: getPanelData,
-                        })
-                    );
-                }),
-                rootDropTarget.onDrop((event) =>
-                    this.dockToLayoutEdge(event.nativeEvent, event.position)
-                )
-            );
+            this.addDisposables(...this.wireEdgeDropTarget(rootDropTarget));
         }
 
         // Final module wiring: runs after the host is fully constructed.
