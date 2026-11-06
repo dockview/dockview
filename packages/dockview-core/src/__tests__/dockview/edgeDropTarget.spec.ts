@@ -18,13 +18,8 @@ class TestPanel implements IContentRenderer {
     }
 }
 
-/**
- * `createEdgeDropTarget` makes an arbitrary element (the drag-time edge drop
- * strip) behave as the layout-edge drop zone for one edge: it raises the same
- * `kind: 'edge'` overlay event and commits through `dockToLayoutEdge`, so
- * `onWillDrop` listeners and the edge-group routing see a strip drop exactly as
- * they see a root edge drop.
- */
+/** `createEdgeDropTarget` routes like the root edge band: a `kind: 'edge'`
+ *  overlay event, committed through `dockToLayoutEdge`. */
 describe('createEdgeDropTarget', () => {
     const transfer = LocalSelectionTransfer.getInstance<PanelTransfer>();
     let dockview: DockviewComponent;

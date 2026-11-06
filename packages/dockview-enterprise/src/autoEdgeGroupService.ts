@@ -103,11 +103,10 @@ function defaultQuadrant(
  * {@link PositionResolver} installed on the group content drop targets (the
  * same mechanism the DnD compass uses), so it works without the
  * compass. Over an empty grid it also handles the root edge target's
- * `kind: 'edge'` overlays directly. While a drag is in progress it also mounts
- * an edge drop strip on each enabled edge, above the group headers, so the
- * edge stays reachable where a tab bar touches it. It never `preventDefault`s the overlay
- * (that would clear the drop state), only draws its highlight on top and
- * preempts the commit at `onWillDrop`.
+ * `kind: 'edge'` overlays directly. During a drag it mounts an edge drop strip
+ * on each enabled edge, above the headers. It never `preventDefault`s the
+ * overlay (that would clear the drop state), only draws its highlight on top
+ * and preempts the commit at `onWillDrop`.
  */
 export class AutoEdgeGroupService
     extends CompositeDisposable
@@ -160,12 +159,8 @@ export class AutoEdgeGroupService
         );
     }
 
-    /**
-     * Mount the edge drop strips once a drag of this dock has started: one per
-     * enabled edge, along the content area, above the group headers. Deferred
-     * a tick because mutating the DOM inside `dragstart` can abort an HTML5
-     * drag.
-     */
+    /** Deferred a tick: mutating the DOM in `dragstart` can abort an HTML5
+     *  drag. */
     private _scheduleStrips(nativeEvent: DragEvent | PointerEvent): void {
         clearTimeout(this._mountTimer);
         this._mountTimer = setTimeout(() => {
@@ -195,9 +190,8 @@ export class AutoEdgeGroupService
             }
         }
 
-        // Removed a tick after the drag ends, so the drop that ended it is
-        // still delivered to the strip under the pointer. A drag that starts in
-        // a popout ends in the popout's document.
+        // Removed a tick after the drag ends so the final drop still lands.
+        // A popout drag ends in the popout's document.
         const isHtml5 = dragStart.type.startsWith('drag');
         const endEvents = isHtml5 ? HTML5_DRAG_END : POINTER_DRAG_END;
         const pointerId = isHtml5
@@ -252,8 +246,7 @@ export class AutoEdgeGroupService
         element.className = `dv-edge-drop-strip dv-edge-drop-strip--${position}`;
         element.dataset.position = position;
 
-        // The thickness (and the bottom / right offset) come from the
-        // stylesheet.
+        // Thickness and the bottom / right offset come from the stylesheet.
         const { left, top, width, height } = this._contentArea();
         element.style.left = `${position === 'right' ? left + width : left}px`;
         element.style.top = `${position === 'bottom' ? top + height : top}px`;
@@ -265,8 +258,7 @@ export class AutoEdgeGroupService
         return element;
     }
 
-    /** The content area (the drop zone) in overlayRoot-local coordinates; it
-     *  is inset when edge groups are present. */
+    /** The content area in overlayRoot-local coordinates. */
     private _contentArea(): {
         left: number;
         top: number;

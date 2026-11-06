@@ -1,14 +1,9 @@
 import { test, expect, Page } from '@playwright/test';
 
 /**
- * `dockToEdgeGroups` widens the root edge activation band so the drag-reveal
- * affordance's outer and inner sub-bands both fit. The widening applies only
- * to the enabled edges: a disabled edge keeps the default 10px band, or it
- * covers the tab bar of every group touching that edge.
- *
- * HTML5 backend unless stated: its `dragover` listeners run in the capture
- * phase, so the root target sees the event before any tab. Real-browser only:
- * the outcome depends on live header geometry.
+ * Root edge band vs. tab bars touching the layout edge, with `dockToEdgeGroups`.
+ * HTML5 backend unless stated (its capture-phase `dragover` reaches the root
+ * before any tab). Real-browser only: depends on live header geometry.
  */
 const setup = async (
     page: Page,
@@ -82,12 +77,8 @@ test('a tab dropped on a top-row tab bar joins that group when the top edge is d
         .toEqual([['a1'], ['a2', 'b1', 'b2']]);
 });
 
-/**
- * On an enabled edge a group header wins over the root band, under both
- * backends, so a tab bar touching the edge stays a tab bar. Docking stays
- * reachable over it through the drag-time edge drop strip: the outermost 8px
- * of the content area, layered above the headers.
- */
+/** On an enabled edge the tab bar wins; the 8px edge drop strip above it
+ *  still docks. */
 for (const dnd of ['html5', 'pointer'] as const) {
     test(`${dnd}: a tab dropped 20px into a tab bar on an enabled top edge joins that group`, async ({
         page,

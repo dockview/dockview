@@ -510,14 +510,11 @@ export interface IAutoEdgeGroupHost {
     /** Viewport rect of the docked content area (the drop-target element), to
      *  classify a pointer's edge band and position the highlight. */
     getDropZoneRect(): DOMRect;
-    /** Fire when a panel / group drag starts in this dock; the affordance
-     *  mounts its edge drop strips for the duration of the drag. */
+    /** A panel / group drag of this dock is starting. */
     readonly onWillDragPanel: Event<TabDragEvent>;
     readonly onWillDragGroup: Event<GroupDragEvent>;
-    /** Make `element` a drop zone for the layout edge at `position`, under both
-     *  DnD backends: it raises the `kind: 'edge'` overlay event and commits
-     *  through the layout-edge drop, exactly as the root edge band does. It
-     *  renders nothing itself. */
+    /** Make `element` a layout-edge drop zone for `position` in both DnD
+     *  backends, routed like the root edge band. Renders nothing. */
     createEdgeDropTarget(
         element: HTMLElement,
         position: EdgeGroupPosition

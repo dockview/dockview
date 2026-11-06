@@ -32,11 +32,9 @@ const DEFAULT_ROOT_OVERLAY_MODEL: DroptargetOverlayModel = {
     size: { type: 'pixels', value: 20 },
 };
 
-// The two-band drag-reveal affordance needs room for a distinct outer ("dock as
-// edge group") and inner ("split the grid") sub-band, so the edge activation
-// band widens when it is present. Only edges enabled in `dockToEdgeGroups` get
-// the wider band (see `resolveRootEdgeThresholds`); `activationSize` here is
-// the widest of them.
+// Widened band for the drag-reveal affordance's outer ("dock") and inner
+// ("split") sub-bands. Applies to enabled edges only (see
+// `resolveRootEdgeThresholds`).
 const AUTO_EDGE_ROOT_OVERLAY_MODEL: DroptargetOverlayModel = {
     activationSize: { type: 'pixels', value: AUTO_EDGE_ACTIVATION },
     size: { type: 'pixels', value: 20 },
@@ -78,10 +76,8 @@ function resolveRootOverlayModel(
 }
 
 /**
- * Per-edge activation thresholds while the widened band is in effect, else
- * `undefined` (the overlay model's uniform `activationSize` applies). A
- * disabled edge keeps the default band: widened, it would cover the headers of
- * groups touching that edge for no edge-group behaviour.
+ * Per-edge thresholds while the band is widened, else `undefined`. Disabled
+ * edges keep the default band.
  */
 function resolveRootEdgeThresholds(
     options: Pick<DockviewComponentOptions, 'dndEdges' | 'dockToEdgeGroups'>,
@@ -192,9 +188,8 @@ export class RootDropTargetService implements IRootDropTargetService {
             event: DragEvent | PointerEvent,
             position: Position
         ): boolean => {
-            // A header on a widened edge is a drop target in its own right.
-            // The pointer backend reaches it first (innermost target wins); the
-            // HTML5 backend runs this capture listener first, so step aside.
+            // Headers win on widened edges. The HTML5 backend runs this capture
+            // listener before the header's, so step aside.
             if (
                 this._widenedEdges.has(position) &&
                 isOverGroupHeader(event, host.element)

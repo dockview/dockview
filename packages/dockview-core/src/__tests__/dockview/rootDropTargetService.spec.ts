@@ -93,12 +93,8 @@ describe('RootDropTargetService', () => {
         service.dispose();
     });
 
-    /**
-     * With the drag-reveal affordance registered, `dockToEdgeGroups` widens the
-     * root band so the affordance's outer and inner sub-bands both fit. Only the
-     * enabled edges need that room; a disabled edge keeps the default 10px band,
-     * or it would cover the headers of groups touching that edge.
-     */
+    /** With the drag-reveal affordance, only enabled edges get the widened
+     *  band; disabled edges keep the default 10px. */
     describe('edge activation band with the drag-reveal affordance', () => {
         const WIDTH = 1000;
         const HEIGHT = 600;
@@ -130,8 +126,7 @@ describe('RootDropTargetService', () => {
                 position = e.position;
             });
 
-            // The element under the pointer: the root itself, or something
-            // inside a group's header or content.
+            // The element under the pointer.
             let target = host.element;
             if (over !== 'layout') {
                 const container = document.createElement('div');
@@ -190,12 +185,8 @@ describe('RootDropTargetService', () => {
             expect(resolve).toHaveBeenCalled();
         });
 
-        /**
-         * Near an enabled edge a group header wins over the root band, as it
-         * already does under the pointer backend (innermost target first). The
-         * HTML5 backend runs the root's capture listener first, so the root
-         * has to step aside itself.
-         */
+        /** Headers win over the band on enabled edges, matching the pointer
+         *  backend's innermost-target-first. */
         describe('group headers on an enabled edge', () => {
             const TOP = { dockToEdgeGroups: { top: true } };
 

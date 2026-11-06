@@ -63,12 +63,9 @@
     box-shadow: 0 0 6px var(--dv-edge-dock-indicator-color);
 }
 
-// Drag-time edge drop strip: a transparent drop zone along each edge enabled
-// for dock-to-edge, mounted only while a panel or group is dragged and layered
-// above group headers so the edge stays reachable over a tab bar. Position and
-// extent are set inline by the auto-edge-group module; thickness is themable,
-// capped at the module's 16px dock-to-edge band so every point of the strip
-// docks.
+// Transparent drop zone on each dock-to-edge edge, shown only while dragging
+// and layered above group headers. Geometry is set inline by the module; the
+// thickness is capped at the 16px dock band.
 .dv-edge-drop-strip {
     position: absolute;
     z-index: var(--dv-overlay-z-index, 999);
