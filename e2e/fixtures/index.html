@@ -205,6 +205,11 @@
                         : {}),
                     dndStrategy:
                         params.get('dnd') === 'html5' ? 'html5' : 'pointer',
+                    // `?headerPosition=left|right|bottom` places every group's
+                    // header on that side. Inert when absent (top).
+                    ...(params.get('headerPosition')
+                        ? { defaultHeaderPosition: params.get('headerPosition') }
+                        : {}),
                     // `?closeEmptyGroups=0` keeps a group in the grid once its
                     // last panel leaves. Inert when absent (the default).
                     ...(params.get('closeEmptyGroups') === '0'
