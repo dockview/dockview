@@ -328,6 +328,39 @@ describe('PointerDropTarget edgeGroup hint', () => {
         document.body.removeChild(element);
     });
 
+    test('an edge cell carries the edgeGroup hint to the drop', () => {
+        const element = mountedElement();
+        const target = new PointerDropTarget(element, {
+            acceptedTargetZones: ['left', 'right', 'center'],
+            canDisplayOverlay: () => true,
+            getPositionResolver: () => ({
+                resolve: () => ({
+                    position: 'right',
+                    edge: true,
+                    edgeGroup: true,
+                }),
+            }),
+        });
+
+        const drop = jest.fn();
+        target.onDrop(drop);
+
+        (target as any)._onDragOver(makeDragEvent(10, 20));
+        (target as any)._onDropEvent(makeDragEvent(10, 20));
+
+        expect(drop).toHaveBeenCalledTimes(1);
+        expect(drop.mock.calls[0][0]).toEqual(
+            expect.objectContaining({
+                position: 'right',
+                edge: true,
+                edgeGroup: true,
+            })
+        );
+
+        target.dispose();
+        document.body.removeChild(element);
+    });
+
     test('a resolver result without the hint and the built-in quadrant both report edgeGroup=false', () => {
         const element = mountedElement();
         const resolved = new PointerDropTarget(element, {
