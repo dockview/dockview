@@ -171,8 +171,8 @@ export class DockviewWillDropEvent extends DockviewDidDropEvent {
         return this._kind;
     }
 
-    /** A layout-edge drop that docks as an edge group (dock-to-edge), rather
-     *  than splitting the layout. */
+    /** The drop came from an edge-group drop zone (the dock-to-edge strip, or
+     *  a resolver cell marked `edgeGroup`). */
     get edgeGroup(): boolean {
         return this._edgeGroup;
     }

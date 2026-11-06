@@ -1271,7 +1271,7 @@ export class DockviewComponent
      * the root drop target and by an `edge`-flagged drop on a group content
      * target (a position resolver that marks an outer "dock to the layout edge"
      * cell). No-op when there is no active drag data. `edgeGroup` marks a drop
-     * that docks as an edge group; it is passed on in the `onWillDrop` event.
+     * from an edge-group drop zone; it is passed on in the `onWillDrop` event.
      */
     dockToLayoutEdge(
         nativeEvent: DragEvent | PointerEvent,

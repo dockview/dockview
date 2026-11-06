@@ -267,8 +267,6 @@ describe('auto edge group service (branch coverage)', () => {
         expect(service.resolveEdge(at(996))).toBeNull();
     });
 
-    // A root edge overlay/drop on a disabled edge is an ordinary grid split,
-    // even within the outer band.
     // A drop flagged `edgeGroup` (the edge drop strip) docks wherever it lands;
     // only unflagged root edge drops are classified by depth.
     test('a flagged edge drop docks beyond the outer band', () => {
@@ -325,6 +323,8 @@ describe('auto edge group service (branch coverage)', () => {
         expect(reveal).not.toHaveBeenCalled();
     });
 
+    // A root edge overlay/drop on a disabled edge is an ordinary grid split,
+    // even within the outer band.
     test('a disabled edge shows no highlight and is not docked as an edge group', () => {
         const { overlayRoot, willShow, willDrop, reveal } = host({
             left: true,
