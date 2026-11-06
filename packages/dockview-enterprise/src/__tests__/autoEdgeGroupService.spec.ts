@@ -1,4 +1,8 @@
-import { DockviewEmitter as Emitter } from 'dockview';
+import {
+    DockviewEmitter as Emitter,
+    LocalSelectionTransfer,
+    PanelTransfer,
+} from 'dockview';
 import type {
     DockviewWillDropEvent,
     DockviewWillShowOverlayLocationEvent,
@@ -38,17 +42,40 @@ describe('auto edge group service (branch coverage)', () => {
         document.body.appendChild(overlayRoot);
         const willShow = new Emitter<DockviewWillShowOverlayLocationEvent>();
         const willDrop = new Emitter<DockviewWillDropEvent>();
+        const willDragPanel = new Emitter<any>();
+        const willDragGroup = new Emitter<any>();
         const reveal = jest.fn();
+        const dropTargets: { position: string; dispose: jest.Mock }[] = [];
+        const createEdgeDropTarget = jest.fn(
+            (_element: HTMLElement, position: string) => {
+                const target = { position, dispose: jest.fn() };
+                dropTargets.push(target);
+                return target;
+            }
+        );
         const host = {
             options: { dockToEdgeGroups },
             overlayRoot,
             getDropZoneRect: () => rect,
             onWillShowOverlay: willShow.event,
             onWillDrop: willDrop.event,
+            onWillDragPanel: willDragPanel.event,
+            onWillDragGroup: willDragGroup.event,
+            createEdgeDropTarget,
             revealEdgeGroupWithData: reveal,
         };
         const service = new AutoEdgeGroupService(host as any);
-        return { service, overlayRoot, willShow, willDrop, reveal };
+        return {
+            service,
+            overlayRoot,
+            willShow,
+            willDrop,
+            willDragPanel,
+            willDragGroup,
+            reveal,
+            createEdgeDropTarget,
+            dropTargets,
+        };
     }
 
     const band = (root: HTMLElement): HTMLElement | null =>
@@ -238,6 +265,41 @@ describe('auto edge group service (branch coverage)', () => {
         });
         // right band pointer: the edge is disabled per-edge → no edge cell
         expect(service.resolveEdge(at(996))).toBeNull();
+    });
+
+    // A root edge overlay/drop on a disabled edge is an ordinary grid split,
+    // even within the outer band.
+    test('a disabled edge shows no highlight and is not docked as an edge group', () => {
+        const { overlayRoot, willShow, willDrop, reveal } = host({
+            left: true,
+            right: true,
+            bottom: true,
+        });
+        willShow.fire({
+            kind: 'edge',
+            position: 'top',
+            nativeEvent: { clientX: 500, clientY: 4 },
+        } as any);
+        expect(band(overlayRoot)).toBeNull();
+
+        const preventDefault = jest.fn();
+        willDrop.fire({
+            kind: 'edge',
+            position: 'top',
+            nativeEvent: { clientX: 500, clientY: 4 },
+            getData: () => ({ groupId: 'g1', panelId: 'p1' }),
+            preventDefault,
+        } as any);
+        expect(preventDefault).not.toHaveBeenCalled();
+        expect(reveal).not.toHaveBeenCalled();
+
+        // The enabled edges still dock.
+        willShow.fire({
+            kind: 'edge',
+            position: 'left',
+            nativeEvent: { clientX: 4, clientY: 500 },
+        } as any);
+        expect(band(overlayRoot)).toBeTruthy();
     });
 
     // --- highlight geometry (_show) for right / top / bottom ---
@@ -460,5 +522,180 @@ describe('auto edge group service (branch coverage)', () => {
     test('the resolver getter is undefined when disabled and present when enabled', () => {
         expect(host(false).service.resolver).toBeUndefined();
         expect(host(true).service.resolver).toBeDefined();
+    });
+
+    // --- drag-time edge drop strips ---
+
+    describe('edge drop strips', () => {
+        const transfer = LocalSelectionTransfer.getInstance<PanelTransfer>();
+
+        beforeEach(() => {
+            jest.useFakeTimers();
+            // A drag of this dock is under way.
+            transfer.setData(
+                [new PanelTransfer('dock', 'g1', 'p1')],
+                PanelTransfer.prototype
+            );
+        });
+        afterEach(() => {
+            transfer.clearData(PanelTransfer.prototype);
+            jest.useRealTimers();
+        });
+
+        const strips = (root: HTMLElement): HTMLElement[] =>
+            Array.from(root.querySelectorAll('.dv-edge-drop-strip'));
+        const drag = { nativeEvent: new Event('dragstart') };
+
+        test('a panel drag mounts a strip on each enabled edge, after the drag starts', () => {
+            const { overlayRoot, willDragPanel, dropTargets } = host({
+                top: true,
+                left: true,
+            });
+            willDragPanel.fire(drag);
+            // Deferred: mutating the DOM inside `dragstart` can abort an
+            // HTML5 drag.
+            expect(strips(overlayRoot)).toEqual([]);
+
+            jest.runAllTimers();
+            expect(
+                strips(overlayRoot).map((el) => el.dataset.position)
+            ).toEqual(['left', 'top']);
+            expect(dropTargets.map((t) => t.position)).toEqual(['left', 'top']);
+        });
+
+        test('a group drag mounts them too', () => {
+            const { overlayRoot, willDragGroup } = host(true);
+            willDragGroup.fire(drag);
+            jest.runAllTimers();
+            expect(strips(overlayRoot)).toHaveLength(4);
+        });
+
+        test('strips hug the drop-zone rect', () => {
+            const { overlayRoot, willDragPanel } = host({ right: true });
+            willDragPanel.fire(drag);
+            jest.runAllTimers();
+            const [right] = strips(overlayRoot);
+            expect(right.classList).toContain('dv-edge-drop-strip--right');
+            expect(right.style.left).toBe('1000px');
+            expect(right.style.top).toBe('0px');
+            expect(right.style.height).toBe('1000px');
+        });
+
+        test('no strips when the feature is off', () => {
+            const { overlayRoot, willDragPanel } = host(false);
+            willDragPanel.fire(drag);
+            jest.runAllTimers();
+            expect(strips(overlayRoot)).toEqual([]);
+        });
+
+        test('no strips when the drag was vetoed (no drag data)', () => {
+            transfer.clearData(PanelTransfer.prototype);
+            const { overlayRoot, willDragPanel } = host(true);
+            willDragPanel.fire(drag);
+            jest.runAllTimers();
+            expect(strips(overlayRoot)).toEqual([]);
+        });
+
+        test('no strips when the app supplies a dropPositionResolver', () => {
+            const h = host(true);
+            (h.service as any).host.options.dropPositionResolver = {
+                resolve: () => null,
+            };
+            h.willDragPanel.fire(drag);
+            jest.runAllTimers();
+            expect(strips(h.overlayRoot)).toEqual([]);
+        });
+
+        test.each([
+            ['dragstart', 'drop'],
+            ['dragstart', 'dragend'],
+            ['pointerdown', 'pointerup'],
+            ['pointerdown', 'pointercancel'],
+        ])('a %s drag is ended by a document %s, once the drop has been handled', (start, end) => {
+            const { overlayRoot, willDragPanel, dropTargets } = host(true);
+            willDragPanel.fire({ nativeEvent: new Event(start) });
+            jest.runAllTimers();
+            expect(strips(overlayRoot)).toHaveLength(4);
+
+            document.dispatchEvent(new Event(end, { bubbles: true }));
+            // Still there while the drop that ended the drag is handled.
+            expect(strips(overlayRoot)).toHaveLength(4);
+
+            jest.runAllTimers();
+            expect(strips(overlayRoot)).toEqual([]);
+            for (const t of dropTargets) {
+                expect(t.dispose).toHaveBeenCalledTimes(1);
+            }
+        });
+
+        test('the pointercancel a native drag fires as it starts does not end it', () => {
+            const { overlayRoot, willDragPanel } = host(true);
+            willDragPanel.fire(drag);
+            jest.runAllTimers();
+
+            document.dispatchEvent(
+                new Event('pointercancel', { bubbles: true })
+            );
+            jest.runAllTimers();
+            expect(strips(overlayRoot)).toHaveLength(4);
+        });
+
+        test('only the dragging pointer ends a pointer drag', () => {
+            const { overlayRoot, willDragPanel } = host(true);
+            const start = new Event('pointerdown');
+            Object.defineProperty(start, 'pointerId', { value: 1 });
+            willDragPanel.fire({ nativeEvent: start });
+            jest.runAllTimers();
+
+            const other = new Event('pointerup', { bubbles: true });
+            Object.defineProperty(other, 'pointerId', { value: 2 });
+            document.dispatchEvent(other);
+            jest.runAllTimers();
+            expect(strips(overlayRoot)).toHaveLength(4);
+
+            const own = new Event('pointerup', { bubbles: true });
+            Object.defineProperty(own, 'pointerId', { value: 1 });
+            document.dispatchEvent(own);
+            jest.runAllTimers();
+            expect(strips(overlayRoot)).toEqual([]);
+        });
+
+        test("a drag from a popout is ended by the popout's document", () => {
+            const { overlayRoot, willDragPanel } = host(true);
+            const popout = document.implementation.createHTMLDocument('popout');
+            const tab = popout.createElement('div');
+            popout.body.appendChild(tab);
+            const start = new Event('dragstart');
+            Object.defineProperty(start, 'target', { value: tab });
+            willDragPanel.fire({ nativeEvent: start });
+            jest.runAllTimers();
+            expect(strips(overlayRoot)).toHaveLength(4);
+
+            popout.dispatchEvent(new Event('dragend', { bubbles: true }));
+            jest.runAllTimers();
+            expect(strips(overlayRoot)).toEqual([]);
+        });
+
+        test('a second drag start does not stack strips', () => {
+            const { overlayRoot, willDragPanel } = host({ top: true });
+            willDragPanel.fire(drag);
+            willDragPanel.fire(drag);
+            jest.runAllTimers();
+            expect(strips(overlayRoot)).toHaveLength(1);
+        });
+
+        test('dispose removes mounted strips and cancels a pending mount', () => {
+            const a = host(true);
+            a.willDragPanel.fire(drag);
+            jest.runAllTimers();
+            a.service.dispose();
+            expect(strips(a.overlayRoot)).toEqual([]);
+
+            const b = host(true);
+            b.willDragPanel.fire(drag);
+            b.service.dispose();
+            jest.runAllTimers();
+            expect(strips(b.overlayRoot)).toEqual([]);
+        });
     });
 });

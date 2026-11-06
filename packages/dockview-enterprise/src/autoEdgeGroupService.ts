@@ -10,6 +10,8 @@ import {
     PositionResolverArgs,
     PositionResolverResult,
     defineModule,
+    DockviewIDisposable as IDisposable,
+    getPanelData,
     EdgeGroupModule,
     IAutoEdgeGroupHost,
     IAutoEdgeGroupService,
@@ -24,6 +26,15 @@ const OUTER_BAND = 16;
 /** Threshold (%) for the inner "split this group" quadrants. Matches the core
  *  default activation size, so non-edge drops behave as usual. */
 const QUADRANT_THRESHOLD = 20;
+
+const EDGES: readonly EdgeGroupPosition[] = ['left', 'right', 'top', 'bottom'];
+
+/**
+ * Document events that end a drag, per backend. A native HTML5 drag fires
+ * `pointercancel` as it starts, so pointer events must not end one.
+ */
+const HTML5_DRAG_END = ['drop', 'dragend'];
+const POINTER_DRAG_END = ['pointerup', 'pointercancel'];
 
 /** The four true edges (center is never an edge-group band). */
 function isEdge(position: Position): position is EdgeGroupPosition {
@@ -92,15 +103,18 @@ function defaultQuadrant(
  * {@link PositionResolver} installed on the group content drop targets (the
  * same mechanism the DnD compass uses), so it works without the
  * compass. Over an empty grid it also handles the root edge target's
- * `kind: 'edge'` overlays directly. It never `preventDefault`s the overlay
- * (that would clear the drop state), only draws its highlight on top and
- * preempts the commit at `onWillDrop`.
+ * `kind: 'edge'` overlays directly. During a drag it mounts an edge drop strip
+ * on each enabled edge, above the headers. It never `preventDefault`s the
+ * overlay (that would clear the drop state), only draws its highlight on top
+ * and preempts the commit at `onWillDrop`.
  */
 export class AutoEdgeGroupService
     extends CompositeDisposable
     implements IAutoEdgeGroupService
 {
     private _highlight: HTMLElement | undefined;
+    private _strips: IDisposable | undefined;
+    private _mountTimer: ReturnType<typeof setTimeout> | undefined;
     private readonly _resolver: PositionResolver = {
         resolve: (args) => this._resolve(args),
     };
@@ -114,6 +128,12 @@ export class AutoEdgeGroupService
         this.addDisposables(
             this.host.onWillShowOverlay((e) => this._onWillShowOverlay(e)),
             this.host.onWillDrop((e) => this._onWillDrop(e)),
+            this.host.onWillDragPanel((e) =>
+                this._scheduleStrips(e.nativeEvent)
+            ),
+            this.host.onWillDragGroup((e) =>
+                this._scheduleStrips(e.nativeEvent)
+            ),
             // Belt-and-braces cleanup: `onWillShowOverlay` stops firing once the
             // pointer leaves the edge band, so hide the highlight when any drag
             // ends anywhere.
@@ -129,8 +149,130 @@ export class AutoEdgeGroupService
                     },
                 };
             })(),
-            { dispose: () => this._hide() }
+            {
+                dispose: () => {
+                    this._hide();
+                    clearTimeout(this._mountTimer);
+                    this._removeStrips();
+                },
+            }
         );
+    }
+
+    /** Deferred a tick: mutating the DOM in `dragstart` can abort an HTML5
+     *  drag. */
+    private _scheduleStrips(nativeEvent: DragEvent | PointerEvent): void {
+        clearTimeout(this._mountTimer);
+        this._mountTimer = setTimeout(() => {
+            this._mountTimer = undefined;
+            // No drag data a tick later: the drag was vetoed (or never began).
+            if (getPanelData()) {
+                this._mountStrips(nativeEvent);
+            }
+        });
+    }
+
+    private _mountStrips(dragStart: DragEvent | PointerEvent): void {
+        this._removeStrips();
+        // An app-supplied `dropPositionResolver` owns drop positions.
+        if (!this._enabled || this.host.options.dropPositionResolver) {
+            return;
+        }
+
+        const elements: HTMLElement[] = [];
+        const targets: IDisposable[] = [];
+        for (const position of EDGES) {
+            if (this._isEdgeEnabled(position)) {
+                const element = this._createStrip(position);
+                this.host.overlayRoot.appendChild(element);
+                elements.push(element);
+                targets.push(this.host.createEdgeDropTarget(element, position));
+            }
+        }
+
+        // Removed a tick after the drag ends so the final drop still lands.
+        // A popout drag ends in the popout's document.
+        const isHtml5 = dragStart.type.startsWith('drag');
+        const endEvents = isHtml5 ? HTML5_DRAG_END : POINTER_DRAG_END;
+        const pointerId = isHtml5
+            ? undefined
+            : (dragStart as PointerEvent).pointerId;
+        const docs = new Set<Document>([this.host.overlayRoot.ownerDocument]);
+        const sourceDoc = (dragStart.target as Node | null)?.ownerDocument;
+        if (sourceDoc) {
+            docs.add(sourceDoc);
+        }
+        const end = (event: Event): void => {
+            // Only the dragging pointer ends a pointer drag.
+            if (
+                pointerId !== undefined &&
+                (event as PointerEvent).pointerId !== pointerId
+            ) {
+                return;
+            }
+            setTimeout(() => this._removeStrips());
+        };
+        for (const doc of docs) {
+            for (const type of endEvents) {
+                doc.addEventListener(type, end, true);
+            }
+        }
+
+        this._strips = {
+            dispose: () => {
+                for (const doc of docs) {
+                    for (const type of endEvents) {
+                        doc.removeEventListener(type, end, true);
+                    }
+                }
+                for (const target of targets) {
+                    target.dispose();
+                }
+                for (const element of elements) {
+                    element.remove();
+                }
+            },
+        };
+    }
+
+    private _removeStrips(): void {
+        this._strips?.dispose();
+        this._strips = undefined;
+    }
+
+    private _createStrip(position: EdgeGroupPosition): HTMLElement {
+        const element =
+            this.host.overlayRoot.ownerDocument.createElement('div');
+        element.className = `dv-edge-drop-strip dv-edge-drop-strip--${position}`;
+        element.dataset.position = position;
+
+        // Thickness and the bottom / right offset come from the stylesheet.
+        const { left, top, width, height } = this._contentArea();
+        element.style.left = `${position === 'right' ? left + width : left}px`;
+        element.style.top = `${position === 'bottom' ? top + height : top}px`;
+        if (position === 'top' || position === 'bottom') {
+            element.style.width = `${width}px`;
+        } else {
+            element.style.height = `${height}px`;
+        }
+        return element;
+    }
+
+    /** The content area in overlayRoot-local coordinates. */
+    private _contentArea(): {
+        left: number;
+        top: number;
+        width: number;
+        height: number;
+    } {
+        const dz = this.host.getDropZoneRect();
+        const root = this.host.overlayRoot.getBoundingClientRect();
+        return {
+            left: dz.left - root.left,
+            top: dz.top - root.top,
+            width: dz.width,
+            height: dz.height,
+        };
     }
 
     /** Installed on the group content drop targets only while enabled. */
@@ -142,6 +284,14 @@ export class AutoEdgeGroupService
         return isAnyEdgeGroupEnabled(this.host.options.dockToEdgeGroups);
     }
 
+    /** Whether `position` is an edge enabled in `dockToEdgeGroups`. */
+    private _isEdgeEnabled(position: Position): position is EdgeGroupPosition {
+        return (
+            isEdge(position) &&
+            isEdgeGroupEnabled(this.host.options.dockToEdgeGroups, position)
+        );
+    }
+
     /** Edge-band detection only: an `edge` cell in the outer band, else null.
      *  Composed with another resolver (the compass) by the host. */
     resolveEdge(args: PositionResolverArgs): PositionResolverResult | null {
@@ -149,15 +299,10 @@ export class AutoEdgeGroupService
             return null;
         }
         const rect = this.host.getDropZoneRect();
-        for (const pos of [
-            'left',
-            'right',
-            'top',
-            'bottom',
-        ] as EdgeGroupPosition[]) {
+        for (const pos of EDGES) {
             if (
                 args.zones.has(pos) &&
-                isEdgeGroupEnabled(this.host.options.dockToEdgeGroups, pos) &&
+                this._isEdgeEnabled(pos) &&
                 edgeDepth(pos, args.event, rect) <= OUTER_BAND
             ) {
                 return { position: pos, edge: true, edgeGroup: true };
@@ -187,7 +332,7 @@ export class AutoEdgeGroupService
         // Show the edge-group indicator line iff the pointer is in the true
         // outer band, purely by depth, so it never lights up for a compass
         // outer-ring cell (grid-edge dock, further in) or a normal group split.
-        if (!this._enabled || !isEdge(e.position)) {
+        if (!this._isEdgeEnabled(e.position)) {
             this._hide();
             return;
         }
@@ -201,7 +346,7 @@ export class AutoEdgeGroupService
 
     private _onWillDrop(e: DockviewWillDropEvent): void {
         this._hide();
-        if (!this._enabled || e.kind !== 'edge' || !isEdge(e.position)) {
+        if (e.kind !== 'edge' || !this._isEdgeEnabled(e.position)) {
             return;
         }
         const data = e.getData();
@@ -236,12 +381,9 @@ export class AutoEdgeGroupService
             this.host.overlayRoot.appendChild(el);
         }
 
-        // Position the line at the content-area edge, in overlayRoot-local
-        // coordinates (the content area is inset when edge groups are present).
-        const dz = this.host.getDropZoneRect();
-        const root = this.host.overlayRoot.getBoundingClientRect();
-        const left = dz.left - root.left;
-        const top = dz.top - root.top;
+        // Position the line at the content-area edge.
+        const dz = this._contentArea();
+        const { left, top } = dz;
         const LINE = 3; // px thickness of the indicator line
 
         el.style.top = '';

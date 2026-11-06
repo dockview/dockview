@@ -95,4 +95,55 @@ describe('edge drag-reveal activation band', () => {
         dv.updateOptions({ dockToEdgeGroups: false });
         expect(activationSize(dv)).toBe(DEFAULT_ACTIVATION);
     });
+
+    /**
+     * The edge a point 20px in from the layout edge resolves to on the root
+     * target, or null: inside the widened band, outside the default one.
+     */
+    function edgeAt20px(
+        dv: DockviewComponent,
+        edge: 'left' | 'top'
+    ): string | null {
+        const svc = (dv as never as { _rootDropTargetService: unknown })
+            ._rootDropTargetService as {
+            _html5Target: {
+                options: {
+                    getPositionResolver: () =>
+                        | {
+                              resolve: (
+                                  args: unknown
+                              ) => { position: string } | null;
+                          }
+                        | undefined;
+                };
+            };
+        };
+        const resolver = svc._html5Target.options.getPositionResolver();
+        if (!resolver) {
+            return null;
+        }
+        const result = resolver.resolve({
+            x: edge === 'left' ? 20 : 500,
+            y: edge === 'top' ? 20 : 400,
+            width: 1000,
+            height: 800,
+            zones: new Set(['left', 'right', 'top', 'bottom']),
+            event: {},
+        });
+        return result?.position ?? null;
+    }
+
+    test('only the enabled edges of a per-edge set are widened', () => {
+        const dv = build({ dockToEdgeGroups: { left: true } });
+        expect(edgeAt20px(dv, 'left')).toBe('left');
+        expect(edgeAt20px(dv, 'top')).toBeNull();
+
+        dv.updateOptions({ dockToEdgeGroups: { top: true } });
+        expect(edgeAt20px(dv, 'left')).toBeNull();
+        expect(edgeAt20px(dv, 'top')).toBe('top');
+
+        dv.updateOptions({ dockToEdgeGroups: true });
+        expect(edgeAt20px(dv, 'left')).toBe('left');
+        expect(edgeAt20px(dv, 'top')).toBe('top');
+    });
 });
