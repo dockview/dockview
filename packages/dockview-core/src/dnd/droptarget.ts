@@ -701,24 +701,30 @@ export function calculateQuadrantAsPercentage(
     return 'center';
 }
 
+/** A pixel activation threshold per edge. */
+export type EdgeThresholds = Record<Exclude<Position, 'center'>, number>;
+
 export function calculateQuadrantAsPixels(
-    overlayType: Set<Position>,
+    overlayType: ReadonlySet<Position>,
     x: number,
     y: number,
     width: number,
     height: number,
-    threshold: number
+    threshold: number | EdgeThresholds
 ): Position | null {
-    if (overlayType.has('left') && x < threshold) {
+    const band = (edge: keyof EdgeThresholds): number =>
+        typeof threshold === 'number' ? threshold : threshold[edge];
+
+    if (overlayType.has('left') && x < band('left')) {
         return 'left';
     }
-    if (overlayType.has('right') && x > width - threshold) {
+    if (overlayType.has('right') && x > width - band('right')) {
         return 'right';
     }
-    if (overlayType.has('top') && y < threshold) {
+    if (overlayType.has('top') && y < band('top')) {
         return 'top';
     }
-    if (overlayType.has('bottom') && y > height - threshold) {
+    if (overlayType.has('bottom') && y > height - band('bottom')) {
         return 'bottom';
     }
 

@@ -1296,6 +1296,31 @@
                         }
                         dockview.autoHideEdgeGroup('left');
                     },
+                    // Drag-to-edge on a subset of edges (`edges`, an
+                    // EdgeGroupSet), with two side-by-side groups whose headers
+                    // touch the top of the layout, each holding two panels.
+                    setupTopRowWithEdgeGroups: (edges) => {
+                        dockview.api.updateOptions({
+                            dockToEdgeGroups: edges,
+                            autoHideEdgeGroups: edges,
+                            dndCompass: false,
+                        });
+                        for (const [id, position] of [
+                            ['a1', undefined],
+                            ['a2', undefined],
+                            ['b1', { direction: 'right' }],
+                            ['b2', { referencePanel: 'b1' }],
+                        ]) {
+                            dockview.addPanel({
+                                id,
+                                component: 'default',
+                                title: id,
+                                position,
+                            });
+                        }
+                    },
+                    groupPanelIds: () =>
+                        dockview.groups.map((g) => g.panels.map((p) => p.id)),
                     // Drag-revealed edges: enable `dockToEdgeGroups` (and turn the
                     // compass off so its own resolver drives edge routing), then
                     // two side-by-side groups so a tab can be dragged to the edge.

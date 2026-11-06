@@ -1,31 +1,48 @@
 import { Disposable, IDisposable } from '../lifecycle';
 import { Event } from '../events';
 import {
+    calculateQuadrantAsPixels,
     DroptargetEvent,
     DroptargetOverlayModel,
     DropTargetTargetModel,
+    EdgeThresholds,
     IDropTarget,
     Position,
+    PositionResolver,
     WillShowOverlayEvent,
 } from '../dnd/droptarget';
 import { html5Backend, pointerBackend } from '../dnd/backend';
 import { getPanelData } from '../dnd/dataTransfer';
-import { DockviewComponentOptions, isAnyEdgeGroupEnabled } from './options';
+import {
+    DockviewComponentOptions,
+    isAnyEdgeGroupEnabled,
+    isEdgeGroupEnabled,
+} from './options';
 import { defineModule } from './modules';
 
+const DEFAULT_ACTIVATION = 10;
+const AUTO_EDGE_ACTIVATION = 32;
+
 const DEFAULT_ROOT_OVERLAY_MODEL: DroptargetOverlayModel = {
-    activationSize: { type: 'pixels', value: 10 },
+    activationSize: { type: 'pixels', value: DEFAULT_ACTIVATION },
     size: { type: 'pixels', value: 20 },
 };
 
 // The two-band drag-reveal affordance needs room for a distinct outer ("dock as
 // edge group") and inner ("split the grid") sub-band, so the edge activation
-// band widens when it is present. The band is uniform across edges; per-edge
-// gating of the actual dock happens in the affordance's own edge resolver.
+// band widens when it is present. Only edges enabled in `dockToEdgeGroups` get
+// the wider band (see `resolveRootEdgeThresholds`); `activationSize` here is
+// the widest of them.
 const AUTO_EDGE_ROOT_OVERLAY_MODEL: DroptargetOverlayModel = {
-    activationSize: { type: 'pixels', value: 32 },
+    activationSize: { type: 'pixels', value: AUTO_EDGE_ACTIVATION },
     size: { type: 'pixels', value: 20 },
 };
+
+function hasCustomBand(
+    options: Pick<DockviewComponentOptions, 'dndEdges'>
+): options is { dndEdges: DroptargetOverlayModel } {
+    return typeof options.dndEdges === 'object' && options.dndEdges !== null;
+}
 
 /**
  * `hasEdgeDragReveal` gates the widened band, *not* the `dockToEdgeGroups`
@@ -33,16 +50,69 @@ const AUTO_EDGE_ROOT_OVERLAY_MODEL: DroptargetOverlayModel = {
  * widening would only enlarge the plain grid-split trigger, a 3.2x bigger
  * target for the same behaviour the default band already gives.
  */
+function isBandWidened(
+    options: Pick<DockviewComponentOptions, 'dndEdges' | 'dockToEdgeGroups'>,
+    hasEdgeDragReveal: boolean
+): boolean {
+    return (
+        !hasCustomBand(options) &&
+        hasEdgeDragReveal &&
+        isAnyEdgeGroupEnabled(options.dockToEdgeGroups)
+    );
+}
+
 function resolveRootOverlayModel(
     options: Pick<DockviewComponentOptions, 'dndEdges' | 'dockToEdgeGroups'>,
     hasEdgeDragReveal: boolean
 ): DroptargetOverlayModel {
-    if (typeof options.dndEdges === 'object' && options.dndEdges !== null) {
+    if (hasCustomBand(options)) {
         return options.dndEdges;
     }
-    return hasEdgeDragReveal && isAnyEdgeGroupEnabled(options.dockToEdgeGroups)
+    return isBandWidened(options, hasEdgeDragReveal)
         ? AUTO_EDGE_ROOT_OVERLAY_MODEL
         : DEFAULT_ROOT_OVERLAY_MODEL;
+}
+
+/**
+ * Per-edge activation thresholds while the widened band is in effect, else
+ * `undefined` (the overlay model's uniform `activationSize` applies). A
+ * disabled edge keeps the default band: widened, it would cover the headers of
+ * groups touching that edge for no edge-group behaviour.
+ */
+function resolveRootEdgeThresholds(
+    options: Pick<DockviewComponentOptions, 'dndEdges' | 'dockToEdgeGroups'>,
+    hasEdgeDragReveal: boolean
+): EdgeThresholds | undefined {
+    if (!isBandWidened(options, hasEdgeDragReveal)) {
+        return undefined;
+    }
+    const band = (edge: keyof EdgeThresholds): number =>
+        isEdgeGroupEnabled(options.dockToEdgeGroups, edge)
+            ? AUTO_EDGE_ACTIVATION
+            : DEFAULT_ACTIVATION;
+    return {
+        left: band('left'),
+        right: band('right'),
+        top: band('top'),
+        bottom: band('bottom'),
+    };
+}
+
+/** The default cursor-quadrant logic, with a threshold per edge. */
+function createEdgeBandResolver(thresholds: EdgeThresholds): PositionResolver {
+    return {
+        resolve: ({ x, y, width, height, zones }) => {
+            const position = calculateQuadrantAsPixels(
+                zones,
+                x,
+                y,
+                width,
+                height,
+                thresholds
+            );
+            return position ? { position, edge: false } : null;
+        },
+    };
 }
 
 export interface IRootDropTargetHost {
@@ -85,6 +155,8 @@ export class RootDropTargetService implements IRootDropTargetService {
     private readonly _html5Target: IDropTarget;
     private readonly _pointerTarget: IDropTarget;
     private readonly _host: IRootDropTargetHost;
+    /** Per-edge band, kept in step with the overlay model by `setOptions`. */
+    private _edgeBandResolver: PositionResolver | undefined;
 
     readonly onWillShowOverlay: Event<WillShowOverlayEvent>;
     readonly onDrop: Event<DroptargetEvent>;
@@ -125,13 +197,18 @@ export class RootDropTargetService implements IRootDropTargetService {
         // the `init` hook below re-resolves it for real.
         const overlayModel = resolveRootOverlayModel(host.options, false);
 
+        // A `dropPositionResolver` takes precedence, as it does over the
+        // uniform band.
+        const getPositionResolver = (): PositionResolver | undefined =>
+            host.options.dropPositionResolver ?? this._edgeBandResolver;
+
         this._html5Target = html5Backend.createDropTarget(host.element, {
             className: 'dv-drop-target-edge',
             canDisplayOverlay,
             acceptedTargetZones: ['top', 'bottom', 'left', 'right', 'center'],
             overlayModel,
             getOverrideTarget: () => host.rootDropTargetOverrideTarget(),
-            getPositionResolver: () => host.options.dropPositionResolver,
+            getPositionResolver,
         });
 
         this._pointerTarget = pointerBackend.createDropTarget(host.element, {
@@ -140,7 +217,7 @@ export class RootDropTargetService implements IRootDropTargetService {
             acceptedTargetZones: ['top', 'bottom', 'left', 'right', 'center'],
             overlayModel,
             getOverrideTarget: () => host.rootDropTargetOverrideTarget(),
-            getPositionResolver: () => host.options.dropPositionResolver,
+            getPositionResolver,
         });
 
         this.onWillShowOverlay = Event.any(
@@ -171,21 +248,30 @@ export class RootDropTargetService implements IRootDropTargetService {
         // changes. Prefer the incoming partial for a changed key, falling back
         // to the current host options for the other.
         if ('dndEdges' in options || 'dockToEdgeGroups' in options) {
+            const merged = {
+                dndEdges:
+                    'dndEdges' in options
+                        ? options.dndEdges
+                        : this._host.options.dndEdges,
+                dockToEdgeGroups:
+                    'dockToEdgeGroups' in options
+                        ? options.dockToEdgeGroups
+                        : this._host.options.dockToEdgeGroups,
+            };
             const model = resolveRootOverlayModel(
-                {
-                    dndEdges:
-                        'dndEdges' in options
-                            ? options.dndEdges
-                            : this._host.options.dndEdges,
-                    dockToEdgeGroups:
-                        'dockToEdgeGroups' in options
-                            ? options.dockToEdgeGroups
-                            : this._host.options.dockToEdgeGroups,
-                },
+                merged,
                 this._host.hasEdgeDragReveal
             );
             this._html5Target.setOverlayModel(model);
             this._pointerTarget.setOverlayModel(model);
+
+            const thresholds = resolveRootEdgeThresholds(
+                merged,
+                this._host.hasEdgeDragReveal
+            );
+            this._edgeBandResolver = thresholds
+                ? createEdgeBandResolver(thresholds)
+                : undefined;
         }
     }
 

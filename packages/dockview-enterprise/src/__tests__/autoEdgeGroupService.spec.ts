@@ -240,6 +240,41 @@ describe('auto edge group service (branch coverage)', () => {
         expect(service.resolveEdge(at(996))).toBeNull();
     });
 
+    // A root edge overlay/drop on a disabled edge is an ordinary grid split,
+    // even within the outer band.
+    test('a disabled edge shows no highlight and is not docked as an edge group', () => {
+        const { overlayRoot, willShow, willDrop, reveal } = host({
+            left: true,
+            right: true,
+            bottom: true,
+        });
+        willShow.fire({
+            kind: 'edge',
+            position: 'top',
+            nativeEvent: { clientX: 500, clientY: 4 },
+        } as any);
+        expect(band(overlayRoot)).toBeNull();
+
+        const preventDefault = jest.fn();
+        willDrop.fire({
+            kind: 'edge',
+            position: 'top',
+            nativeEvent: { clientX: 500, clientY: 4 },
+            getData: () => ({ groupId: 'g1', panelId: 'p1' }),
+            preventDefault,
+        } as any);
+        expect(preventDefault).not.toHaveBeenCalled();
+        expect(reveal).not.toHaveBeenCalled();
+
+        // The enabled edges still dock.
+        willShow.fire({
+            kind: 'edge',
+            position: 'left',
+            nativeEvent: { clientX: 4, clientY: 500 },
+        } as any);
+        expect(band(overlayRoot)).toBeTruthy();
+    });
+
     // --- highlight geometry (_show) for right / top / bottom ---
 
     test('the highlight hugs the right edge with the right geometry', () => {

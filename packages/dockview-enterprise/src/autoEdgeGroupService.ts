@@ -142,6 +142,14 @@ export class AutoEdgeGroupService
         return isAnyEdgeGroupEnabled(this.host.options.dockToEdgeGroups);
     }
 
+    /** Whether `position` is an edge enabled in `dockToEdgeGroups`. */
+    private _isEdgeEnabled(position: Position): position is EdgeGroupPosition {
+        return (
+            isEdge(position) &&
+            isEdgeGroupEnabled(this.host.options.dockToEdgeGroups, position)
+        );
+    }
+
     /** Edge-band detection only: an `edge` cell in the outer band, else null.
      *  Composed with another resolver (the compass) by the host. */
     resolveEdge(args: PositionResolverArgs): PositionResolverResult | null {
@@ -157,7 +165,7 @@ export class AutoEdgeGroupService
         ] as EdgeGroupPosition[]) {
             if (
                 args.zones.has(pos) &&
-                isEdgeGroupEnabled(this.host.options.dockToEdgeGroups, pos) &&
+                this._isEdgeEnabled(pos) &&
                 edgeDepth(pos, args.event, rect) <= OUTER_BAND
             ) {
                 return { position: pos, edge: true, edgeGroup: true };
@@ -187,7 +195,7 @@ export class AutoEdgeGroupService
         // Show the edge-group indicator line iff the pointer is in the true
         // outer band, purely by depth, so it never lights up for a compass
         // outer-ring cell (grid-edge dock, further in) or a normal group split.
-        if (!this._enabled || !isEdge(e.position)) {
+        if (!this._isEdgeEnabled(e.position)) {
             this._hide();
             return;
         }
@@ -201,7 +209,7 @@ export class AutoEdgeGroupService
 
     private _onWillDrop(e: DockviewWillDropEvent): void {
         this._hide();
-        if (!this._enabled || e.kind !== 'edge' || !isEdge(e.position)) {
+        if (e.kind !== 'edge' || !this._isEdgeEnabled(e.position)) {
             return;
         }
         const data = e.getData();
