@@ -2282,6 +2282,9 @@ export class DockviewComponent
                         this.movingLock(() => {
                             const panel =
                                 referenceGroup.model.removePanel(itemToPopout);
+                            referenceGroup.model.renderContainer.detatch(
+                                itemToPopout
+                            );
                             group.model.openPanel(panel);
                         });
 
