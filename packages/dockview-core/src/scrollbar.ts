@@ -135,6 +135,10 @@ export class Scrollbar extends CompositeDisposable {
                     cancelAnimationFrame(this._pendingStyleFrame);
                     this._pendingStyleFrame = undefined;
                 }
+                if (this._animationTimer !== undefined) {
+                    clearTimeout(this._animationTimer);
+                    this._animationTimer = undefined;
+                }
             })
         );
     }

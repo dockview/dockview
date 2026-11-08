@@ -80,4 +80,48 @@ describe('Scrollbar', () => {
         expect(cancelled.length).toBeGreaterThan(0);
         expect(rafCallbacks.size).toBe(0);
     });
+
+    test('dispose clears a pending resize timer', () => {
+        const originalResizeObserver = window.ResizeObserver;
+        let notify: ((entries: ResizeObserverEntry[]) => void) | undefined;
+        window.ResizeObserver = class {
+            constructor(cb: (entries: ResizeObserverEntry[]) => void) {
+                notify = cb;
+            }
+            observe() {
+                /* noop */
+            }
+            unobserve() {
+                /* noop */
+            }
+            disconnect() {
+                /* noop */
+            }
+        } as unknown as typeof ResizeObserver;
+
+        jest.useFakeTimers({
+            doNotFake: ['requestAnimationFrame', 'cancelAnimationFrame'],
+        });
+
+        try {
+            const { scrollbar } = create();
+
+            notify!([
+                { target: scrollbar.element } as unknown as ResizeObserverEntry,
+            ]);
+            flushFrames();
+
+            expect(
+                scrollbar.element.classList.contains('dv-scrollable-resizing')
+            ).toBe(true);
+            expect(jest.getTimerCount()).toBe(1);
+
+            scrollbar.dispose();
+
+            expect(jest.getTimerCount()).toBe(0);
+        } finally {
+            jest.useRealTimers();
+            window.ResizeObserver = originalResizeObserver;
+        }
+    });
 });
