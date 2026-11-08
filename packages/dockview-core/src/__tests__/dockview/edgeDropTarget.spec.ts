@@ -79,6 +79,24 @@ describe('createEdgeDropTarget', () => {
         expect(strip.querySelector('.dv-drop-target-dropzone')).toBeNull();
     });
 
+    test('its drop reaches onWillDrop flagged edgeGroup; a root edge drop is not', () => {
+        const flags: boolean[] = [];
+        dockview.onWillDrop((e) => {
+            flags.push(e.edgeGroup);
+            e.preventDefault();
+        });
+        dockview.createEdgeDropTarget(strip, 'top');
+
+        transfer.setData(
+            [new PanelTransfer(dockview.id, dockview.groups[0].id, 'a')],
+            PanelTransfer.prototype
+        );
+        dragOverAndDrop();
+        dockview.dockToLayoutEdge(new MouseEvent('drop') as never, 'left');
+
+        expect(flags).toEqual([true, false]);
+    });
+
     test("another dock's drag is ignored", () => {
         const dock = jest.spyOn(dockview, 'dockToLayoutEdge');
         dockview.createEdgeDropTarget(strip, 'left');

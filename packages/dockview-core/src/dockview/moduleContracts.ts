@@ -3,6 +3,10 @@
  * only these interfaces, never a module's implementation, so each module is
  * decoupled from core and independently testable / removable. Keep this file
  * implementation-free.
+ *
+ * The `I*Host` / `I*Service` contracts are `@internal`: exported only so the
+ * feature-module packages can implement them, not public API, and they may
+ * change in any release.
  */
 import { IDisposable } from '../lifecycle';
 import { Event } from '../events';
@@ -52,6 +56,7 @@ import {
 
 // --- ContextMenu ---
 
+/** @internal */
 export interface IContextMenuHost {
     readonly options: DockviewComponentOptions;
     readonly api: DockviewApi;
@@ -66,6 +71,7 @@ export interface IContextMenuHost {
     getPopupServiceForGroup(group: DockviewGroupPanel): PopupService;
 }
 
+/** @internal */
 export interface IContextMenuService {
     show(
         panel: IDockviewPanel,
@@ -81,6 +87,7 @@ export interface IContextMenuService {
 
 // --- TabGroupChips ---
 
+/** @internal */
 export interface ITabGroupChipsHost {
     readonly onDidAddGroup: Event<DockviewGroupPanel>;
     readonly onDidRemoveGroup: Event<DockviewGroupPanel>;
@@ -97,6 +104,7 @@ export interface ITabGroupChipsHost {
     ): void;
 }
 
+/** @internal */
 export interface ITabGroupChipsService extends IDisposable {
     /**
      * Subscribe to the per-group tab-group events on the given group and
@@ -110,6 +118,7 @@ export interface ITabGroupChipsService extends IDisposable {
 
 // --- KeyboardNavigation ---
 
+/** @internal */
 export interface IKeyboardNavigationHost {
     /**
      * The outermost dockview element (the shell, which also contains edge
@@ -163,16 +172,20 @@ export interface IKeyboardNavigationHost {
     floatPanel(panel: IDockviewPanel): void;
 }
 
+/** @internal */
 export interface IKeyboardNavigationService extends IDisposable {}
 
 /**
  * Marker for the advanced keyboard docking service (spatial group focus +
  * keyboard move mode). Self-driven; the component never calls into it.
+ *
+ * @internal
  */
 export interface IKeyboardDockingService extends IDisposable {}
 
 // --- AdvancedDnD ---
 
+/** @internal */
 export interface IAdvancedDnDHost {
     readonly options: DockviewComponentOptions;
     readonly api: DockviewApi;
@@ -182,6 +195,7 @@ export interface IAdvancedDnDHost {
     fireWillShowOverlay(event: DockviewWillShowOverlayLocationEvent): void;
 }
 
+/** @internal */
 export interface IAdvancedDnDService extends IDisposable {
     dispatchWillDragPanel(event: TabDragEvent): void;
     dispatchWillDragGroup(event: GroupDragEvent): void;
@@ -222,6 +236,8 @@ export interface IAdvancedDnDService extends IDisposable {
  * (`DockviewComponent`). It reads/writes whole-layout snapshots and listens to
  * the mutation-transaction boundary, the only place a *pre-image* can be taken
  * before a mutation runs.
+ *
+ * @internal
  */
 export interface ILayoutHistoryHost {
     readonly options: DockviewComponentOptions;
@@ -259,6 +275,7 @@ export interface LayoutHistoryChangeEvent {
     };
 }
 
+/** @internal */
 export interface ILayoutHistoryService extends IDisposable {
     readonly canUndo: boolean;
     readonly canRedo: boolean;
@@ -277,6 +294,8 @@ export interface ILayoutHistoryService extends IDisposable {
  * hit-test resolver; the component installs that resolver at the drop-target
  * seam (`dropPositionResolver`) and surfaces the drag-over signal the widget
  * follows. It never re-implements drop resolution or the commit path.
+ *
+ * @internal
  */
 export interface IDndCompassHost {
     readonly options: DockviewComponentOptions;
@@ -308,6 +327,7 @@ export interface IDndCompassHost {
     getLayoutElement(): HTMLElement;
 }
 
+/** @internal */
 export interface IDndCompassService extends IDisposable {
     /**
      * The cell hit-test resolver, installed by the host at the drop-target seam
@@ -327,6 +347,8 @@ export interface IDndCompassService extends IDisposable {
  * per-frame snap itself is driven by the component composing the service into
  * the float drag loop's `transformFloatingGroupDrag`, so it is not a host
  * member.
+ *
+ * @internal
  */
 export interface ISmartGuidesHost {
     readonly options: DockviewComponentOptions;
@@ -399,6 +421,7 @@ export interface SmartGuidesSnapTogetherEvent {
     readonly position: SmartGuidesSnapPosition;
 }
 
+/** @internal */
 export interface ISmartGuidesService extends IDisposable {
     /**
      * Snap the proposed drag position against the other floating groups,
@@ -426,6 +449,8 @@ export interface ISmartGuidesService extends IDisposable {
  * (`DockviewComponent`). Collapse/expand is delegated to the existing free
  * edge-group machinery (`setEdgeGroupCollapsed` → shell); the module owns
  * interaction + presentation, never layout/sizing.
+ *
+ * @internal
  */
 export interface IAutoHideEdgeGroupHost {
     readonly options: DockviewComponentOptions;
@@ -474,6 +499,7 @@ export interface IAutoHideEdgeGroupHost {
     announce(message: string): void;
 }
 
+/** @internal */
 export interface IAutoHideEdgeGroupService extends IDisposable {
     /** Peek (true) / close (false) the collapsed edge group at `position`. */
     peek(position: EdgeGroupPosition, peek: boolean): void;
@@ -496,6 +522,8 @@ export interface IAutoHideEdgeGroupService extends IDisposable {
  *
  * This service is what makes `dockToEdgeGroups` do anything: core implements no
  * part of it, and gates the widened activation band on this service's presence.
+ *
+ * @internal
  */
 export interface IAutoEdgeGroupHost {
     readonly options: DockviewComponentOptions;
@@ -528,6 +556,7 @@ export interface IAutoEdgeGroupHost {
     ): void;
 }
 
+/** @internal */
 export interface IAutoEdgeGroupService extends IDisposable {
     /** The standalone position resolver installed on the group content drop
      *  targets: marks the outer band of the content area as an `edge` cell (so a
@@ -550,6 +579,8 @@ export interface IAutoEdgeGroupService extends IDisposable {
  * the host to relayout so the now-taller header shrinks the content area
  * (the free header-aware content-sizing seam does the actual subtraction). It
  * owns no tab model, overflow detection, or panel sizing math.
+ *
+ * @internal
  */
 export interface IMultiRowTabsHost {
     readonly options: DockviewComponentOptions;
@@ -585,6 +616,7 @@ export interface IMultiRowTabsHost {
     ): void;
 }
 
+/** @internal */
 export interface IMultiRowTabsService extends IDisposable {
     /** Whether wrap mode is currently active (`overflow.mode === 'wrap'`). */
     readonly enabled: boolean;
@@ -599,6 +631,8 @@ export interface IMultiRowTabsService extends IDisposable {
  * `DockviewComponent.setPanelPinned`); the module only observes pinned-state
  * changes and re-orders each group's tab strip so pinned tabs render first. No
  * layout or sizing is touched.
+ *
+ * @internal
  */
 export interface IPinnedTabsHost {
     /** The owning component's id: the `viewId` a within-component drag payload
@@ -634,6 +668,8 @@ export interface IPinnedTabsHost {
  * `DockviewComponent.setPanelPinned` checks (via `assertModule`) before
  * mutating pinned state; the pinned-first ordering is enforced internally and
  * reactively as panels are pinned/unpinned, added, or moved.
+ *
+ * @internal
  */
 export interface IPinnedTabsService extends IDisposable {
     /** Re-assert the pinned-first invariant on a single group's tab strip. */
@@ -723,6 +759,8 @@ export interface AdvancedOverflowRenderParams {
  * (`DockviewComponent`). The service self-wires MRU tracking off these events;
  * the component never calls into it except through the rendering seam
  * (`renderOverflow`).
+ *
+ * @internal
  */
 export interface IAdvancedOverflowHost {
     readonly options: DockviewComponentOptions;
@@ -735,6 +773,8 @@ export interface IAdvancedOverflowHost {
  * Advanced overflow module service. When registered, the tab-overflow dropdown
  * upgrades in place into a command-palette tab switcher (search + MRU +
  * keyboard). Absent, core renders the free flat list unchanged.
+ *
+ * @internal
  */
 export interface IAdvancedOverflowService extends IDisposable {
     /** Build AND open the advanced overflow popover for a group. */

@@ -1232,7 +1232,11 @@ export class DockviewComponent
                 );
             }),
             target.onDrop((event) =>
-                this.dockToLayoutEdge(event.nativeEvent, event.position)
+                this.dockToLayoutEdge(
+                    event.nativeEvent,
+                    event.position,
+                    event.edgeGroup
+                )
             ),
         ];
     }
@@ -1247,7 +1251,7 @@ export class DockviewComponent
             // An `edge` cell: the target keeps the position for the drop but
             // renders no overlay; the caller owns the highlight.
             getPositionResolver: () => ({
-                resolve: () => ({ position, edge: true }),
+                resolve: () => ({ position, edge: true, edgeGroup: true }),
             }),
         };
         const targets = [
@@ -1266,11 +1270,13 @@ export class DockviewComponent
      * orthogonalized root group), as the layout-edge drop zones do. Shared by
      * the root drop target and by an `edge`-flagged drop on a group content
      * target (a position resolver that marks an outer "dock to the layout edge"
-     * cell). No-op when there is no active drag data.
+     * cell). No-op when there is no active drag data. `edgeGroup` marks a drop
+     * from an edge-group drop zone; it is passed on in the `onWillDrop` event.
      */
     dockToLayoutEdge(
         nativeEvent: DragEvent | PointerEvent,
-        position: Position
+        position: Position,
+        edgeGroup = false
     ): void {
         const willDropEvent = new DockviewWillDropEvent({
             nativeEvent,
@@ -1280,6 +1286,7 @@ export class DockviewComponent
             group: undefined,
             getData: getPanelData,
             kind: 'edge',
+            edgeGroup,
         });
 
         this._onWillDrop.fire(willDropEvent);

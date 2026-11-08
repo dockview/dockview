@@ -64,20 +64,19 @@
 }
 
 // Transparent drop zone on each dock-to-edge edge, shown only while dragging
-// and layered above group headers. Geometry is set inline by the module; the
-// thickness is capped at the 16px dock band.
+// and layered above group headers. Geometry is set inline by the module.
 .dv-edge-drop-strip {
     position: absolute;
     z-index: var(--dv-overlay-z-index, 999);
 
     &--top,
     &--bottom {
-        height: min(var(--dv-edge-drop-strip-size, 8px), 16px);
+        height: var(--dv-edge-drop-strip-size, 8px);
     }
 
     &--left,
     &--right {
-        width: min(var(--dv-edge-drop-strip-size, 8px), 16px);
+        width: var(--dv-edge-drop-strip-size, 8px);
     }
 
     &--bottom {

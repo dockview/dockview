@@ -18,6 +18,9 @@ export interface DroptargetEvent {
      * The target renders no overlay for it; the consumer routes the commit.
      */
     readonly edge?: boolean;
+    /** The resolved cell was marked `edgeGroup`: it docks as an edge group.
+     *  See {@link PositionResolverResult.edgeGroup}. */
+    readonly edgeGroup?: boolean;
 }
 
 export class WillShowOverlayEvent
@@ -230,6 +233,7 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
     private _state: Position | undefined;
     /** The current state was resolved as an `edge` cell (see DroptargetEvent). */
     private _edge = false;
+    private _edgeGroup = false;
     private _acceptedTargetZonesSet: Set<Position>;
 
     private readonly _onDrop = new Emitter<DroptargetEvent>();
@@ -368,9 +372,11 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
                     this.clearOwnOverlay();
                     this._state = quadrant;
                     this._edge = true;
+                    this._edgeGroup = resolved.edgeGroup;
                     return;
                 }
                 this._edge = false;
+                this._edgeGroup = false;
 
                 if (overrideTarget) {
                     //
@@ -410,6 +416,7 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
                     // drop at the last hovered position.
                     this._state = undefined;
                     this._edge = false;
+                    this._edgeGroup = false;
                     target.scheduleClear?.();
                     return;
                 }
@@ -428,6 +435,7 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
                             position: this._state,
                             nativeEvent: e,
                             edge: this._edge,
+                            edgeGroup: this._edgeGroup,
                         });
                     }
                 }
@@ -441,6 +449,7 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
 
                 const state = this._state;
                 const edge = this._edge;
+                const edgeGroup = this._edgeGroup;
 
                 this.removeDropTarget();
 
@@ -454,6 +463,7 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
                         position: state,
                         nativeEvent: e,
                         edge,
+                        edgeGroup,
                     });
                 }
             },
@@ -629,6 +639,7 @@ export class Droptarget extends CompositeDisposable implements IDropTarget {
         // Always clear state, since an `edge` cell sets state with no overlay element.
         this._state = undefined;
         this._edge = false;
+        this._edgeGroup = false;
         if (this.targetElement) {
             this.targetElement.parentElement?.classList.remove(
                 'dv-drop-target'

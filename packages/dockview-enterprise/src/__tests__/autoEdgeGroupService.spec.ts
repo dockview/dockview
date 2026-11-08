@@ -267,6 +267,62 @@ describe('auto edge group service (branch coverage)', () => {
         expect(service.resolveEdge(at(996))).toBeNull();
     });
 
+    // A drop flagged `edgeGroup` (the edge drop strip) docks wherever it lands;
+    // only unflagged root edge drops are classified by depth.
+    test('a flagged edge drop docks beyond the outer band', () => {
+        const { overlayRoot, willShow, willDrop, reveal } = host();
+        willShow.fire({
+            kind: 'edge',
+            position: 'top',
+            edgeGroup: true,
+            nativeEvent: { clientX: 500, clientY: 30 },
+        } as any);
+        expect(band(overlayRoot)).toBeTruthy();
+
+        const preventDefault = jest.fn();
+        willDrop.fire({
+            kind: 'edge',
+            position: 'top',
+            edgeGroup: true,
+            nativeEvent: { clientX: 500, clientY: 30 },
+            getData: () => ({ groupId: 'g1', panelId: 'p1' }),
+            preventDefault,
+        } as any);
+        expect(preventDefault).toHaveBeenCalledTimes(1);
+        expect(reveal).toHaveBeenCalledWith(
+            'top',
+            { groupId: 'g1', panelId: 'p1' },
+            { autoHide: true }
+        );
+    });
+
+    test('an unflagged edge drop beyond the outer band is left to core', () => {
+        const { willDrop, reveal } = host();
+        const preventDefault = jest.fn();
+        willDrop.fire({
+            kind: 'edge',
+            position: 'top',
+            nativeEvent: { clientX: 500, clientY: 30 },
+            getData: () => ({ groupId: 'g1', panelId: 'p1' }),
+            preventDefault,
+        } as any);
+        expect(preventDefault).not.toHaveBeenCalled();
+        expect(reveal).not.toHaveBeenCalled();
+    });
+
+    test('a flagged edge drop on a disabled edge is still left to core', () => {
+        const { willDrop, reveal } = host({ left: true });
+        willDrop.fire({
+            kind: 'edge',
+            position: 'top',
+            edgeGroup: true,
+            nativeEvent: { clientX: 500, clientY: 4 },
+            getData: () => ({ groupId: 'g1', panelId: 'p1' }),
+            preventDefault: jest.fn(),
+        } as any);
+        expect(reveal).not.toHaveBeenCalled();
+    });
+
     // A root edge overlay/drop on a disabled edge is an ordinary grid split,
     // even within the outer band.
     test('a disabled edge shows no highlight and is not docked as an edge group', () => {
