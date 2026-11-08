@@ -115,6 +115,10 @@ function setPixels(
     }
 }
 
+// Container each panel is attached to, so a move between windows can release
+// the source window's overlay (#1759).
+const owners = new WeakMap<IDockviewPanel, OverlayRenderContainer>();
+
 export class OverlayRenderContainer extends CompositeDisposable {
     private readonly map: Record<
         string,
@@ -172,6 +176,9 @@ export class OverlayRenderContainer extends CompositeDisposable {
         this.addDisposables(
             Disposable.from(() => {
                 for (const value of Object.values(this.map)) {
+                    if (owners.get(value.panel) === this) {
+                        owners.delete(value.panel);
+                    }
                     value.disposable.dispose();
                     value.destroy.dispose();
                     this.cancelPendingUpdate(value);
@@ -242,6 +249,9 @@ export class OverlayRenderContainer extends CompositeDisposable {
             entry.destroy.dispose();
             this.cancelPendingUpdate(entry);
             delete this.map[panel.api.id];
+            if (owners.get(entry.panel) === this) {
+                owners.delete(entry.panel);
+            }
             return true;
         }
         return false;
@@ -252,6 +262,16 @@ export class OverlayRenderContainer extends CompositeDisposable {
         referenceContainer: IRenderable;
     }): HTMLElement {
         const { panel, referenceContainer } = options;
+
+        const previousOwner = owners.get(panel);
+        if (previousOwner && previousOwner !== this) {
+            previousOwner.detatch(panel);
+        }
+        if (this._disposed) {
+            owners.delete(panel);
+        } else {
+            owners.set(panel, this);
+        }
 
         if (!this.map[panel.api.id]) {
             const element = createFocusableElement();
