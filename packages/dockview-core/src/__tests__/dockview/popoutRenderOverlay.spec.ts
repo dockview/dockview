@@ -4,15 +4,7 @@ import type { IContentRenderer } from '../../dockview/types';
 import type { OverlayRenderContainer } from '../../overlay/overlayRenderContainer';
 import { setupMockWindow } from '../__mocks__/mockWindow';
 
-/**
- * A panel rendered with `renderer: 'always'` owns an overlay in the render
- * container of the window it lives in. When a single panel crosses windows
- * (main <-> popout, popout <-> popout) without its whole group, the source
- * container must drop its overlay; a leftover one is empty but keeps its
- * size and position, sitting over the source group and swallowing clicks.
- *
- * https://github.com/dockview/dockview/issues/1759
- */
+// https://github.com/dockview/dockview/issues/1759
 
 class TestPanel implements IContentRenderer {
     element = document.createElement('div');

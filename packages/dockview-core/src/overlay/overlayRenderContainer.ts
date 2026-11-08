@@ -115,14 +115,8 @@ function setPixels(
     }
 }
 
-/**
- * The render container each `always` panel is currently attached to. Each
- * window (the main one and every popout) has its own container, and a panel
- * moved on its own between windows is only ever attached to the destination:
- * nothing tells the source to let go. Tracking the owner here lets `attach`
- * release the previous container's overlay itself, so no move path can leave
- * an empty overlay behind covering the source group (#1759).
- */
+// Container each panel is attached to, so a move between windows can release
+// the source window's overlay (#1759).
 const owners = new WeakMap<IDockviewPanel, OverlayRenderContainer>();
 
 export class OverlayRenderContainer extends CompositeDisposable {
@@ -269,10 +263,6 @@ export class OverlayRenderContainer extends CompositeDisposable {
     }): HTMLElement {
         const { panel, referenceContainer } = options;
 
-        // A panel moved here from another window's container: drop the
-        // overlay it still holds there before taking ownership. A disposed
-        // container (a popout mid-teardown) never takes ownership, so it is
-        // not kept reachable through the panel.
         const previousOwner = owners.get(panel);
         if (previousOwner && previousOwner !== this) {
             previousOwner.detatch(panel);
