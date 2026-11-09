@@ -25,6 +25,18 @@ Modules
 MruTracker
 MultiRowTabsModule
 MultiRowTabsService
+MultiWindow
+MultiWindowDragPayload
+MultiWindowHistoryInfo
+MultiWindowHistoryRequest
+MultiWindowHistoryStep
+MultiWindowMoveEvent
+MultiWindowOptions
+MultiWindowOrchestrator
+MultiWindowOrchestratorOptions
+MultiWindowReleaseEvent
+MultiWindowTransport
+MultiWindowWorkspaceState
 OverflowListView
 PinnedTabsModule
 PinnedTabsService
@@ -32,4 +44,5 @@ ServiceCollection
 SmartGuidesModule
 SmartGuidesService
 computePinnedFirstOrder
+installMultiWindow
 matchesQuery
