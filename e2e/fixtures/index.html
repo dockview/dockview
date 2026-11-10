@@ -768,6 +768,36 @@
                             second: panels['two'].group.id,
                         };
                     },
+                    // Two groups of two ungrouped tabs: one, two | three, four.
+                    // Dragging a tab onto a tab of the other group is a
+                    // cross-group move of a single tab.
+                    setupTwoGroupsOfTwo: () => {
+                        for (const id of ['one', 'two']) {
+                            panels[id] = dockview.addPanel({
+                                id,
+                                component: 'default',
+                                title: id,
+                            });
+                        }
+                        for (const id of ['three', 'four']) {
+                            panels[id] = dockview.addPanel({
+                                id,
+                                component: 'default',
+                                title: id,
+                                position:
+                                    id === 'three'
+                                        ? {
+                                              referencePanel: 'one',
+                                              direction: 'right',
+                                          }
+                                        : { referencePanel: 'three' },
+                            });
+                        }
+                        return {
+                            left: panels['one'].group.id,
+                            right: panels['three'].group.id,
+                        };
+                    },
                     // Tab-group chips: three panels in one group, then a tab
                     // group (label "Monitoring") containing two of them so a
                     // `.dv-tab-group-chip` renders in the header. Returns the

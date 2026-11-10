@@ -309,8 +309,10 @@ export class TabReorderController extends CompositeDisposable {
         if (
             e &&
             this._animState &&
-            // A cross-group drag has no insertion index of ours to commit.
-            this._animState.sourceIndex !== -1 &&
+            // A drag that started in another strip commits elsewhere, except
+            // the single tab this strip took over from its declining tabs.
+            (this._animState.sourceIndex !== -1 ||
+                this.ownsExternalTabDrag()) &&
             this._animState.currentInsertionIndex !== null &&
             this.isPointInsideTabsList(e.clientX, e.clientY)
         ) {
@@ -326,6 +328,28 @@ export class TabReorderController extends CompositeDisposable {
         }
         this._pointerInsideTabsList = false;
         this.resetDragAnimation();
+    }
+
+    /**
+     * A single tab dragged in from another group of this dockview, in smooth
+     * mode. `Tab.canDisplayOverlay` declines every internal drag there, so no
+     * per-tab target latches and the strip is the only thing that can commit
+     * the release. HTML5 does it from the tabs list's `drop` listener; this
+     * is what lets the pointer backend do the same.
+     *
+     * A chip drag is excluded: it commits from the target that latches under
+     * the release.
+     */
+    ownsExternalTabDrag(): boolean {
+        const data = getPanelData();
+
+        return (
+            this.accessor.options.theme?.tabAnimation === 'smooth' &&
+            data?.viewId === this.accessor.id &&
+            data.groupId !== this.group.id &&
+            data.panelId !== null &&
+            !data.tabGroupId
+        );
     }
 
     private isPointInsideTabsList(clientX: number, clientY: number): boolean {
