@@ -84,7 +84,7 @@ function makePointerEvent(
  * `RootDropTargetService` the component uses, so a release resolves through the
  * real pointer hit-test.
  */
-function createFixture(): {
+function createFixture(tabAnimation: 'smooth' | 'default' = 'smooth'): {
     tabs: Tabs;
     rootService: RootDropTargetService;
     tabsList: HTMLElement;
@@ -121,7 +121,7 @@ function createFixture(): {
             theme: {
                 name: 'test',
                 className: 'test',
-                tabAnimation: 'smooth',
+                tabAnimation,
             },
         },
         onDidOptionsChange: jest.fn().mockReturnValue({ dispose: jest.fn() }),
@@ -252,12 +252,42 @@ describe('tabs - strip is a pointer hit-test stop', () => {
         fixture.dispose();
     });
 
-    test('a cross-group drag released on strip padding still docks at the edge', () => {
-        // `handlePointerDragEnd` only commits intra-group single-tab reorders
-        // (`sourceIndex !== -1`), so a drag from another group has nothing to
-        // commit here. Stopping the walk for it would just make the release a
-        // dead zone.
+    test('a cross-group tab drag released on strip padding moves into the group only', () => {
+        // In smooth mode the tabs decline an internal drag, so the strip
+        // commits a single tab from another group, as the HTML5 tabs-list
+        // `drop` listener does, and must stop the walk to the edge target.
         const fixture = createFixture();
+
+        const onTabsDrop = jest.fn();
+        const onRootDrop = jest.fn();
+        fixture.tabs.onDrop(onTabsDrop);
+        fixture.rootService.onDrop(onRootDrop);
+
+        LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
+            [new PanelTransfer(ACCESSOR_ID, 'other-group', 'panel-x')],
+            PanelTransfer.prototype
+        );
+
+        drag(fixture, document.createElement('div'));
+
+        window.dispatchEvent(
+            makePointerEvent('pointerup', RELEASE_X, RELEASE_Y)
+        );
+
+        expect(onRootDrop).not.toHaveBeenCalled();
+        expect(onTabsDrop).toHaveBeenCalledTimes(1);
+        expect(onTabsDrop.mock.calls[0][0]).toEqual(
+            expect.objectContaining({ index: 2, targetTabGroupId: null })
+        );
+
+        fixture.dispose();
+    });
+
+    test('in default mode a cross-group tab drag released on strip padding still docks at the edge', () => {
+        // Outside smooth mode the per-tab targets commit a cross-group tab and
+        // the strip has nothing to commit, so stopping the walk would make the
+        // release a dead zone.
+        const fixture = createFixture('default');
 
         const onTabsDrop = jest.fn();
         const onRootDrop = jest.fn();

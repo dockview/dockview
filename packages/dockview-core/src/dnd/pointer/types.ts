@@ -6,6 +6,11 @@ export interface PointerDragEvent {
     readonly pointerEvent: PointerEvent;
 }
 
+export interface PointerDragEndEvent extends PointerDragEvent {
+    /** False when the drag was cancelled rather than released. */
+    readonly dropped: boolean;
+}
+
 export interface PointerDroptargetEvent {
     readonly position: Position;
     readonly nativeEvent: PointerEvent;
