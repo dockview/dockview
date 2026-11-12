@@ -16927,3 +16927,66 @@ describe('popout styles from a shadow-root mount', () => {
         }
     });
 });
+
+describe('tab group contiguity after panels move', () => {
+    test('a panel rejoining a non-contiguous tab group keeps its tab (#1763)', () => {
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        const dockview = new DockviewComponent(container, {
+            createComponent: (o) => new PanelContentPartTest(o.id, o.name),
+        });
+        dockview.layout(800, 400);
+
+        for (const id of ['a', 'b', 'c', 'd']) {
+            dockview.api.addPanel({ id, title: id, component: 'default' });
+        }
+        const group = dockview.api.groups[0];
+        const groupId = group.id;
+        const tabGroup = dockview.api.createTabGroup({ groupId, label: 'X' });
+        for (const panelId of ['a', 'b', 'd']) {
+            dockview.api.addPanelToTabGroup({
+                groupId,
+                panelId,
+                tabGroupId: tabGroup.id,
+            });
+        }
+
+        // A moved panel drops out of its tab group, so put it back.
+        dockview.api.onDidMovePanel(({ panel }) => {
+            if (
+                panel.id !== 'c' &&
+                !dockview.api.getTabGroupForPanel({
+                    groupId,
+                    panelId: panel.id,
+                })
+            ) {
+                dockview.api.addPanelToTabGroup({
+                    groupId,
+                    panelId: panel.id,
+                    tabGroupId: tabGroup.id,
+                });
+            }
+        });
+
+        dockview.api.getPanel('c')!.api.moveTo({ group, index: 2 });
+        dockview.api.getPanel('a')!.api.moveTo({ group, index: 3 });
+        expect(() =>
+            dockview.api.getPanel('b')!.api.moveTo({ group, index: 1 })
+        ).not.toThrow();
+
+        const order = group.panels.map((p) => p.id);
+        expect(order).toHaveLength(4);
+        expect((group.model as any).tabsContainer.tabs.panels).toEqual(order);
+        // The rejoined panel sits next to the other members of its group.
+        const members = order
+            .map((id, index) => ({ id, index }))
+            .filter(({ id }) => tabGroup.panelIds.includes(id))
+            .map(({ index }) => index);
+        expect(members[members.length - 1] - members[0]).toBe(
+            members.length - 1
+        );
+
+        dockview.dispose();
+        container.remove();
+    });
+});
