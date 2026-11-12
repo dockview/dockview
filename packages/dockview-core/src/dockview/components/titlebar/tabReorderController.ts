@@ -297,7 +297,7 @@ export class TabReorderController extends CompositeDisposable {
         clientX: number;
         clientY: number;
         pointerEvent: PointerEvent;
-        dropped?: boolean;
+        dropped: boolean;
     }): void {
         // The pointer-backend analog of the HTML5 tabs-list `drop` commit: in
         // smooth mode the per-element drop targets don't latch a state for an
@@ -313,7 +313,7 @@ export class TabReorderController extends CompositeDisposable {
             // A drag from another strip commits elsewhere, except a single
             // tab this strip takes over from its declining tabs.
             (this._animState.sourceIndex !== -1 ||
-                (e.dropped !== false &&
+                (e.dropped &&
                     this.isPointerDragInOwnDocument(e.pointerEvent) &&
                     this.ownsExternalTabDrag())) &&
             this._animState.currentInsertionIndex !== null &&
