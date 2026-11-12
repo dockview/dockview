@@ -2011,6 +2011,25 @@ describe('dockviewGroupPanelModel', () => {
             expect(tabGroup.panelIds).toEqual(['panel1', 'panel3', 'panel2']);
         });
 
+        test('addPanelToTabGroup at index 0 places the panel before the first member', () => {
+            for (const id of ['panel1', 'panel2', 'panel3', 'panel4']) {
+                groupview.model.openPanel(new TestPanel(id, panelApi));
+            }
+
+            const tabGroup = groupview.model.createTabGroup();
+            groupview.model.addPanelToTabGroup(tabGroup.id, 'panel2');
+            groupview.model.addPanelToTabGroup(tabGroup.id, 'panel3');
+            groupview.model.addPanelToTabGroup(tabGroup.id, 'panel4', 0);
+
+            expect(tabGroup.panelIds).toEqual(['panel4', 'panel2', 'panel3']);
+            expect(groupview.model.panels.map((p) => p.id)).toEqual([
+                'panel1',
+                'panel4',
+                'panel2',
+                'panel3',
+            ]);
+        });
+
         test('addPanelToTabGroup moves panel between groups', () => {
             const panel1 = new TestPanel('panel1', panelApi);
             groupview.model.openPanel(panel1);

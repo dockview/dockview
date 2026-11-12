@@ -1958,6 +1958,72 @@ describe('dockviewComponent', () => {
         dockview.dispose();
     });
 
+    describe('addPanelToTabGroup when member order differs from strip order', () => {
+        test('re-adding a moved panel keeps its tab and places it beside the other members', () => {
+            const container = document.createElement('div');
+            const dockview = new DockviewComponent(container, {
+                createComponent(options) {
+                    return new PanelContentPartTest(options.id, options.name);
+                },
+            });
+            dockview.layout(800, 400);
+
+            for (const id of ['a', 'b', 'c', 'd']) {
+                dockview.addPanel({ id, title: id, component: 'default' });
+            }
+            const group = dockview.groups[0];
+            const groupId = group.id;
+            const x = dockview.api.createTabGroup({ groupId, label: 'X' });
+            for (const id of ['a', 'b', 'd']) {
+                dockview.api.addPanelToTabGroup({
+                    groupId,
+                    panelId: id,
+                    tabGroupId: x.id,
+                });
+            }
+
+            // A moved panel leaves its tab group; put it back.
+            dockview.onDidMovePanel(({ panel }) => {
+                if (
+                    panel.id !== 'c' &&
+                    !dockview.api.getTabGroupForPanel({
+                        groupId,
+                        panelId: panel.id,
+                    })
+                ) {
+                    dockview.api.addPanelToTabGroup({
+                        groupId,
+                        panelId: panel.id,
+                        tabGroupId: x.id,
+                    });
+                }
+            });
+
+            const tabCount = () =>
+                group.element.querySelectorAll('.dv-tab').length;
+            const stripOrder = () => group.panels.map((p) => p.id);
+
+            expect(() => {
+                dockview.getGroupPanel('c')!.api.moveTo({ group, index: 2 });
+                dockview.getGroupPanel('a')!.api.moveTo({ group, index: 3 });
+                dockview.getGroupPanel('b')!.api.moveTo({ group, index: 1 });
+            }).not.toThrow();
+
+            // Each rejoining member lands right after its predecessor in X.
+            expect(x.panelIds).toEqual(['d', 'a', 'b']);
+            expect(stripOrder()).toEqual(['c', 'd', 'a', 'b']);
+            expect(tabCount()).toBe(4);
+
+            // The strip still matches the panels, so a drop at the end works.
+            expect(() =>
+                dockview.getGroupPanel('c')!.api.moveTo({ group, index: 4 })
+            ).not.toThrow();
+            expect(tabCount()).toBe(4);
+
+            dockview.dispose();
+        });
+    });
+
     test('moveGroupOrPanel with tabGroupId preserves collapsed state', () => {
         const container = document.createElement('div');
 

@@ -1069,27 +1069,24 @@ export class DockviewGroupPanelModel
      * to maintain contiguity of its tab group members.
      */
     private _enforceContiguity(tabGroup: TabGroup, panelId: string): void {
-        const panel = this._panels.find((p) => p.id === panelId);
-        if (!panel) {
+        const currentIndex = this._panels.findIndex((p) => p.id === panelId);
+        if (currentIndex === -1) {
             return;
         }
 
         const localIndex = tabGroup.indexOfPanel(panelId);
-        const globalIndex = this._computeGlobalIndex(tabGroup, localIndex);
+        const [panel] = this._panels.splice(currentIndex, 1);
+        const targetIndex = this._computeGlobalIndex(
+            tabGroup,
+            localIndex,
+            currentIndex
+        );
+        this._panels.splice(targetIndex, 0, panel);
 
-        const currentIndex = this._panels.indexOf(panel);
-        if (currentIndex === globalIndex) {
-            return;
+        if (targetIndex !== currentIndex) {
+            // Reorder in the tabs container to match
+            this._reinsertTab(panel, targetIndex);
         }
-
-        // Move panel in the flat array
-        this._panels.splice(currentIndex, 1);
-        const adjustedIndex =
-            globalIndex > currentIndex ? globalIndex - 1 : globalIndex;
-        this._panels.splice(adjustedIndex, 0, panel);
-
-        // Reorder in the tabs container to match
-        this._reinsertTab(panel, adjustedIndex);
     }
 
     /** Move `panel`'s tab to `index` by delete + re-open. The fresh `Tab`
@@ -1116,38 +1113,34 @@ export class DockviewGroupPanelModel
     }
 
     /**
-     * Compute the global index in _panels for a group-local index.
-     * Finds where the group's panels start in the flat array and offsets.
+     * Compute the index in _panels at which to insert the member at
+     * `localIndex`, which must not currently be in _panels: right after the
+     * nearest preceding member, else right before the nearest following
+     * member, else `fallbackIndex` (its former index).
      */
     private _computeGlobalIndex(
         tabGroup: TabGroup,
-        localIndex: number
+        localIndex: number,
+        fallbackIndex: number
     ): number {
         const groupPanelIds = tabGroup.panelIds;
+        const indexOfMember = (i: number): number =>
+            this._panels.findIndex((p) => p.id === groupPanelIds[i]);
 
-        if (groupPanelIds.length <= 1) {
-            // Only one panel (the one being added), keep current position
-            const panel = this._panels.find((p) => p.id === groupPanelIds[0]);
-            return panel ? this._panels.indexOf(panel) : this._panels.length;
-        }
-
-        // Find the first existing group member (other than the one at localIndex)
-        // to anchor the group position
-        for (let i = 0; i < groupPanelIds.length; i++) {
-            if (i === localIndex) {
-                continue;
+        for (let i = localIndex - 1; i >= 0; i--) {
+            const index = indexOfMember(i);
+            if (index !== -1) {
+                return index + 1;
             }
-            const existingPanel = this._panels.find(
-                (p) => p.id === groupPanelIds[i]
-            );
-            if (existingPanel) {
-                const existingGlobalIndex = this._panels.indexOf(existingPanel);
-                // Offset based on relative position within group
-                return Math.max(0, existingGlobalIndex + (localIndex - i));
+        }
+        for (let i = localIndex + 1; i < groupPanelIds.length; i++) {
+            const index = indexOfMember(i);
+            if (index !== -1) {
+                return index;
             }
         }
 
-        return this._panels.length;
+        return fallbackIndex;
     }
 
     removePanelFromTabGroup(panelId: string): void {
