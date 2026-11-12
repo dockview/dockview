@@ -278,7 +278,7 @@ describe('tabs - strip is a pointer hit-test stop', () => {
         expect(onRootDrop).not.toHaveBeenCalled();
         expect(onTabsDrop).toHaveBeenCalledTimes(1);
         expect(onTabsDrop.mock.calls[0][0]).toEqual(
-            expect.objectContaining({ targetTabGroupId: null })
+            expect.objectContaining({ index: 2, targetTabGroupId: null })
         );
 
         fixture.dispose();
