@@ -1,5 +1,6 @@
 import { getPanelData, PanelTransfer } from '../../../dnd/dataTransfer';
-import { getHitTestRoot, toggleClass } from '../../../dom';
+import { getEventDocument, getHitTestRoot, toggleClass } from '../../../dom';
+import { PointerDragEndEvent } from '../../../dnd/pointer/types';
 import { CompositeDisposable, IValueDisposable } from '../../../lifecycle';
 import { DockviewComponent } from '../../dockviewComponent';
 import { DockviewGroupPanel } from '../../dockviewGroupPanel';
@@ -293,31 +294,18 @@ export class TabReorderController extends CompositeDisposable {
      * inside-strip flag and tear down any smooth-reorder anim state the
      * dragover bridge may have installed.
      */
-    handlePointerDragEnd(e?: {
-        clientX: number;
-        clientY: number;
-        pointerEvent: PointerEvent;
-        dropped: boolean;
-    }): void {
+    handlePointerDragEnd(e?: PointerDragEndEvent): void {
         // The pointer-backend analog of the HTML5 tabs-list `drop` commit: in
         // smooth mode the per-element drop targets don't latch a state for an
         // internal drag, so nothing else commits a release over the strip.
         // The strip's own targets null `_animState` before this runs and the
         // void container is outside the strip, so neither double-commits.
-        // The layout-edge target (`dndEdges`) is the exception: it knows
-        // nothing of tabs, so a release inside both it and the strip docks
-        // the group and reorders it.
+        // The layout-edge target (`dndEdges`) never sees a release committed
+        // here: the strip stops the hit-test for it (`pointerReleaseOwner`).
         if (
             e &&
-            this._animState &&
-            // A drag that started in another strip commits elsewhere, except
-            // the single tab this strip took over from its declining tabs.
-            (this._animState.sourceIndex !== -1 ||
-                (e.dropped &&
-                    this.isPointerDragInOwnDocument(e.pointerEvent) &&
-                    this.ownsExternalTabDrag())) &&
-            this._animState.currentInsertionIndex !== null &&
-            this.isPointInsideTabsList(e.clientX, e.clientY)
+            this._animState?.currentInsertionIndex != null &&
+            this.shouldCommitPointerRelease(e)
         ) {
             const sourceTabGroupId = this._animState.sourceTabGroupId;
 
@@ -334,39 +322,69 @@ export class TabReorderController extends CompositeDisposable {
     }
 
     /**
-     * A single tab dragged in from another group of this dockview, in smooth
-     * mode. `Tab.canDisplayOverlay` declines every internal drag there, so no
-     * per-tab target latches and the strip is the only thing that can commit
-     * the release. HTML5 does it from the tabs list's `drop` listener; this
-     * is what lets the pointer backend do the same.
-     *
-     * A chip drag is excluded: it commits from the target that latches under
-     * the release.
+     * Whose a pointer release over this strip is: `'own'` for a drag that
+     * started here and left drag state to commit (a smooth-mode tab, or a
+     * chip), `'external'` for a single tab from another group that the strip
+     * takes over in smooth mode, and `null` for anything it leaves to the
+     * targets behind it. The strip's hit-test stop and `handlePointerDragEnd`
+     * both read this, so blocking a release and committing it agree.
      */
-    ownsExternalTabDrag(): boolean {
+    pointerReleaseOwner(): 'own' | 'external' | null {
+        if ((this._animState?.sourceIndex ?? -1) !== -1) {
+            return 'own';
+        }
+
         const data = getPanelData();
 
+        if (
+            data?.viewId === this.accessor.id &&
+            data.groupId !== this.group.id &&
+            this.takesOverExternalTab(data)
+        ) {
+            return 'external';
+        }
+
+        return null;
+    }
+
+    /**
+     * A single tab from another group, in smooth mode. `Tab.canDisplayOverlay`
+     * declines every internal drag there, so no per-tab target latches and the
+     * strip is the only thing that can commit the release, as the HTML5
+     * tabs-list `drop` listener does.
+     */
+    private takesOverExternalTab(data: PanelTransfer): boolean {
         return (
             this.accessor.options.theme?.tabAnimation === 'smooth' &&
             // The group would reject the drop, so the release stays the root's.
             this.group.locked !== 'no-drop-target' &&
-            data?.viewId === this.accessor.id &&
-            data.groupId !== this.group.id &&
             data.panelId !== null &&
             !data.tabGroupId
         );
     }
 
-    /**
-     * Pointer drags stay in the window they started in, so a strip in another
-     * document (a popout) is never under the release, even when its own
-     * hit-test at the same coordinates says otherwise.
-     */
-    private isPointerDragInOwnDocument(event: PointerEvent): boolean {
-        // Duck-typed: `instanceof Node` fails across windows.
-        const target = event.target as (Node & Window) | null;
-        const doc = target?.ownerDocument ?? target?.document;
-        return doc === this._tabsList.ownerDocument;
+    private shouldCommitPointerRelease(e: PointerDragEndEvent): boolean {
+        const owner = this.pointerReleaseOwner();
+
+        if (owner === null) {
+            return false;
+        }
+
+        // A release taken over from another strip must be a real drop in this
+        // strip's window: a cancel also ends the drag, and a popout's strip
+        // hit-tests its own document at the source window's coordinates.
+        if (
+            owner === 'external' &&
+            !(
+                e.dropped &&
+                getEventDocument(e.pointerEvent) ===
+                    this._tabsList.ownerDocument
+            )
+        ) {
+            return false;
+        }
+
+        return this.isPointInsideTabsList(e.clientX, e.clientY);
     }
 
     private isPointInsideTabsList(clientX: number, clientY: number): boolean {
