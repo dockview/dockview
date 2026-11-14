@@ -522,7 +522,9 @@ export class TabReorderController extends CompositeDisposable {
         if (
             !data ||
             !(data.panelId || data.tabGroupId) ||
-            data.groupId === this.group.id
+            data.groupId === this.group.id ||
+            // A locked group takes no new panels from its header.
+            this.group.locked
         ) {
             return false;
         }
@@ -1570,7 +1572,7 @@ export class TabReorderController extends CompositeDisposable {
                 this._tabGroupManager.skipNextCollapseAnimation = true;
                 this.group.model.moveTabGroup(sourceTabGroupId, insertionIndex);
             }
-        } else if (data) {
+        } else if (data && !this.group.locked) {
             // Cross-group: delegate to the component-level move which
             // handles panel transfer and tab group recreation.
             // Use the REAL tab group ID from transfer data, not the

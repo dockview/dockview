@@ -2021,6 +2021,15 @@ export class DockviewGroupPanelModel
             return;
         }
 
+        // A locked group takes no new panels from a header drop.
+        if (
+            this.locked &&
+            type === 'header' &&
+            getPanelData()?.groupId !== this.id
+        ) {
+            return;
+        }
+
         // An `edge` content drop (a resolver's outer "dock to the layout edge"
         // cell) docks against the whole layout, not this group.
         if (type === 'content' && edge) {
