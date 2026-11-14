@@ -358,8 +358,9 @@ export class TabReorderController extends CompositeDisposable {
     private takesOverExternalDrag(data: PanelTransfer): boolean {
         return (
             this.accessor.options.theme?.tabAnimation === 'smooth' &&
-            // The group would reject the drop, so the release stays the root's.
-            this.group.locked !== 'no-drop-target' &&
+            // A locked group takes no new panels from its header (`true` keeps
+            // only the drop zones around it), so the release stays the root's.
+            !this.group.locked &&
             (data.panelId !== null || !!data.tabGroupId)
         );
     }

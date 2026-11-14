@@ -567,6 +567,28 @@ describe('tabs - strip is a pointer hit-test stop', () => {
                 expected: 'edge',
             },
             {
+                // A locked group takes no new panels from its header.
+                name: 'a tab from another group onto a locked group',
+                transfer: new PanelTransfer(
+                    ACCESSOR_ID,
+                    'other-group',
+                    'panel-x'
+                ),
+                locked: true,
+                expected: 'edge',
+            },
+            {
+                name: 'a chip from another group onto a locked group',
+                transfer: new PanelTransfer(
+                    ACCESSOR_ID,
+                    'other-group',
+                    null,
+                    'chip-x'
+                ),
+                locked: true,
+                expected: 'edge',
+            },
+            {
                 name: 'a tab from another dockview',
                 transfer: new PanelTransfer(
                     'other-view',
