@@ -348,6 +348,8 @@ export class TabReorderController extends CompositeDisposable {
 
         return (
             this.accessor.options.theme?.tabAnimation === 'smooth' &&
+            // The group would reject the drop, so the release stays the root's.
+            this.group.locked !== 'no-drop-target' &&
             data?.viewId === this.accessor.id &&
             data.groupId !== this.group.id &&
             data.panelId !== null &&

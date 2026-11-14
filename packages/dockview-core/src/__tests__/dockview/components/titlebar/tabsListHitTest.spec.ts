@@ -11,6 +11,7 @@ import {
     RootDropTargetService,
 } from '../../../../dockview/rootDropTargetService';
 import { DockviewComponentOptions } from '../../../../dockview/options';
+import { DockviewGroupPanelLocked } from '../../../../dockview/dockviewGroupPanelModel';
 import { PointerDragController } from '../../../../dnd/pointer/pointerDragController';
 import {
     LocalSelectionTransfer,
@@ -84,7 +85,10 @@ function makePointerEvent(
  * `RootDropTargetService` the component uses, so a release resolves through the
  * real pointer hit-test.
  */
-function createFixture(tabAnimation: 'smooth' | 'default' = 'smooth'): {
+function createFixture(
+    tabAnimation: 'smooth' | 'default' = 'smooth',
+    locked: DockviewGroupPanelLocked = false
+): {
     tabs: Tabs;
     rootService: RootDropTargetService;
     tabsList: HTMLElement;
@@ -129,7 +133,7 @@ function createFixture(tabAnimation: 'smooth' | 'default' = 'smooth'): {
 
     const group = fromPartial<DockviewGroupPanel>({
         id: 'test-group',
-        locked: false,
+        locked,
         model: fromPartial({
             canDisplayOverlay: jest.fn().mockReturnValue(true),
             dropTargetContainer: undefined,
@@ -307,6 +311,30 @@ describe('tabs - strip is a pointer hit-test stop', () => {
         );
 
         expect(onTabsDrop).not.toHaveBeenCalled();
+        expect(onRootDrop).toHaveBeenCalledTimes(1);
+
+        fixture.dispose();
+    });
+
+    test("a cross-group tab drag released on a no-drop-target group's strip padding still docks at the edge", () => {
+        // The group rejects the drop, so the strip has nothing to commit and
+        // stopping the walk would make the release a dead zone.
+        const fixture = createFixture('smooth', 'no-drop-target');
+
+        const onRootDrop = jest.fn();
+        fixture.rootService.onDrop(onRootDrop);
+
+        LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
+            [new PanelTransfer(ACCESSOR_ID, 'other-group', 'panel-x')],
+            PanelTransfer.prototype
+        );
+
+        drag(fixture, document.createElement('div'));
+
+        window.dispatchEvent(
+            makePointerEvent('pointerup', RELEASE_X, RELEASE_Y)
+        );
+
         expect(onRootDrop).toHaveBeenCalledTimes(1);
 
         fixture.dispose();
