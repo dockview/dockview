@@ -7,6 +7,7 @@ import {
     getActiveElement,
     getOverlayParent,
     getDockviewTheme,
+    getEventDocument,
     getHitTestRoot,
     isChildEntirelyVisibleWithinParent,
     isEventWithin,
@@ -733,6 +734,43 @@ describe('addStyles and getDockviewTheme across a shadow boundary', () => {
         expect(getDockviewTheme(dock)).toBe('dockview-theme-abyss');
 
         host.remove();
+    });
+});
+
+describe('getEventDocument', () => {
+    function dispatchOn(target: EventTarget): Event {
+        const event = new Event('pointerup');
+        target.dispatchEvent(event);
+        return event;
+    }
+
+    test("returns an element target's document", () => {
+        const el = document.createElement('div');
+        document.body.appendChild(el);
+
+        expect(getEventDocument(dispatchOn(el))).toBe(document);
+
+        el.remove();
+    });
+
+    test("returns a window target's document", () => {
+        expect(getEventDocument(dispatchOn(window))).toBe(document);
+    });
+
+    test('returns a document target itself', () => {
+        expect(getEventDocument(dispatchOn(document))).toBe(document);
+    });
+
+    test("returns another document's own document for its nodes", () => {
+        const other = document.implementation.createHTMLDocument('popout');
+        const el = other.createElement('div');
+        other.body.appendChild(el);
+
+        expect(getEventDocument(dispatchOn(el))).toBe(other);
+    });
+
+    test('returns null for an event that was never dispatched', () => {
+        expect(getEventDocument(new Event('pointerup'))).toBeNull();
     });
 });
 
