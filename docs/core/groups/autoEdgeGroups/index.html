@@ -19,9 +19,9 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/img/brand/apple-touch-icon-180.png">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"Dockview","description":"A zero dependency docking layout manager for building IDE-like interfaces with tabs, groups, grids, splitviews, drag and drop, floating panels, and popout windows. Touch and mobile ready. Supports React, Vue, Angular, and vanilla TypeScript.","url":"https://dockview.dev","codeRepository":"https://github.com/dockview/dockview","programmingLanguage":["TypeScript","JavaScript"],"runtimePlatform":["Browser"],"license":"https://opensource.org/licenses/MIT","operatingSystem":"Any","applicationCategory":"DeveloperApplication","keywords":["layout manager","docking","tabs","drag and drop","react","vue","angular","typescript","splitview","gridview","floating panels","popout windows","touch","mobile","zero dependency"]}</script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&amp;display=swap"><link rel="stylesheet" href="/assets/css/styles.95c6cd91.css">
-<script src="/assets/js/runtime~main.b55f1ec2.js" defer="defer"></script>
-<script src="/assets/js/main.546485eb.js" defer="defer"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&amp;display=swap"><link rel="stylesheet" href="/assets/css/styles.6b7767fa.css">
+<script src="/assets/js/runtime~main.cce0cedd.js" defer="defer"></script>
+<script src="/assets/js/main.922c3ba6.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -44,6 +44,9 @@
 <li class="">The <strong>outer band</strong>, hugging the true edge (marked by a coloured indicator line), docks the panel as a dedicated <strong>edge group</strong>.</li>
 <li class="">Just <strong>inside</strong> it, the panel splits the primary grid as usual, the standard <code>dndEdges</code> behaviour.</li>
 </ul>
+<p>The bands apply only to the edges you enable. An edge left out of <code>dockToEdgeGroups</code> keeps the standard <code>dndEdges</code> drop zone.</p>
+<p>Where a group&#x27;s tab bar touches an enabled edge, the tab bar keeps working as a tab bar: dropping on it adds the panel to that group. To dock over it, use the <strong>edge drop strip</strong>, a thin drop zone along the outermost edge of the layout that appears on each enabled edge while you drag and sits above the tab bars. It is 8px thick by default; set <code>--dv-edge-drop-strip-size</code> to change it. Keep it small: the strip covers the edge of every tab bar it crosses. The strip is not shown when you supply your own <code>dropPositionResolver</code>.</p>
+<p>In an <code>onWillDrop</code> listener, <code>event.edgeGroup</code> is <code>true</code> for a drop on the edge drop strip.</p>
 <p>A newly revealed edge group is created <strong>collapsed</strong>: the drop adds a tab to its strip rather than popping the group open. Dropping onto an edge that already exists simply adds the panel to its tabs and leaves the group&#x27;s collapsed/expanded state untouched. Combine with <a class="" href="/docs/core/groups/autoHideEdgeGroups">auto-hide edge groups</a> so a revealed edge peeks open on click.</p>
 <h2 class="anchor anchorTargetStickyNavbar_SAay" id="zero-footprint-when-empty">Zero footprint when empty<a href="#zero-footprint-when-empty" class="hash-link" aria-label="Direct link to Zero footprint when empty" title="Direct link to Zero footprint when empty" translate="no">​</a></h2>
 <p>An edge group created by a drag reveal is flagged to <strong>tear down to zero footprint</strong> once its last panel leaves: the edge occupies no space and shows no strip until something is dragged back to it. This is the difference from a normal edge group, which collapses to a persistent strip when emptied.</p>
