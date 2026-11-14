@@ -284,7 +284,6 @@ export class AutoEdgeGroupService
         return isAnyEdgeGroupEnabled(this.host.options.dockToEdgeGroups);
     }
 
-    /** Whether `position` is an edge enabled in `dockToEdgeGroups`. */
     /** `dockToEdgeGroups` enables the edge, and an edge group already there
      *  is not locked against a dragged panel. */
     private _canDockToEdge(position: Position): position is EdgeGroupPosition {

@@ -816,8 +816,9 @@ export class SmartGuidesService
         }
         // Tear the overlay down before the layout mutates.
         this._endSession(group);
-        // A merge supersedes a plain alignment for the drop's outcome.
-        if (pending) {
+        // A merge supersedes a plain alignment for the drop's outcome. The
+        // target may have been locked since the merge was offered.
+        if (pending?.target.model.acceptsUserDrop(pending.position)) {
             this.host.mergeFloatInto(group, pending.target, pending.position);
             this._onDidSnapTogether.fire({
                 dragged: group,

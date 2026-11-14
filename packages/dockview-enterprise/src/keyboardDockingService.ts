@@ -361,6 +361,7 @@ export class KeyboardDockingService
         // A locked group refuses the move; stay in move mode to pick again.
         if (!group.model.acceptsUserDrop(position)) {
             this.host.announce(m.moveNotAllowed());
+            this._showHint(m.moveNotAllowed());
             return;
         }
         this._exit();

@@ -406,6 +406,27 @@ describe('smart guides', () => {
         expect(mergeCalls).toEqual([]);
     });
 
+    test('a float locked after the merge was offered is not merged into', () => {
+        let locked: boolean = false;
+        const target = {
+            id: 'target',
+            model: {
+                acceptsUserDrop: (position: string) =>
+                    !locked || position !== 'center',
+            },
+        } as unknown as DockviewGroupPanel;
+        const t: Box = { left: 100, top: 100, width: 200, height: 200 };
+        make(noAlign(), [{ group: target, box: t }]);
+
+        service.transformFloatingGroupDrag(
+            ctx({ left: 120, top: 100, width: 200, height: 200 }, [])
+        );
+        locked = true;
+        endEmitter.fire(group);
+
+        expect(mergeCalls).toEqual([]);
+    });
+
     test('a float locked with true still takes a dock beside it', () => {
         const locked = floatGroup('target', true);
         const t: Box = { left: 300, top: 100, width: 200, height: 200 };

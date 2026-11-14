@@ -216,7 +216,7 @@ describe('tabs - pointer reorder with tab groups', () => {
         expect(group.model.getTabGroupForPanel('p0')?.id).toBe(tg.id);
     });
 
-    test('a locked group does not reorder, and opens no gap', () => {
+    test('a locked group does not reorder: the gap stays at the source', () => {
         const group = addPanels(['p1', 'p2', 'p3']);
         group.locked = true;
         layoutStrip(group);
@@ -224,10 +224,17 @@ describe('tabs - pointer reorder with tab groups', () => {
         const tab = tabElement(group, 'p1');
         fireEvent.pointerDown(tab, pointer(50));
         fireEvent.pointerMove(window, pointer(60));
-        fireEvent.pointerMove(window, pointer(190));
         jest.runAllTimers();
+        fireEvent.pointerMove(window, pointer(190));
+        fireEvent.pointerMove(window, pointer(250));
 
-        expect((group.model as any).tabsContainer.tabs._animState).toBeNull();
+        // The source still collapses, as for a drag out of the group…
+        expect(tab.classList.contains('dv-tab--dragging')).toBe(true);
+        // …but the insertion point never leaves it.
+        expect(
+            (group.model as any).tabsContainer.tabs._animState
+                .currentInsertionIndex
+        ).toBe(0);
 
         fireEvent.pointerUp(window, pointer(190));
         jest.runAllTimers();
@@ -253,6 +260,11 @@ describe('tabs - pointer reorder with tab groups', () => {
 
         expect(panelIds(group)).toEqual(['p0', 'p1', 'p2']);
         expect(tg.panelIds).toEqual(['p1']);
+        expect(
+            tabsList(group).querySelector(
+                '.dv-tab-group-chip--dragging, .dv-tab--dragging'
+            )
+        ).toBeNull();
     });
 
     test('a reorder with no tab groups drops with a null target', () => {

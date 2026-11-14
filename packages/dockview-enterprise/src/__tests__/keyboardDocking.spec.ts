@@ -119,6 +119,10 @@ describe('accessibility: keyboard docking', () => {
             fireEvent.keyDown(dockview.element, { key: 'Enter' });
 
             expect(region().textContent).toBe('That move is not allowed.');
+            expect(
+                container.querySelector('.dv-keyboard-docking-hint')
+                    ?.textContent
+            ).toBe('That move is not allowed.');
             expect(dockview.groups).toHaveLength(2);
             expect(p1Group().panels.map((p) => p.id)).toEqual(['p1']);
         });

@@ -479,6 +479,10 @@ export class TabReorderController extends CompositeDisposable {
         // animation is not disrupted.
         if (this._animState!.sourceIndex !== -1) {
             this.group.model.dropTargetContainer?.model?.clear();
+            // A locked group takes no reorder: the gap stays at the source.
+            if (this.group.locked) {
+                return true;
+            }
         }
         this.handleDragOver({ clientX, clientY });
         return true;
@@ -1557,6 +1561,8 @@ export class TabReorderController extends CompositeDisposable {
 
         // A locked group takes no new panels and no reorder.
         if (this.group.locked) {
+            this._clearGroupDragClasses(sourceTabGroupId);
+            this.resetTabTransforms();
             return;
         }
 
