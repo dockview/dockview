@@ -1075,21 +1075,21 @@ export class DockviewGroupPanelModel
         }
 
         const localIndex = tabGroup.indexOfPanel(panelId);
-        const globalIndex = this._computeGlobalIndex(tabGroup, localIndex);
-
         const currentIndex = this._panels.indexOf(panel);
-        if (currentIndex === globalIndex) {
-            return;
-        }
 
-        // Move panel in the flat array
+        // Remove first so the target index always lies within the strip.
         this._panels.splice(currentIndex, 1);
-        const adjustedIndex =
-            globalIndex > currentIndex ? globalIndex - 1 : globalIndex;
-        this._panels.splice(adjustedIndex, 0, panel);
+        const targetIndex = this._computeGlobalIndex(
+            tabGroup,
+            localIndex,
+            currentIndex
+        );
+        this._panels.splice(targetIndex, 0, panel);
 
-        // Reorder in the tabs container to match
-        this._reinsertTab(panel, adjustedIndex);
+        if (targetIndex !== currentIndex) {
+            // Reorder in the tabs container to match
+            this._reinsertTab(panel, targetIndex);
+        }
     }
 
     /** Move `panel`'s tab to `index` by delete + re-open. The fresh `Tab`
@@ -1116,38 +1116,34 @@ export class DockviewGroupPanelModel
     }
 
     /**
-     * Compute the global index in _panels for a group-local index.
-     * Finds where the group's panels start in the flat array and offsets.
+     * Index in _panels for the member at `localIndex`, which must already be
+     * removed from _panels: after its nearest preceding member in the strip,
+     * else before its nearest following one.
      */
     private _computeGlobalIndex(
         tabGroup: TabGroup,
-        localIndex: number
+        localIndex: number,
+        fallbackIndex: number
     ): number {
         const groupPanelIds = tabGroup.panelIds;
+        const indexOfMember = (i: number): number =>
+            this._panels.findIndex((p) => p.id === groupPanelIds[i]);
 
-        if (groupPanelIds.length <= 1) {
-            // Only one panel (the one being added), keep current position
-            const panel = this._panels.find((p) => p.id === groupPanelIds[0]);
-            return panel ? this._panels.indexOf(panel) : this._panels.length;
-        }
-
-        // Find the first existing group member (other than the one at localIndex)
-        // to anchor the group position
-        for (let i = 0; i < groupPanelIds.length; i++) {
-            if (i === localIndex) {
-                continue;
+        for (let i = localIndex - 1; i >= 0; i--) {
+            const index = indexOfMember(i);
+            if (index !== -1) {
+                return index + 1;
             }
-            const existingPanel = this._panels.find(
-                (p) => p.id === groupPanelIds[i]
-            );
-            if (existingPanel) {
-                const existingGlobalIndex = this._panels.indexOf(existingPanel);
-                // Offset based on relative position within group
-                return Math.max(0, existingGlobalIndex + (localIndex - i));
+        }
+        for (let i = localIndex + 1; i < groupPanelIds.length; i++) {
+            const index = indexOfMember(i);
+            if (index !== -1) {
+                return index;
             }
         }
 
-        return this._panels.length;
+        // No other member in the strip
+        return Math.min(fallbackIndex, this._panels.length);
     }
 
     removePanelFromTabGroup(panelId: string): void {
