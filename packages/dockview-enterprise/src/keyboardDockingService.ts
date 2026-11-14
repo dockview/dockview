@@ -358,6 +358,11 @@ export class KeyboardDockingService
         const source = move.source;
         const name = group.activePanel?.title ?? group.id;
         const m = this._messages;
+        // A locked group refuses the move; stay in move mode to pick again.
+        if (!group.model.acceptsUserDrop(position)) {
+            this.host.announce(m.moveNotAllowed());
+            return;
+        }
         this._exit();
         try {
             this.host.dockPanel(source, group, position);

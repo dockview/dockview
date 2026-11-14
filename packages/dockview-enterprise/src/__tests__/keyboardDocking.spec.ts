@@ -98,6 +98,60 @@ describe('accessibility: keyboard docking', () => {
         expect(dockview.groups).toHaveLength(2);
     });
 
+    describe('into a locked group', () => {
+        // p1's group is the target: Ctrl+M, ArrowRight to it, Enter to pick it.
+        const pickP1Group = () => {
+            fireEvent.keyDown(dockview.element, { key: 'm', ctrlKey: true });
+            fireEvent.keyDown(dockview.element, { key: 'ArrowRight' });
+            fireEvent.keyDown(dockview.element, { key: 'Enter' });
+        };
+        const p1Group = () => dockview.getGroupPanel('p1')!.group;
+
+        test.each([
+            true,
+            'no-drop-target',
+        ] as const)('tab-into is not allowed (locked: %p)', (locked) => {
+            make(true);
+            twoGroups();
+            p1Group().locked = locked;
+
+            pickP1Group();
+            fireEvent.keyDown(dockview.element, { key: 'Enter' });
+
+            expect(region().textContent).toBe('That move is not allowed.');
+            expect(dockview.groups).toHaveLength(2);
+            expect(p1Group().panels.map((p) => p.id)).toEqual(['p1']);
+        });
+
+        test('a split beside a group locked with true is allowed', () => {
+            make(true);
+            twoGroups();
+            p1Group().locked = true;
+
+            pickP1Group();
+            fireEvent.keyDown(dockview.element, { key: 'ArrowLeft' });
+            fireEvent.keyDown(dockview.element, { key: 'Enter' });
+
+            expect(dockview.groups).toHaveLength(2);
+            expect(p1Group().panels.map((p) => p.id)).toEqual(['p1']);
+            expect(dockview.getGroupPanel('p2')!.group).not.toBe(p1Group());
+        });
+
+        test("a split beside a 'no-drop-target' group is not allowed", () => {
+            make(true);
+            twoGroups();
+            p1Group().locked = 'no-drop-target';
+            const p2Group = dockview.getGroupPanel('p2')!.group;
+
+            pickP1Group();
+            fireEvent.keyDown(dockview.element, { key: 'ArrowLeft' });
+            fireEvent.keyDown(dockview.element, { key: 'Enter' });
+
+            expect(region().textContent).toBe('That move is not allowed.');
+            expect(dockview.getGroupPanel('p2')!.group).toBe(p2Group);
+        });
+    });
+
     test('Escape cancels without changing the layout', () => {
         make(true);
         twoGroups();
