@@ -487,6 +487,19 @@ describe('tabs - strip is a pointer hit-test stop', () => {
                 expected: 'strip',
             },
             {
+                // A chip drag leaves drag state in every animation mode.
+                name: 'a chip from this strip (default)',
+                transfer: new PanelTransfer(
+                    ACCESSOR_ID,
+                    'test-group',
+                    null,
+                    'chip-1'
+                ),
+                tabAnimation: 'default',
+                animState: ownChipState,
+                expected: 'strip',
+            },
+            {
                 name: 'this whole group',
                 transfer: new PanelTransfer(ACCESSOR_ID, 'test-group', null),
                 expected: 'edge',
