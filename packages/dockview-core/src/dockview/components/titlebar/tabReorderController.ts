@@ -304,8 +304,7 @@ export class TabReorderController extends CompositeDisposable {
         // here: the strip stops the hit-test for it (`pointerReleaseOwner`).
         if (
             e &&
-            this._animState &&
-            this._animState.currentInsertionIndex !== null &&
+            this._animState?.currentInsertionIndex != null &&
             this.shouldCommitPointerRelease(e)
         ) {
             const sourceTabGroupId = this._animState.sourceTabGroupId;
