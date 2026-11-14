@@ -1051,6 +1051,42 @@ describe('pinned tabs: separate-row mode', () => {
         expect(rowTabs().map((el) => el.textContent)).toEqual(['a', 'c']);
     });
 
+    describe('in a locked group', () => {
+        test.each([
+            true,
+            'no-drop-target',
+        ] as const)('a row tab does not reorder (locked: %p)', (locked) => {
+            const dockview = make({ enabled: true, mode: 'separate-row' });
+            const { a, order } = setupThreePinned(dockview);
+            a.api.group.locked = locked;
+
+            drag('a', 55);
+
+            expect(order()).toEqual(['a', 'b', 'c']);
+        });
+
+        test.each([
+            true,
+            'no-drop-target',
+        ] as const)('a main-strip tab dragged into the row is not pinned (locked: %p)', (locked) => {
+            const dockview = make({ enabled: true, mode: 'separate-row' });
+            const a = dockview.addPanel({ id: 'a', component: 'default' });
+            dockview.addPanel({ id: 'b', component: 'default' });
+            const c = dockview.addPanel({ id: 'c', component: 'default' });
+            a.api.setPinned(true);
+            a.api.group.locked = locked;
+
+            dragMainTabIntoRow(c, 999);
+
+            expect(c.api.isPinned).toBe(false);
+            expect(a.api.group.model.panels.map((p) => p.id)).toEqual([
+                'a',
+                'b',
+                'c',
+            ]);
+        });
+    });
+
     test('pin-by-drag-in honours the drop slot within the pinned block', () => {
         const dockview = make({ enabled: true, mode: 'separate-row' });
         const a = dockview.addPanel({ id: 'a', component: 'default' });

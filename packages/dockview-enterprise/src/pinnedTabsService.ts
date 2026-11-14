@@ -250,6 +250,10 @@ class SecondRowController extends CompositeDisposable {
     }
 
     private _onDragOver(event: DragEvent): void {
+        // A locked group takes no reorder or pin by drag: refuse the drop.
+        if (this.group.locked) {
+            return;
+        }
         // A reorder originating in this row…
         if (this._dragPanelId !== undefined) {
             event.preventDefault();
@@ -283,6 +287,10 @@ class SecondRowController extends CompositeDisposable {
     }
 
     private _onDrop(event: DragEvent): void {
+        if (this.group.locked) {
+            this._endDrag();
+            return;
+        }
         // Within-row reorder.
         if (this._dragPanelId !== undefined) {
             event.preventDefault();
