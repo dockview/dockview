@@ -453,8 +453,7 @@ export class TabGroupManager {
             getData,
             disabled: !caps.html5,
             isCancelled: () =>
-                !resolveDndCapabilities(this._ctx.accessor.options).html5 ||
-                !!this._ctx.group.locked,
+                !resolveDndCapabilities(this._ctx.accessor.options).html5,
             onDragStart: (event) => {
                 // Type guard via `dataTransfer`; `instanceof DragEvent`
                 // would throw in jsdom, which doesn't ship a DragEvent
@@ -497,8 +496,7 @@ export class TabGroupManager {
                 disabled: !caps.pointer,
                 touchOnly: !caps.pointerHandlesMouse,
                 isCancelled: () =>
-                    !resolveDndCapabilities(this._ctx.accessor.options)
-                        .pointer || !!this._ctx.group.locked,
+                    !resolveDndCapabilities(this._ctx.accessor.options).pointer,
                 createGhost: () => ({
                     element: this._buildChipGhostElement(chip.element),
                     offsetX: 8,

@@ -1028,8 +1028,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                 if (
                     isFloatingGroupsEnabled &&
                     !isFloatingWithOnePanel &&
-                    event.shiftKey &&
-                    !this.group.locked
+                    event.shiftKey
                 ) {
                     event.preventDefault();
 

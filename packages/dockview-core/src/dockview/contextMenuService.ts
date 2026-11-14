@@ -339,7 +339,7 @@ export class ContextMenuController implements IContextMenuService {
                     'Float',
                     close,
                     () => this.accessor.api.addFloatingGroup(panel),
-                    panel.api.location.type === 'floating' || !!group.locked
+                    panel.api.location.type === 'floating'
                 );
             case 'popout':
                 return buildItem(
@@ -349,15 +349,13 @@ export class ContextMenuController implements IContextMenuService {
                         // errors are caught and logged inside addPopoutGroup
                         void this.accessor.api.addPopoutGroup(panel);
                     },
-                    panel.api.location.type === 'popout' || !!group.locked
+                    panel.api.location.type === 'popout'
                 );
             case 'pin':
                 return buildItem(
                     panel.api.isPinned ? 'Unpin tab' : 'Pin tab',
                     close,
-                    () => panel.api.setPinned(!panel.api.isPinned),
-                    // Pinning moves the tab; a locked group's tabs don't move.
-                    !!group.locked
+                    () => panel.api.setPinned(!panel.api.isPinned)
                 );
             default:
                 return undefined;

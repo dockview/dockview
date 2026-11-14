@@ -202,7 +202,8 @@ describe('locked group: HTML5 drop on the tab strip', () => {
             expect(ids(target)).toEqual(['b1', 'b2']);
         });
 
-        test('a header drop from the same group (a reorder) is refused', () => {
+        // Locking keeps new panels out; it leaves a reorder alone.
+        test('a header drop from the same group (a reorder) still commits', () => {
             const { target } = setup();
             target.locked = true;
             LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
@@ -216,10 +217,10 @@ describe('locked group: HTML5 drop on the tab strip', () => {
                 targetTabGroupId: null,
             });
 
-            expect(ids(target)).toEqual(['b1', 'b2']);
+            expect(ids(target)).toEqual(['b2', 'b1']);
         });
 
-        test('a tab group move within the group is refused', async () => {
+        test('a tab group move within the group still commits', async () => {
             const { source } = setup();
             const tabGroupId = await groupA1(source);
             source.locked = true;
@@ -231,7 +232,7 @@ describe('locked group: HTML5 drop on the tab strip', () => {
             stripOf(source)._reorder.commitGroupMove(tabGroupId, 2);
             await Promise.resolve();
 
-            expect(ids(source)).toEqual(['a1', 'a2']);
+            expect(ids(source)).toEqual(['a2', 'a1']);
         });
 
         test('a tab group from another group is refused', async () => {

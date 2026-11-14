@@ -797,47 +797,6 @@ describe('ContextMenuController', () => {
         });
     });
 
-    describe('items that move the tab, in a locked group', () => {
-        test.each([
-            ['float', 'addFloatingGroup'],
-            ['popout', 'addPopoutGroup'],
-            ['pin', 'setPinned'],
-        ] as const)("'%s' is disabled and does nothing", (token, method) => {
-            const action = jest.fn();
-            const panel = fromPartial<IDockviewPanel>({
-                api: {
-                    location: { type: 'grid' },
-                    isPinned: false,
-                    setPinned: method === 'setPinned' ? action : jest.fn(),
-                },
-            });
-            const { accessor, openPopover } = makeAccessor({
-                getTabContextMenuItems: jest.fn().mockReturnValue([token]),
-                api: {
-                    addFloatingGroup:
-                        method === 'addFloatingGroup' ? action : jest.fn(),
-                    addPopoutGroup:
-                        method === 'addPopoutGroup' ? action : jest.fn(),
-                },
-            });
-            const controller = new ContextMenuController(accessor);
-            const group = fromPartial<DockviewGroupPanel>({
-                panels: [panel],
-                locked: true,
-            });
-
-            controller.show(panel, group, new MouseEvent('contextmenu'));
-
-            const menuEl = openPopover.mock.calls[0][0] as HTMLElement;
-            const item = menuEl.querySelector(
-                '.dv-context-menu-item'
-            ) as HTMLElement;
-            expect(item.getAttribute('aria-disabled')).toBe('true');
-            fireEvent.click(item);
-            expect(action).not.toHaveBeenCalled();
-        });
-    });
-
     describe("built-in 'float' item", () => {
         test('calls api.addFloatingGroup() with the panel', () => {
             const addFloatingGroup = jest.fn();

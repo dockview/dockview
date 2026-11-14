@@ -479,10 +479,6 @@ export class TabReorderController extends CompositeDisposable {
         // animation is not disrupted.
         if (this._animState!.sourceIndex !== -1) {
             this.group.model.dropTargetContainer?.model?.clear();
-            // A locked group takes no reorder: the gap stays at the source.
-            if (this.group.locked) {
-                return true;
-            }
         }
         this.handleDragOver({ clientX, clientY });
         return true;
@@ -1559,13 +1555,6 @@ export class TabReorderController extends CompositeDisposable {
         this._tabGroupManager.disposeChipDrag(sourceTabGroupId);
         this._tabGroupManager.clearChipDropOverlays();
 
-        // A locked group takes no new panels and no reorder.
-        if (this.group.locked) {
-            this._clearGroupDragClasses(sourceTabGroupId);
-            this.resetTabTransforms();
-            return;
-        }
-
         // Check if the tab group exists in this group (within-group reorder)
         // or in another group (cross-group move).
         const isLocal = this.group.model
@@ -1596,6 +1585,10 @@ export class TabReorderController extends CompositeDisposable {
             // their inline `margin-left` would otherwise persist as a
             // visible gap (issue #1243).
             this.resetTabTransforms();
+            // A locked group takes no new panels from its header.
+            if (this.group.locked) {
+                return;
+            }
             this.accessor.moveGroupOrPanel({
                 from: {
                     groupId: data.groupId,

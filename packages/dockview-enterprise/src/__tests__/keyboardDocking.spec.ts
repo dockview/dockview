@@ -156,27 +156,6 @@ describe('accessibility: keyboard docking', () => {
         });
     });
 
-    test.each([
-        true,
-        'no-drop-target',
-    ] as const)('a panel in a locked group cannot be moved (locked: %p)', (locked) => {
-        make(true);
-        twoGroups();
-        const p2Group = dockview.getGroupPanel('p2')!.group;
-        p2Group.locked = locked;
-
-        fireEvent.keyDown(dockview.element, { key: 'm', ctrlKey: true });
-        expect(region().textContent).toBe('That move is not allowed.');
-
-        // Not in move mode: these keys move nothing.
-        fireEvent.keyDown(dockview.element, { key: 'ArrowRight' });
-        fireEvent.keyDown(dockview.element, { key: 'Enter' });
-        fireEvent.keyDown(dockview.element, { key: 'Enter' });
-
-        expect(dockview.groups).toHaveLength(2);
-        expect(dockview.getGroupPanel('p2')!.group).toBe(p2Group);
-    });
-
     test('Escape cancels without changing the layout', () => {
         make(true);
         twoGroups();
@@ -530,16 +509,6 @@ describe('accessibility: toggle pin', () => {
         expect(dockview.activePanel?.api.isPinned).toBe(true);
 
         pressTogglePin();
-        expect(dockview.activePanel?.api.isPinned).toBe(false);
-    });
-
-    test('no-op for a panel in a locked group', () => {
-        make(true, { enabled: true });
-        twoTabs();
-        dockview.activePanel!.group.locked = true;
-
-        pressTogglePin();
-
         expect(dockview.activePanel?.api.isPinned).toBe(false);
     });
 

@@ -81,10 +81,7 @@ class SecondRowController extends CompositeDisposable {
                 return;
             }
             if ((event.target as HTMLElement).closest('.dv-pinned-tab-unpin')) {
-                // Unpinning moves the tab; a locked group's tabs don't move.
-                if (!this.group.locked) {
-                    panel.api.setPinned(false);
-                }
+                panel.api.setPinned(false);
             } else {
                 panel.api.setActive();
             }
@@ -228,11 +225,6 @@ class SecondRowController extends CompositeDisposable {
     }
 
     private _onDragStart(event: DragEvent): void {
-        // A locked group's tabs don't move by user gesture.
-        if (this.group.locked) {
-            event.preventDefault();
-            return;
-        }
         const tabEl = (event.target as HTMLElement).closest(
             '.dv-pinned-tab'
         ) as HTMLElement | null;
@@ -258,10 +250,6 @@ class SecondRowController extends CompositeDisposable {
     }
 
     private _onDragOver(event: DragEvent): void {
-        // A locked group takes no reorder or pin by drag: refuse the drop.
-        if (this.group.locked) {
-            return;
-        }
         // A reorder originating in this row…
         if (this._dragPanelId !== undefined) {
             event.preventDefault();
@@ -295,10 +283,6 @@ class SecondRowController extends CompositeDisposable {
     }
 
     private _onDrop(event: DragEvent): void {
-        if (this.group.locked) {
-            this._endDrag();
-            return;
-        }
         // Within-row reorder.
         if (this._dragPanelId !== undefined) {
             event.preventDefault();

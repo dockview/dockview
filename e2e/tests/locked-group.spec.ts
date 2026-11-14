@@ -81,8 +81,8 @@ test.describe('locked group', () => {
 
 /**
  * In smooth tab animation the tab strip, not the tabs, commits a drop on it,
- * on both drag backends. A locked group's strip takes nothing: no tab from
- * another group, and no reorder of its own tabs.
+ * on both drag backends. A locked group's strip takes no tab from another
+ * group.
  */
 for (const dnd of ['pointer', 'html5'] as const) {
     test.describe(`locked group, smooth mode, ${dnd} backend`, () => {
@@ -135,40 +135,6 @@ for (const dnd of ['pointer', 'html5'] as const) {
                 } else {
                     await expect(tabsOf(page, 1)).toContainText(['one']);
                 }
-            });
-
-            test(`a tab ${locked ? "can't be dragged out of a locked" : 'can be dragged out of an unlocked'} group`, async ({
-                page,
-            }) => {
-                await setup(page);
-                await page.evaluate(
-                    (l) => (window as any).__dv.setGroupLocked('three', l),
-                    locked
-                );
-
-                await drag(page, 'three', 'one');
-
-                if (locked) {
-                    await expect(tabsOf(page, 1)).toHaveText(['three', 'four']);
-                } else {
-                    await expect(tabsOf(page, 0)).toContainText(['three']);
-                }
-            });
-
-            test(`a reorder ${locked ? 'is refused in a locked' : 'works in an unlocked'} group`, async ({
-                page,
-            }) => {
-                await setup(page);
-                await page.evaluate(
-                    (l) => (window as any).__dv.setGroupLocked('three', l),
-                    locked
-                );
-
-                await drag(page, 'four', 'three');
-
-                await expect(tabsOf(page, 1)).toHaveText(
-                    locked ? ['three', 'four'] : ['four', 'three']
-                );
             });
         }
     });

@@ -333,8 +333,7 @@ export class KeyboardNavigationService
             return;
         }
         const panel = this.host.activePanel;
-        // Pinning moves the tab; a locked group's tabs don't move.
-        if (!panel || panel.group.locked) {
+        if (!panel) {
             return;
         }
         panel.api.setPinned(!panel.api.isPinned);
