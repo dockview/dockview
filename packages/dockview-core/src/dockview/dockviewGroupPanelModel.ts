@@ -1077,8 +1077,7 @@ export class DockviewGroupPanelModel
         const localIndex = tabGroup.indexOfPanel(panelId);
         const currentIndex = this._panels.indexOf(panel);
 
-        // Take the panel out first, so the target is computed from the
-        // positions of the other panels and always lies within the strip.
+        // Remove first so the target index always lies within the strip.
         this._panels.splice(currentIndex, 1);
         const targetIndex = this._computeGlobalIndex(
             tabGroup,
@@ -1117,12 +1116,9 @@ export class DockviewGroupPanelModel
     }
 
     /**
-     * Compute the index in _panels for the panel at `localIndex` of
-     * `tabGroup`, which must already be removed from _panels. The panel goes
-     * right after its nearest preceding group member in the strip, or right
-     * before its nearest following one. Members are found by their actual
-     * strip positions, since a group's panels are not always contiguous or in
-     * strip order (e.g. after a member was moved and rejoined the group).
+     * Index in _panels for the member at `localIndex`, which must already be
+     * removed from _panels: after its nearest preceding member in the strip,
+     * else before its nearest following one.
      */
     private _computeGlobalIndex(
         tabGroup: TabGroup,
@@ -1146,7 +1142,7 @@ export class DockviewGroupPanelModel
             }
         }
 
-        // No other member in the strip: keep the panel where it was
+        // No other member in the strip
         return Math.min(fallbackIndex, this._panels.length);
     }
 
