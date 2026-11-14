@@ -18,7 +18,7 @@ You may want to combine this with `disableDnd={true}` to provide a locked grid w
 
 ## Locking a group
 
-Locking an individual group prevents users from moving new panels into it, by drag or with the keyboard, and from reordering its tabs by drag. The rest of the layout stays fully interactive. You can still add and move panels in a locked group programmatically through the API.
+Locking an individual group stops users moving its tabs and moving new panels into it. Its tabs can't be dragged, reordered, pinned, floated or opened in a new window, by mouse, touch or keyboard. The rest of the layout stays fully interactive. You can still add and move panels in a locked group programmatically through the API.
 
 ```tsx
 panel.group.locked = true;
