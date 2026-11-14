@@ -451,26 +451,36 @@ describe('tabs - pointer drop of a tab onto another group (smooth)', () => {
         return Array.from(list(group).querySelectorAll('.dv-tab'));
     }
 
+    /** Tabs and tab-group chips, in strip order. */
+    function items(group: DockviewGroupPanel): HTMLElement[] {
+        return Array.from(
+            list(group).querySelectorAll('.dv-tab, .dv-tab-group-chip')
+        );
+    }
+
     function layout(group: DockviewGroupPanel, start: number): void {
         let left = start;
-        for (const tab of tabs(group)) {
-            jest.spyOn(tab, 'getBoundingClientRect').mockReturnValue(
-                makeDOMRect(left, TAB_WIDTH)
+        for (const item of items(group)) {
+            const width = item.classList.contains('dv-tab-group-chip')
+                ? CHIP_WIDTH
+                : TAB_WIDTH;
+            jest.spyOn(item, 'getBoundingClientRect').mockReturnValue(
+                makeDOMRect(left, width)
             );
-            left += TAB_WIDTH;
+            left += width;
         }
         jest.spyOn(list(group), 'getBoundingClientRect').mockReturnValue(
             makeDOMRect(start, left - start)
         );
     }
 
-    /** Hit-test the tab under `x`, falling back to its strip. */
+    /** Hit-test the tab or chip under `x`, falling back to its strip. */
     function hitTest(groups: DockviewGroupPanel[]): void {
         const at = (x: number): Element | null => {
             for (const group of groups) {
                 const rect = list(group).getBoundingClientRect();
                 if (x >= rect.left && x < rect.right) {
-                    const tab = tabs(group).find((el) => {
+                    const tab = items(group).find((el) => {
                         const r = el.getBoundingClientRect();
                         return x >= r.left && x < r.right;
                     });
@@ -497,6 +507,29 @@ describe('tabs - pointer drop of a tab onto another group (smooth)', () => {
             bubbles: true,
             cancelable: true,
         };
+    }
+
+    /** Group `panelIds` of `group` into a tab group and lay its chip out. */
+    async function createTabGroup(
+        group: DockviewGroupPanel,
+        panelIds: string[],
+        start: number
+    ) {
+        const tg = dockview.api.createTabGroup({ groupId: group.id });
+        for (const panelId of panelIds) {
+            dockview.api.addPanelToTabGroup({
+                groupId: group.id,
+                tabGroupId: tg.id,
+                panelId,
+            });
+        }
+        await Promise.resolve();
+        layout(group, start);
+        return tg;
+    }
+
+    function chip(group: DockviewGroupPanel): HTMLElement {
+        return list(group).querySelector('.dv-tab-group-chip') as HTMLElement;
     }
 
     function startDrag(tab: HTMLElement, fromX: number, toX: number): void {
@@ -568,6 +601,41 @@ describe('tabs - pointer drop of a tab onto another group (smooth)', () => {
         fireEvent.pointerUp(window, pointer(651));
         jest.runAllTimers();
 
+        expect(ids(target)).toEqual(['b1', 'b2']);
+    });
+
+    test('a chip released over a tab of another group moves its tab group there', async () => {
+        const { source, target } = setup();
+        // Source strip: [chip 0-40][a1 40-140][a2 140-240]
+        await createTabGroup(source, ['a1'], 0);
+        hitTest([source, target]);
+
+        // Release over b2 (600-700).
+        startDrag(chip(source), 20, 650);
+        fireEvent.pointerUp(window, pointer(651));
+        jest.runAllTimers();
+        await Promise.resolve();
+
+        expect(ids(source)).toEqual(['a2']);
+        expect(ids(target)).toContain('a1');
+        expect(target.model.getTabGroupForPanel('a1')).toBeDefined();
+        expect(dockview.groups).toHaveLength(2);
+        for (const tab of tabs(target)) {
+            expect(tab.style.marginLeft).toBe('');
+        }
+    });
+
+    test('a cancelled chip drag over another group moves nothing', async () => {
+        const { source, target } = setup();
+        await createTabGroup(source, ['a1'], 0);
+        hitTest([source, target]);
+
+        startDrag(chip(source), 20, 650);
+        fireEvent.pointerCancel(window, pointer(651));
+        jest.runAllTimers();
+        await Promise.resolve();
+
+        expect(ids(source)).toEqual(['a1', 'a2']);
         expect(ids(target)).toEqual(['b1', 'b2']);
     });
 });

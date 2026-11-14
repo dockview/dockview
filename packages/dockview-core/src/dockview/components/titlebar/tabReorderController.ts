@@ -324,7 +324,7 @@ export class TabReorderController extends CompositeDisposable {
     /**
      * Whose a pointer release over this strip is: `'own'` for a drag that
      * started here and left drag state to commit (a smooth-mode tab, or a
-     * chip), `'external'` for a single tab from another group that the strip
+     * chip), `'external'` for a tab or chip from another group that the strip
      * takes over in smooth mode, and `null` for anything it leaves to the
      * targets behind it. The strip's hit-test stop and `handlePointerDragEnd`
      * both read this, so blocking a release and committing it agree.
@@ -339,7 +339,7 @@ export class TabReorderController extends CompositeDisposable {
         if (
             data?.viewId === this.accessor.id &&
             data.groupId !== this.group.id &&
-            this.takesOverExternalTab(data)
+            this.takesOverExternalDrag(data)
         ) {
             return 'external';
         }
@@ -348,18 +348,15 @@ export class TabReorderController extends CompositeDisposable {
     }
 
     /**
-     * A single tab from another group, in smooth mode. `Tab.canDisplayOverlay`
-     * declines every internal drag there, so no per-tab target latches and the
-     * strip is the only thing that can commit the release, as the HTML5
-     * tabs-list `drop` listener does.
+     * A tab or chip from another group in smooth mode, which the target's tabs
+     * decline, so only the strip can commit it (as the HTML5 `drop` does).
      */
-    private takesOverExternalTab(data: PanelTransfer): boolean {
+    private takesOverExternalDrag(data: PanelTransfer): boolean {
         return (
             this.accessor.options.theme?.tabAnimation === 'smooth' &&
-            // The group would reject the drop, so the release stays the root's.
-            this.group.locked !== 'no-drop-target' &&
-            data.panelId !== null &&
-            !data.tabGroupId
+            // A locked group takes no new panels from its header.
+            !this.group.locked &&
+            (data.panelId !== null || !!data.tabGroupId)
         );
     }
 

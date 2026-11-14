@@ -130,6 +130,7 @@ function createFixture(
         },
         onDidOptionsChange: jest.fn().mockReturnValue({ dispose: jest.fn() }),
         getPanel: jest.fn().mockReturnValue(undefined),
+        moveGroupOrPanel: jest.fn(),
     });
 
     const group = fromPartial<DockviewGroupPanel>({
@@ -534,13 +535,56 @@ describe('tabs - strip is a pointer hit-test stop', () => {
                 expected: 'edge',
             },
             {
-                name: 'a chip from another group',
+                name: 'a chip from another group (smooth)',
                 transfer: new PanelTransfer(
                     ACCESSOR_ID,
                     'other-group',
                     null,
                     'chip-x'
                 ),
+                expected: 'strip',
+            },
+            {
+                name: 'a chip from another group (default)',
+                transfer: new PanelTransfer(
+                    ACCESSOR_ID,
+                    'other-group',
+                    null,
+                    'chip-x'
+                ),
+                tabAnimation: 'default',
+                expected: 'edge',
+            },
+            {
+                name: 'a chip from another group onto a no-drop-target group',
+                transfer: new PanelTransfer(
+                    ACCESSOR_ID,
+                    'other-group',
+                    null,
+                    'chip-x'
+                ),
+                locked: 'no-drop-target',
+                expected: 'edge',
+            },
+            {
+                name: 'a tab from another group onto a locked group',
+                transfer: new PanelTransfer(
+                    ACCESSOR_ID,
+                    'other-group',
+                    'panel-x'
+                ),
+                locked: true,
+                expected: 'edge',
+            },
+            {
+                name: 'a chip from another group onto a locked group',
+                transfer: new PanelTransfer(
+                    ACCESSOR_ID,
+                    'other-group',
+                    null,
+                    'chip-x'
+                ),
+                locked: true,
                 expected: 'edge',
             },
             {
@@ -589,9 +633,11 @@ describe('tabs - strip is a pointer hit-test stop', () => {
                 makePointerEvent('pointerup', RELEASE_X, RELEASE_Y)
             );
 
+            const accessor = (fixture.tabs as any).accessor;
             const committed =
                 onTabsDrop.mock.calls.length +
-                model.moveTabGroup.mock.calls.length;
+                model.moveTabGroup.mock.calls.length +
+                accessor.moveGroupOrPanel.mock.calls.length;
 
             expect({ blocked, committed }).toEqual(
                 c.expected === 'strip'

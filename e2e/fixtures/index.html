@@ -798,6 +798,27 @@
                             right: panels['three'].group.id,
                         };
                     },
+                    // The chip renders on a microtask.
+                    groupTabs: (ids, label) => {
+                        const groupId = panels[ids[0]].group.id;
+                        const tabGroup = dockview.api.createTabGroup({
+                            groupId,
+                            label,
+                        });
+                        for (const panelId of ids) {
+                            dockview.api.addPanelToTabGroup({
+                                groupId,
+                                tabGroupId: tabGroup.id,
+                                panelId,
+                            });
+                        }
+                        return tabGroup.id;
+                    },
+                    isInTabGroup: (id) =>
+                        !!dockview.api.getTabGroupForPanel({
+                            groupId: panels[id].group.id,
+                            panelId: id,
+                        }),
                     // Tab-group chips: three panels in one group, then a tab
                     // group (label "Monitoring") containing two of them so a
                     // `.dv-tab-group-chip` renders in the header. Returns the
