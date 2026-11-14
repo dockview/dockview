@@ -159,6 +159,10 @@ export class GroupDragSource extends CompositeDisposable {
             ...sharedDragOptions,
             disabled: !caps.html5,
             isCancelled: (event) => {
+                // A locked group's tabs don't move by user gesture.
+                if (this.group.locked) {
+                    return true;
+                }
                 // HTML5: when this element is the floating window's move
                 // handle, redock needs shift+drag (otherwise click-and-drag
                 // conflicts with moving the float). A non-move-handle (e.g. the
@@ -202,7 +206,9 @@ export class GroupDragSource extends CompositeDisposable {
                 pressTolerance: () => (isFloating() ? Infinity : 8),
                 isCancelled: () => {
                     if (
-                        !resolveDndCapabilities(this.accessor.options).pointer
+                        !resolveDndCapabilities(this.accessor.options)
+                            .pointer ||
+                        this.group.locked
                     ) {
                         return true;
                     }

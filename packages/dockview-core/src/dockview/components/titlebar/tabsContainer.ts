@@ -314,6 +314,7 @@ export class TabsContainer
                     if (
                         isFloatingGroupsEnabled &&
                         event.shiftKey &&
+                        !this.group.locked &&
                         this.group.api.location.type !== 'floating' &&
                         this.group.api.location.type !== 'edge'
                     ) {

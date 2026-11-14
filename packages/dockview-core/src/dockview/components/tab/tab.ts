@@ -224,6 +224,8 @@ export class Tab extends CompositeDisposable {
         this.html5DragSource = html5Backend.createDragSource(this._element, {
             ...sharedDragOptions,
             disabled: !caps.html5,
+            // A locked group's tabs don't move by user gesture.
+            isCancelled: () => !!this.group.locked,
         });
 
         this.pointerDragSource = pointerBackend.createDragSource(
@@ -233,7 +235,8 @@ export class Tab extends CompositeDisposable {
                 disabled: !caps.pointer,
                 touchOnly: !caps.pointerHandlesMouse,
                 isCancelled: () =>
-                    !resolveDndCapabilities(this.accessor.options).pointer,
+                    !resolveDndCapabilities(this.accessor.options).pointer ||
+                    !!this.group.locked,
             }
         );
 
