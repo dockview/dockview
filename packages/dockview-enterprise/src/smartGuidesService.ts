@@ -741,7 +741,10 @@ export class SmartGuidesService
         const cy = (d.top + d.bottom) / 2;
         const centreInside =
             cx >= e.left && cx <= e.right && cy >= e.top && cy <= e.bottom;
-        if (within(d.top, e.top) && centreInside) {
+        // A locked target refuses a merge into it (`acceptsUserDrop`).
+        const accepts = (position: SmartGuidesSnapPosition): boolean =>
+            target.group.model.acceptsUserDrop(position);
+        if (within(d.top, e.top) && centreInside && accepts('center')) {
             const tcx = (e.left + e.right) / 2;
             const tcy = (e.top + e.bottom) / 2;
             return {
@@ -784,7 +787,7 @@ export class SmartGuidesService
             Math.abs(d.top - e.bottom),
             'bottom'
         );
-        if (adj) {
+        if (adj && accepts(adj.position)) {
             return {
                 intent: {
                     target: target.group,
