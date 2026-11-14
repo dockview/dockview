@@ -383,3 +383,191 @@ describe('tabs - pointer reorder with tab groups', () => {
         expect(group.model.getTabGroupForPanel('p1')).toBeUndefined();
     });
 });
+
+/**
+ * A single tab dragged by pointer onto another group's strip in smooth mode.
+ * The target strip's tabs decline the drag, so the strip commits it on
+ * release, as the HTML5 tabs-list `drop` listener does.
+ */
+describe('tabs - pointer drop of a tab onto another group (smooth)', () => {
+    let container: HTMLElement;
+    let dockview: DockviewComponent;
+
+    // Source strip at x 0-200, target strip at x 500-700.
+    const TARGET_LEFT = 500;
+
+    beforeEach(() => {
+        jest.useFakeTimers({ doNotFake: ['queueMicrotask'] });
+        container = document.createElement('div');
+        document.body.appendChild(container);
+        dockview = new DockviewComponent(container, {
+            createComponent: () => new TestPanel(),
+            dndStrategy: 'pointer',
+            theme: {
+                name: 'test',
+                className: 'test',
+                tabAnimation: 'smooth',
+            },
+        });
+        dockview.layout(1000, 500);
+    });
+
+    afterEach(() => {
+        PointerDragController.getInstance().cancel();
+        dockview.dispose();
+        container.remove();
+        jest.useRealTimers();
+        jest.restoreAllMocks();
+    });
+
+    function setup(): {
+        source: DockviewGroupPanel;
+        target: DockviewGroupPanel;
+    } {
+        dockview.addPanel({ id: 'a1', component: 'default' });
+        dockview.addPanel({ id: 'a2', component: 'default' });
+        dockview.addPanel({
+            id: 'b1',
+            component: 'default',
+            position: { referencePanel: 'a1', direction: 'right' },
+        });
+        dockview.addPanel({
+            id: 'b2',
+            component: 'default',
+            position: { referencePanel: 'b1' },
+        });
+        const source = dockview.getGroupPanel('a1')!.group;
+        const target = dockview.getGroupPanel('b1')!.group;
+        layout(source, 0);
+        layout(target, TARGET_LEFT);
+        return { source, target };
+    }
+
+    function list(group: DockviewGroupPanel): HTMLElement {
+        return group.element.querySelector('.dv-tabs-container') as HTMLElement;
+    }
+
+    function tabs(group: DockviewGroupPanel): HTMLElement[] {
+        return Array.from(list(group).querySelectorAll('.dv-tab'));
+    }
+
+    function layout(group: DockviewGroupPanel, start: number): void {
+        let left = start;
+        for (const tab of tabs(group)) {
+            jest.spyOn(tab, 'getBoundingClientRect').mockReturnValue(
+                makeDOMRect(left, TAB_WIDTH)
+            );
+            left += TAB_WIDTH;
+        }
+        jest.spyOn(list(group), 'getBoundingClientRect').mockReturnValue(
+            makeDOMRect(start, left - start)
+        );
+    }
+
+    /** Hit-test the tab under `x`, falling back to its strip. */
+    function hitTest(groups: DockviewGroupPanel[]): void {
+        const at = (x: number): Element | null => {
+            for (const group of groups) {
+                const rect = list(group).getBoundingClientRect();
+                if (x >= rect.left && x < rect.right) {
+                    const tab = tabs(group).find((el) => {
+                        const r = el.getBoundingClientRect();
+                        return x >= r.left && x < r.right;
+                    });
+                    return tab ?? list(group);
+                }
+            }
+            return null;
+        };
+        jest.spyOn(document, 'elementFromPoint').mockImplementation((x) =>
+            at(x)
+        );
+        jest.spyOn(document, 'elementsFromPoint').mockImplementation((x) => {
+            const el = at(x);
+            return el ? [el] : [];
+        });
+    }
+
+    function pointer(clientX: number): PointerEventInit {
+        return {
+            pointerId: 1,
+            pointerType: 'mouse',
+            clientX,
+            clientY: POINTER_Y,
+            bubbles: true,
+            cancelable: true,
+        };
+    }
+
+    function startDrag(tab: HTMLElement, fromX: number, toX: number): void {
+        fireEvent.pointerDown(tab, pointer(fromX));
+        // Past the drag source's start threshold; begins the drag.
+        fireEvent.pointerMove(window, pointer(fromX + 10));
+        fireEvent.pointerMove(window, pointer(toX));
+        fireEvent.pointerMove(window, pointer(toX + 1));
+    }
+
+    const ids = (group: DockviewGroupPanel) =>
+        group.model.panels.map((p) => p.id);
+
+    test('a tab released over a tab of another group moves into that group', () => {
+        const { source, target } = setup();
+        hitTest([source, target]);
+
+        // Release over b2 (600-700).
+        startDrag(tabs(source)[0], 50, 650);
+        fireEvent.pointerUp(window, pointer(651));
+        jest.runAllTimers();
+
+        expect(ids(source)).toEqual(['a2']);
+        expect(ids(target)).toContain('a1');
+        expect(ids(target)).toHaveLength(3);
+        expect(dockview.groups).toHaveLength(2);
+    });
+
+    test('the target strip is left without gap margins after the move', () => {
+        const { source, target } = setup();
+        hitTest([source, target]);
+
+        startDrag(tabs(source)[0], 50, 650);
+        fireEvent.pointerUp(window, pointer(651));
+        jest.runAllTimers();
+
+        for (const tab of tabs(target)) {
+            expect(tab.style.marginLeft).toBe('');
+        }
+    });
+
+    test('a cancelled drag over another group moves nothing', () => {
+        const { source, target } = setup();
+        hitTest([source, target]);
+
+        startDrag(tabs(source)[0], 50, 650);
+        fireEvent.pointerCancel(window, pointer(651));
+        jest.runAllTimers();
+
+        expect(ids(source)).toEqual(['a1', 'a2']);
+        expect(ids(target)).toEqual(['b1', 'b2']);
+    });
+
+    test('a strip in another document does not commit the release', () => {
+        const { source, target } = setup();
+        hitTest([source, target]);
+
+        // Stand the target strip in for a popout's: its own document answers
+        // the hit-test at the release point, but the drag is not its.
+        const popoutDoc = document.implementation.createHTMLDocument('popout');
+        const targetList = list(target);
+        Object.defineProperty(targetList, 'ownerDocument', {
+            value: popoutDoc,
+        });
+        (popoutDoc as any).elementFromPoint = () => targetList;
+        (popoutDoc as any).elementsFromPoint = () => [targetList];
+
+        startDrag(tabs(source)[0], 50, 650);
+        fireEvent.pointerUp(window, pointer(651));
+        jest.runAllTimers();
+
+        expect(ids(target)).toEqual(['b1', 'b2']);
+    });
+});

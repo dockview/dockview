@@ -297,6 +297,7 @@ export class TabReorderController extends CompositeDisposable {
         clientX: number;
         clientY: number;
         pointerEvent: PointerEvent;
+        dropped: boolean;
     }): void {
         // The pointer-backend analog of the HTML5 tabs-list `drop` commit: in
         // smooth mode the per-element drop targets don't latch a state for an
@@ -309,8 +310,12 @@ export class TabReorderController extends CompositeDisposable {
         if (
             e &&
             this._animState &&
-            // A cross-group drag has no insertion index of ours to commit.
-            this._animState.sourceIndex !== -1 &&
+            // A drag that started in another strip commits elsewhere, except
+            // the single tab this strip took over from its declining tabs.
+            (this._animState.sourceIndex !== -1 ||
+                (e.dropped &&
+                    this.isPointerDragInOwnDocument(e.pointerEvent) &&
+                    this.ownsExternalTabDrag())) &&
             this._animState.currentInsertionIndex !== null &&
             this.isPointInsideTabsList(e.clientX, e.clientY)
         ) {
@@ -326,6 +331,42 @@ export class TabReorderController extends CompositeDisposable {
         }
         this._pointerInsideTabsList = false;
         this.resetDragAnimation();
+    }
+
+    /**
+     * A single tab dragged in from another group of this dockview, in smooth
+     * mode. `Tab.canDisplayOverlay` declines every internal drag there, so no
+     * per-tab target latches and the strip is the only thing that can commit
+     * the release. HTML5 does it from the tabs list's `drop` listener; this
+     * is what lets the pointer backend do the same.
+     *
+     * A chip drag is excluded: it commits from the target that latches under
+     * the release.
+     */
+    ownsExternalTabDrag(): boolean {
+        const data = getPanelData();
+
+        return (
+            this.accessor.options.theme?.tabAnimation === 'smooth' &&
+            // The group would reject the drop, so the release stays the root's.
+            this.group.locked !== 'no-drop-target' &&
+            data?.viewId === this.accessor.id &&
+            data.groupId !== this.group.id &&
+            data.panelId !== null &&
+            !data.tabGroupId
+        );
+    }
+
+    /**
+     * Pointer drags stay in the window they started in, so a strip in another
+     * document (a popout) is never under the release, even when its own
+     * hit-test at the same coordinates says otherwise.
+     */
+    private isPointerDragInOwnDocument(event: PointerEvent): boolean {
+        // Duck-typed: `instanceof Node` fails across windows.
+        const target = event.target as (Node & Window) | null;
+        const doc = target?.ownerDocument ?? target?.document;
+        return doc === this._tabsList.ownerDocument;
     }
 
     private isPointInsideTabsList(clientX: number, clientY: number): boolean {
@@ -367,8 +408,8 @@ export class TabReorderController extends CompositeDisposable {
         return { index, targetTabGroupId };
     }
 
-    /** Commit a smooth-mode intra-group reorder from the current insertion
-     *  index (adjusted for the source's own position), then clear drag state.
+    /** Commit a smooth-mode single-tab drop from the current insertion index
+     *  (adjusted for the source's own position), then clear drag state.
      *  Used by the pointer backend for both single-row and wrap layouts. */
     private commitPointerReorder(event: PointerEvent): void {
         const animState = this._animState;
@@ -387,6 +428,9 @@ export class TabReorderController extends CompositeDisposable {
         if (!drop) {
             return;
         }
+        // A tab from another group joins without re-rendering this strip's
+        // tabs, so their gap margins have to be cleared here.
+        this.resetTabTransforms();
         this.host.fireDrop({ event, ...drop });
     }
 

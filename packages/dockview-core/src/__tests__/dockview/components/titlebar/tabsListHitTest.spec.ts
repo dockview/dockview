@@ -11,6 +11,7 @@ import {
     RootDropTargetService,
 } from '../../../../dockview/rootDropTargetService';
 import { DockviewComponentOptions } from '../../../../dockview/options';
+import { DockviewGroupPanelLocked } from '../../../../dockview/dockviewGroupPanelModel';
 import { PointerDragController } from '../../../../dnd/pointer/pointerDragController';
 import {
     LocalSelectionTransfer,
@@ -84,7 +85,10 @@ function makePointerEvent(
  * `RootDropTargetService` the component uses, so a release resolves through the
  * real pointer hit-test.
  */
-function createFixture(): {
+function createFixture(
+    tabAnimation: 'smooth' | 'default' = 'smooth',
+    locked: DockviewGroupPanelLocked = false
+): {
     tabs: Tabs;
     rootService: RootDropTargetService;
     tabsList: HTMLElement;
@@ -121,7 +125,7 @@ function createFixture(): {
             theme: {
                 name: 'test',
                 className: 'test',
-                tabAnimation: 'smooth',
+                tabAnimation,
             },
         },
         onDidOptionsChange: jest.fn().mockReturnValue({ dispose: jest.fn() }),
@@ -129,7 +133,7 @@ function createFixture(): {
 
     const group = fromPartial<DockviewGroupPanel>({
         id: 'test-group',
-        locked: false,
+        locked,
         model: fromPartial({
             canDisplayOverlay: jest.fn().mockReturnValue(true),
             dropTargetContainer: undefined,
@@ -252,11 +256,11 @@ describe('tabs - strip is a pointer hit-test stop', () => {
         fixture.dispose();
     });
 
-    test('a cross-group drag released on strip padding still docks at the edge', () => {
-        // `handlePointerDragEnd` only commits intra-group single-tab reorders
-        // (`sourceIndex !== -1`), so a drag from another group has nothing to
-        // commit here. Stopping the walk for it would just make the release a
-        // dead zone.
+    test('a cross-group tab drag released on strip padding moves into the group only', () => {
+        // In smooth mode the tabs decline an internal drag for the strip, so
+        // `handlePointerDragEnd` commits a single tab from another group the
+        // way the HTML5 tabs-list `drop` listener does. The strip stops the
+        // walk for it, or the release would dock at the layout edge as well.
         const fixture = createFixture();
 
         const onTabsDrop = jest.fn();
@@ -275,7 +279,62 @@ describe('tabs - strip is a pointer hit-test stop', () => {
             makePointerEvent('pointerup', RELEASE_X, RELEASE_Y)
         );
 
+        expect(onRootDrop).not.toHaveBeenCalled();
+        expect(onTabsDrop).toHaveBeenCalledTimes(1);
+        expect(onTabsDrop.mock.calls[0][0]).toEqual(
+            expect.objectContaining({ index: 2, targetTabGroupId: null })
+        );
+
+        fixture.dispose();
+    });
+
+    test('in default mode a cross-group tab drag released on strip padding still docks at the edge', () => {
+        // Outside smooth mode the per-tab drop targets commit a cross-group
+        // tab, and the strip has nothing to commit for a release on its
+        // padding. Stopping the walk there would make the release a dead zone.
+        const fixture = createFixture('default');
+
+        const onTabsDrop = jest.fn();
+        const onRootDrop = jest.fn();
+        fixture.tabs.onDrop(onTabsDrop);
+        fixture.rootService.onDrop(onRootDrop);
+
+        LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
+            [new PanelTransfer(ACCESSOR_ID, 'other-group', 'panel-x')],
+            PanelTransfer.prototype
+        );
+
+        drag(fixture, document.createElement('div'));
+
+        window.dispatchEvent(
+            makePointerEvent('pointerup', RELEASE_X, RELEASE_Y)
+        );
+
         expect(onTabsDrop).not.toHaveBeenCalled();
+        expect(onRootDrop).toHaveBeenCalledTimes(1);
+
+        fixture.dispose();
+    });
+
+    test("a cross-group tab drag released on a no-drop-target group's strip padding still docks at the edge", () => {
+        // The group rejects the drop, so the strip has nothing to commit and
+        // stopping the walk would make the release a dead zone.
+        const fixture = createFixture('smooth', 'no-drop-target');
+
+        const onRootDrop = jest.fn();
+        fixture.rootService.onDrop(onRootDrop);
+
+        LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
+            [new PanelTransfer(ACCESSOR_ID, 'other-group', 'panel-x')],
+            PanelTransfer.prototype
+        );
+
+        drag(fixture, document.createElement('div'));
+
+        window.dispatchEvent(
+            makePointerEvent('pointerup', RELEASE_X, RELEASE_Y)
+        );
+
         expect(onRootDrop).toHaveBeenCalledTimes(1);
 
         fixture.dispose();
