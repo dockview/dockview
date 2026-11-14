@@ -47,6 +47,61 @@ test.describe('smooth mode: a tab dropped on another group (pointer backend)', (
         await page.waitForTimeout(300);
     };
 
+    /**
+     * Drag from `from` over the second group's last tab, then release inside
+     * the insertion gap the strip opens there: a point on the tabs list
+     * itself, not on a tab. The list hugs its tabs, so this gap is the only
+     * strip space a release can land on.
+     */
+    const dragIntoStripGap = async (
+        page: Page,
+        from: { x: number; y: number }
+    ) => {
+        const four = (await page
+            .locator('.dv-tab', { hasText: 'four' })
+            .boundingBox())!;
+        await page.mouse.move(from.x, from.y);
+        await page.mouse.down();
+        await page.mouse.move(from.x + 6, from.y, { steps: 3 });
+        await page.mouse.move(four.x + four.width - 3, four.y + 10, {
+            steps: 16,
+        });
+        await page.waitForTimeout(400);
+
+        const gapPoint = () =>
+            page.evaluate(() => {
+                const list = document.querySelectorAll(
+                    '.dv-tabs-container'
+                )[1] as HTMLElement;
+                const r = list.getBoundingClientRect();
+                const y = r.top + r.height / 2;
+                for (let x = Math.ceil(r.left); x < r.right; x += 2) {
+                    if (document.elementFromPoint(x, y) === list) {
+                        return { x: x + 4, y };
+                    }
+                }
+                return null;
+            });
+
+        const gap = await gapPoint();
+        expect(gap).not.toBeNull();
+        await page.mouse.move(gap!.x, gap!.y, { steps: 4 });
+        await page.waitForTimeout(200);
+
+        // Still the strip itself under the pointer at the release.
+        expect(
+            await page.evaluate(
+                ({ x, y }) =>
+                    document.elementFromPoint(x, y) ===
+                    document.querySelectorAll('.dv-tabs-container')[1],
+                gap!
+            )
+        ).toBe(true);
+
+        await page.mouse.up();
+        await page.waitForTimeout(300);
+    };
+
     for (const target of ['three', 'four'] as const) {
         test(`a tab dropped on tab "${target}" of another group moves there`, async ({
             page,
@@ -74,21 +129,7 @@ test.describe('smooth mode: a tab dropped on another group (pointer backend)', (
         const { left, right } = await setup(page, '&dndEdges=120');
         expect(await groupOf(page, 'one')).toBe(left);
 
-        const list = (await page
-            .locator('.dv-tabs-container')
-            .nth(1)
-            .boundingBox())!;
-        const lastTab = (await page
-            .locator('.dv-tab', { hasText: 'four' })
-            .boundingBox())!;
-
-        await drag(page, await tabCenter(page, 'one'), {
-            x: Math.min(
-                lastTab.x + lastTab.width + 40,
-                list.x + list.width - 4
-            ),
-            y: lastTab.y + lastTab.height / 2,
-        });
+        await dragIntoStripGap(page, await tabCenter(page, 'one'));
 
         expect(await groupOf(page, 'one')).toBe(right);
         expect(await groupCount(page)).toBe(2);
@@ -110,32 +151,15 @@ test.describe('smooth mode: a tab dropped on another group (pointer backend)', (
             await expect(chip).toHaveCount(1);
             const chipBox = (await chip.boundingBox())!;
 
-            let to = await tabCenter(page, 'three');
-            if (release === 'padding') {
-                const list = (await page
-                    .locator('.dv-tabs-container')
-                    .nth(1)
-                    .boundingBox())!;
-                const lastTab = (await page
-                    .locator('.dv-tab', { hasText: 'four' })
-                    .boundingBox())!;
-                to = {
-                    x: Math.min(
-                        lastTab.x + lastTab.width + 40,
-                        list.x + list.width - 4
-                    ),
-                    y: lastTab.y + lastTab.height / 2,
-                };
+            const from = {
+                x: chipBox.x + chipBox.width / 2,
+                y: chipBox.y + chipBox.height / 2,
+            };
+            if (release === 'tab') {
+                await drag(page, from, await tabCenter(page, 'three'));
+            } else {
+                await dragIntoStripGap(page, from);
             }
-
-            await drag(
-                page,
-                {
-                    x: chipBox.x + chipBox.width / 2,
-                    y: chipBox.y + chipBox.height / 2,
-                },
-                to
-            );
 
             expect(await groupOf(page, 'one')).toBe(right);
             expect(
