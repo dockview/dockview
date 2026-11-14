@@ -93,4 +93,57 @@ test.describe('smooth mode: a tab dropped on another group (pointer backend)', (
         expect(await groupOf(page, 'one')).toBe(right);
         expect(await groupCount(page)).toBe(2);
     });
+
+    // A chip is declined by the target's tabs in smooth mode the same way, so
+    // the strip commits it too: the tab group moves into the other group.
+    for (const release of ['tab', 'padding'] as const) {
+        test(`a chip released on another group's ${release} moves its tab group there`, async ({
+            page,
+        }) => {
+            const { right } = await setup(page, '&dndEdges=120');
+            await page.evaluate(() =>
+                (window as any).__dv.groupTabs(['one'], 'Moving')
+            );
+            const chip = page.locator('.dv-tab-group-chip', {
+                hasText: 'Moving',
+            });
+            await expect(chip).toHaveCount(1);
+            const chipBox = (await chip.boundingBox())!;
+
+            let to = await tabCenter(page, 'three');
+            if (release === 'padding') {
+                const list = (await page
+                    .locator('.dv-tabs-container')
+                    .nth(1)
+                    .boundingBox())!;
+                const lastTab = (await page
+                    .locator('.dv-tab', { hasText: 'four' })
+                    .boundingBox())!;
+                to = {
+                    x: Math.min(
+                        lastTab.x + lastTab.width + 40,
+                        list.x + list.width - 4
+                    ),
+                    y: lastTab.y + lastTab.height / 2,
+                };
+            }
+
+            await drag(
+                page,
+                {
+                    x: chipBox.x + chipBox.width / 2,
+                    y: chipBox.y + chipBox.height / 2,
+                },
+                to
+            );
+
+            expect(await groupOf(page, 'one')).toBe(right);
+            expect(
+                await page.evaluate(() =>
+                    (window as any).__dv.isInTabGroup('one')
+                )
+            ).toBe(true);
+            expect(await groupCount(page)).toBe(2);
+        });
+    }
 });
