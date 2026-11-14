@@ -206,6 +206,11 @@ export class KeyboardDockingService
         }
         e.preventDefault();
         e.stopPropagation();
+        // A locked group's panels don't move by user action.
+        if (source.group.locked) {
+            this.host.announce(this._messages.moveNotAllowed());
+            return;
+        }
         // Start on the panel's own group so a single group of tabs can still
         // split a tab out via the edge phase.
         const groupIndex = Math.max(0, groups.indexOf(source.group));

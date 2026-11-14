@@ -1068,6 +1068,40 @@ describe('pinned tabs: separate-row mode', () => {
         test.each([
             true,
             'no-drop-target',
+        ] as const)('a row tab does not start a drag (locked: %p)', (locked) => {
+            const dockview = make({ enabled: true, mode: 'separate-row' });
+            const { a } = setupThreePinned(dockview);
+            a.api.group.locked = locked;
+
+            const rowTab = rowTabs()[0];
+            const event = new MouseEvent('dragstart', {
+                bubbles: true,
+                cancelable: true,
+            });
+            rowTab.dispatchEvent(event);
+
+            expect(event.defaultPrevented).toBe(true);
+            expect(rowTab.classList.contains('dv-pinned-tab--dragging')).toBe(
+                false
+            );
+        });
+
+        test.each([
+            true,
+            'no-drop-target',
+        ] as const)('the unpin glyph does not unpin (locked: %p)', (locked) => {
+            const dockview = make({ enabled: true, mode: 'separate-row' });
+            const { a } = setupThreePinned(dockview);
+            a.api.group.locked = locked;
+
+            fireEvent.click(container.querySelector('.dv-pinned-tab-unpin')!);
+
+            expect(a.api.isPinned).toBe(true);
+        });
+
+        test.each([
+            true,
+            'no-drop-target',
         ] as const)('a main-strip tab dragged into the row is not pinned (locked: %p)', (locked) => {
             const dockview = make({ enabled: true, mode: 'separate-row' });
             const a = dockview.addPanel({ id: 'a', component: 'default' });
