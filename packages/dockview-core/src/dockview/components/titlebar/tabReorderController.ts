@@ -1555,6 +1555,11 @@ export class TabReorderController extends CompositeDisposable {
         this._tabGroupManager.disposeChipDrag(sourceTabGroupId);
         this._tabGroupManager.clearChipDropOverlays();
 
+        // A locked group takes no new panels and no reorder.
+        if (this.group.locked) {
+            return;
+        }
+
         // Check if the tab group exists in this group (within-group reorder)
         // or in another group (cross-group move).
         const isLocal = this.group.model
@@ -1572,7 +1577,7 @@ export class TabReorderController extends CompositeDisposable {
                 this._tabGroupManager.skipNextCollapseAnimation = true;
                 this.group.model.moveTabGroup(sourceTabGroupId, insertionIndex);
             }
-        } else if (data && !this.group.locked) {
+        } else if (data) {
             // Cross-group: delegate to the component-level move which
             // handles panel transfer and tab group recreation.
             // Use the REAL tab group ID from transfer data, not the

@@ -929,7 +929,11 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                 // Both HTML5 and pointer drags initialize _animState. Cleanup
                 // is wired in both paths: HTML5 via dragend/drop on _tabsList,
                 // pointer via PointerDragController.onDragEnd subscriptions.
-                if (this.accessor.options.theme?.tabAnimation === 'smooth') {
+                // A locked group takes no reorder, so it opens no gap.
+                if (
+                    this.accessor.options.theme?.tabAnimation === 'smooth' &&
+                    !this.group.locked
+                ) {
                     const tabSize = mainAxisSize(
                         tab.element.getBoundingClientRect(),
                         this._direction
@@ -1383,6 +1387,11 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         chip: ITabGroupChipRenderer,
         event: DragEvent | PointerEvent
     ): void {
+        // A locked group takes no reorder, so it opens no gap.
+        if (this.group.locked) {
+            return;
+        }
+
         const firstPanelId = tabGroup.panelIds[0];
         const firstIdx = firstPanelId
             ? this._tabs.findIndex((t) => t.value.panel.id === firstPanelId)

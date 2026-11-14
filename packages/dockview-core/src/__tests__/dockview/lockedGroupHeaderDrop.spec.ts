@@ -202,7 +202,7 @@ describe('locked group: HTML5 drop on the tab strip', () => {
             expect(ids(target)).toEqual(['b1', 'b2']);
         });
 
-        test('a header drop from the same group still reorders', () => {
+        test('a header drop from the same group (a reorder) is refused', () => {
             const { target } = setup();
             target.locked = true;
             LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
@@ -216,7 +216,22 @@ describe('locked group: HTML5 drop on the tab strip', () => {
                 targetTabGroupId: null,
             });
 
-            expect(ids(target)).toEqual(['b2', 'b1']);
+            expect(ids(target)).toEqual(['b1', 'b2']);
+        });
+
+        test('a tab group move within the group is refused', async () => {
+            const { source } = setup();
+            const tabGroupId = await groupA1(source);
+            source.locked = true;
+            LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
+                [new PanelTransfer(dockview.id, source.id, null, tabGroupId)],
+                PanelTransfer.prototype
+            );
+
+            stripOf(source)._reorder.commitGroupMove(tabGroupId, 2);
+            await Promise.resolve();
+
+            expect(ids(source)).toEqual(['a1', 'a2']);
         });
 
         test('a tab group from another group is refused', async () => {

@@ -2021,12 +2021,8 @@ export class DockviewGroupPanelModel
             return;
         }
 
-        // A locked group takes no new panels from a header drop.
-        if (
-            this.locked &&
-            type === 'header' &&
-            getPanelData()?.groupId !== this.id
-        ) {
+        // A locked group takes no header drop: no new panels, no reorder.
+        if (this.locked && type === 'header') {
             return;
         }
 

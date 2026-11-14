@@ -216,6 +216,45 @@ describe('tabs - pointer reorder with tab groups', () => {
         expect(group.model.getTabGroupForPanel('p0')?.id).toBe(tg.id);
     });
 
+    test('a locked group does not reorder, and opens no gap', () => {
+        const group = addPanels(['p1', 'p2', 'p3']);
+        group.locked = true;
+        layoutStrip(group);
+
+        const tab = tabElement(group, 'p1');
+        fireEvent.pointerDown(tab, pointer(50));
+        fireEvent.pointerMove(window, pointer(60));
+        fireEvent.pointerMove(window, pointer(190));
+        jest.runAllTimers();
+
+        expect((group.model as any).tabsContainer.tabs._animState).toBeNull();
+
+        fireEvent.pointerUp(window, pointer(190));
+        jest.runAllTimers();
+
+        expect(panelIds(group)).toEqual(['p1', 'p2', 'p3']);
+    });
+
+    test('a locked chip does not move within its group', async () => {
+        const group = addPanels(['p0', 'p1', 'p2']);
+        const tg = await createTabGroup(group, ['p1']);
+        group.locked = true;
+        layoutStrip(group);
+
+        // Strip: [p0 0-100][chip 100-140][p1 140-240][p2 240-340]
+        const chip = tabsList(group).querySelector(
+            '.dv-tab-group-chip'
+        ) as HTMLElement;
+        fireEvent.pointerDown(chip, pointer(120));
+        fireEvent.pointerMove(window, pointer(130));
+        fireEvent.pointerMove(window, pointer(330));
+        fireEvent.pointerUp(window, pointer(330));
+        jest.runAllTimers();
+
+        expect(panelIds(group)).toEqual(['p0', 'p1', 'p2']);
+        expect(tg.panelIds).toEqual(['p1']);
+    });
+
     test('a reorder with no tab groups drops with a null target', () => {
         const group = addPanels(['p1', 'p2', 'p3']);
         layoutStrip(group);
