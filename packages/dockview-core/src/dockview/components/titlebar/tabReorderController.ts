@@ -348,18 +348,13 @@ export class TabReorderController extends CompositeDisposable {
     }
 
     /**
-     * A single tab or a chip (tab group) from another group, in smooth mode.
-     * `Tab.canDisplayOverlay` declines every internal drag there, so no
-     * per-tab target latches and the strip is the only thing that can commit
-     * a release over a tab or its padding, as the HTML5 tabs-list `drop`
-     * listener does. A whole-group drag carries a null `panelId` and no tab
-     * group, and stays the root's.
+     * A tab or chip from another group in smooth mode, which the target's tabs
+     * decline, so only the strip can commit it (as the HTML5 `drop` does).
      */
     private takesOverExternalDrag(data: PanelTransfer): boolean {
         return (
             this.accessor.options.theme?.tabAnimation === 'smooth' &&
-            // A locked group takes no new panels from its header (`true` keeps
-            // only the drop zones around it), so the release stays the root's.
+            // A locked group takes no new panels from its header.
             !this.group.locked &&
             (data.panelId !== null || !!data.tabGroupId)
         );

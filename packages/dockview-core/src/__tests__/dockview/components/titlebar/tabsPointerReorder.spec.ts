@@ -620,7 +620,6 @@ describe('tabs - pointer drop of a tab onto another group (smooth)', () => {
         expect(ids(target)).toContain('a1');
         expect(target.model.getTabGroupForPanel('a1')).toBeDefined();
         expect(dockview.groups).toHaveLength(2);
-        // No gap left open on the target strip's existing tabs.
         for (const tab of tabs(target)) {
             expect(tab.style.marginLeft).toBe('');
         }

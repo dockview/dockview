@@ -47,12 +47,7 @@ test.describe('smooth mode: a tab dropped on another group (pointer backend)', (
         await page.waitForTimeout(300);
     };
 
-    /**
-     * Drag from `from` over the second group's last tab, then release inside
-     * the insertion gap the strip opens there: a point on the tabs list
-     * itself, not on a tab. The list hugs its tabs, so this gap is the only
-     * strip space a release can land on.
-     */
+    // Releases in the second strip's insertion gap: strip space, not a tab.
     const dragIntoStripGap = async (
         page: Page,
         from: { x: number; y: number }
@@ -88,7 +83,6 @@ test.describe('smooth mode: a tab dropped on another group (pointer backend)', (
         await page.mouse.move(gap!.x, gap!.y, { steps: 4 });
         await page.waitForTimeout(200);
 
-        // Still the strip itself under the pointer at the release.
         expect(
             await page.evaluate(
                 ({ x, y }) =>
@@ -135,8 +129,6 @@ test.describe('smooth mode: a tab dropped on another group (pointer backend)', (
         expect(await groupCount(page)).toBe(2);
     });
 
-    // A chip is declined by the target's tabs in smooth mode the same way, so
-    // the strip commits it too: the tab group moves into the other group.
     for (const release of ['tab', 'padding'] as const) {
         test(`a chip released on another group's ${release} moves its tab group there`, async ({
             page,
