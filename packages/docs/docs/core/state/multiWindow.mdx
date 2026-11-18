@@ -1,0 +1,437 @@
+---
+title: Multi-window layouts
+description: Drag tabs and groups between dockviews in separate windows or processes, persist the whole workspace, and undo across windows, through an orchestrator you supply.
+sidebar_position: 4
+enterprise: true
+sidebar_custom_props:
+    enterprise: true
+---
+
+A desktop application built on Tauri, Electron or a browser with several
+top-level windows runs one dockview per window, each in its own JavaScript
+context. Nothing can move between them as DOM, and no window is the root that
+owns the others. What can cross a window boundary is an OS drag session, and
+only an HTML5 drag rides one.
+
+`dockview-enterprise` ships the window side of that setup as one
+**interceptor** over the public api. Install it and the instance keeps working
+exactly as before; a drag can now also land in another window, the layout of
+every window is kept together, and Ctrl+Z works across windows. It reaches the
+outside world only through a **transport** you supply, so the same code runs
+against a Tauri shell, an Electron main process, a `BroadcastChannel`, or the
+orchestrator this package includes, `MultiWindowOrchestrator`.
+
+```ts
+import { installMultiWindow } from 'dockview-enterprise';
+
+const api = createDockview(element, {
+    components,
+    // Each window keeps its own undo stack; the orchestrator sequences them
+    // with the moves between windows. See "Undo across windows" for why
+    // each of these is needed.
+    layoutHistory: {
+        enabled: true,
+        clearOnFromJSON: false,
+        recordResize: false,
+    },
+    // Every window numbers its groups from "1" by default, so a group moved
+    // between windows would collide on arrival. Any unique id will do; note
+    // that `crypto.randomUUID` needs a secure context, which a custom-scheme
+    // origin such as `tauri://localhost` need not be.
+    groupIdGenerator: () => crypto.randomUUID(),
+});
+
+const transport = connectToYourOrchestrator(); // a MultiWindowTransport
+
+const multiWindow = installMultiWindow(api, transport, {
+    buildDefaults: (windowId) => api.addPanel({ id: `${windowId}-home`, component: 'home' }),
+});
+```
+
+Panel ids must be unique across every window a tab can move between, as they
+must be within one instance: a panel keeps its id wherever it lands.
+
+## Dragging between windows
+
+The interceptor hooks `onWillDragPanel` and `onWillDragGroup` to put
+a session id on the drag's `DataTransfer` under `application/x-dockview-multi-window`
+and hand the orchestrator what the drag carries: one tab as its `toJSON()`
+state, or one group as `serializeGroup` output. Serializing up front means the
+drop can complete even if the source window is busy by then.
+
+The destination's dockview sees a drag it did not start and asks through
+`onUnhandledDragOver`; the interceptor accepts it when the type is present, so
+the normal drop overlay shows. A browser exposes a drag's types but not its
+data until the drop, which is why the type carries the meaning and the session
+id waits.
+
+On `onDidDrop` the interceptor reads the payload, refuses it if this window
+already holds a panel of the same id, and otherwise accepts it. The first accept
+wins: the orchestrator tells the source window to remove its copy, and the
+destination rebuilds the payload where the drop landed, with
+[`addPanelFromJSON`](/docs/core/groups/add) or
+[`addGroupFromJSON`](/docs/core/groups/add): a new group beside the target or
+at a layout edge, or merged into the target for a drop on its centre or its
+tab bar, at the tab index the drop reports.
+
+The source's `dragend` fires the instant the drop lands, and the destination's
+accept is a separate message that routinely arrives later, so the orchestrator
+keeps an ended drag acceptable for a grace period before discarding it.
+
+```ts
+multiWindow.onDidMoveAcrossWindows(({ panels, from, to, reason }) => {
+    // reason is 'drop', 'detach', 'undo' or 'redo'
+});
+
+// With an orchestrator that can open windows, an unaccepted drag (one that
+// ended outside every window) becomes a new window holding the tab.
+multiWindow.updateOptions({ detach: true });
+```
+
+A detach is reported through `onDidMoveAcrossWindows` with reason
+`'detach'`, but it is not a step the shared history can undo: the new window
+is the host's to create. It also ends the source window's earlier steps,
+since each of them restores a layout that still holds the panels the new
+window now has.
+
+If the destination cannot place an accepted payload (a component it does not
+register, for instance), the source has already let go. The move is still
+recorded, so a shared undo brings the panels back to the source. A refused
+drop, a failed placement and an unreachable orchestrator are reported on the
+console, as dockview reports its own failures.
+
+Only the HTML5 backend can leave a window. A pointer-backend drag (touch and
+pen, see [strategies](/docs/core/dnd/strategy)) is left alone.
+
+## Persisting the workspace
+
+Only the party that creates windows can bring them back, so the workspace
+belongs to the orchestrator: every window, its frame if the host records one,
+and its dockview layout as opaque JSON. At install the window asks the
+orchestrator for its layout once, restores it with `fromJSON` or builds the
+defaults you give it, and from then on reports every layout change back on a
+debounce (`debounceMs`, 300 ms by default). The orchestrator stores the result
+without reading it, save for the panel ids, to refuse giving two windows the
+same panel.
+
+```ts
+const { restored } = await multiWindow.ready;
+```
+
+Pass `workspace: false` to leave restoring and reporting to your own code.
+
+## Undo across windows
+
+Dockview's own [layout history](/docs/core/state/history) keeps a window's
+local steps and knows how to restore them. What it cannot know is the order
+of those steps against the moves between windows. The window reports each
+local step to the orchestrator as it is pushed, forwards undo and redo to it,
+and carries out what comes back: either "undo your own top step" or "take this
+layout".
+
+The orchestrator keeps one ordered stack across windows. An entry is a marker,
+"a step in window X", or a move, which carries each window's layout before and
+after. Undoing a move applies both pre-move layouts, destination first, so no
+two windows hold the panels at once. Ordering is what makes it safe: an older
+local step is only reachable after the move that followed it has been undone.
+
+```ts
+multiWindow.undo();
+multiWindow.redo();
+multiWindow.history; // { canUndo, canRedo, undoCount, redoCount, nextUndo?, nextRedo? }
+multiWindow.onDidChangeHistory((info) => { /* ... */ });
+```
+
+Use `multiWindow.undo()` rather than `api.undo()` for an undo button or
+shortcut: the api's undo is this window's own stack, which bypasses the order
+across windows. Pass `history: false` to keep undo local to each window; the
+handle's `undo` and `redo` then fall back to the api's.
+
+As with the [layout history](/docs/core/state/history), dockview binds no
+keyboard shortcuts itself. To route Ctrl+Z to the shared history:
+
+```ts
+document.addEventListener('keydown', (event) => {
+    const target = event.target as HTMLElement;
+    if (
+        !(event.ctrlKey || event.metaKey) ||
+        event.key.toLowerCase() !== 'z' ||
+        // Text undo in an input or editor belongs to it.
+        target.closest?.('input, textarea, select, [contenteditable]')
+    ) {
+        return;
+    }
+    event.preventDefault();
+    if (event.shiftKey) {
+        multiWindow.redo();
+    } else {
+        multiWindow.undo();
+    }
+});
+```
+
+The shared history relies on each window's own history keeping in step with
+the markers the orchestrator holds for it, which needs these `layoutHistory`
+options. Each one left on is reported once on the console.
+
+- `clearOnFromJSON: false`. An undone or redone move arrives through
+  `fromJSON`, which would otherwise clear the window's own stack.
+- `recordResize: false`. Dockview records a run of sash drags as one step
+  only once the run settles. An undo or redo that reaches the window before
+  then is carried out against a stack without it, and the late step can later
+  restore a layout from before a move. Resizes are not undoable across
+  windows.
+- `undoableProgrammaticMutations: false` (the default). The install adds and
+  removes panels through the api; those must not become steps of their own.
+- `depth` at least the orchestrator's history depth (25 for both by default),
+  so every marker still has its step.
+
+## The orchestrator
+
+`MultiWindowOrchestrator` is the shipped orchestrator, for windows that share one JavaScript heap:
+several dockviews on one page, a test, or a host with a JavaScript process of
+its own, such as an Electron main process, which runs it as is (it has no DOM
+dependency) and bridges each window's transport over IPC. A shell in another
+language mirrors its rules instead, see
+[Writing an orchestrator](#writing-an-orchestrator).
+
+```ts
+import { MultiWindowOrchestrator } from 'dockview-enterprise';
+
+const orchestrator = new MultiWindowOrchestrator({
+    workspace: JSON.parse(localStorage.getItem('workspace') ?? 'null') ?? undefined,
+});
+orchestrator.onDidChangeWorkspace((state) =>
+    localStorage.setItem('workspace', JSON.stringify(state))
+);
+
+// One transport per window.
+const transport = orchestrator.connect('main');
+
+orchestrator.undo();
+orchestrator.history;
+orchestrator.disconnect('main'); // the window closed
+```
+
+## The transport
+
+A window reaches the orchestrator through one interface, `MultiWindowTransport`,
+in three parts. Every call is asynchronous and nothing relies on a result
+arriving inside the DOM event that caused it. A transport belongs to one
+window, so no call names the window it comes from: the orchestrator knows that
+from the transport it handed out, or from the window the call arrived on.
+
+```ts
+interface MultiWindowTransport {
+    readonly windowId: string;
+
+    // Drags.
+    startDrag(session: string, payload: MultiWindowDragPayload): Promise<void>;
+    peekDrag(session: string): Promise<MultiWindowDragPayload>;
+    acceptDrag(session: string): Promise<void>;
+    endDrag(session: string, detach: boolean): Promise<void>;
+    onDidRelease(listener: (event: MultiWindowReleaseEvent) => void): Promise<DockviewIDisposable>;
+    takeDetachedDrag(): Promise<MultiWindowDragPayload | null>;
+    reportMove(session, role: 'from' | 'to', panels, before, after): Promise<void>;
+    onDidMove(listener: (event: MultiWindowMoveEvent) => void): Promise<DockviewIDisposable>;
+
+    // The workspace.
+    loadLayout(): Promise<SerializedDockview | null>;
+    reportLayout(layout: SerializedDockview): Promise<void>;
+
+    // The shared history.
+    reportLocalStep(): Promise<void>;
+    undo(): Promise<void>;
+    redo(): Promise<void>;
+    getHistory(): Promise<MultiWindowHistoryInfo>;
+    onDidRequestHistory(listener: (request: MultiWindowHistoryRequest) => void): Promise<DockviewIDisposable>;
+    onDidChangeHistory(listener: (info: MultiWindowHistoryInfo) => void): Promise<DockviewIDisposable>;
+}
+```
+
+`MultiWindowDragPayload` is `{ kind: 'panel', panel: GroupviewPanelState }` or
+`{ kind: 'group', group: SerializedDockviewGroup }`. The panel ids it moves,
+`panel.id` or `group.group.views`, are all an orchestrator needs to read.
+`MultiWindowHistoryRequest` is `{ type: 'undo' }`, `{ type: 'redo' }` or
+`{ type: 'apply-layout', layout }`.
+
+## Implementing a transport
+
+A transport is the window's end of a message bus. There are two cases.
+
+**The orchestrator already runs in JavaScript** (an Electron main process, a
+SharedWorker, a Node sidecar): run `MultiWindowOrchestrator` there and bridge each
+window to its `connect(windowId)` transport. The bridge is then a mapping:
+every method becomes a request, every `on*` subscription becomes a message
+channel. The rules are already enforced on the orchestrator's side.
+
+**The orchestrator is written in another language** (a Tauri shell in Rust,
+say): the transport maps onto that shell's commands and events, and the shell
+enforces the rules under [Writing an orchestrator](#writing-an-orchestrator).
+
+In both cases the transport must keep to this contract.
+
+### Contract
+
+| Call | What the orchestrator must do |
+|---|---|
+| `windowId` | This window's id, stable for the orchestrator's lifetime. It is the id the orchestrator uses in `from` and `to`, and the one it addresses requests to. If finding it is asynchronous, do that before installing. |
+| `startDrag(session, payload)` | Record the session with this window as its source. Session ids are random; never reject one as a duplicate. |
+| `peekDrag(session)` | Resolve the payload. Reject if the session is unknown or already accepted. |
+| `acceptDrag(session)` | The first accept wins; a later one rejects. On success: forget the session, tell the workspace a move of the payload's panels from the source to this window is under way, deliver `onDidRelease` to the source with reason `'drop'`, and broadcast `onDidMove` with reason `'drop'`. |
+| `endDrag(session, detach)` | Resolve at once; the session stays acceptable for a grace period (1.5 s, which the windows assume as an upper bound), because the source's `dragend` fires before the destination's accept arrives. When it expires unaccepted: discard it, or, if `detach` and the host can open windows, choose a new window id, park the payload under it, open the window, announce the move to the workspace, deliver `onDidRelease` with reason `'detach'` and broadcast `onDidMove` with reason `'detach'`. |
+| `takeDetachedDrag()` | The payload parked for this window by a detach, once; `null` otherwise. Every window calls this at start. |
+| `reportMove(session, role, panels, before, after)` | This window's half of a move. The history entry is complete when both halves have arrived, in either order. |
+| `loadLayout()` | The layout stored for this window, or `null` to let it build its defaults. |
+| `reportLayout(layout)` | Store it. Reject, with a message, when it names a panel another window's stored layout holds, unless an announced move explains that. A source reporting without the panel completes the move. |
+| `reportLocalStep()` | Push a marker for this window and clear the redo stack. |
+| `undo()` / `redo()` | Pop the top entry. For a marker, send `{ type: 'undo' }` or `{ type: 'redo' }` to that window. For a move, send `{ type: 'apply-layout', layout }`: undo applies the destination's `before` then the source's `before`; redo applies the source's `after` then the destination's `after`. Store each layout as the window's before sending it, so the window's own report afterwards is not refused as a duplicate. Then broadcast `onDidMove` (reason `'undo'` or `'redo'`) and `onDidChangeHistory`. Reject when there is nothing to do or the top move is still being recorded. |
+| `getHistory()` | The current counts, and a summary of the next undo and redo step. |
+| `onDidRelease`, `onDidRequestHistory` | Delivered only to the window they name. On a bus where every window can hear every message, filter on the window id in the payload. |
+| `onDidMove`, `onDidChangeHistory` | Broadcast to every window. |
+
+Two rules hold for every subscription: it resolves to a disposable that stops
+delivery, and a message is delivered on a later turn, never inside the call
+that caused it. The install copes with a transport that answers slowly or
+fails at start (the window builds its defaults and reports the error), and with
+one that answers after `dispose()`.
+
+Messages may take any time to arrive, but those between one window and the
+orchestrator must arrive in the order they were sent, in each direction. A
+drag's end has to follow its start, for instance, or the drag is never
+settled. Tauri commands and events, Electron's `invoke` and `send`, and a
+`BroadcastChannel` all keep that order; a bus that does not needs a sequence
+number per window to restore it.
+
+### Example: an Electron bridge
+
+The main process runs the orchestrator and owns the windows:
+
+```ts
+// main.ts
+import { BrowserWindow, ipcMain } from 'electron';
+import { MultiWindowOrchestrator, type MultiWindowTransport } from 'dockview-enterprise';
+
+const orchestrator = new MultiWindowOrchestrator({
+    createWindow: (windowId) => open(windowId), // a detach needs a window
+});
+// By the sending renderer, so a window cannot speak for another.
+const transports = new Map<number, MultiWindowTransport>();
+
+function open(windowId: string): BrowserWindow {
+    const win = new BrowserWindow({ webPreferences: { preload: PRELOAD } });
+    const contentsId = win.webContents.id;
+    const transport = orchestrator.connect(windowId);
+    transports.set(contentsId, transport);
+
+    // Messages to this window: forward each subscription to its renderer.
+    const send = (channel: string) => (payload: unknown) =>
+        win.webContents.send(channel, payload);
+    void transport.onDidRelease(send('dockview:release'));
+    void transport.onDidMove(send('dockview:moved'));
+    void transport.onDidRequestHistory(send('dockview:request'));
+    void transport.onDidChangeHistory(send('dockview:history'));
+
+    win.on('closed', () => {
+        transports.delete(contentsId);
+        orchestrator.disconnect(windowId);
+    });
+    win.loadURL(`${APP_URL}?window=${windowId}`);
+    return win;
+}
+
+// Requests from a window: one channel, the method name selects the call.
+ipcMain.handle('dockview', (event, method: string, ...args: unknown[]) => {
+    const transport = transports.get(event.sender.id);
+    if (!transport) {
+        throw new Error('not a dockview window');
+    }
+    return (transport[method as keyof MultiWindowTransport] as (...a: unknown[]) => unknown)(...args);
+});
+```
+
+The renderer's transport is the mirror image: requests over `invoke`,
+subscriptions over `on`, each resolving to a disposable.
+
+```ts
+// renderer.ts (through a contextBridge-exposed `ipc` in a real app)
+const windowId = new URL(location.href).searchParams.get('window')!;
+
+const request = <K extends keyof MultiWindowTransport>(method: K) =>
+    ((...args: unknown[]) => ipcRenderer.invoke('dockview', method, ...args)) as MultiWindowTransport[K];
+
+const subscription = (channel: string) => (handler: (payload: any) => void) => {
+    const listener = (_event: unknown, payload: unknown) => handler(payload);
+    ipcRenderer.on(channel, listener);
+    return Promise.resolve({ dispose: () => ipcRenderer.off(channel, listener) });
+};
+
+const transport: MultiWindowTransport = {
+    windowId,
+    startDrag: request('startDrag'),
+    peekDrag: request('peekDrag'),
+    acceptDrag: request('acceptDrag'),
+    endDrag: request('endDrag'),
+    takeDetachedDrag: request('takeDetachedDrag'),
+    reportMove: request('reportMove'),
+    loadLayout: request('loadLayout'),
+    reportLayout: request('reportLayout'),
+    reportLocalStep: request('reportLocalStep'),
+    undo: request('undo'),
+    redo: request('redo'),
+    getHistory: request('getHistory'),
+    onDidRelease: subscription('dockview:release'),
+    onDidMove: subscription('dockview:moved'),
+    onDidRequestHistory: subscription('dockview:request'),
+    onDidChangeHistory: subscription('dockview:history'),
+};
+
+installMultiWindow(api, transport, { buildDefaults });
+```
+
+`invoke` turns a rejection on the main side into a rejection here, which is
+what `peekDrag`, `acceptDrag` and `reportLayout` rely on. Persist
+`orchestrator.snapshot()` from `onDidChangeWorkspace` and pass it back as
+`workspace` at the next start, and open a window for every id in it.
+
+## Writing an orchestrator
+
+When the orchestrator cannot be JavaScript, mirror the three pieces
+`MultiWindowOrchestrator` is built from: `dragSessions.ts`, `workspaceRegistry.ts`
+and `historySequencer.ts` under `multiWindow/orchestrator/` in the package
+source. Each is small, pure state and unit tested; the
+[Tauri demo](https://github.com/dockview/dockview/tree/master/packages/dockview-tauri-demo)
+in the repository ports them to Rust. Beyond the contract above, the history
+keeps three rules:
+
+- Bound the stack (25 in the shipped orchestrators, dockview's own default
+  depth).
+- When a window closes, or panels detach from it, drop every entry that
+  involves it, every move still missing a half, and every entry before a move
+  it drops.
+- A move still missing a half 10 s after its first arrived will never
+  complete; undo drops it and the entries before it rather than block.
+
+The orchestrator also owns what no window can: creating and placing windows,
+and persisting the workspace. Record a window's frame when the host moves it,
+and write the workspace on a debounce and on exit.
+
+## Limitations
+
+- **Layout edges between dockviews on one page.** When two dockviews share
+  a page, a tab dragged from one can be dropped on the other's groups but
+  not on its layout edges: the root drop target refuses an in-page drag that
+  belongs to another dockview. Separate windows are unaffected, since the
+  other window never sees that data.
+- **Resizes are not undoable across windows.** See the required options
+  under [Undo across windows](#undo-across-windows).
+- **Popout groups are not supported.** A popout belongs to the window that
+  opened it, and the shared history and workspace do not account for it: an
+  undo or a restore can reopen it. To give a group a window of its own, detach
+  it. Opening a popout is reported once on the console.
+
+## See also
+
+- [Adding groups](/docs/core/groups/add): `serializeGroup`, `addGroupFromJSON` and `addPanelFromJSON`, the envelope a move travels in.
+- [External drag and drop](/docs/core/dnd/external): the hooks the interceptor builds on.
+- [Layout history](/docs/core/state/history): the per-window stack the shared history sequences.
