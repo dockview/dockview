@@ -290,6 +290,14 @@
             margin var(--dv-transition-duration, 200ms) ease-out,
             opacity var(--dv-transition-duration, 200ms) ease-out;
     }
+
+    // Worn while the scripted collapse plays. Nothing `!important` here: it
+    // would outrank the animation's keyframes.
+    &.dv-tab--group-collapsing {
+        min-width: 0;
+        overflow: hidden;
+        pointer-events: none;
+    }
 }
 
 // Pinned tabs (PinnedTabs module). Presentation only: the classes are inert
@@ -631,6 +639,11 @@
                 padding var(--dv-transition-duration, 200ms) ease-out,
                 margin var(--dv-transition-duration, 200ms) ease-out,
                 opacity var(--dv-transition-duration, 200ms) ease-out;
+        }
+
+        &.dv-tab--group-collapsing {
+            min-height: 0;
+            min-width: initial;
         }
 
         &.dv-tab--dragging {
