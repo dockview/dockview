@@ -741,7 +741,10 @@ export class SmartGuidesService
         const cy = (d.top + d.bottom) / 2;
         const centreInside =
             cx >= e.left && cx <= e.right && cy >= e.top && cy <= e.bottom;
-        if (within(d.top, e.top) && centreInside) {
+        // A locked target refuses a merge into it (`acceptsUserDrop`).
+        const accepts = (position: SmartGuidesSnapPosition): boolean =>
+            target.group.model.acceptsUserDrop(position);
+        if (within(d.top, e.top) && centreInside && accepts('center')) {
             const tcx = (e.left + e.right) / 2;
             const tcy = (e.top + e.bottom) / 2;
             return {
@@ -784,7 +787,7 @@ export class SmartGuidesService
             Math.abs(d.top - e.bottom),
             'bottom'
         );
-        if (adj) {
+        if (adj && accepts(adj.position)) {
             return {
                 intent: {
                     target: target.group,
@@ -813,8 +816,9 @@ export class SmartGuidesService
         }
         // Tear the overlay down before the layout mutates.
         this._endSession(group);
-        // A merge supersedes a plain alignment for the drop's outcome.
-        if (pending) {
+        // A merge supersedes a plain alignment for the drop's outcome. The
+        // target may have been locked since the merge was offered.
+        if (pending?.target.model.acceptsUserDrop(pending.position)) {
             this.host.mergeFloatInto(group, pending.target, pending.position);
             this._onDidSnapTogether.fire({
                 dragged: group,

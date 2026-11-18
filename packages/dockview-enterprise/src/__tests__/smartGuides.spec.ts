@@ -319,7 +319,20 @@ describe('smart guides', () => {
 
     // --- snap-together ---
 
-    const targetGroup = { id: 'target' } as DockviewGroupPanel;
+    /** A float to snap to, locked as given (unlocked by default). */
+    const floatGroup = (
+        id: string,
+        locked: boolean | 'no-drop-target' = false
+    ): DockviewGroupPanel =>
+        ({
+            id,
+            model: {
+                acceptsUserDrop: (position: string) =>
+                    locked === false ||
+                    (locked === true && position !== 'center'),
+            },
+        }) as unknown as DockviewGroupPanel;
+    const targetGroup = floatGroup('target');
     const preview = (): HTMLElement | null =>
         container.querySelector('.dv-smart-guide-preview');
     // Disable alignment (no float/container candidates) so the snapped box is
@@ -376,6 +389,71 @@ describe('smart guides', () => {
         expect(mergeCalls).toEqual([
             { dragged: group, target: targetGroup, position: 'center' },
         ]);
+    });
+
+    test.each([
+        true,
+        'no-drop-target',
+    ] as const)('a locked float takes no centre merge (locked: %p)', (locked) => {
+        const t: Box = { left: 100, top: 100, width: 200, height: 200 };
+        make(noAlign(), [{ group: floatGroup('target', locked), box: t }]);
+
+        service.transformFloatingGroupDrag(
+            ctx({ left: 120, top: 100, width: 200, height: 200 }, [])
+        );
+        endEmitter.fire(group);
+
+        expect(mergeCalls).toEqual([]);
+    });
+
+    test('a float locked after the merge was offered is not merged into', () => {
+        let locked: boolean = false;
+        const target = {
+            id: 'target',
+            model: {
+                acceptsUserDrop: (position: string) =>
+                    !locked || position !== 'center',
+            },
+        } as unknown as DockviewGroupPanel;
+        const t: Box = { left: 100, top: 100, width: 200, height: 200 };
+        make(noAlign(), [{ group: target, box: t }]);
+
+        service.transformFloatingGroupDrag(
+            ctx({ left: 120, top: 100, width: 200, height: 200 }, [])
+        );
+        locked = true;
+        endEmitter.fire(group);
+
+        expect(mergeCalls).toEqual([]);
+    });
+
+    test('a float locked with true still takes a dock beside it', () => {
+        const locked = floatGroup('target', true);
+        const t: Box = { left: 300, top: 100, width: 200, height: 200 };
+        make(noAlign(), [{ group: locked, box: t }]);
+
+        service.transformFloatingGroupDrag(
+            ctx({ left: 150, top: 100, width: 150, height: 200 }, [])
+        );
+        endEmitter.fire(group);
+
+        expect(mergeCalls).toEqual([
+            { dragged: group, target: locked, position: 'left' },
+        ]);
+    });
+
+    test("a 'no-drop-target' float takes no dock beside it either", () => {
+        const t: Box = { left: 300, top: 100, width: 200, height: 200 };
+        make(noAlign(), [
+            { group: floatGroup('target', 'no-drop-target'), box: t },
+        ]);
+
+        service.transformFloatingGroupDrag(
+            ctx({ left: 150, top: 100, width: 150, height: 200 }, [])
+        );
+        endEmitter.fire(group);
+
+        expect(mergeCalls).toEqual([]);
     });
 
     test('`snapTogether: false` never suggests or commits a merge', () => {
@@ -690,8 +768,8 @@ describe('smart guides', () => {
     });
 
     test('snap-together docks into the nearest target, not the first', () => {
-        const near = { id: 'near' } as DockviewGroupPanel;
-        const far = { id: 'far' } as DockviewGroupPanel;
+        const near = floatGroup('near');
+        const far = floatGroup('far');
         // `far` is first in iteration order but its right edge (96) is further
         // from the dragged left edge (102) than `near`'s (100).
         make(noAlign(), [

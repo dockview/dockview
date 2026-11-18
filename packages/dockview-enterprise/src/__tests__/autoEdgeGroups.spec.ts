@@ -1,4 +1,9 @@
-import { DockviewComponent, DockviewEmitter as Emitter } from 'dockview';
+import {
+    DockviewComponent,
+    DockviewEmitter as Emitter,
+    LocalSelectionTransfer,
+    PanelTransfer,
+} from 'dockview';
 import { IContentRenderer, Position } from 'dockview';
 import { AutoEdgeGroupService } from '../autoEdgeGroupService';
 
@@ -48,6 +53,7 @@ describe('auto edge groups (two-band drag reveal)', () => {
             onWillDragGroup: new Emitter<any>().event,
             createEdgeDropTarget: () => ({ dispose: () => undefined }),
             revealEdgeGroupWithData: reveal,
+            getEdgeGroupPanel: () => undefined,
         };
         const service = new AutoEdgeGroupService(host as any);
         return { service, overlayRoot, willShow, willDrop, reveal };
@@ -297,6 +303,56 @@ describe('per-group auto-hide co-existence', () => {
         await flush();
         expect(el.querySelector('.dv-edge-peek-header')).toBeTruthy();
 
+        dockview.dispose();
+    });
+});
+
+describe('a drag onto a locked edge group (real component)', () => {
+    let container: HTMLElement;
+
+    afterEach(() => {
+        LocalSelectionTransfer.getInstance<PanelTransfer>().clearData(
+            PanelTransfer.prototype
+        );
+        container.remove();
+    });
+
+    test.each([
+        true,
+        'no-drop-target',
+    ] as const)('leaves the locked edge group alone (locked: %p)', async (locked) => {
+        container = document.createElement('div');
+        document.body.appendChild(container);
+        const dockview = new DockviewComponent(container, {
+            createComponent: () => new TestPanel(),
+            dockToEdgeGroups: { left: true },
+        });
+        dockview.layout(1000, 1000);
+        dockview.addPanel({ id: 'p1', component: 'default' });
+        dockview.addPanel({ id: 'p2', component: 'default' });
+        dockview.addEdgeGroup('left', { id: 'edge-left' });
+        dockview.addPanel({
+            id: 'l1',
+            component: 'default',
+            position: { referenceGroup: 'edge-left' },
+        });
+        const edge = dockview.getEdgeGroupPanel('left')!;
+        edge.locked = locked;
+
+        const source = dockview.getGroupPanel('p1')!.group;
+        LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
+            [new PanelTransfer(dockview.id, source.id, 'p1')],
+            PanelTransfer.prototype
+        );
+        // A drop on the left edge strip.
+        dockview.dockToLayoutEdge(
+            new PointerEvent('pointerup', { clientX: 4, clientY: 500 }),
+            'left',
+            true
+        );
+        await flush();
+
+        expect(edge.model.panels.map((p) => p.id)).toEqual(['l1']);
         dockview.dispose();
     });
 });

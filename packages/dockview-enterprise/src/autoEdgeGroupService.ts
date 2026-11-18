@@ -182,7 +182,7 @@ export class AutoEdgeGroupService
         const elements: HTMLElement[] = [];
         const targets: IDisposable[] = [];
         for (const position of EDGES) {
-            if (this._isEdgeEnabled(position)) {
+            if (this._canDockToEdge(position)) {
                 const element = this._createStrip(position);
                 this.host.overlayRoot.appendChild(element);
                 elements.push(element);
@@ -284,11 +284,16 @@ export class AutoEdgeGroupService
         return isAnyEdgeGroupEnabled(this.host.options.dockToEdgeGroups);
     }
 
-    /** Whether `position` is an edge enabled in `dockToEdgeGroups`. */
-    private _isEdgeEnabled(position: Position): position is EdgeGroupPosition {
+    /** `dockToEdgeGroups` enables the edge, and an edge group already there
+     *  is not locked against a dragged panel. */
+    private _canDockToEdge(position: Position): position is EdgeGroupPosition {
         return (
             isEdge(position) &&
-            isEdgeGroupEnabled(this.host.options.dockToEdgeGroups, position)
+            isEdgeGroupEnabled(this.host.options.dockToEdgeGroups, position) &&
+            (this.host
+                .getEdgeGroupPanel(position)
+                ?.model.acceptsUserDrop('center') ??
+                true)
         );
     }
 
@@ -302,7 +307,7 @@ export class AutoEdgeGroupService
         for (const pos of EDGES) {
             if (
                 args.zones.has(pos) &&
-                this._isEdgeEnabled(pos) &&
+                this._canDockToEdge(pos) &&
                 edgeDepth(pos, args.event, rect) <= OUTER_BAND
             ) {
                 return { position: pos, edge: true, edgeGroup: true };
@@ -332,7 +337,7 @@ export class AutoEdgeGroupService
         // Show the edge-group indicator line for an edge-group cell (the edge
         // drop strip), else iff the pointer is in the true outer band, so it
         // never lights up for a compass outer-ring cell or a normal split.
-        if (!this._isEdgeEnabled(e.position)) {
+        if (!this._canDockToEdge(e.position)) {
             this._hide();
             return;
         }
@@ -345,7 +350,7 @@ export class AutoEdgeGroupService
 
     private _onWillDrop(e: DockviewWillDropEvent): void {
         this._hide();
-        if (e.kind !== 'edge' || !this._isEdgeEnabled(e.position)) {
+        if (e.kind !== 'edge' || !this._canDockToEdge(e.position)) {
             return;
         }
         const data = e.getData();
