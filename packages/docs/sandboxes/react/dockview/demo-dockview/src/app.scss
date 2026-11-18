@@ -146,11 +146,22 @@
             box-sizing: border-box;
             font-size: 18px;
             cursor: pointer;
+            border: none;
+            background: none;
+            color: inherit;
+            font-family: inherit;
+            line-height: 1;
 
             &:hover {
                 border-radius: 2px;
                 color: var(--dv-activegroup-visiblepanel-tab-color);
                 background-color: var(--dv-icon-hover-background-color);
+            }
+
+            &:focus-visible {
+                outline: 2px solid var(--dv-activegroup-visiblepanel-tab-color);
+                outline-offset: -2px;
+                border-radius: 2px;
             }
         }
     }

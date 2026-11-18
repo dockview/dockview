@@ -7,15 +7,29 @@ const Icon = (props: {
     title?: string;
     onClick?: (event: React.MouseEvent) => void;
 }) => {
+    const onKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            props.onClick?.(e as unknown as React.MouseEvent);
+        }
+    };
+
     return (
-        <div title={props.title} className="action" onClick={props.onClick}>
+        <button
+            title={props.title}
+            className="action"
+            onClick={props.onClick}
+            onKeyDown={onKeyDown}
+            type="button"
+            aria-label={props.title}
+        >
             <span
                 style={{ fontSize: 'inherit' }}
                 className="material-symbols-outlined"
             >
                 {props.icon}
             </span>
-        </div>
+        </button>
     );
 };
 
