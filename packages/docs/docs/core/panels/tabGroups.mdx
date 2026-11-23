@@ -52,6 +52,22 @@ api.moveTabGroup({
 });
 ```
 
+### Placing panels in a tab group
+
+`addPanel` and `moveTo` can place a panel straight into a tab group, at a position within it:
+
+```ts
+api.addPanel({
+    id: 'panel-2',
+    component: 'default',
+    position: { referenceGroup: 'group-1', tabGroup, indexInTabGroup: 0 },
+});
+
+api.getPanel('panel-3').api.moveTo({ group, tabGroup });
+```
+
+A plain `index` never splits a tab group: a panel placed between two tabs of a tab group moves to the nearer edge of it. See [Move panel](/docs/core/panels/move#tab-groups).
+
 ## Querying tab groups
 
 ```ts
@@ -245,6 +261,8 @@ api.onDidRemovePanelFromTabGroup((event) => {});
 api.onDidTabGroupChange((event) => {});
 api.onDidTabGroupCollapsedChange((event) => {});
 ```
+
+`onDidMovePanel` reports the tab group a moved panel ended up in as `event.tabGroup`.
 
 Individual tab groups also expose events:
 

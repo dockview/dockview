@@ -10,6 +10,7 @@ import {
     DockviewGroupPanelLocationChangeEvent,
 } from './dockviewGroupPanelApi';
 import { DockviewGroupLocation } from '../dockview/dockviewGroupPanelModel';
+import { DockviewPanelPlacement } from '../dockview/options';
 
 export interface TitleEvent {
     readonly title: string;
@@ -31,7 +32,8 @@ export interface GroupChangedEvent {
     // empty
 }
 
-export type DockviewPanelMoveParams = DockviewGroupMoveParams;
+export type DockviewPanelMoveParams = Omit<DockviewGroupMoveParams, 'index'> &
+    DockviewPanelPlacement;
 
 export interface DockviewPanelApi
     extends Omit<
@@ -213,6 +215,8 @@ export class DockviewPanelApiImpl
                         ? (options.position ?? 'center')
                         : 'center',
                     index: options.index,
+                    tabGroup: options.tabGroup,
+                    indexInTabGroup: options.indexInTabGroup,
                 },
                 skipSetActive: options.skipSetActive,
             })

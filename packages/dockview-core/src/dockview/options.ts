@@ -905,23 +905,42 @@ export interface PanelOptions<P extends object = Parameters> {
     title?: string;
 }
 
+/**
+ * Where a panel lands in a group's tab strip: at a strip `index`, or in a
+ * `tabGroup`. Only applicable if the placement is within an existing group.
+ */
+export type DockviewPanelPlacement =
+    | {
+          /**
+           * The index to place the panel within a group. An index between
+           * two tabs of a tab group moves to the nearer edge of that tab
+           * group, so the panel never splits it.
+           */
+          index?: number;
+          /** `null` places the panel outside any tab group. */
+          tabGroup?: null;
+          indexInTabGroup?: never;
+      }
+    | {
+          /**
+           * The tab group to place the panel in, as the tab group or its id.
+           * It must belong to the group the panel is placed in.
+           */
+          tabGroup: ITabGroup | string;
+          /** Position within the tab group. Defaults to the end. */
+          indexInTabGroup?: number;
+          index?: never;
+      };
+
 type RelativePanel = {
     direction?: Direction;
     referencePanel: string | IDockviewPanel;
-    /**
-     * The index to place the panel within a group, only applicable if the placement is within an existing group
-     */
-    index?: number;
-};
+} & DockviewPanelPlacement;
 
 type RelativeGroup = {
     direction?: Direction;
     referenceGroup: string | DockviewGroupPanel;
-    /**
-     * The index to place the panel within a group, only applicable if the placement is within an existing group
-     */
-    index?: number;
-};
+} & DockviewPanelPlacement;
 
 type AbsolutePosition = {
     direction: Omit<Direction, 'within'>;
