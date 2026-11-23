@@ -103,9 +103,13 @@ Moving the last panel out of a group destroys the group it leaves behind, and th
 These events fire when the overall layout structure changes.
 
 ```ts
-// Fires on any layout change (aggregation of many events).
+// Fires on any layout change (aggregation of many events). It is coalesced,
+// and `event.reasons` is the set of what changed since the last fire:
+// 'geometry' (a sash drag, setSize, maximize, a floating / popout group moved
+// or resized), 'structure' (panels or groups added, removed or moved),
+// 'activePanel', 'panelTitle' or 'panelParameters'.
 // Consider debouncing if using for persistence.
-api.onDidLayoutChange(() => {});
+api.onDidLayoutChange((event: LayoutChangeEvent) => {});
 
 // Fires after a layout is loaded via api.fromJSON()
 api.onDidLayoutFromJSON(() => {});

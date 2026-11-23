@@ -457,6 +457,87 @@ describe('splitview', () => {
         splitview.dispose();
     });
 
+    test('setting orientation to its current value does not swap the axes', () => {
+        const splitview = new Splitview(container, {
+            orientation: Orientation.HORIZONTAL,
+        });
+
+        splitview.layout(800, 200);
+
+        const view1 = new Testview(20, Number.POSITIVE_INFINITY);
+        const view2 = new Testview(20, Number.POSITIVE_INFINITY);
+
+        splitview.addView(view1);
+        splitview.addView(view2);
+
+        splitview.orientation = Orientation.HORIZONTAL;
+
+        expect(splitview.orientation).toBe(Orientation.HORIZONTAL);
+        expect(splitview.size).toBe(800);
+        expect(splitview.orthogonalSize).toBe(200);
+        expect(splitview.contentSize).toBe(800);
+        expect([view1.size, view2.size]).toEqual([400, 400]);
+
+        splitview.dispose();
+    });
+
+    test('changing orientation rescales view sizes onto the new axis', () => {
+        const splitview = new Splitview(container, {
+            orientation: Orientation.HORIZONTAL,
+            proportionalLayout: false,
+        });
+
+        splitview.layout(800, 200);
+
+        const view1 = new Testview(20, Number.POSITIVE_INFINITY);
+        const view2 = new Testview(20, Number.POSITIVE_INFINITY);
+        const view3 = new Testview(20, Number.POSITIVE_INFINITY);
+
+        splitview.addView(view1);
+        splitview.addView(view2);
+        splitview.addView(view3);
+        splitview.resizeView(0, 400);
+        splitview.resizeView(1, 200);
+        expect([view1.size, view2.size, view3.size]).toEqual([400, 200, 200]);
+
+        splitview.setViewVisible(1, false);
+        expect(splitview.getViewCachedVisibleSize(1)).toBe(200);
+        expect([view1.size, view2.size, view3.size]).toEqual([400, 0, 400]);
+
+        splitview.orientation = Orientation.VERTICAL;
+
+        expect(splitview.size).toBe(200);
+        expect(splitview.orthogonalSize).toBe(800);
+        expect([0, 1, 2].map((i) => splitview.getViewSize(i))).toEqual([
+            100, 0, 100,
+        ]);
+        expect(splitview.getViewCachedVisibleSize(1)).toBe(50);
+        expect(splitview.contentSize).toBe(200);
+
+        // the follow-up relayout has nothing left to absorb
+        splitview.layout(200, 800);
+        expect([view1.size, view2.size, view3.size]).toEqual([100, 0, 100]);
+
+        splitview.dispose();
+    });
+
+    test('changing orientation before the first layout leaves view sizes alone', () => {
+        const splitview = new Splitview(container, {
+            orientation: Orientation.HORIZONTAL,
+            proportionalLayout: false,
+        });
+
+        const view1 = new Testview(20, Number.POSITIVE_INFINITY);
+        splitview.addView(view1, 300, undefined, true);
+
+        splitview.orientation = Orientation.VERTICAL;
+
+        expect(splitview.orientation).toBe(Orientation.VERTICAL);
+        expect(splitview.getViewSize(0)).toBe(300);
+
+        splitview.dispose();
+    });
+
     test('setting proportionalLayout to its current value keeps the saved proportions', () => {
         const splitview = new Splitview(container, {
             orientation: Orientation.HORIZONTAL,

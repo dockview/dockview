@@ -207,6 +207,8 @@ IWatermarkPanelProps
 IWatermarkRenderer
 InvisibleSizing
 KeyboardNavigationOptions
+LayoutChangeEvent
+LayoutChangeReason
 LayoutHistoryChangeEvent
 LayoutHistoryKind
 LayoutHistoryOptions

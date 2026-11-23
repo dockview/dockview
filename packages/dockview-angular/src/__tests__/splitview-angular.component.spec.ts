@@ -6,6 +6,20 @@ import { SplitviewAngularComponent } from '../lib/splitview/splitview-angular.co
 import { SplitviewApi } from 'dockview';
 import { setupTestBed, getTestComponents } from './__test_utils__/test-helpers';
 
+/** Records every instance so the test can read the inputs it was given. */
+@Component({
+    standalone: true,
+    selector: 'container-api-probe',
+    template: '<div class="container-api-probe"></div>',
+})
+class ContainerApiProbeComponent {
+    static instances: ContainerApiProbeComponent[] = [];
+    containerApi?: SplitviewApi;
+    constructor() {
+        ContainerApiProbeComponent.instances.push(this);
+    }
+}
+
 describe('SplitviewAngularComponent', () => {
     let component: SplitviewAngularComponent;
     let fixture: ComponentFixture<SplitviewAngularComponent>;
@@ -209,6 +223,21 @@ describe('SplitviewAngularComponent', () => {
             className: 'test-class',
             proportionalLayout: true,
         });
+    });
+
+    it('passes containerApi to panel components', () => {
+        ContainerApiProbeComponent.instances = [];
+        component.components = { probe: ContainerApiProbeComponent };
+        fixture.detectChanges();
+
+        const api = component.getSplitviewApi()!;
+        api.layout(500, 500);
+        api.addPanel({ id: 'p1', component: 'probe' });
+
+        expect(ContainerApiProbeComponent.instances).toHaveLength(1);
+        expect(
+            ContainerApiProbeComponent.instances[0].containerApi
+        ).toBeInstanceOf(SplitviewApi);
     });
 });
 

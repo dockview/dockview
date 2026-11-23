@@ -9,6 +9,7 @@ import {
     defineModule,
     ILayoutHistoryHost,
     ILayoutHistoryService,
+    LayoutChangeEvent,
     LayoutHistoryChangeEvent,
     LayoutHistoryKind,
 } from 'dockview';
@@ -74,7 +75,9 @@ function resolveOptions(options: DockviewComponentOptions): {
  * step each off the will/did boundary. Resize (sash drag) has no boundary, so
  * it's caught off the coalesced `onDidLayoutChange` ping, using the last settled
  * snapshot as the pre-image (the "lazy pre-image"), and a continuous drag is
- * debounced into a single entry. A bulk `load`/`clear` clears the stacks. Undo /
+ * debounced into a single entry; only a ping whose `reasons` carry `'geometry'`
+ * (or an unbracketed `'structure'`) opens a run, the rest only refresh the
+ * baseline. A bulk `load`/`clear` clears the stacks. Undo /
  * redo restore popout windows, which re-open asynchronously, so the guard is held
  * across that re-open via `popoutRestorationPromise`.
  */
@@ -121,7 +124,7 @@ export class LayoutHistoryService
             this._onDidChangeHistory,
             host.onWillMutateLayout((e) => this._onWill(e)),
             host.onDidMutateLayout((e) => this._onDid(e)),
-            host.onDidLayoutChange(() => this._onLayoutChange()),
+            host.onDidLayoutChange((e) => this._onLayoutChange(e)),
             { dispose: () => this._clearResizeTimer() }
         );
     }
@@ -232,7 +235,7 @@ export class LayoutHistoryService
 
     // --- resize coalescing ---
 
-    private _onLayoutChange(): void {
+    private _onLayoutChange(e: LayoutChangeEvent): void {
         if (this._applying) {
             return;
         }
@@ -249,6 +252,18 @@ export class LayoutHistoryService
         if (this._mutationSettlePending || this._baseline === undefined) {
             this._mutationSettlePending = false;
             this._baseline = this._host.toJSON();
+            return;
+        }
+        if (!e.reasons.has('geometry') && !e.reasons.has('structure')) {
+            // Metadata only (active panel / title / params): not a resize, not
+            // an undo step. Keep the baseline (or the open run's post-image)
+            // current so a later resize does not fold it into its pre-image.
+            const snapshot = this._host.toJSON();
+            if (this._pendingResize) {
+                this._pendingResize.after = snapshot;
+            } else {
+                this._baseline = snapshot;
+            }
             return;
         }
         // A genuine resize ping: open or extend the coalesced run.

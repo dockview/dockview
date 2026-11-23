@@ -14,6 +14,7 @@ import {
 import { SplitviewComponentOptions } from './options';
 import { BaseComponentOptions, Parameters } from '../panel/types';
 import { Emitter, Event } from '../events';
+import { LayoutChangeEvent } from '../types';
 import { SplitviewPanel, ISplitviewPanel } from './splitviewPanel';
 import { Resizable } from '../resizable';
 import { Classnames } from '../dom';
@@ -31,6 +32,9 @@ export interface SerializedSplitviewPanel {
     priority?: LayoutPriority;
     data: SerializedSplitviewPanelData;
     size: number;
+    /** Absent/true = visible; false = the panel was hidden via setVisible and
+     *  `size` holds its cached pre-hide size. */
+    visible?: boolean;
 }
 
 export interface SerializedSplitview {
@@ -63,7 +67,7 @@ export interface ISplitviewComponent extends IDisposable {
         options: AddSplitviewComponentOptions<T>
     ): ISplitviewPanel;
     layout(width: number, height: number): void;
-    onDidLayoutChange: Event<void>;
+    onDidLayoutChange: Event<LayoutChangeEvent>;
     toJSON(): SerializedSplitview;
     fromJSON(serializedSplitview: SerializedSplitview): void;
     focus(): void;
@@ -96,8 +100,9 @@ export class SplitviewComponent
     private readonly _onDidRemoveView = new Emitter<IView>();
     readonly onDidRemoveView = this._onDidRemoveView.event;
 
-    private readonly _onDidLayoutChange = new Emitter<void>();
-    readonly onDidLayoutChange: Event<void> = this._onDidLayoutChange.event;
+    private readonly _onDidLayoutChange = new Emitter<LayoutChangeEvent>();
+    readonly onDidLayoutChange: Event<LayoutChangeEvent> =
+        this._onDidLayoutChange.event;
 
     private readonly _classNames: Classnames;
 
@@ -130,7 +135,9 @@ export class SplitviewComponent
 
         this._splitviewChangeDisposable.value = new CompositeDisposable(
             this._splitview.onDidSashEnd(() => {
-                this._onDidLayoutChange.fire(undefined);
+                this._onDidLayoutChange.fire({
+                    reasons: new Set(['geometry']),
+                });
             }),
             this._splitview.onDidAddView((e) => this._onDidAddView.fire(e)),
             this._splitview.onDidRemoveView((e) =>
@@ -192,12 +199,21 @@ export class SplitviewComponent
             this._classNames.setClassNames(options.className ?? '');
         }
 
-        if ('disableResizing' in options) {
+        if ('disableAutoResizing' in options) {
             this.disableResizing = options.disableAutoResizing ?? false;
         }
 
-        if (typeof options.orientation === 'string') {
-            this.splitview.orientation = options.orientation!;
+        if (
+            typeof options.orientation === 'string' &&
+            options.orientation !== this.splitview.orientation
+        ) {
+            this.splitview.orientation = options.orientation;
+            // each panel maps (size, orthogonalSize) to (width, height) from
+            // its own orientation, so it must follow the splitview's before
+            // the relayout below
+            for (const panel of this.panels) {
+                panel.orientation = options.orientation;
+            }
         }
 
         this._options = { ...this.options, ...options };
@@ -322,12 +338,18 @@ export class SplitviewComponent
         const views: SerializedSplitviewPanel[] = this.splitview
             .getViews<SplitviewPanel>()
             .map((view, i) => {
-                const size = this.splitview.getViewSize(i);
+                // a hidden view reports size 0; its pre-hide size is cached
+                const cachedVisibleSize =
+                    this.splitview.getViewCachedVisibleSize(i);
+                const hidden = typeof cachedVisibleSize === 'number';
                 return {
-                    size,
+                    size: hidden
+                        ? cachedVisibleSize
+                        : this.splitview.getViewSize(i),
                     data: view.toJSON(),
                     snap: !!view.snap,
                     priority: view.priority,
+                    ...(hidden ? { visible: false } : {}),
                 };
             });
 
@@ -375,6 +397,11 @@ export class SplitviewComponent
                             priority: view.priority,
                             accessor: this,
                         });
+                        // the descriptor adds the view hidden without telling
+                        // it, so sync the panel api's isVisible state here
+                        if (view.visible === false) {
+                            panel.setVisible(false);
+                        }
                     });
 
                     panel.orientation = orientation;
@@ -385,7 +412,11 @@ export class SplitviewComponent
                         this._onDidAddView.fire(panel);
                     }, 0);
 
-                    return { size: view.size, view: panel };
+                    return {
+                        size: view.size,
+                        view: panel,
+                        visible: view.visible,
+                    };
                 }),
             },
         });

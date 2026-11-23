@@ -54,6 +54,15 @@ export class BranchNode extends CompositeDisposable implements IView {
         visible: boolean;
     }> = this._onDidVisibilityChange.event;
 
+    /**
+     * Fired whenever this branch's cached aggregates are invalidated. A parent's
+     * aggregate is built from ours, so it goes stale with us; the parent chains
+     * on this signal (it only uncaches, no relayout).
+     */
+    private readonly _onDidInvalidateSizes = new Emitter<void>();
+    readonly onDidInvalidateSizes: Event<void> =
+        this._onDidInvalidateSizes.event;
+
     get width(): number {
         return this.orientation === Orientation.HORIZONTAL
             ? this.size
@@ -172,6 +181,7 @@ export class BranchNode extends CompositeDisposable implements IView {
         this._cachedMinimumSize = undefined;
         this._cachedMaximumSize = undefined;
         this._cachedPriority = undefined;
+        this._onDidInvalidateSizes.fire();
     }
 
     get disabled(): boolean {
@@ -265,6 +275,7 @@ export class BranchNode extends CompositeDisposable implements IView {
         this.addDisposables(
             this._onDidChange,
             this._onDidVisibilityChange,
+            this._onDidInvalidateSizes,
             this.splitview.onDidSashEnd(() => {
                 this._onDidChange.fire({});
             })
@@ -419,9 +430,17 @@ export class BranchNode extends CompositeDisposable implements IView {
             }),
             ...this.children.map((c, i) => {
                 if (c instanceof BranchNode) {
-                    return c.onDidVisibilityChange(({ visible }) => {
-                        this.setChildVisible(i, visible);
-                    });
+                    return new CompositeDisposable(
+                        c.onDidVisibilityChange(({ visible }) => {
+                            this.setChildVisible(i, visible);
+                        }),
+                        // a child branch's min/max went stale (a nested
+                        // visibility toggle or add/remove fires no
+                        // onDidChange), so our aggregate over it is stale too
+                        c.onDidInvalidateSizes(() => {
+                            this.invalidateCachedSizes();
+                        })
+                    );
                 }
                 return Disposable.NONE;
             })

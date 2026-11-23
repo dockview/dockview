@@ -936,6 +936,67 @@ describe('gridview', () => {
         ).toHaveLength(4);
     });
 
+    test('removeView: collapsing a branch whose surviving sibling branch contains branches keeps sizes', () => {
+        // root V[A, H1[B, V2[C, H3[D, E]]]] - removing B collapses H1 and
+        // promotes V2's children (a leaf and a branch) into the root. The
+        // promoted branch H3 must keep its extent along the root axis, not
+        // its own-axis extent.
+        const gridview = new Gridview(
+            true,
+            { separatorBorder: '' },
+            Orientation.VERTICAL
+        );
+        gridview.layout(1000, 1000);
+
+        const a = new MockGridview('A');
+        const b = new MockGridview('B');
+        const c = new MockGridview('C');
+        const d = new MockGridview('D');
+        const e = new MockGridview('E');
+
+        gridview.addView(a, Sizing.Distribute, [0]);
+        gridview.addView(b, Sizing.Distribute, [1]);
+        gridview.addView(c, Sizing.Distribute, [1, 1]);
+        gridview.addView(d, Sizing.Distribute, [1, 1, 1]);
+        gridview.addView(e, Sizing.Distribute, [1, 1, 1, 1]);
+
+        expect(a.height).toBe(500);
+        expect(c.height).toBe(250);
+        expect(d.height).toBe(250);
+        expect(e.height).toBe(250);
+
+        gridview.removeView([1, 0], Sizing.Distribute);
+
+        expect(gridview.serialize()).toEqual({
+            height: 1000,
+            orientation: 'VERTICAL',
+            root: {
+                data: [
+                    { data: { id: 'A' }, size: 500, type: 'leaf' },
+                    { data: { id: 'C' }, size: 250, type: 'leaf' },
+                    {
+                        data: [
+                            { data: { id: 'D' }, size: 500, type: 'leaf' },
+                            { data: { id: 'E' }, size: 500, type: 'leaf' },
+                        ],
+                        size: 250,
+                        type: 'branch',
+                    },
+                ],
+                size: 1000,
+                type: 'branch',
+            },
+            width: 1000,
+        });
+
+        expect(a.height).toBe(500);
+        expect(c.height).toBe(250);
+        expect(d.height).toBe(250);
+        expect(e.height).toBe(250);
+        expect(d.width).toBe(500);
+        expect(e.width).toBe(500);
+    });
+
     test('that calling insertOrthogonalSplitviewAtRoot() for an empty view doesnt add any nodes', () => {
         const gridview = new Gridview(
             false,
@@ -1526,6 +1587,107 @@ describe('gridview', () => {
             ).toHaveLength(2);
         });
 
+        test('promotes a branch child whose children include branches without resizing them', () => {
+            // root H[V[A, H[B, C], D]] - after normalize the root is the
+            // vertical branch and its children must keep their heights.
+            const gridview = new Gridview(
+                false,
+                { separatorBorder: '' },
+                Orientation.HORIZONTAL
+            );
+            gridview.layout(1000, 1000);
+
+            const views = new Map<string, MockGridview>();
+            const view = (id: string): MockGridview =>
+                views.get(id) as MockGridview;
+            gridview.deserialize(
+                {
+                    height: 1000,
+                    width: 1000,
+                    orientation: Orientation.HORIZONTAL,
+                    root: {
+                        type: 'branch',
+                        size: 1000,
+                        data: [
+                            {
+                                type: 'branch',
+                                size: 1000,
+                                data: [
+                                    {
+                                        type: 'leaf',
+                                        size: 300,
+                                        data: { id: 'A' },
+                                    },
+                                    {
+                                        type: 'branch',
+                                        size: 500,
+                                        data: [
+                                            {
+                                                type: 'leaf',
+                                                size: 500,
+                                                data: { id: 'B' },
+                                            },
+                                            {
+                                                type: 'leaf',
+                                                size: 500,
+                                                data: { id: 'C' },
+                                            },
+                                        ],
+                                    },
+                                    {
+                                        type: 'leaf',
+                                        size: 200,
+                                        data: { id: 'D' },
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                },
+                {
+                    fromJSON: (node) => {
+                        const id = (node.data as { id: string }).id;
+                        const view = new MockGridview(id);
+                        views.set(id, view);
+                        return view;
+                    },
+                }
+            );
+
+            expect(view('A').height).toBe(300);
+            expect(view('B').height).toBe(500);
+            expect(view('D').height).toBe(200);
+
+            gridview.normalize();
+            gridview.layout(1000, 1000);
+
+            expect(gridview.serialize()).toEqual({
+                height: 1000,
+                orientation: 'VERTICAL',
+                root: {
+                    data: [
+                        { data: { id: 'A' }, size: 300, type: 'leaf' },
+                        {
+                            data: [
+                                { data: { id: 'B' }, size: 500, type: 'leaf' },
+                                { data: { id: 'C' }, size: 500, type: 'leaf' },
+                            ],
+                            size: 500,
+                            type: 'branch',
+                        },
+                        { data: { id: 'D' }, size: 200, type: 'leaf' },
+                    ],
+                    size: 1000,
+                    type: 'branch',
+                },
+                width: 1000,
+            });
+            expect(view('A').height).toBe(300);
+            expect(view('B').height).toBe(500);
+            expect(view('C').height).toBe(500);
+            expect(view('D').height).toBe(200);
+        });
+
         test('should not normalize when root has single leaf child', () => {
             const gridview = new Gridview(
                 false,
@@ -1652,5 +1814,124 @@ describe('gridview', () => {
         expect(invocations).toBe(0);
 
         subscription.dispose();
+    });
+
+    /**
+     * A branch caches its aggregate min/max over its children. The cache is
+     * only honest if a change anywhere below the branch reaches it: hiding a
+     * leaf two levels down changes the nested branch's minimum, which is a
+     * term in every ancestor's aggregate.
+     */
+    describe('ancestor size caches follow nested changes', () => {
+        class ConstrainedView extends MockGridview {
+            private readonly _onDidChange = new Emitter<
+                IViewSize | undefined
+            >();
+            override onDidChange = this._onDidChange.event;
+
+            constructor(id: string, minimumHeight = 0) {
+                super(id);
+                this.minimumHeight = minimumHeight;
+            }
+
+            setMinimumHeight(value: number): void {
+                this.minimumHeight = value;
+                this._onDidChange.fire(undefined);
+            }
+        }
+
+        /**
+         * root V [ T, GP = H [ P = V [ L1(minH 300), L2(minH 300) ], Y ] ]
+         */
+        function createNestedGrid() {
+            const gridview = new Gridview(
+                false,
+                { separatorBorder: '' },
+                Orientation.VERTICAL
+            );
+            gridview.layout(1000, 1000);
+
+            const t = new ConstrainedView('T');
+            const y = new ConstrainedView('Y');
+            const l1 = new ConstrainedView('L1', 300);
+            const l2 = new ConstrainedView('L2', 300);
+
+            gridview.addView(t, Sizing.Distribute, [0]);
+            gridview.addView(y, Sizing.Distribute, [1]);
+            // splits Y's slot into GP = H [ L1, Y ]
+            gridview.addView(l1, Sizing.Distribute, [1, 0]);
+            // splits L1's slot into P = V [ L1, L2 ]
+            gridview.addView(l2, Sizing.Distribute, [1, 0, 1]);
+
+            expect(getGridLocation(l2.element)).toEqual([1, 0, 1]);
+            expect(gridview.minimumHeight).toBe(600);
+
+            return { gridview, t, y, l1, l2 };
+        }
+
+        test('hiding and showing a leaf two levels down updates the root minimum', () => {
+            const { gridview } = createNestedGrid();
+
+            gridview.setViewVisible([1, 0, 1], false);
+            expect(gridview.minimumHeight).toBe(300);
+
+            gridview.setViewVisible([1, 0, 1], true);
+            expect(gridview.minimumHeight).toBe(600);
+
+            gridview.dispose();
+        });
+
+        test('the root splitview clamps a nested branch to its live minimum, not the stale one', () => {
+            const { gridview, y } = createNestedGrid();
+
+            gridview.setViewVisible([1, 0, 1], false);
+
+            // GP's live minimum height is 300 (only L1 is visible inside P):
+            // laid out at 400 the root must give GP 300, not the stale 600
+            gridview.layout(1000, 400);
+            expect(y.height).toBe(300);
+
+            gridview.dispose();
+        });
+
+        test('a constraint change on a leaf two levels down updates the root minimum', () => {
+            const { gridview, l1 } = createNestedGrid();
+
+            l1.setMinimumHeight(500);
+            expect(gridview.minimumHeight).toBe(800);
+
+            l1.setMinimumHeight(300);
+            expect(gridview.minimumHeight).toBe(600);
+
+            gridview.dispose();
+        });
+
+        test('adding and removing a leaf inside a nested branch updates the root minimum', () => {
+            const { gridview } = createNestedGrid();
+
+            const l3 = new ConstrainedView('L3', 300);
+            gridview.addView(l3, Sizing.Distribute, [1, 0, 2]);
+            expect(gridview.minimumHeight).toBe(900);
+
+            gridview.removeView([1, 0, 2]);
+            expect(gridview.minimumHeight).toBe(600);
+
+            gridview.dispose();
+        });
+
+        test('hiding every child of a nested branch hides the branch and drops it from the root minimum', () => {
+            const { gridview } = createNestedGrid();
+
+            gridview.setViewVisible([1, 0, 0], false);
+            gridview.setViewVisible([1, 0, 1], false);
+            expect(gridview.isViewVisible([1, 0])).toBe(false);
+            expect(gridview.minimumHeight).toBe(0);
+
+            gridview.setViewVisible([1, 0, 0], true);
+            expect(gridview.isViewVisible([1, 0])).toBe(true);
+            expect(gridview.minimumHeight).toBe(300);
+
+            gridview.dispose();
+        });
     });
 });

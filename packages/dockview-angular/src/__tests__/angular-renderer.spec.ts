@@ -286,4 +286,42 @@ describe('AngularRenderer', () => {
         expect(instance.containerApi).toEqual({ mockContainerApi: true });
         expect((instance as any).title).toBeUndefined();
     });
+
+    it('forwards tabLocation from tab init parameters', () => {
+        const renderer = new AngularRenderer<TestComponent>({
+            component: TestComponent,
+            injector,
+            environmentInjector,
+        });
+
+        renderer.init({
+            params: {},
+            api: {},
+            containerApi: {},
+            tabLocation: 'headerOverflow',
+        });
+
+        expect((renderer.component!.instance as any).tabLocation).toBe(
+            'headerOverflow'
+        );
+    });
+
+    it('forwards extraInputs that are present and skips those that are not', () => {
+        const renderer = new AngularRenderer<TestComponent>({
+            component: TestComponent,
+            injector,
+            environmentInjector,
+            extraInputs: ['title', 'absent'],
+        });
+
+        renderer.init({ params: {}, api: {}, title: 'Pane Title' });
+
+        const instance = renderer.component!.instance as any;
+        expect(instance.title).toBe('Pane Title');
+        expect('absent' in instance).toBe(false);
+
+        // a re-init re-reads the same key set
+        renderer.init({ params: {}, api: {}, title: 'Renamed' });
+        expect(instance.title).toBe('Renamed');
+    });
 });

@@ -1,3 +1,5 @@
+import { fireEvent } from '@testing-library/dom';
+import { SplitviewApi } from '../../api/component.api';
 import { PanelDimensionChangeEvent } from '../../api/panelApi';
 import { Emitter } from '../../events';
 import { CompositeDisposable } from '../../lifecycle';
@@ -448,6 +450,102 @@ describe('componentSplitview', () => {
         });
     });
 
+    test('a hidden panel round-trips hidden at its cached size, not size 0', () => {
+        const splitview = new SplitviewComponent(container, {
+            orientation: Orientation.HORIZONTAL,
+            createComponent: (options) => {
+                switch (options.name) {
+                    case 'default':
+                        return new TestPanel(options.id, options.name);
+                    default:
+                        throw new Error('unsupported');
+                }
+            },
+        });
+        splitview.layout(1000, 500);
+
+        const panel1 = splitview.addPanel({
+            id: 'panel1',
+            component: 'default',
+        });
+        splitview.addPanel({
+            id: 'panel2',
+            component: 'default',
+        });
+
+        // hide panel1: getViewSize now reports 0, but its real size is cached
+        splitview.setVisible(panel1, false);
+        expect(panel1.api.isVisible).toBe(false);
+
+        const json = splitview.toJSON();
+        const v1 = json.views.find((v) => v.data.id === 'panel1')!;
+        const v2 = json.views.find((v) => v.data.id === 'panel2')!;
+        expect(v1.visible).toBe(false);
+        expect(v1.size).toBe(500);
+        // visible panels keep the legacy shape (no `visible` key)
+        expect('visible' in v2).toBe(false);
+        expect(v2.size).toBe(1000);
+
+        // round-trip: the panel must reload hidden at its cached size
+        splitview.fromJSON(JSON.parse(JSON.stringify(json)));
+        splitview.layout(1000, 500);
+
+        const restored1 = splitview.getPanel('panel1')!;
+        const restored2 = splitview.getPanel('panel2')!;
+        expect(restored1.api.isVisible).toBe(false);
+        expect(restored2.api.isVisible).toBe(true);
+        expect(restored1.width).toBe(0);
+        expect(restored2.width).toBe(1000);
+
+        const json2 = splitview.toJSON();
+        const v1b = json2.views.find((v) => v.data.id === 'panel1')!;
+        expect(v1b.visible).toBe(false);
+        expect(v1b.size).toBe(500);
+
+        // showing the panel again restores its pre-hide size
+        splitview.setVisible(restored1, true);
+        expect(restored1.api.isVisible).toBe(true);
+        expect(restored1.width).toBe(500);
+        expect(restored2.width).toBe(500);
+
+        splitview.dispose();
+    });
+
+    test('fromJSON treats a missing `visible` flag as visible', () => {
+        const splitview = new SplitviewComponent(container, {
+            orientation: Orientation.HORIZONTAL,
+            createComponent: (options) => {
+                switch (options.name) {
+                    case 'default':
+                        return new TestPanel(options.id, options.name);
+                    default:
+                        throw new Error('unsupported');
+                }
+            },
+        });
+        splitview.layout(1000, 500);
+
+        splitview.fromJSON({
+            views: [
+                { size: 400, data: { id: 'panel1', component: 'default' } },
+                {
+                    size: 600,
+                    data: { id: 'panel2', component: 'default' },
+                    visible: true,
+                },
+            ],
+            size: 1000,
+            orientation: Orientation.HORIZONTAL,
+        });
+
+        expect(splitview.getPanel('panel1')!.api.isVisible).toBe(true);
+        expect(splitview.getPanel('panel2')!.api.isVisible).toBe(true);
+        expect(splitview.getPanel('panel1')!.width).toBe(400);
+        expect(splitview.getPanel('panel2')!.width).toBe(600);
+
+        splitview.dispose();
+    });
+
     test('toJSON shouldnt fire any layout events', () => {
         const splitview = new SplitviewComponent(container, {
             orientation: Orientation.HORIZONTAL,
@@ -739,5 +837,261 @@ describe('componentSplitview', () => {
         splitview.updateOptions({ className: 'test-b test-c' });
 
         expect(splitview.element.className).toBe('test-b test-c');
+    });
+
+    test('onDidLayoutChange carries a geometry reason when a sash drag ends', () => {
+        const splitview = new SplitviewComponent(container, {
+            orientation: Orientation.HORIZONTAL,
+            createComponent: (options) => {
+                switch (options.name) {
+                    case 'default':
+                        return new TestPanel(options.id, options.name);
+                    default:
+                        throw new Error('unsupported');
+                }
+            },
+        });
+        splitview.layout(400, 400);
+        splitview.addPanel({ id: 'panel1', component: 'default' });
+        splitview.addPanel({ id: 'panel2', component: 'default' });
+        const api = new SplitviewApi(splitview);
+
+        const pings: string[][] = [];
+        const disposable = api.onDidLayoutChange((e) =>
+            pings.push([...e.reasons].sort())
+        );
+
+        const sash = container
+            .getElementsByClassName('dv-sash')
+            .item(0) as HTMLElement;
+        expect(sash).toBeTruthy();
+
+        fireEvent(
+            sash,
+            new MouseEvent('pointerdown', { clientX: 200, clientY: 100 })
+        );
+        fireEvent(
+            document,
+            new MouseEvent('pointermove', { clientX: 220, clientY: 100 })
+        );
+        expect(pings).toHaveLength(0); // nothing until the drag ends
+        fireEvent(
+            document,
+            new MouseEvent('pointerup', { clientX: 220, clientY: 100 })
+        );
+
+        expect(pings).toEqual([['geometry']]);
+
+        disposable.dispose();
+        splitview.dispose();
+    });
+
+    describe('updateOptions', () => {
+        function createCut(orientation: Orientation): SplitviewComponent {
+            return new SplitviewComponent(container, {
+                orientation,
+                createComponent: (options) => {
+                    switch (options.name) {
+                        case 'default':
+                            return new TestPanel(options.id, options.name);
+                        default:
+                            throw new Error('unsupported');
+                    }
+                },
+            });
+        }
+
+        test('switching orientation re-lays out panels in the new orientation', () => {
+            const splitview = createCut(Orientation.HORIZONTAL);
+            const api = new SplitviewApi(splitview);
+
+            splitview.layout(800, 200);
+
+            const panel1 = splitview.addPanel({
+                id: 'panel1',
+                component: 'default',
+            });
+            const panel2 = splitview.addPanel({
+                id: 'panel2',
+                component: 'default',
+            });
+
+            expect(api.orientation).toBe(Orientation.HORIZONTAL);
+            expect(panel1.api.width).toBe(400);
+            expect(panel1.api.height).toBe(200);
+            expect(panel2.api.width).toBe(400);
+            expect(panel2.api.height).toBe(200);
+
+            splitview.updateOptions({ orientation: Orientation.VERTICAL });
+
+            // the component keeps its box; panels now stack vertically
+            expect(api.orientation).toBe(Orientation.VERTICAL);
+            expect(api.width).toBe(800);
+            expect(api.height).toBe(200);
+            expect(panel1.api.width).toBe(800);
+            expect(panel1.api.height).toBe(100);
+            expect(panel2.api.width).toBe(800);
+            expect(panel2.api.height).toBe(100);
+
+            splitview.updateOptions({ orientation: Orientation.HORIZONTAL });
+
+            expect(api.orientation).toBe(Orientation.HORIZONTAL);
+            expect(api.width).toBe(800);
+            expect(api.height).toBe(200);
+            expect(panel1.api.width).toBe(400);
+            expect(panel1.api.height).toBe(200);
+            expect(panel2.api.width).toBe(400);
+            expect(panel2.api.height).toBe(200);
+
+            splitview.dispose();
+        });
+
+        test('re-applying the current orientation leaves the layout untouched', () => {
+            const splitview = createCut(Orientation.HORIZONTAL);
+            const api = new SplitviewApi(splitview);
+
+            splitview.layout(800, 200);
+
+            const panel1 = splitview.addPanel({
+                id: 'panel1',
+                component: 'default',
+            });
+            const panel2 = splitview.addPanel({
+                id: 'panel2',
+                component: 'default',
+            });
+
+            const orientationSetter = jest.spyOn(panel1, 'orientation', 'set');
+
+            splitview.updateOptions({ orientation: Orientation.HORIZONTAL });
+
+            expect(api.orientation).toBe(Orientation.HORIZONTAL);
+            expect(api.width).toBe(800);
+            expect(api.height).toBe(200);
+            expect(panel1.api.width).toBe(400);
+            expect(panel1.api.height).toBe(200);
+            expect(panel2.api.width).toBe(400);
+            expect(panel2.api.height).toBe(200);
+            expect(orientationSetter).not.toHaveBeenCalled();
+
+            splitview.dispose();
+        });
+
+        test('switching orientation with proportionalLayout disabled rescales every panel', () => {
+            const splitview = new SplitviewComponent(container, {
+                orientation: Orientation.HORIZONTAL,
+                proportionalLayout: false,
+                createComponent: (options) =>
+                    new TestPanel(options.id, options.name),
+            });
+            const api = new SplitviewApi(splitview);
+
+            splitview.layout(800, 200);
+
+            const panel1 = splitview.addPanel({
+                id: 'panel1',
+                component: 'default',
+            });
+            const panel2 = splitview.addPanel({
+                id: 'panel2',
+                component: 'default',
+            });
+            panel1.api.setSize({ size: 300 });
+
+            expect(panel1.api.width).toBe(300);
+            expect(panel2.api.width).toBe(500);
+
+            splitview.updateOptions({ orientation: Orientation.VERTICAL });
+
+            expect(api.width).toBe(800);
+            expect(api.height).toBe(200);
+            expect(panel1.api.width).toBe(800);
+            expect(panel1.api.height).toBe(75);
+            expect(panel2.api.width).toBe(800);
+            expect(panel2.api.height).toBe(125);
+
+            splitview.updateOptions({ orientation: Orientation.HORIZONTAL });
+
+            expect(panel1.api.width).toBe(300);
+            expect(panel1.api.height).toBe(200);
+            expect(panel2.api.width).toBe(500);
+            expect(panel2.api.height).toBe(200);
+
+            splitview.dispose();
+        });
+
+        test('switching orientation rescales the cached size of a hidden panel', () => {
+            const splitview = createCut(Orientation.HORIZONTAL);
+
+            splitview.layout(800, 200);
+
+            const panel1 = splitview.addPanel({
+                id: 'panel1',
+                component: 'default',
+            });
+            const panel2 = splitview.addPanel({
+                id: 'panel2',
+                component: 'default',
+            });
+            const panel3 = splitview.addPanel({
+                id: 'panel3',
+                component: 'default',
+            });
+            panel1.api.setSize({ size: 400 });
+            panel2.api.setSize({ size: 200 });
+            expect(
+                [panel1, panel2, panel3].map((panel) => panel.api.width)
+            ).toEqual([400, 200, 200]);
+
+            splitview.setVisible(panel2, false);
+            expect(splitview.splitview.getViewCachedVisibleSize(1)).toBe(200);
+            expect(panel1.api.width).toBe(400);
+            expect(panel3.api.width).toBe(400);
+
+            splitview.updateOptions({ orientation: Orientation.VERTICAL });
+
+            // the cached size follows the panel onto the 200px axis
+            expect(splitview.splitview.getViewCachedVisibleSize(1)).toBe(50);
+            expect(panel1.api.height).toBe(100);
+            expect(panel3.api.height).toBe(100);
+
+            splitview.setVisible(panel2, true);
+
+            expect(panel2.api.width).toBe(800);
+            expect(panel2.api.height).toBe(50);
+            expect(
+                panel1.api.height + panel2.api.height + panel3.api.height
+            ).toBe(200);
+
+            splitview.dispose();
+        });
+
+        test('updates disableResizing when disableAutoResizing is provided', () => {
+            const splitview = createCut(Orientation.HORIZONTAL);
+            expect(splitview.disableResizing).toBe(false);
+
+            // The real option key is `disableAutoResizing`; providing it must
+            // update `disableResizing` (regression guard: the guard previously
+            // checked a non-existent `disableResizing` key and never fired).
+            splitview.updateOptions({ disableAutoResizing: true });
+            expect(splitview.disableResizing).toBe(true);
+
+            splitview.updateOptions({ disableAutoResizing: false });
+            expect(splitview.disableResizing).toBe(false);
+
+            splitview.dispose();
+        });
+
+        test('leaves disableResizing unchanged when the option is omitted', () => {
+            const splitview = createCut(Orientation.HORIZONTAL);
+            splitview.updateOptions({ disableAutoResizing: true });
+            expect(splitview.disableResizing).toBe(true);
+
+            // An unrelated update must not reset it.
+            splitview.updateOptions({ className: 'unrelated' });
+            expect(splitview.disableResizing).toBe(true);
+
+            splitview.dispose();
+        });
     });
 });

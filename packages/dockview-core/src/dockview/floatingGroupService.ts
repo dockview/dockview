@@ -1,4 +1,8 @@
-import { CompositeDisposable, IDisposable } from '../lifecycle';
+import {
+    CompositeDisposable,
+    IDisposable,
+    MutableDisposable,
+} from '../lifecycle';
 import { remove } from '../array';
 import { watchElementResize } from '../dom';
 import { Gridview, ISerializedLeafNode } from '../gridview/gridview';
@@ -10,13 +14,14 @@ import { DockviewOptions } from './options';
 import { SerializedFloatingGroup } from './dockviewComponent';
 import { GroupPanelViewState } from './dockviewGroupPanelModel';
 import { defineModule } from './modules';
+import { LayoutChangeReason } from '../types';
 
 /**
  * Narrow callback surface the FloatingGroupService needs from its host
  * component. Keeps the service decoupled from DockviewComponent.
  */
 export interface IFloatingGroupHost {
-    fireLayoutChange(): void;
+    fireLayoutChange(reason: LayoutChangeReason): void;
 }
 
 export interface IFloatingGroupService extends IDisposable {
@@ -65,11 +70,6 @@ export class FloatingGroupService implements IFloatingGroupService {
         );
 
         const disposable = new CompositeDisposable(
-            group.api.onDidActiveChange((event) => {
-                if (event.isActive) {
-                    overlay.bringToFront();
-                }
-            }),
             (() => {
                 // The floating window's nested gridview fills the overlay
                 // beneath the (optional) title bar; size it from its own
@@ -94,36 +94,58 @@ export class FloatingGroupService implements IFloatingGroupService {
         // the dialog an accessible name from the representative group's active
         // panel, refreshed as the active panel changes. An untitled panel
         // leaves the dialog unnamed rather than hard-coding a label string.
-        const updateDialogLabel = (): void => {
-            const title = group.activePanel?.title;
+        const updateDialogLabel = (anchor: DockviewGroupPanel): void => {
+            const title = anchor.activePanel?.title;
             if (title) {
                 overlay.element.setAttribute('aria-label', title);
             } else {
                 overlay.element.removeAttribute('aria-label');
             }
         };
-        updateDialogLabel();
+
+        // Z-order, the dialog label and size requests track the window's
+        // *current* anchor, so these subscriptions are rebound whenever the
+        // anchor is reassigned.
+        const anchorDisposable = new MutableDisposable();
+        const bindAnchor = (anchor: DockviewGroupPanel): void => {
+            updateDialogLabel(anchor);
+            anchorDisposable.value = new CompositeDisposable(
+                anchor.api.onDidActiveChange((event) => {
+                    if (event.isActive) {
+                        overlay.bringToFront();
+                    }
+                }),
+                anchor.api.onDidActivePanelChange(() =>
+                    updateDialogLabel(anchor)
+                ),
+                anchor.onDidChange((event) => {
+                    // `event.height` is the anchor's requested *content*
+                    // height. When a dedicated title bar is present the
+                    // overlay's outer box is taller by the header, so add it
+                    // back to preserve the requested content size.
+                    overlay.setBounds({
+                        height:
+                            typeof event?.height === 'number'
+                                ? event.height + overlay.headerHeight
+                                : event?.height,
+                        width: event?.width,
+                    });
+                })
+            );
+        };
+        bindAnchor(group);
 
         floatingGroupPanel.addDisposables(
-            group.api.onDidActivePanelChange(() => updateDialogLabel()),
+            anchorDisposable,
+            floatingGroupPanel.onDidChangeAnchorGroup((anchor) =>
+                bindAnchor(anchor)
+            ),
             overlay.onDidChange(() => {
                 gridview.layout(gridview.width, gridview.height);
             }),
             overlay.onDidChangeEnd(() => {
-                this._host.fireLayoutChange();
-            }),
-            group.onDidChange((event) => {
-                // `event.height` is the group's requested *content* height.
-                // When a dedicated title bar is present the overlay's outer
-                // box is taller by the header, so add it back to preserve the
-                // requested content size.
-                overlay.setBounds({
-                    height:
-                        typeof event?.height === 'number'
-                            ? event.height + overlay.headerHeight
-                            : event?.height,
-                    width: event?.width,
-                });
+                // the floating group was moved or resized
+                this._host.fireLayoutChange('geometry');
             }),
             {
                 dispose: () => {

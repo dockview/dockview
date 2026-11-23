@@ -6,7 +6,11 @@ import {
 import { addDisposableListener, Emitter, Event } from '../../events';
 import { CompositeDisposable, IDisposable } from '../../lifecycle';
 import { PointerGhost } from './pointerGhost';
-import { IPointerDropTargetHandle, PointerDragEvent } from './types';
+import {
+    IPointerDropTargetHandle,
+    PointerDragEndEvent,
+    PointerDragEvent,
+} from './types';
 
 export interface ActiveDrag {
     readonly pointerId: number;
@@ -64,8 +68,8 @@ export class PointerDragController extends CompositeDisposable {
     private readonly _onDragMove = new Emitter<PointerDragEvent>();
     readonly onDragMove: Event<PointerDragEvent> = this._onDragMove.event;
 
-    private readonly _onDragEnd = new Emitter<PointerDragEvent>();
-    readonly onDragEnd: Event<PointerDragEvent> = this._onDragEnd.event;
+    private readonly _onDragEnd = new Emitter<PointerDragEndEvent>();
+    readonly onDragEnd: Event<PointerDragEndEvent> = this._onDragEnd.event;
 
     private constructor() {
         super();
@@ -209,7 +213,7 @@ export class PointerDragController extends CompositeDisposable {
                 pointerEvent: lastEvent,
             };
             onEnd?.(dragEvent, false);
-            this._onDragEnd.fire(dragEvent);
+            this._onDragEnd.fire({ ...dragEvent, dropped: false });
         }
     }
 
@@ -270,23 +274,28 @@ export class PointerDragController extends CompositeDisposable {
             pointerEvent: e,
         };
 
-        if (dropped && this._currentTarget) {
-            this._currentTarget.handleDrop(dragEvent);
-        } else {
-            this._currentTarget?.handleDragLeave();
+        // A throwing drop handler must not leave the drag active: teardown and
+        // drag-end always run, and the error surfaces from the listener as it
+        // would from an HTML5 `drop` listener.
+        try {
+            if (dropped && this._currentTarget) {
+                this._currentTarget.handleDrop(dragEvent);
+            } else {
+                this._currentTarget?.handleDragLeave();
+            }
+        } finally {
+            const onEnd = this._onDragEndCallback;
+            const dataDisposable = this._dataDisposable;
+
+            this._teardown();
+            this._dataDisposable = undefined;
+
+            // Defer disposal so drop handlers can still read the transfer data.
+            setTimeout(() => dataDisposable?.dispose(), 0);
+
+            onEnd?.(dragEvent, dropped);
+            this._onDragEnd.fire({ ...dragEvent, dropped });
         }
-
-        const onEnd = this._onDragEndCallback;
-        const dataDisposable = this._dataDisposable;
-
-        this._teardown();
-        this._dataDisposable = undefined;
-
-        // Defer disposal so drop handlers can still read the transfer data.
-        setTimeout(() => dataDisposable?.dispose(), 0);
-
-        onEnd?.(dragEvent, dropped);
-        this._onDragEnd.fire(dragEvent);
     }
 
     private _teardown(): void {

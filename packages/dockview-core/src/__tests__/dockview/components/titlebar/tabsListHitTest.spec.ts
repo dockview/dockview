@@ -11,6 +11,7 @@ import {
     RootDropTargetService,
 } from '../../../../dockview/rootDropTargetService';
 import { DockviewComponentOptions } from '../../../../dockview/options';
+import { DockviewGroupPanelLocked } from '../../../../dockview/dockviewGroupPanelModel';
 import { PointerDragController } from '../../../../dnd/pointer/pointerDragController';
 import {
     LocalSelectionTransfer,
@@ -84,7 +85,10 @@ function makePointerEvent(
  * `RootDropTargetService` the component uses, so a release resolves through the
  * real pointer hit-test.
  */
-function createFixture(): {
+function createFixture(
+    tabAnimation: 'smooth' | 'default' = 'smooth',
+    locked: DockviewGroupPanelLocked = false
+): {
     tabs: Tabs;
     rootService: RootDropTargetService;
     tabsList: HTMLElement;
@@ -121,15 +125,17 @@ function createFixture(): {
             theme: {
                 name: 'test',
                 className: 'test',
-                tabAnimation: 'smooth',
+                tabAnimation,
             },
         },
         onDidOptionsChange: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+        getPanel: jest.fn().mockReturnValue(undefined),
+        moveGroupOrPanel: jest.fn(),
     });
 
     const group = fromPartial<DockviewGroupPanel>({
         id: 'test-group',
-        locked: false,
+        locked,
         model: fromPartial({
             canDisplayOverlay: jest.fn().mockReturnValue(true),
             dropTargetContainer: undefined,
@@ -199,9 +205,15 @@ describe('tabs - strip is a pointer hit-test stop', () => {
         jest.restoreAllMocks();
     });
 
+    /**
+     * Start a drag and move it to the release point. `animState` is the drag
+     * state a drag that starts in the strip leaves at drag start, before the
+     * pointer moves.
+     */
     function drag(
         fixture: ReturnType<typeof createFixture>,
-        source: HTMLElement
+        source: HTMLElement,
+        animState?: TabAnimationState
     ): void {
         // Release lands on the strip's padding: `elementsFromPoint` reports the
         // tabs list, not a tab, so the ancestor walk would otherwise run up to
@@ -214,6 +226,10 @@ describe('tabs - strip is a pointer hit-test stop', () => {
             source,
             getData: () => ({ dispose: jest.fn() }),
         });
+
+        if (animState) {
+            (fixture.tabs as any)._animState = animState;
+        }
 
         window.dispatchEvent(
             makePointerEvent('pointermove', RELEASE_X, RELEASE_Y)
@@ -233,11 +249,13 @@ describe('tabs - strip is a pointer hit-test stop', () => {
             PanelTransfer.prototype
         );
 
-        drag(fixture, (fixture.tabs as any)._tabs[0].value.element);
-
         // Pin the reorder state the smooth-mode drag has built up by the time
         // of the release; the release point itself is what is under test.
-        (fixture.tabs as any)._animState = reorderAnimState();
+        drag(
+            fixture,
+            (fixture.tabs as any)._tabs[0].value.element,
+            reorderAnimState()
+        );
 
         window.dispatchEvent(
             makePointerEvent('pointerup', RELEASE_X, RELEASE_Y)
@@ -252,12 +270,43 @@ describe('tabs - strip is a pointer hit-test stop', () => {
         fixture.dispose();
     });
 
-    test('a cross-group drag released on strip padding still docks at the edge', () => {
-        // `handlePointerDragEnd` only commits intra-group single-tab reorders
-        // (`sourceIndex !== -1`), so a drag from another group has nothing to
-        // commit here. Stopping the walk for it would just make the release a
-        // dead zone.
+    test('a cross-group tab drag released on strip padding moves into the group only', () => {
+        // In smooth mode the tabs decline an internal drag for the strip, so
+        // `handlePointerDragEnd` commits a single tab from another group the
+        // way the HTML5 tabs-list `drop` listener does. The strip stops the
+        // walk for it, or the release would dock at the layout edge as well.
         const fixture = createFixture();
+
+        const onTabsDrop = jest.fn();
+        const onRootDrop = jest.fn();
+        fixture.tabs.onDrop(onTabsDrop);
+        fixture.rootService.onDrop(onRootDrop);
+
+        LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
+            [new PanelTransfer(ACCESSOR_ID, 'other-group', 'panel-x')],
+            PanelTransfer.prototype
+        );
+
+        drag(fixture, document.createElement('div'));
+
+        window.dispatchEvent(
+            makePointerEvent('pointerup', RELEASE_X, RELEASE_Y)
+        );
+
+        expect(onRootDrop).not.toHaveBeenCalled();
+        expect(onTabsDrop).toHaveBeenCalledTimes(1);
+        expect(onTabsDrop.mock.calls[0][0]).toEqual(
+            expect.objectContaining({ index: 2, targetTabGroupId: null })
+        );
+
+        fixture.dispose();
+    });
+
+    test('in default mode a cross-group tab drag released on strip padding still docks at the edge', () => {
+        // Outside smooth mode the per-tab drop targets commit a cross-group
+        // tab, and the strip has nothing to commit for a release on its
+        // padding. Stopping the walk there would make the release a dead zone.
+        const fixture = createFixture('default');
 
         const onTabsDrop = jest.fn();
         const onRootDrop = jest.fn();
@@ -281,6 +330,30 @@ describe('tabs - strip is a pointer hit-test stop', () => {
         fixture.dispose();
     });
 
+    test("a cross-group tab drag released on a no-drop-target group's strip padding still docks at the edge", () => {
+        // The group rejects the drop, so the strip has nothing to commit and
+        // stopping the walk would make the release a dead zone.
+        const fixture = createFixture('smooth', 'no-drop-target');
+
+        const onRootDrop = jest.fn();
+        fixture.rootService.onDrop(onRootDrop);
+
+        LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
+            [new PanelTransfer(ACCESSOR_ID, 'other-group', 'panel-x')],
+            PanelTransfer.prototype
+        );
+
+        drag(fixture, document.createElement('div'));
+
+        window.dispatchEvent(
+            makePointerEvent('pointerup', RELEASE_X, RELEASE_Y)
+        );
+
+        expect(onRootDrop).toHaveBeenCalledTimes(1);
+
+        fixture.dispose();
+    });
+
     // A chip drag commits here too, so the strip has to stop the walk for it
     // as well - otherwise the release docks at the layout edge on top of the
     // group move.
@@ -299,14 +372,12 @@ describe('tabs - strip is a pointer hit-test stop', () => {
             PanelTransfer.prototype
         );
 
-        drag(fixture, document.createElement('div'));
-
-        (fixture.tabs as any)._animState = {
+        drag(fixture, document.createElement('div'), {
             ...reorderAnimState(),
             sourceTabId: '',
             sourceTabGroupId: 'chip-1',
             sourceGroupPanelIds: new Set(['panel-a']),
-        };
+        });
 
         window.dispatchEvent(
             makePointerEvent('pointerup', RELEASE_X, RELEASE_Y)
@@ -364,5 +435,223 @@ describe('tabs - strip is a pointer hit-test stop', () => {
         );
 
         fixture.dispose();
+    });
+
+    // The strip stopping the hit-test and the strip committing the release
+    // must agree for every payload: blocking without committing strands the
+    // release, committing without blocking lets the edge act on it too.
+    describe('exactly one of the strip or the edge takes a release on its padding', () => {
+        const ownChipState = (): TabAnimationState => ({
+            ...reorderAnimState(),
+            sourceTabId: '',
+            sourceTabGroupId: 'chip-1',
+            sourceGroupPanelIds: new Set(['panel-a']),
+        });
+
+        const cases: {
+            name: string;
+            transfer: PanelTransfer | null;
+            tabAnimation?: 'smooth' | 'default';
+            locked?: DockviewGroupPanelLocked;
+            animState?: () => TabAnimationState;
+            expected: 'strip' | 'edge';
+        }[] = [
+            {
+                name: 'a tab from this strip',
+                transfer: new PanelTransfer(
+                    ACCESSOR_ID,
+                    'test-group',
+                    'panel-a'
+                ),
+                animState: reorderAnimState,
+                expected: 'strip',
+            },
+            {
+                name: 'a tab from this strip (default)',
+                transfer: new PanelTransfer(
+                    ACCESSOR_ID,
+                    'test-group',
+                    'panel-a'
+                ),
+                tabAnimation: 'default',
+                expected: 'edge',
+            },
+            {
+                name: 'a chip from this strip',
+                transfer: new PanelTransfer(
+                    ACCESSOR_ID,
+                    'test-group',
+                    null,
+                    'chip-1'
+                ),
+                animState: ownChipState,
+                expected: 'strip',
+            },
+            {
+                // A chip drag leaves drag state in every animation mode.
+                name: 'a chip from this strip (default)',
+                transfer: new PanelTransfer(
+                    ACCESSOR_ID,
+                    'test-group',
+                    null,
+                    'chip-1'
+                ),
+                tabAnimation: 'default',
+                animState: ownChipState,
+                expected: 'strip',
+            },
+            {
+                name: 'this whole group',
+                transfer: new PanelTransfer(ACCESSOR_ID, 'test-group', null),
+                expected: 'edge',
+            },
+            {
+                name: 'a tab from another group (smooth)',
+                transfer: new PanelTransfer(
+                    ACCESSOR_ID,
+                    'other-group',
+                    'panel-x'
+                ),
+                expected: 'strip',
+            },
+            {
+                name: 'a tab from another group (default)',
+                transfer: new PanelTransfer(
+                    ACCESSOR_ID,
+                    'other-group',
+                    'panel-x'
+                ),
+                tabAnimation: 'default',
+                expected: 'edge',
+            },
+            {
+                name: 'a tab from another group onto a no-drop-target group',
+                transfer: new PanelTransfer(
+                    ACCESSOR_ID,
+                    'other-group',
+                    'panel-x'
+                ),
+                locked: 'no-drop-target',
+                expected: 'edge',
+            },
+            {
+                name: 'a chip from another group (smooth)',
+                transfer: new PanelTransfer(
+                    ACCESSOR_ID,
+                    'other-group',
+                    null,
+                    'chip-x'
+                ),
+                expected: 'strip',
+            },
+            {
+                name: 'a chip from another group (default)',
+                transfer: new PanelTransfer(
+                    ACCESSOR_ID,
+                    'other-group',
+                    null,
+                    'chip-x'
+                ),
+                tabAnimation: 'default',
+                expected: 'edge',
+            },
+            {
+                name: 'a chip from another group onto a no-drop-target group',
+                transfer: new PanelTransfer(
+                    ACCESSOR_ID,
+                    'other-group',
+                    null,
+                    'chip-x'
+                ),
+                locked: 'no-drop-target',
+                expected: 'edge',
+            },
+            {
+                name: 'a tab from another group onto a locked group',
+                transfer: new PanelTransfer(
+                    ACCESSOR_ID,
+                    'other-group',
+                    'panel-x'
+                ),
+                locked: true,
+                expected: 'edge',
+            },
+            {
+                name: 'a chip from another group onto a locked group',
+                transfer: new PanelTransfer(
+                    ACCESSOR_ID,
+                    'other-group',
+                    null,
+                    'chip-x'
+                ),
+                locked: true,
+                expected: 'edge',
+            },
+            {
+                name: 'a tab from another dockview',
+                transfer: new PanelTransfer(
+                    'other-view',
+                    'other-group',
+                    'panel-x'
+                ),
+                expected: 'edge',
+            },
+            {
+                name: 'a payload from outside dockview',
+                transfer: null,
+                expected: 'edge',
+            },
+        ];
+
+        test.each(cases)('$name: $expected', (c) => {
+            const fixture = createFixture(c.tabAnimation, c.locked);
+
+            const model = (fixture.tabs as any).group.model;
+            model.moveTabGroup = jest.fn();
+            model.getTabGroups = jest.fn().mockReturnValue([{ id: 'chip-1' }]);
+
+            const onTabsDrop = jest.fn();
+            const onRootDrop = jest.fn();
+            fixture.tabs.onDrop(onTabsDrop);
+            fixture.rootService.onDrop(onRootDrop);
+
+            if (c.transfer) {
+                LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
+                    [c.transfer],
+                    PanelTransfer.prototype
+                );
+            }
+
+            drag(fixture, document.createElement('div'), c.animState?.());
+
+            // The target the hit-test resolved under the release point.
+            const hit = (PointerDragController.getInstance() as any)
+                ._currentTarget?.element;
+            const blocked = hit === fixture.tabsList;
+
+            window.dispatchEvent(
+                makePointerEvent('pointerup', RELEASE_X, RELEASE_Y)
+            );
+
+            const accessor = (fixture.tabs as any).accessor;
+            const committed =
+                onTabsDrop.mock.calls.length +
+                model.moveTabGroup.mock.calls.length +
+                accessor.moveGroupOrPanel.mock.calls.length;
+
+            expect({ blocked, committed }).toEqual(
+                c.expected === 'strip'
+                    ? { blocked: true, committed: 1 }
+                    : { blocked: false, committed: 0 }
+            );
+            if (c.expected === 'edge') {
+                // Not stranded: the walk reached the layout root.
+                expect(hit).toBe(fixture.tabs.element.parentElement);
+            } else {
+                expect(onRootDrop).not.toHaveBeenCalled();
+            }
+
+            fixture.dispose();
+        });
     });
 });

@@ -19,8 +19,8 @@ class Panel extends SplitviewPanel {
         this.element.style.background = PANEL_COLORS[colorIndex % PANEL_COLORS.length];
 
         this._frameworkPart = {
-            update: (parameters) => {
-                this.element.textContent = `Panel ${parameters?.id || id}`;
+            update: ({ params }) => {
+                this.element.textContent = `Panel ${params?.id || id}`;
             },
             dispose: () => {
                 // cleanup if needed

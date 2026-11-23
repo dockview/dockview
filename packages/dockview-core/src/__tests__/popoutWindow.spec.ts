@@ -296,6 +296,83 @@ describe('PopoutWindow', () => {
         });
     });
 
+    // The component's per-window teardown hangs off `onDidClose`, so an
+    // explicit `dispose()` must still fire the close events.
+    describe('dispose()', () => {
+        test('closes an open window, firing onWillClose and onDidClose once each, after which close() is a no-op', async () => {
+            const { externalWindow, fireLoad } = makeFakeExternalWindow();
+            const openSpy = jest
+                .spyOn(window, 'open')
+                .mockReturnValue(externalWindow as Window);
+
+            const order: string[] = [];
+            const popout = new PopoutWindow('target-id', 'dv-test-class', {
+                url: '/popout.html',
+                top: 0,
+                left: 0,
+                width: 100,
+                height: 100,
+                onWillClose: (event) => {
+                    order.push(`option:${event.id}`);
+                    expect(event.window).toBe(externalWindow);
+                },
+            });
+
+            try {
+                const opened = popout.open();
+                fireLoad();
+                await opened;
+
+                popout.onWillClose(() => order.push('willClose'));
+                popout.onDidClose(() => order.push('didClose'));
+
+                popout.dispose();
+
+                expect(order).toEqual([
+                    'willClose',
+                    'option:target-id',
+                    'didClose',
+                ]);
+                expect(externalWindow.close).toHaveBeenCalledTimes(1);
+                expect(popout.window).toBeNull();
+                expect(popout.isDisposed).toBe(true);
+
+                // the window is gone, so a later close has nothing to do
+                popout.close();
+                popout.dispose();
+
+                expect(order).toHaveLength(3);
+                expect(externalWindow.close).toHaveBeenCalledTimes(1);
+            } finally {
+                openSpy.mockRestore();
+            }
+        });
+
+        test('a window that was never opened disposes without firing close events', () => {
+            const onWillClose = jest.fn();
+            const popout = new PopoutWindow('target-id', 'dv-test-class', {
+                url: '/popout.html',
+                top: 0,
+                left: 0,
+                width: 100,
+                height: 100,
+                onWillClose,
+            });
+
+            const willClose = jest.fn();
+            const didClose = jest.fn();
+            popout.onWillClose(willClose);
+            popout.onDidClose(didClose);
+
+            popout.dispose();
+
+            expect(willClose).not.toHaveBeenCalled();
+            expect(didClose).not.toHaveBeenCalled();
+            expect(onWillClose).not.toHaveBeenCalled();
+            expect(popout.isDisposed).toBe(true);
+        });
+    });
+
     function withParentStyleSheet<T>(cssText: string, fn: () => T): T {
         const styleEl = document.createElement('style');
         styleEl.appendChild(document.createTextNode(cssText));

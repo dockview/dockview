@@ -205,6 +205,11 @@
                         : {}),
                     dndStrategy:
                         params.get('dnd') === 'html5' ? 'html5' : 'pointer',
+                    // `?headerPosition=left|right|bottom` places every group's
+                    // header on that side. Inert when absent (top).
+                    ...(params.get('headerPosition')
+                        ? { defaultHeaderPosition: params.get('headerPosition') }
+                        : {}),
                     // `?closeEmptyGroups=0` keeps a group in the grid once its
                     // last panel leaves. Inert when absent (the default).
                     ...(params.get('closeEmptyGroups') === '0'
@@ -763,6 +768,57 @@
                             second: panels['two'].group.id,
                         };
                     },
+                    // Two groups of two ungrouped tabs: one, two | three, four.
+                    // Dragging a tab onto a tab of the other group is a
+                    // cross-group move of a single tab.
+                    setupTwoGroupsOfTwo: () => {
+                        for (const id of ['one', 'two']) {
+                            panels[id] = dockview.addPanel({
+                                id,
+                                component: 'default',
+                                title: id,
+                            });
+                        }
+                        for (const id of ['three', 'four']) {
+                            panels[id] = dockview.addPanel({
+                                id,
+                                component: 'default',
+                                title: id,
+                                position:
+                                    id === 'three'
+                                        ? {
+                                              referencePanel: 'one',
+                                              direction: 'right',
+                                          }
+                                        : { referencePanel: 'three' },
+                            });
+                        }
+                        return {
+                            left: panels['one'].group.id,
+                            right: panels['three'].group.id,
+                        };
+                    },
+                    // The chip renders on a microtask.
+                    groupTabs: (ids, label) => {
+                        const groupId = panels[ids[0]].group.id;
+                        const tabGroup = dockview.api.createTabGroup({
+                            groupId,
+                            label,
+                        });
+                        for (const panelId of ids) {
+                            dockview.api.addPanelToTabGroup({
+                                groupId,
+                                tabGroupId: tabGroup.id,
+                                panelId,
+                            });
+                        }
+                        return tabGroup.id;
+                    },
+                    isInTabGroup: (id) =>
+                        !!dockview.api.getTabGroupForPanel({
+                            groupId: panels[id].group.id,
+                            panelId: id,
+                        }),
                     // Tab-group chips: three panels in one group, then a tab
                     // group (label "Monitoring") containing two of them so a
                     // `.dv-tab-group-chip` renders in the header. Returns the
@@ -1296,6 +1352,31 @@
                         }
                         dockview.autoHideEdgeGroup('left');
                     },
+                    // Drag-to-edge on a subset of edges (`edges`, an
+                    // EdgeGroupSet), with two side-by-side groups whose headers
+                    // touch the top of the layout, each holding two panels.
+                    setupTopRowWithEdgeGroups: (edges) => {
+                        dockview.api.updateOptions({
+                            dockToEdgeGroups: edges,
+                            autoHideEdgeGroups: edges,
+                            dndCompass: false,
+                        });
+                        for (const [id, position] of [
+                            ['a1', undefined],
+                            ['a2', undefined],
+                            ['b1', { direction: 'right' }],
+                            ['b2', { referencePanel: 'b1' }],
+                        ]) {
+                            dockview.addPanel({
+                                id,
+                                component: 'default',
+                                title: id,
+                                position,
+                            });
+                        }
+                    },
+                    groupPanelIds: () =>
+                        dockview.groups.map((g) => g.panels.map((p) => p.id)),
                     // Drag-revealed edges: enable `dockToEdgeGroups` (and turn the
                     // compass off so its own resolver drives edge routing), then
                     // two side-by-side groups so a tab can be dragged to the edge.
@@ -1338,6 +1419,45 @@
                             position: { direction: 'right' },
                         });
                     },
+                    // The demo's shape (#1738): drag-to-edge and auto-hide both
+                    // on, a collapsed auto-reveal left edge holding one panel,
+                    // and a `renderer: 'always'` panel in the grid to drag
+                    // onto the strip.
+                    setupAlwaysIntoCollapsedEdge: () => {
+                        dockview.api.updateOptions({
+                            dockToEdgeGroups: true,
+                            dndCompass: false,
+                            autoHideEdgeGroups: true,
+                        });
+                        dockview.addPanel({
+                            id: 'main',
+                            component: 'default',
+                            title: 'main',
+                        });
+                        dockview.addPanel({
+                            id: 'tab',
+                            component: 'default',
+                            title: 'tab',
+                            renderer: 'always',
+                            position: { direction: 'right' },
+                        });
+                        dockview.addEdgeGroup('left', {
+                            id: 'edge-left',
+                            initialSize: 220,
+                            autoReveal: true,
+                            collapsed: true,
+                        });
+                        dockview.addPanel({
+                            id: 'explorer',
+                            component: 'default',
+                            title: 'Explorer',
+                            position: {
+                                referenceGroup: 'edge-left',
+                                direction: 'within',
+                            },
+                        });
+                    },
+                    expandEdge: (pos) => dockview.getEdgeGroup(pos).expand(),
                     edgeGroupExists: (pos) => !!dockview.getEdgeGroup(pos),
                     edgeGroupCollapsed: (pos) => {
                         const g = dockview.getEdgeGroup(pos);

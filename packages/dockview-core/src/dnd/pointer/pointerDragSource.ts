@@ -8,6 +8,11 @@ import { PointerDragEvent } from './types';
 export interface PointerDragSourceOptions {
     /** Populate transfer data; returned disposer clears it on drag end. */
     getData: (event: PointerEvent) => IDisposable;
+    /**
+     * Fired with the originating pointerdown once movement promotes it to a
+     * drag, before `getData` / `createGhost` run. Calling `preventDefault()`
+     * on the event inside the hook vetoes the drag.
+     */
     onDragStart?: (event: PointerEvent) => void;
     onDragMove?: (event: PointerDragEvent) => void;
     onDragEnd?: (event: PointerDragEvent, dropped: boolean) => void;
@@ -102,6 +107,10 @@ export class PointerDragSource extends CompositeDisposable {
             event.pointerType !== 'touch' &&
             event.pointerType !== 'pen'
         ) {
+            return false;
+        }
+        // Native HTML5 drags begin on the primary button only.
+        if (event.pointerType === 'mouse' && event.button !== 0) {
             return false;
         }
         if (this.options.isCancelled?.(event)) {
@@ -243,9 +252,20 @@ export class PointerDragSource extends CompositeDisposable {
 
     private _beginDrag(triggerEvent: PointerEvent): void {
         const startEvent = this._startEvent ?? triggerEvent;
+        // Tears down the pending gesture (listeners, arm timer, selection
+        // shield) exactly as a pointerup before `threshold` would, so a veto
+        // below has nothing left to undo.
         this._cancelPending();
 
+        // The veto is `preventDefault()` *during* the hook. The pointerdown
+        // may already be cancelled when it reaches us (a child such as a
+        // close button prevents it to keep focus), which says nothing about
+        // the drag, so only a flip inside the hook counts.
+        const wasPrevented = startEvent.defaultPrevented;
         this.options.onDragStart?.(startEvent);
+        if (startEvent.defaultPrevented && !wasPrevented) {
+            return;
+        }
 
         const ghost = this.options.createGhost?.(startEvent);
 

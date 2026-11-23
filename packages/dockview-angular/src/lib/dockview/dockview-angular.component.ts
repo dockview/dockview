@@ -39,7 +39,10 @@ import {
     DockviewTheme,
     DroptargetOverlayModel,
 } from 'dockview';
-import { AngularFrameworkComponentFactory } from '../utils/component-factory';
+import {
+    AngularFrameworkComponentFactory,
+    DEFAULT_ANGULAR_TAB,
+} from '../utils/component-factory';
 import { AngularRenderer } from '../utils/angular-renderer';
 import { AngularLifecycleManager } from '../utils/lifecycle-utils';
 import { AngularTabGroupChipRenderer } from './angular-tab-group-chip-renderer';
@@ -57,6 +60,22 @@ export interface DockviewAngularOptions extends DockviewOptions {
         params: GetTabContextMenuItemsParams
     ) => (ContextMenuItem | { component: Type<any> })[];
 }
+
+/**
+ * Component inputs whose presence core tracks through its own option: core
+ * calls the factory only via these, so each input must also set (or clear)
+ * its option, at init and again whenever the input is rebound.
+ */
+const RENDERER_OPTION_KEYS = {
+    defaultTabComponent: 'defaultTabComponent',
+    watermarkComponent: 'createWatermarkComponent',
+    leftHeaderActionsComponent: 'createLeftHeaderActionComponent',
+    rightHeaderActionsComponent: 'createRightHeaderActionComponent',
+    prefixHeaderActionsComponent: 'createPrefixHeaderActionComponent',
+} as const satisfies Record<string, keyof DockviewFrameworkOptions>;
+
+type RendererOptionKey =
+    (typeof RENDERER_OPTION_KEYS)[keyof typeof RENDERER_OPTION_KEYS];
 
 @Component({
     selector: 'dv-dockview',
@@ -96,7 +115,6 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
     @Input() className?: string;
     @Input() orientation?: 'horizontal' | 'vertical';
     @Input() hideBorders?: boolean;
-    @Input() defaultTabComponent_?: string;
     @Input() tabHeight?: number;
     @Input() disableFloatingGroups?: boolean;
     @Input() floatingGroupBounds?: 'boundedWithinViewport';
@@ -174,7 +192,7 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
 
     ngOnChanges(changes: SimpleChanges): void {
         if (this.dockviewApi) {
-            const coreChanges: Partial<DockviewOptions> = {};
+            const coreChanges: Partial<DockviewComponentOptions> = {};
             let hasChanges = false;
 
             PROPERTY_KEYS_DOCKVIEW.forEach((key) => {
@@ -218,10 +236,6 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
                 hasChanges = true;
             }
 
-            if (hasChanges) {
-                this.dockviewApi.updateOptions(coreChanges);
-            }
-
             // Refresh the framework component factory when any component-map
             // input is rebound, so a new `[components]` (etc.) map is honoured
             // rather than leaving the factory pinned to the init-time snapshot.
@@ -230,7 +244,8 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
                     (key) => changes[key] && !changes[key].isFirstChange()
                 );
             if (componentMapChanged && this.frameworkComponentFactory) {
-                this.frameworkComponentFactory.updateComponents({
+                const factory = this.frameworkComponentFactory;
+                factory.updateComponents({
                     components: this.components,
                     tabComponents: this.tabComponents,
                     watermarkComponent: this.watermarkComponent,
@@ -238,6 +253,24 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
                         this.buildHeaderActionsComponents(),
                     defaultTabComponent: this.defaultTabComponent,
                 });
+
+                // The factory is updated first: core re-renders through these
+                // options synchronously inside `updateOptions`.
+                const rendererOptions = this.createRendererOptions(factory);
+                for (const [input, option] of Object.entries(
+                    RENDERER_OPTION_KEYS
+                )) {
+                    if (changes[input] && !changes[input].isFirstChange()) {
+                        Object.assign(coreChanges, {
+                            [option]: rendererOptions[option],
+                        });
+                        hasChanges = true;
+                    }
+                }
+            }
+
+            if (hasChanges) {
+                this.dockviewApi.updateOptions(coreChanges);
             }
         }
     }
@@ -322,6 +355,36 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
         return headerActionsComponents;
     }
 
+    /**
+     * Core options that route rendering back to the Angular factory. Each is
+     * `undefined` while its input is unset, which core reads as "use the
+     * built-in" (or none, for header actions) rather than asking the factory.
+     */
+    private createRendererOptions(
+        factory: AngularFrameworkComponentFactory
+    ): Pick<DockviewFrameworkOptions, RendererOptionKey> {
+        return {
+            defaultTabComponent: this.defaultTabComponent
+                ? DEFAULT_ANGULAR_TAB
+                : undefined,
+            createWatermarkComponent: this.watermarkComponent
+                ? () => factory.createWatermarkComponent()
+                : undefined,
+            createLeftHeaderActionComponent: this.leftHeaderActionsComponent
+                ? (group) =>
+                      factory.createHeaderActionsComponent('left', group)!
+                : undefined,
+            createRightHeaderActionComponent: this.rightHeaderActionsComponent
+                ? (group) =>
+                      factory.createHeaderActionsComponent('right', group)!
+                : undefined,
+            createPrefixHeaderActionComponent: this.prefixHeaderActionsComponent
+                ? (group) =>
+                      factory.createHeaderActionsComponent('prefix', group)!
+                : undefined,
+        };
+    }
+
     private createFrameworkOptions(): DockviewFrameworkOptions {
         const headerActionsComponents = this.buildHeaderActionsComponents();
 
@@ -337,41 +400,13 @@ export class DockviewAngularComponent implements OnInit, OnDestroy, OnChanges {
         this.frameworkComponentFactory = componentFactory;
 
         return {
+            ...this.createRendererOptions(componentFactory),
             createComponent: (options) => {
                 return componentFactory.createDockviewComponent(options);
             },
             createTabComponent: (options) => {
                 return componentFactory.createTabComponent(options);
             },
-            createWatermarkComponent: this.watermarkComponent
-                ? () => {
-                      return componentFactory.createWatermarkComponent();
-                  }
-                : undefined,
-            createLeftHeaderActionComponent: this.leftHeaderActionsComponent
-                ? (group) => {
-                      return componentFactory.createHeaderActionsComponent(
-                          'left',
-                          group
-                      )!;
-                  }
-                : undefined,
-            createRightHeaderActionComponent: this.rightHeaderActionsComponent
-                ? (group) => {
-                      return componentFactory.createHeaderActionsComponent(
-                          'right',
-                          group
-                      )!;
-                  }
-                : undefined,
-            createPrefixHeaderActionComponent: this.prefixHeaderActionsComponent
-                ? (group) => {
-                      return componentFactory.createHeaderActionsComponent(
-                          'prefix',
-                          group
-                      )!;
-                  }
-                : undefined,
             createContextMenuItemComponent: (options) => {
                 if (!options.component) {
                     return undefined;

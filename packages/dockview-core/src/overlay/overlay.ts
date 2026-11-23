@@ -57,6 +57,14 @@ class AriaLevelTracker {
 
 const arialLevelTracker = new AriaLevelTracker();
 
+/**
+ * A detached element, or one under a `display: none` ancestor, measures 0x0;
+ * clamping against such a rect collapses every position to 0.
+ */
+function hasLayout(rect: DOMRect): boolean {
+    return rect.width > 0 && rect.height > 0;
+}
+
 export class Overlay extends CompositeDisposable {
     private readonly _element: HTMLElement = document.createElement('div');
 
@@ -230,6 +238,13 @@ export class Overlay extends CompositeDisposable {
         const containerRect = this.options.container.getBoundingClientRect();
         const overlayRect = this._element.getBoundingClientRect();
 
+        // Nothing to clamp against until both have layout; the requested
+        // styles stand and the next sized layout() constrains them.
+        if (!hasLayout(containerRect) || !hasLayout(overlayRect)) {
+            this._onDidChange.fire();
+            return;
+        }
+
         // region: ensure bounds within allowable limits
 
         // a minimum width of minimumViewportWidth must be inside the viewport
@@ -303,8 +318,15 @@ export class Overlay extends CompositeDisposable {
             result.left = element.left - container.left;
         }
 
-        result.width = element.width;
-        result.height = element.height;
+        if (hasLayout(element)) {
+            result.width = element.width;
+            result.height = element.height;
+        } else {
+            // Unmeasurable while hidden: report the styled size rather than
+            // persisting a 0x0 window.
+            result.width = Number.parseFloat(this._element.style.width) || 0;
+            result.height = Number.parseFloat(this._element.style.height) || 0;
+        }
 
         return result;
     }

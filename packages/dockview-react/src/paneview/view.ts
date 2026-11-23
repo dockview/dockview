@@ -45,8 +45,11 @@ export class PanePanelSection implements IPanePart {
         };
     }
 
-    public update(params: PanelUpdateEvent) {
-        this.part?.update(params.params);
+    public update(event: PanelUpdateEvent) {
+        // Forward the merged params under the `params` prop. Spreading them
+        // as top-level props would let a param named `title` or `api` clobber
+        // the real prop.
+        this.part?.update({ params: event.params });
     }
 
     public dispose() {

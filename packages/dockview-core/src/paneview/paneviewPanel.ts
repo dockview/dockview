@@ -346,9 +346,12 @@ export abstract class PaneviewPanel
     // TODO slightly hacky by-pass of the component to create a body and header component
     getComponent(): IFrameworkPart {
         return {
-            update: (params: Parameters) => {
-                this.bodyPart?.update({ params });
-                this.headerPart?.update({ params });
+            // `BasePanelView` already hands the part a `PanelUpdateEvent`
+            // (`{ params }`), which is exactly what `IPanePart.update` takes,
+            // so forward it as-is rather than wrapping it a second time.
+            update: (event: Parameters) => {
+                this.bodyPart?.update(event as PanelUpdateEvent);
+                this.headerPart?.update(event as PanelUpdateEvent);
             },
             dispose: () => {
                 this.bodyPart?.dispose();

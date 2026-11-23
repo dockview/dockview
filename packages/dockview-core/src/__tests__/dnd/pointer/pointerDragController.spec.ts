@@ -531,3 +531,116 @@ describe('PointerDragController', () => {
         });
     });
 });
+
+describe('PointerDragController drop handler errors', () => {
+    afterEach(() => {
+        PointerDragController.getInstance().cancel();
+        jest.useRealTimers();
+    });
+
+    function makePointerEvent(
+        type: 'pointermove' | 'pointerup',
+        clientX = 0,
+        clientY = 0
+    ): PointerEvent {
+        return new PointerEvent(type, {
+            pointerId: 1,
+            pointerType: 'touch',
+            clientX,
+            clientY,
+            bubbles: true,
+            cancelable: true,
+        });
+    }
+
+    test('a throwing drop handler still tears the drag down and reports the error', () => {
+        jest.useFakeTimers();
+        const controller = PointerDragController.getInstance();
+
+        const targetEl = document.createElement('div');
+        const iframe = document.createElement('iframe');
+        const source = document.createElement('div');
+        document.body.append(targetEl, iframe, source);
+
+        const spy = jest
+            .spyOn(document, 'elementsFromPoint')
+            .mockReturnValue([targetEl]);
+
+        const boom = new Error('drop failed');
+        const handleDragOver = jest.fn();
+        const target: IPointerDropTargetHandle = {
+            element: targetEl,
+            handleDragOver,
+            handleDragLeave: jest.fn(),
+            handleDrop: jest.fn(() => {
+                throw boom;
+            }),
+        };
+        const reg = controller.registerTarget(target);
+
+        // jsdom reports an exception thrown inside a listener to the window
+        // instead of propagating it out of dispatchEvent, exactly as the
+        // browser does for the HTML5 `drop` listener.
+        const reported: unknown[] = [];
+        const onError = (e: ErrorEvent) => {
+            reported.push(e.error);
+            e.preventDefault();
+        };
+        window.addEventListener('error', onError);
+
+        const dataDispose = jest.fn();
+        const onDragEndCallback = jest.fn();
+        const onDragEndEvent = jest.fn();
+        const dispose = controller.onDragEnd(onDragEndEvent);
+
+        controller.beginDrag({
+            pointerEvent: makePointerEvent('pointermove'),
+            source,
+            getData: () => ({ dispose: dataDispose }),
+            onDragEnd: onDragEndCallback,
+        });
+        window.dispatchEvent(makePointerEvent('pointermove', 10, 10));
+        expect(iframe.style.pointerEvents).toBe('none');
+
+        window.dispatchEvent(makePointerEvent('pointerup', 10, 10));
+
+        expect(target.handleDrop).toHaveBeenCalledTimes(1);
+        expect(reported).toEqual([boom]);
+
+        // Everything a successful drop releases must be released here too.
+        expect(controller.active).toBeUndefined();
+        expect(iframe.style.pointerEvents).toBe('');
+        expect(
+            document.documentElement.style.getPropertyValue('user-select')
+        ).toBe('');
+        expect(onDragEndCallback).toHaveBeenCalledWith(
+            expect.objectContaining({ clientX: 10, clientY: 10 }),
+            true
+        );
+        expect(onDragEndEvent).toHaveBeenCalledTimes(1);
+        jest.runAllTimers();
+        expect(dataDispose).toHaveBeenCalledTimes(1);
+
+        // The window listeners are gone: later moves reach no target.
+        handleDragOver.mockClear();
+        window.dispatchEvent(makePointerEvent('pointermove', 20, 20));
+        expect(handleDragOver).not.toHaveBeenCalled();
+
+        // And a fresh drag can begin.
+        controller.beginDrag({
+            pointerEvent: makePointerEvent('pointermove'),
+            source,
+            getData: () => ({ dispose: jest.fn() }),
+        });
+        expect(controller.active).toBeDefined();
+        controller.cancel();
+
+        window.removeEventListener('error', onError);
+        dispose.dispose();
+        reg.dispose();
+        spy.mockRestore();
+        targetEl.remove();
+        iframe.remove();
+        source.remove();
+    });
+});

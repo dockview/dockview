@@ -61,6 +61,11 @@ export interface DragSourceOptions {
     createGhost?: (
         event: DragEvent | PointerEvent
     ) => IDragGhostSpec | undefined;
+    /**
+     * Fired before any drag state is armed. Calling `event.preventDefault()`
+     * inside the hook vetoes the drag: `getData` / `createGhost` do not run
+     * and no drag session begins, on either backend.
+     */
     onDragStart?: (event: DragEvent | PointerEvent) => void;
     onDragEnd?: (event: DragEvent | PointerEvent) => void;
     /** Initial disabled state; toggle later via `setDisabled`. */
@@ -90,10 +95,10 @@ export interface IDragSource extends IDisposable {
 }
 
 /**
- * HTML5 drag source. Listens for the native `dragstart` event, calls
- * `getData` to populate transfer, optionally renders the ghost via
- * `setDragImage`, fires `onDragStart` / `onDragEnd`, and tears down the
- * transfer disposer after `dragend`.
+ * HTML5 drag source. Listens for the native `dragstart` event, fires
+ * `onDragStart` (the consumer's chance to veto via `preventDefault()`), then
+ * calls `getData` to populate transfer, optionally renders the ghost via
+ * `setDragImage`, and tears down the transfer disposer after `dragend`.
  */
 class Html5DragSource extends CompositeDisposable implements IDragSource {
     private _disabled: boolean;
@@ -117,6 +122,19 @@ class Html5DragSource extends CompositeDisposable implements IDragSource {
                     this.opts.isCancelled?.(event)
                 ) {
                     event.preventDefault();
+                    return;
+                }
+
+                // The hook runs before anything is armed: it is the path to
+                // the public `onWillDragPanel` / `onWillDragGroup` events,
+                // whose documented veto is `nativeEvent.preventDefault()`.
+                // A cancelled `dragstart` gets no `dragend`, so a transfer
+                // payload or iframe shield installed before the veto would
+                // never be released: every iframe stays inert and the next
+                // external drop reads the stale `PanelTransfer` as a panel
+                // move.
+                this.opts.onDragStart?.(event);
+                if (event.defaultPrevented) {
                     return;
                 }
 
@@ -161,8 +179,6 @@ class Html5DragSource extends CompositeDisposable implements IDragSource {
                         event.dataTransfer.setData('text/plain', '');
                     }
                 }
-
-                this.opts.onDragStart?.(event);
             }),
             addDisposableListener(this.el, 'dragend', (event) => {
                 this._pointerEventsDisposable.dispose();

@@ -1,5 +1,6 @@
 import { Overlay } from '../overlay/overlay';
 import { CompositeDisposable } from '../lifecycle';
+import { Emitter, Event } from '../events';
 import { Gridview } from '../gridview/gridview';
 import { AnchoredBox } from '../types';
 import { DockviewGroupPanel, IDockviewGroupPanel } from './dockviewGroupPanel';
@@ -24,6 +25,12 @@ export class DockviewFloatingGroupPanel
     private _group: DockviewGroupPanel;
     private _titleBar: IAnchorTrackingTitleBar | undefined;
 
+    private readonly _onDidChangeAnchorGroup =
+        new Emitter<DockviewGroupPanel>();
+    /** Fires with the new anchor after `setAnchorGroup` reassigns it. */
+    readonly onDidChangeAnchorGroup: Event<DockviewGroupPanel> =
+        this._onDidChangeAnchorGroup.event;
+
     /**
      * The window's representative/anchor group. A floating window can host a
      * nested layout of several groups; the anchor is used for back-compat
@@ -44,6 +51,7 @@ export class DockviewFloatingGroupPanel
     setAnchorGroup(group: DockviewGroupPanel): void {
         this._group = group;
         this._titleBar?.setGroup(group);
+        this._onDidChangeAnchorGroup.fire(group);
     }
 
     constructor(
@@ -57,7 +65,7 @@ export class DockviewFloatingGroupPanel
     ) {
         super();
         this._group = group;
-        this.addDisposables(overlay, {
+        this.addDisposables(this._onDidChangeAnchorGroup, overlay, {
             // The gridview owns the floating window's DOM subtree (mounted as
             // the overlay's content). Disposing it tears down the splitview;
             // it doesn't dispose the leaf views (groups), whose lifecycle is

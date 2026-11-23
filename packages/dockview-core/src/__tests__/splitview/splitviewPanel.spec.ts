@@ -310,6 +310,23 @@ describe('splitviewPanel', () => {
         panel.dispose();
     });
 
+    test('layout forwards params to the framework part in the same shape as update', () => {
+        const panel = new TestPanel('id', 'component');
+        panel.init(createInitParameters(accessor, { params: { a: 1 } }));
+        panel.partUpdate.mockClear();
+
+        panel.layout(100, 200);
+
+        // Never the bare params object: parts that spread their argument as
+        // component props would otherwise merge `a` over `api`/`params`.
+        expect(panel.partUpdate).toHaveBeenCalledTimes(1);
+        expect(panel.partUpdate).toHaveBeenLastCalledWith({
+            params: { a: 1 },
+        });
+
+        panel.dispose();
+    });
+
     test('toJSON omits default (unbounded) constraints', () => {
         const panel = new TestPanel('id', 'component');
         panel.init(createInitParameters(accessor));

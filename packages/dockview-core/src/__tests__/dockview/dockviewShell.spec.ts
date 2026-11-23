@@ -4,10 +4,15 @@ import {
     IEdgeGroupHost,
     ShellManager,
 } from '../../dockview/dockviewShell';
+import { DockviewHeaderPosition } from '../../dockview/options';
 
-function makeGroup(): IEdgeGroupHost & { layout: jest.Mock } {
+function makeGroup(): IEdgeGroupHost & {
+    headerPosition: DockviewHeaderPosition;
+    layout: jest.Mock;
+} {
     return {
         element: document.createElement('div'),
+        headerPosition: 'top',
         layout: jest.fn(),
     };
 }
@@ -293,6 +298,150 @@ describe('EdgeGroupView', () => {
             (view as any)._applyMeasuredTabSize(60);
 
             expect(sizes).toEqual([60]);
+        });
+
+        describe('strip orientation (#1717)', () => {
+            let observerCallbacks: Array<(entries: any[]) => void>;
+            let originalResizeObserver: typeof window.ResizeObserver;
+
+            beforeEach(() => {
+                observerCallbacks = [];
+                originalResizeObserver = window.ResizeObserver;
+                (window as any).ResizeObserver = class {
+                    constructor(cb: (entries: any[]) => void) {
+                        observerCallbacks.push(cb);
+                    }
+                    observe(): void {
+                        /* noop */
+                    }
+                    unobserve(): void {
+                        /* noop */
+                    }
+                    disconnect(): void {
+                        /* noop */
+                    }
+                };
+                jest.spyOn(window, 'requestAnimationFrame').mockImplementation(
+                    (cb) => {
+                        cb(performance.now());
+                        return 0;
+                    }
+                );
+            });
+
+            afterEach(() => {
+                window.ResizeObserver = originalResizeObserver;
+                jest.restoreAllMocks();
+            });
+
+            function makeGroupWithStrip(
+                headerPosition: DockviewHeaderPosition
+            ) {
+                const group = makeGroup();
+                group.headerPosition = headerPosition;
+                const strip = document.createElement('div');
+                strip.className = 'dv-tabs-and-actions-container';
+                group.element.appendChild(strip);
+                return { group, strip };
+            }
+
+            function resizeStrip(
+                strip: HTMLElement,
+                width: number,
+                height: number
+            ): void {
+                Object.defineProperty(strip, 'offsetWidth', {
+                    configurable: true,
+                    value: width,
+                });
+                Object.defineProperty(strip, 'offsetHeight', {
+                    configurable: true,
+                    value: height,
+                });
+                for (const cb of observerCallbacks) {
+                    cb([{ contentRect: { width, height } }]);
+                }
+            }
+
+            test('left/right edge: a vertical strip sets the collapsed size', () => {
+                const { group, strip } = makeGroupWithStrip('left');
+                const view = new EdgeGroupView(
+                    { id: 'test', collapsedSize: 35 },
+                    group,
+                    'horizontal'
+                );
+
+                resizeStrip(strip, 40, 600);
+
+                expect(view.collapsedSize).toBe(40);
+                expect(view.minimumSize).toBe(90);
+            });
+
+            test('left/right edge: a strip moved to the bottom (pinned) is ignored', () => {
+                const { group, strip } = makeGroupWithStrip('left');
+                const view = new EdgeGroupView(
+                    { id: 'test', collapsedSize: 35 },
+                    group,
+                    'horizontal'
+                );
+                resizeStrip(strip, 40, 600);
+
+                // pinned: tabs at the bottom
+                group.headerPosition = 'bottom';
+                resizeStrip(strip, 300, 35);
+
+                expect(view.collapsedSize).toBe(40);
+                expect(view.minimumSize).toBe(90);
+
+                resizeStrip(strip, 350, 35);
+                expect(view.minimumSize).toBe(90);
+            });
+
+            test('left/right edge: un-pinning collapses to the tab width, not the pinned width', () => {
+                const { group, strip } = makeGroupWithStrip('left');
+                const view = new EdgeGroupView(
+                    { id: 'test', collapsedSize: 35 },
+                    group,
+                    'horizontal'
+                );
+                resizeStrip(strip, 40, 600);
+                group.headerPosition = 'bottom';
+                resizeStrip(strip, 300, 35);
+
+                view.setCollapsed(true);
+                expect(view.collapsedSize).toBe(40);
+
+                group.headerPosition = 'left';
+                resizeStrip(strip, 42, 600);
+                expect(view.collapsedSize).toBe(42);
+            });
+
+            test('top/bottom edge: a horizontal strip sets the collapsed size', () => {
+                const { group, strip } = makeGroupWithStrip('top');
+                const view = new EdgeGroupView(
+                    { id: 'test', collapsedSize: 35 },
+                    group,
+                    'vertical'
+                );
+
+                resizeStrip(strip, 800, 44);
+
+                expect(view.collapsedSize).toBe(44);
+            });
+
+            test('top/bottom edge: a vertical strip is ignored', () => {
+                const { group, strip } = makeGroupWithStrip('left');
+                const view = new EdgeGroupView(
+                    { id: 'test', collapsedSize: 35 },
+                    group,
+                    'vertical'
+                );
+
+                resizeStrip(strip, 35, 300);
+
+                expect(view.collapsedSize).toBe(35);
+                expect(view.minimumSize).toBe(85);
+            });
         });
     });
 });
@@ -895,6 +1044,17 @@ describe('ShellManager', () => {
             );
             const leftView = (shell as any)._leftView as EdgeGroupView;
             expect(leftView.collapsedSize).toBe(60);
+            shell.dispose();
+        });
+
+        test('an explicit undefined collapsedSize falls back to defaultCollapsedSize', () => {
+            const shell = makeShell(
+                { left: { id: 'left', collapsedSize: undefined } },
+                0,
+                48
+            );
+            const leftView = (shell as any)._leftView as EdgeGroupView;
+            expect(leftView.collapsedSize).toBe(48);
             shell.dispose();
         });
 

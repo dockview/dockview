@@ -21,6 +21,13 @@ import { AngularGridviewPanel } from '../gridview/angular-gridview-panel';
 import { AngularSplitviewPanel } from '../splitview/angular-splitview-panel';
 import { AngularPanePart } from '../paneview/angular-pane-part';
 
+/**
+ * Sentinel passed to dockview-core as its `defaultTabComponent` option name.
+ * Core only calls `createTabComponent` when a name resolves, so the Angular
+ * `defaultTabComponent` input is reached through this name (as React/Vue do).
+ */
+export const DEFAULT_ANGULAR_TAB = 'props.defaultTabComponent';
+
 export class AngularFrameworkComponentFactory {
     constructor(
         private components: Record<string, Type<any> | TemplateRef<any>>,
@@ -125,7 +132,10 @@ export class AngularFrameworkComponentFactory {
     createTabComponent(
         options: CreateComponentOptions
     ): ITabRenderer | undefined {
-        let component = this.tabComponents?.[options.name];
+        let component =
+            options.name === DEFAULT_ANGULAR_TAB
+                ? this.defaultTabComponent
+                : this.tabComponents?.[options.name];
 
         if (!component && this.defaultTabComponent) {
             component = this.defaultTabComponent;

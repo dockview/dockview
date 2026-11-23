@@ -189,4 +189,83 @@ describe('Html5DragSource (html5Backend.createDragSource)', () => {
 
         source.dispose();
     });
+
+    test('a drag vetoed via onDragStart preventDefault arms neither the transfer nor the iframe shield', () => {
+        const element = document.createElement('div');
+        const iframe = document.createElement('iframe');
+        document.body.appendChild(element);
+        document.body.appendChild(iframe);
+
+        const dispose = jest.fn();
+        const getData = jest.fn(() => ({ dispose }));
+        const createGhost = jest.fn(() => undefined);
+        const source = html5Backend.createDragSource(element, {
+            getData,
+            createGhost,
+            onDragStart: (event) => {
+                // The documented way for `onWillDragPanel` / `onWillDragGroup`
+                // consumers to cancel a drag.
+                event.preventDefault();
+            },
+        });
+
+        const event = new Event('dragstart', {
+            bubbles: true,
+            cancelable: true,
+        });
+        element.dispatchEvent(event);
+
+        expect(event.defaultPrevented).toBe(true);
+        // The browser fires no `dragend` after a cancelled `dragstart`, so
+        // nothing may be left armed here: no transfer payload...
+        expect(getData).not.toHaveBeenCalled();
+        expect(createGhost).not.toHaveBeenCalled();
+        // ...and no iframe shield.
+        expect(iframe.style.pointerEvents).toBe('');
+
+        source.dispose();
+        element.remove();
+        iframe.remove();
+    });
+
+    test('a vetoed drag does not clear the transfer of the next allowed drag', () => {
+        jest.useFakeTimers();
+
+        const element = document.createElement('div');
+        document.body.appendChild(element);
+
+        let veto = true;
+        const disposers: jest.Mock[] = [];
+        const getData = jest.fn(() => {
+            const dispose = jest.fn();
+            disposers.push(dispose);
+            return { dispose };
+        });
+        const source = html5Backend.createDragSource(element, {
+            getData,
+            onDragStart: (event) => {
+                if (veto) {
+                    event.preventDefault();
+                }
+            },
+        });
+
+        fireEvent.dragStart(element);
+
+        veto = false;
+        fireEvent.dragStart(element);
+
+        // Exactly one payload was published (the allowed drag) and it is
+        // still live until the drag ends.
+        expect(getData).toHaveBeenCalledTimes(1);
+        expect(disposers).toHaveLength(1);
+        expect(disposers[0]).not.toHaveBeenCalled();
+
+        fireEvent.dragEnd(element);
+        jest.runAllTimers();
+        expect(disposers[0]).toHaveBeenCalledTimes(1);
+
+        source.dispose();
+        element.remove();
+    });
 });

@@ -7,6 +7,7 @@ import {
     BasePanelViewState,
 } from './basePanelView';
 import {
+    GridConstraintChangeEvent2,
     GridviewPanelApi,
     GridviewPanelApiImpl,
 } from '../api/gridviewPanelApi';
@@ -209,40 +210,9 @@ export abstract class GridviewPanel<
 
                 accessor.doSetGroupActive(this);
             }),
-            this.api.onDidConstraintsChangeInternal((event) => {
-                if (
-                    typeof event.minimumWidth === 'number' ||
-                    typeof event.minimumWidth === 'function'
-                ) {
-                    this._minimumWidth = event.minimumWidth;
-                }
-                if (
-                    typeof event.minimumHeight === 'number' ||
-                    typeof event.minimumHeight === 'function'
-                ) {
-                    this._minimumHeight = event.minimumHeight;
-                }
-                if (
-                    typeof event.maximumWidth === 'number' ||
-                    typeof event.maximumWidth === 'function'
-                ) {
-                    this._maximumWidth = event.maximumWidth;
-                }
-                if (
-                    typeof event.maximumHeight === 'number' ||
-                    typeof event.maximumHeight === 'function'
-                ) {
-                    this._maximumHeight = event.maximumHeight;
-                }
-
-                // Notify the containing view (LeafNode -> BranchNode) that this
-                // panel's constraints changed. Without this, a gridview
-                // BranchNode's cached aggregate minimum/maximum size would stay
-                // stale after `api.setConstraints(...)` until an unrelated
-                // add/remove/visibility/size event, and the parent splitview
-                // would not re-clamp the panel to the new bounds.
-                this._onDidChange.fire(undefined);
-            }),
+            this.api.onDidConstraintsChangeInternal((event) =>
+                this.applyConstraints(event)
+            ),
             this.api.onDidSizeChange((event) => {
                 this._onDidChange.fire({
                     height: event.height,
@@ -283,6 +253,49 @@ export abstract class GridviewPanel<
         if (typeof parameters.isVisible === 'boolean') {
             this.setVisible(parameters.isVisible);
         }
+    }
+
+    /**
+     * Record a `setConstraints` request, then tell the containing view. A
+     * subclass that layers its own state over these fields updates it before
+     * calling through, so the notification carries the new constraints.
+     */
+    protected applyConstraints(event: GridConstraintChangeEvent2): void {
+        if (
+            typeof event.minimumWidth === 'number' ||
+            typeof event.minimumWidth === 'function'
+        ) {
+            this._minimumWidth = event.minimumWidth;
+        }
+        if (
+            typeof event.minimumHeight === 'number' ||
+            typeof event.minimumHeight === 'function'
+        ) {
+            this._minimumHeight = event.minimumHeight;
+        }
+        if (
+            typeof event.maximumWidth === 'number' ||
+            typeof event.maximumWidth === 'function'
+        ) {
+            this._maximumWidth = event.maximumWidth;
+        }
+        if (
+            typeof event.maximumHeight === 'number' ||
+            typeof event.maximumHeight === 'function'
+        ) {
+            this._maximumHeight = event.maximumHeight;
+        }
+
+        this.notifyConstraintsChanged();
+    }
+
+    /**
+     * Tell the containing view (LeafNode -> BranchNode) that this panel's
+     * constraints changed: the branch's cached aggregate min/max over its
+     * children is stale and the parent splitview must re-clamp this panel.
+     */
+    protected notifyConstraintsChanged(): void {
+        this._onDidChange.fire(undefined);
     }
 
     private updateConstraints(): void {

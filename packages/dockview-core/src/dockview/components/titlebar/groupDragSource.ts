@@ -217,11 +217,19 @@ export class GroupDragSource extends CompositeDisposable {
                     return false;
                 },
                 onDragStart: (event) => {
+                    const wasPrevented = event.defaultPrevented;
+                    this._onDragStart.fire(event);
+                    // `onWillDragGroup` vetoed the redock: the float keeps
+                    // following the finger. (Only a flip during the hook
+                    // counts; the overlay's own handle may have prevented
+                    // the pointerdown already.)
+                    if (event.defaultPrevented && !wasPrevented) {
+                        return;
+                    }
                     // Redock just committed, so abort any in-flight overlay
                     // move so the float stops following the finger while
                     // the ghost takes over.
                     this.getFloatingOverlay()?.cancelPendingDrag();
-                    this._onDragStart.fire(event);
                 },
             }
         );

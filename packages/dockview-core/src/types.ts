@@ -27,3 +27,19 @@ export type AnchorPosition = TopLeft | TopRight | BottomLeft | BottomRight;
 export type Size = { width: number; height: number };
 
 export type AnchoredBox = Size & AnchorPosition;
+
+/** Why `onDidLayoutChange` fired. Only `'geometry'` (sizes / positions,
+ *  including maximize, visibility and floating / popout bounds) is a resize;
+ *  the rest are serialized too, which is why they fire the event. */
+export type LayoutChangeReason =
+    | 'geometry'
+    | 'structure'
+    | 'activePanel'
+    | 'panelTitle'
+    | 'panelParameters';
+
+/** `onDidLayoutChange` payload: the union of reasons since the previous
+ *  (coalesced) fire. */
+export interface LayoutChangeEvent {
+    readonly reasons: ReadonlySet<LayoutChangeReason>;
+}

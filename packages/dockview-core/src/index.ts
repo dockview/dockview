@@ -144,6 +144,8 @@ export {
     type AnchorPosition,
     type AnchoredBox,
     type DragModifiers,
+    type LayoutChangeEvent,
+    type LayoutChangeReason,
 } from './types';
 
 export { type DockviewPanelRenderer } from './overlay/overlayRenderContainer';

@@ -44,6 +44,9 @@ describe('auto edge groups (two-band drag reveal)', () => {
             getDropZoneRect: () => rect,
             onWillShowOverlay: willShow.event,
             onWillDrop: willDrop.event,
+            onWillDragPanel: new Emitter<any>().event,
+            onWillDragGroup: new Emitter<any>().event,
+            createEdgeDropTarget: () => ({ dispose: () => undefined }),
             revealEdgeGroupWithData: reveal,
         };
         const service = new AutoEdgeGroupService(host as any);

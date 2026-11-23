@@ -6,6 +6,8 @@ import { DockviewEmitter as Emitter } from 'dockview-core';
 import {
     DockviewComponentOptions,
     DockviewLayoutMutationEvent,
+    LayoutChangeEvent,
+    LayoutChangeReason,
     LayoutHistoryOptions,
     SerializedDockview,
 } from 'dockview-core';
@@ -218,6 +220,71 @@ describe('LayoutHistory undo/redo', () => {
 
         d.dispose();
     });
+
+    /**
+     * `onDidLayoutChange` also pings for active-panel, title and params
+     * changes (they are all serialized), but none of those is a resize. Only a
+     * ping whose `reasons` carry `'geometry'` may open a resize run; the rest
+     * refresh the baseline so a later resize does not fold them into its
+     * pre-image.
+     */
+    test('tab switch, title and params changes are not undo steps; a resize still is', () => {
+        jest.useFakeTimers();
+        try {
+            const d = make({ enabled: true, coalesceMs: 400 });
+            const events: LayoutHistoryChangeEvent[] = [];
+            d.onDidChangeHistory((e) => events.push(e));
+            const undoCount = (): number =>
+                events.length > 0 ? events[events.length - 1].undoCount : 0;
+
+            const p1 = d.addPanel({ id: 'p1', component: 'default' });
+            const p2 = d.addPanel({
+                id: 'p2',
+                component: 'default',
+                position: { direction: 'right' },
+            });
+            jest.runAllTicks();
+            expect(undoCount()).toBe(2);
+            expect(d.activePanel).toBe(p2);
+
+            p1.api.setActive();
+            jest.runAllTicks();
+            jest.advanceTimersByTime(1000);
+            expect(undoCount()).toBe(2);
+
+            p1.api.setTitle('x');
+            jest.runAllTicks();
+            jest.advanceTimersByTime(1000);
+            expect(undoCount()).toBe(2);
+
+            p1.api.updateParameters({ a: 1 });
+            jest.runAllTicks();
+            jest.advanceTimersByTime(1000);
+            expect(undoCount()).toBe(2);
+
+            // A genuine resize: the group sash moves.
+            const widthBefore = p1.group.api.width;
+            p1.group.api.setSize({ width: widthBefore - 100 });
+            jest.runAllTicks();
+            jest.advanceTimersByTime(400);
+            expect(undoCount()).toBe(3);
+            expect(events[events.length - 1].lastEntry?.kind).toBe('resize');
+
+            // Undoing the resize restores the geometry only: the active panel,
+            // title and params are as they were right before the resize.
+            d.undo();
+            jest.runAllTicks();
+            expect(d.activePanel?.id).toBe('p1');
+            expect(d.getGroupPanel('p1')?.title).toBe('x');
+            expect(d.getGroupPanel('p1')?.params).toEqual({ a: 1 });
+            expect(d.getGroupPanel('p1')?.group.api.width).toBe(widthBefore);
+
+            jest.runAllTimers();
+            d.dispose();
+        } finally {
+            jest.useRealTimers();
+        }
+    });
 });
 
 /**
@@ -230,17 +297,22 @@ describe('LayoutHistory resize coalescing', () => {
     interface FakeHost extends ILayoutHistoryHost {
         will: Emitter<DockviewLayoutMutationEvent>;
         did: Emitter<DockviewLayoutMutationEvent>;
-        layout: Emitter<void>;
+        layout: Emitter<LayoutChangeEvent>;
         snapshot: number; // stands in for the layout state
         setOptions(o: LayoutHistoryOptions): void;
     }
+
+    /** One coalesced `onDidLayoutChange` ping carrying the given reasons. */
+    const ping = (h: FakeHost, ...reasons: LayoutChangeReason[]): void => {
+        h.layout.fire({ reasons: new Set(reasons) });
+    };
 
     const makeHost = (
         layoutHistory: LayoutHistoryOptions = { enabled: true }
     ): FakeHost => {
         const will = new Emitter<DockviewLayoutMutationEvent>();
         const did = new Emitter<DockviewLayoutMutationEvent>();
-        const layout = new Emitter<void>();
+        const layout = new Emitter<LayoutChangeEvent>();
         let opts: LayoutHistoryOptions = layoutHistory;
         const host: FakeHost = {
             will,
@@ -273,7 +345,7 @@ describe('LayoutHistory resize coalescing', () => {
     /** Fire the initial settle so a baseline exists, like the first real layout. */
     const seed = (h: FakeHost): void => {
         h.snapshot = 0;
-        h.layout.fire();
+        ping(h, 'geometry');
     };
 
     test('coalesces a continuous resize drag into one entry', () => {
@@ -283,11 +355,11 @@ describe('LayoutHistory resize coalescing', () => {
 
         // a "drag": several pings, each a slightly different layout
         h.snapshot = 1;
-        h.layout.fire();
+        ping(h, 'geometry');
         h.snapshot = 2;
-        h.layout.fire();
+        ping(h, 'geometry');
         h.snapshot = 3;
-        h.layout.fire();
+        ping(h, 'geometry');
         expect(svc.canUndo).toBe(false); // not finalized while the drag is live
 
         jest.advanceTimersByTime(400);
@@ -307,7 +379,7 @@ describe('LayoutHistory resize coalescing', () => {
         seed(h);
 
         h.snapshot = 1;
-        h.layout.fire(); // open a resize run (before=0)
+        ping(h, 'geometry'); // open a resize run (before=0)
 
         // a discrete close arrives mid-window, so it must close the resize run first
         h.will.fire({ kind: 'remove', origin: 'user' });
@@ -330,9 +402,9 @@ describe('LayoutHistory resize coalescing', () => {
         seed(h);
 
         h.snapshot = 1;
-        h.layout.fire();
+        ping(h, 'geometry');
         h.snapshot = 0; // dragged back to where it started
-        h.layout.fire();
+        ping(h, 'geometry');
         jest.advanceTimersByTime(400);
 
         expect(svc.canUndo).toBe(false);
@@ -349,7 +421,7 @@ describe('LayoutHistory resize coalescing', () => {
         h.will.fire({ kind: 'add', origin: 'user' });
         h.snapshot = 1;
         h.did.fire({ kind: 'add', origin: 'user' });
-        h.layout.fire(); // settle, must not open a resize run
+        ping(h, 'geometry'); // settle, must not open a resize run
         jest.advanceTimersByTime(1000);
 
         // only the discrete add is recorded
@@ -366,12 +438,98 @@ describe('LayoutHistory resize coalescing', () => {
         seed(h);
 
         h.snapshot = 1;
-        h.layout.fire();
+        ping(h, 'geometry');
         h.snapshot = 2;
-        h.layout.fire();
+        ping(h, 'geometry');
         jest.advanceTimersByTime(1000);
 
         expect(svc.canUndo).toBe(false);
+
+        svc.dispose();
+    });
+
+    test('a metadata-only ping (tab switch / title / params) is not a resize and refreshes the baseline', () => {
+        const h = makeHost({ enabled: true, coalesceMs: 400 });
+        const svc = new LayoutHistoryService(h);
+        seed(h);
+
+        // active panel / title / params change: serialized, so they ping, but
+        // none of them is a resize
+        h.snapshot = 1;
+        ping(h, 'activePanel');
+        h.snapshot = 2;
+        ping(h, 'panelTitle');
+        h.snapshot = 3;
+        ping(h, 'panelParameters');
+        jest.advanceTimersByTime(1000);
+        expect(svc.canUndo).toBe(false);
+
+        // a later genuine resize: its pre-image already holds the metadata
+        // changes, so undoing it does not revert them
+        h.snapshot = 4;
+        ping(h, 'geometry');
+        jest.advanceTimersByTime(400);
+        expect(svc.canUndo).toBe(true);
+
+        svc.undo();
+        expect(h.snapshot).toBe(3);
+        expect(svc.canUndo).toBe(false);
+
+        svc.dispose();
+    });
+
+    test('a metadata-only ping during an open resize run rides that run', () => {
+        const h = makeHost({ enabled: true, coalesceMs: 400 });
+        const svc = new LayoutHistoryService(h);
+        seed(h);
+
+        h.snapshot = 1;
+        ping(h, 'geometry'); // open a run (before=0)
+        h.snapshot = 2;
+        ping(h, 'activePanel'); // mid-run metadata change: lands in `after`
+        jest.advanceTimersByTime(400);
+
+        // one entry, whose post-image includes the metadata change
+        svc.undo();
+        expect(h.snapshot).toBe(0);
+        expect(svc.canUndo).toBe(false);
+        svc.redo();
+        expect(h.snapshot).toBe(2);
+
+        svc.dispose();
+    });
+
+    test('a mixed ping (geometry plus metadata) still opens a resize run', () => {
+        const h = makeHost({ enabled: true, coalesceMs: 400 });
+        const svc = new LayoutHistoryService(h);
+        seed(h);
+
+        h.snapshot = 1;
+        ping(h, 'activePanel', 'geometry');
+        jest.advanceTimersByTime(400);
+
+        expect(svc.canUndo).toBe(true);
+        svc.undo();
+        expect(h.snapshot).toBe(0);
+
+        svc.dispose();
+    });
+
+    test('a structure-only ping outside a mutation bracket is recorded as before', () => {
+        // Structure changes normally arrive as the settle after
+        // onDidMutateLayout. One that does not (no bracket) is still a real
+        // layout change, so it keeps opening a (resize) run, as it always has.
+        const h = makeHost({ enabled: true, coalesceMs: 400 });
+        const svc = new LayoutHistoryService(h);
+        seed(h);
+
+        h.snapshot = 1;
+        ping(h, 'structure');
+        jest.advanceTimersByTime(400);
+
+        expect(svc.canUndo).toBe(true);
+        svc.undo();
+        expect(h.snapshot).toBe(0);
 
         svc.dispose();
     });

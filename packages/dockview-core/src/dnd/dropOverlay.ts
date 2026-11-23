@@ -71,10 +71,10 @@ function computeOverlayShape(
         size = clamp(sizeOptions.value, 0, 100) / 100;
     } else {
         if (rightClass || leftClass) {
-            size = clamp(0, sizeOptions.value, width) / width;
+            size = clamp(sizeOptions.value, 0, width) / width;
         }
         if (topClass || bottomClass) {
-            size = clamp(0, sizeOptions.value, height) / height;
+            size = clamp(sizeOptions.value, 0, height) / height;
         }
     }
 

@@ -1,5 +1,6 @@
 import { getPanelData, PanelTransfer } from '../../../dnd/dataTransfer';
-import { getHitTestRoot, toggleClass } from '../../../dom';
+import { getEventDocument, getHitTestRoot, toggleClass } from '../../../dom';
+import { PointerDragEndEvent } from '../../../dnd/pointer/types';
 import { CompositeDisposable, IValueDisposable } from '../../../lifecycle';
 import { DockviewComponent } from '../../dockviewComponent';
 import { DockviewGroupPanel } from '../../dockviewGroupPanel';
@@ -293,26 +294,18 @@ export class TabReorderController extends CompositeDisposable {
      * inside-strip flag and tear down any smooth-reorder anim state the
      * dragover bridge may have installed.
      */
-    handlePointerDragEnd(e?: {
-        clientX: number;
-        clientY: number;
-        pointerEvent: PointerEvent;
-    }): void {
+    handlePointerDragEnd(e?: PointerDragEndEvent): void {
         // The pointer-backend analog of the HTML5 tabs-list `drop` commit: in
         // smooth mode the per-element drop targets don't latch a state for an
         // internal drag, so nothing else commits a release over the strip.
         // The strip's own targets null `_animState` before this runs and the
         // void container is outside the strip, so neither double-commits.
-        // The layout-edge target (`dndEdges`) is the exception: it knows
-        // nothing of tabs, so a release inside both it and the strip docks
-        // the group and reorders it.
+        // The layout-edge target (`dndEdges`) never sees a release committed
+        // here: the strip stops the hit-test for it (`pointerReleaseOwner`).
         if (
             e &&
-            this._animState &&
-            // A cross-group drag has no insertion index of ours to commit.
-            this._animState.sourceIndex !== -1 &&
-            this._animState.currentInsertionIndex !== null &&
-            this.isPointInsideTabsList(e.clientX, e.clientY)
+            this._animState?.currentInsertionIndex != null &&
+            this.shouldCommitPointerRelease(e)
         ) {
             const sourceTabGroupId = this._animState.sourceTabGroupId;
 
@@ -328,6 +321,69 @@ export class TabReorderController extends CompositeDisposable {
         this.resetDragAnimation();
     }
 
+    /**
+     * Whose a pointer release over this strip is: `'own'` for a drag that
+     * started here and left drag state to commit (a smooth-mode tab, or a
+     * chip), `'external'` for a tab or chip from another group that the strip
+     * takes over in smooth mode, and `null` for anything it leaves to the
+     * targets behind it. The strip's hit-test stop and `handlePointerDragEnd`
+     * both read this, so blocking a release and committing it agree.
+     */
+    pointerReleaseOwner(): 'own' | 'external' | null {
+        if ((this._animState?.sourceIndex ?? -1) !== -1) {
+            return 'own';
+        }
+
+        const data = getPanelData();
+
+        if (
+            data?.viewId === this.accessor.id &&
+            data.groupId !== this.group.id &&
+            this.takesOverExternalDrag(data)
+        ) {
+            return 'external';
+        }
+
+        return null;
+    }
+
+    /**
+     * A tab or chip from another group in smooth mode, which the target's tabs
+     * decline, so only the strip can commit it (as the HTML5 `drop` does).
+     */
+    private takesOverExternalDrag(data: PanelTransfer): boolean {
+        return (
+            this.accessor.options.theme?.tabAnimation === 'smooth' &&
+            // A locked group takes no new panels from its header.
+            !this.group.locked &&
+            (data.panelId !== null || !!data.tabGroupId)
+        );
+    }
+
+    private shouldCommitPointerRelease(e: PointerDragEndEvent): boolean {
+        const owner = this.pointerReleaseOwner();
+
+        if (owner === null) {
+            return false;
+        }
+
+        // A release taken over from another strip must be a real drop in this
+        // strip's window: a cancel also ends the drag, and a popout's strip
+        // hit-tests its own document at the source window's coordinates.
+        if (
+            owner === 'external' &&
+            !(
+                e.dropped &&
+                getEventDocument(e.pointerEvent) ===
+                    this._tabsList.ownerDocument
+            )
+        ) {
+            return false;
+        }
+
+        return this.isPointInsideTabsList(e.clientX, e.clientY);
+    }
+
     private isPointInsideTabsList(clientX: number, clientY: number): boolean {
         const el = getHitTestRoot(this._tabsList).elementFromPoint(
             clientX,
@@ -336,32 +392,61 @@ export class TabReorderController extends CompositeDisposable {
         return !!el && this._tabsList.contains(el);
     }
 
-    /** Commit a smooth-mode intra-group reorder from the current insertion
-     *  index (adjusted for the source's own position), then clear drag state.
+    /**
+     * Resolve a single-tab drop from its anim state: the list index adjusted
+     * for the source's own slot, and the tab group that slot falls in. Null
+     * when the drop changes neither position nor group membership; a drop at
+     * the source's own slot still commits when it joins or leaves a group.
+     */
+    resolveTabDrop(
+        animState: TabAnimationState
+    ): { index: number; targetTabGroupId: string | null } | null {
+        const insertionIndex = animState.currentInsertionIndex;
+        if (insertionIndex === null) {
+            return null;
+        }
+        const { sourceIndex, targetTabGroupId } = animState;
+        const index =
+            insertionIndex -
+            (sourceIndex !== -1 && sourceIndex < insertionIndex ? 1 : 0);
+
+        // Same slot, same group (or none): the move would remove and re-add
+        // the tab, which also dissolves a group it is the only member of.
+        if (
+            index === sourceIndex &&
+            targetTabGroupId ===
+                (this.group.model.getTabGroupForPanel(animState.sourceTabId)
+                    ?.id ?? null)
+        ) {
+            return null;
+        }
+        return { index, targetTabGroupId };
+    }
+
+    /** Commit a smooth-mode single-tab drop from the current insertion index
+     *  (adjusted for the source's own position), then clear drag state.
      *  Used by the pointer backend for both single-row and wrap layouts. */
     private commitPointerReorder(event: PointerEvent): void {
         const animState = this._animState;
         if (animState?.currentInsertionIndex == null) {
             return;
         }
-        const insertionIndex = animState.currentInsertionIndex;
-        const sourceIndex = animState.sourceIndex;
-        const adjustedIndex =
-            insertionIndex -
-            (sourceIndex !== -1 && sourceIndex < insertionIndex ? 1 : 0);
+        // Same resolution as the HTML5 `drop` handler in `Tabs`: the model
+        // re-attaches a moved panel to the group named here, so a null target
+        // ejects a grouped tab and never joins an ungrouped one.
+        const drop = this.resolveTabDrop(animState);
 
         this._animState = null;
         this.clearWrapDropIndicator();
         this.uncollapseSourceTab(animState.sourceTabId);
 
-        if (adjustedIndex === sourceIndex) {
+        if (!drop) {
             return;
         }
-        this.host.fireDrop({
-            event,
-            index: adjustedIndex,
-            targetTabGroupId: null,
-        });
+        // A tab from another group joins without re-rendering this strip's
+        // tabs, so their gap margins have to be cleared here.
+        this.resetTabTransforms();
+        this.host.fireDrop({ event, ...drop });
     }
 
     /**
@@ -770,10 +855,62 @@ export class TabReorderController extends CompositeDisposable {
                 isGroupDrag
             );
             if (resolved) {
-                return resolved;
+                return resolved.targetTabGroupId
+                    ? resolved
+                    : (this._keepSourceGroupAtOwnSlot(
+                          mousePos,
+                          resolved.insertionIndex,
+                          accUpTo
+                      ) ?? resolved);
             }
         }
-        return { insertionIndex, targetTabGroupId: null };
+        return (
+            this._keepSourceGroupAtOwnSlot(
+                mousePos,
+                insertionIndex,
+                accUpTo
+            ) ?? {
+                insertionIndex,
+                targetTabGroupId: null,
+            }
+        );
+    }
+
+    /** A single tab released at its own slot that no other group claimed stays
+     *  in its group (the ranges above exclude the source, so a lone or last
+     *  member's own slot has no range). At the first slot the chip edge gates it. */
+    private _keepSourceGroupAtOwnSlot(
+        mousePos: number,
+        insertionIndex: number,
+        accUpTo: number
+    ): { insertionIndex: number; targetTabGroupId: string | null } | null {
+        const animState = this._animState!;
+        const sourceIndex = animState.sourceIndex;
+        if (
+            animState.sourceGroupPanelIds ||
+            sourceIndex === -1 ||
+            (insertionIndex !== sourceIndex &&
+                insertionIndex !== sourceIndex + 1)
+        ) {
+            return null;
+        }
+        const tg = this.group.model
+            .getTabGroups()
+            .find((candidate) =>
+                candidate.panelIds.includes(animState.sourceTabId)
+            );
+        if (!tg) {
+            return null;
+        }
+        if (tg.panelIds[0] === animState.sourceTabId) {
+            const chipSize = animState.chipSizes.get(tg.id) ?? 0;
+            const chipOriginalEnd =
+                animState.containerStart + accUpTo + chipSize;
+            if (mousePos < chipOriginalEnd) {
+                return null;
+            }
+        }
+        return { insertionIndex, targetTabGroupId: tg.id };
     }
 
     /**

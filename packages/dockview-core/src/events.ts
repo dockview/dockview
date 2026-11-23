@@ -11,6 +11,11 @@ export interface EmitterOptions {
 }
 
 export namespace Event {
+    export const map =
+        <T, R>(event: Event<T>, fn: (e: T) => R): Event<R> =>
+        (listener) =>
+            event((e) => listener(fn(e)));
+
     export const any = <T>(...children: Event<T>[]): Event<T> => {
         return (listener: (e: T) => void) => {
             const disposables = children.map((child) => child(listener));
@@ -283,33 +288,30 @@ export function addDisposableListener<
  * @see https://developer.mozilla.org/en-US/docs/Web/API/queueMicrotask
  * @see https://rxjs.dev/api/index/const/asapScheduler
  */
-export class AsapEvent implements IDisposable {
-    private readonly _onFired = new Emitter<void>();
+export class AsapEvent<T = void> implements IDisposable {
+    private readonly _onFired = new Emitter<ReadonlySet<T>>();
     private _currentFireCount = 0;
+    private _pending = new Set<T>();
     private _queued = false;
 
-    readonly onEvent: Event<void> = (e) => {
-        /**
-         * when the event is first subscribed to take note of the current fire count
-         */
+    /**
+     * Dispatches once per microtask with the set of values fired since the
+     * previous dispatch. A listener only hears dispatches for fires that
+     * happened after it subscribed.
+     */
+    readonly onEvent: Event<ReadonlySet<T>> = (listener) => {
         const fireCountAtTimeOfEventSubscription = this._currentFireCount;
 
-        return this._onFired.event(() => {
-            /**
-             * if the current fire count is greater than the fire count at event subscription
-             * then the event has been fired since we subscribed and it's ok to "on_next" the event.
-             *
-             * if the count is not greater then what we are recieving is an event from the microtask
-             * queue that was triggered before we actually subscribed and therfore we should ignore it.
-             */
+        return this._onFired.event((values) => {
             if (this._currentFireCount > fireCountAtTimeOfEventSubscription) {
-                e();
+                listener(values);
             }
         });
     };
 
-    fire(): void {
+    fire(value: T): void {
         this._currentFireCount++;
+        this._pending.add(value);
 
         if (this._queued) {
             return;
@@ -319,7 +321,9 @@ export class AsapEvent implements IDisposable {
 
         queueMicrotask(() => {
             this._queued = false;
-            this._onFired.fire();
+            const values = this._pending;
+            this._pending = new Set<T>();
+            this._onFired.fire(values);
         });
     }
 

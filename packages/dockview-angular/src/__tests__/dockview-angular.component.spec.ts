@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Component, DebugElement } from '@angular/core';
+import { ApplicationRef, Component, DebugElement } from '@angular/core';
 import { By } from '@angular/platform-browser';
 
 import { DockviewAngularComponent } from '../lib/dockview/dockview-angular.component';
@@ -231,5 +231,228 @@ describe('DockviewAngularComponent Integration', () => {
         fixture.detectChanges();
 
         expect(hostComponent.api).toBeDefined();
+    });
+});
+
+@Component({
+    standalone: true,
+    selector: 'probe-panel',
+    template: '<div class="probe-panel">panel</div>',
+})
+class ProbePanelComponent {}
+
+@Component({
+    standalone: true,
+    selector: 'probe-tab',
+    template: '<div class="probe-tab">tab</div>',
+})
+class ProbeTabComponent {}
+
+@Component({
+    standalone: true,
+    selector: 'probe-tab-location',
+    template: '<div class="probe-tab-location">{{ tabLocation }}</div>',
+})
+class ProbeTabLocationComponent {
+    tabLocation?: string;
+}
+
+@Component({
+    standalone: true,
+    selector: 'probe-tab-alt',
+    template: '<div class="probe-tab-alt">tab-alt</div>',
+})
+class ProbeTabAltComponent {}
+
+@Component({
+    standalone: true,
+    selector: 'probe-watermark',
+    template: '<div class="probe-watermark">watermark</div>',
+})
+class ProbeWatermarkComponent {}
+
+@Component({
+    standalone: true,
+    selector: 'probe-left-actions',
+    template: '<div class="probe-left-actions">left</div>',
+})
+class ProbeLeftActionsComponent {}
+
+/**
+ * Renderer inputs (`defaultTabComponent`, `watermarkComponent`, the header
+ * action inputs) must reach dockview-core both at init and when rebound after
+ * init: core only consults the Angular factory through the option it was
+ * handed, so a stale or missing option means the Angular component is never
+ * asked for (or is asked for after it was unbound).
+ */
+describe('DockviewAngularComponent renderer inputs', () => {
+    let fixture: ComponentFixture<DockviewAngularComponent>;
+    let appRef: ApplicationRef;
+
+    // Inputs go through `setInput` so a later rebind is a non-first change,
+    // exactly as a template binding behaves; a direct property assignment
+    // would make the first `setInput` report `firstChange: true`.
+    function init(inputs: Record<string, unknown> = {}): DockviewApi {
+        TestBed.configureTestingModule({ imports: [DockviewAngularComponent] });
+        fixture = TestBed.createComponent(DockviewAngularComponent);
+        appRef = TestBed.inject(ApplicationRef);
+        fixture.componentRef.setInput('components', {
+            probe: ProbePanelComponent,
+        });
+        for (const [name, value] of Object.entries(inputs)) {
+            fixture.componentRef.setInput(name, value);
+        }
+        fixture.detectChanges();
+        const api = fixture.componentInstance.getDockviewApi()!;
+        api.layout(500, 500);
+        return api;
+    }
+
+    function rebind(name: string, value: unknown): void {
+        fixture.componentRef.setInput(name, value);
+        fixture.detectChanges();
+    }
+
+    function count(selector: string): number {
+        return fixture.nativeElement.querySelectorAll(selector).length;
+    }
+
+    afterEach(() => {
+        fixture.componentInstance.getDockviewApi()?.dispose();
+        fixture.destroy();
+    });
+
+    describe('defaultTabComponent', () => {
+        it('renders the default tab component for a panel without an explicit tabComponent', () => {
+            const api = init({ defaultTabComponent: ProbeTabComponent });
+
+            api.addPanel({ id: 'p1', component: 'probe' });
+            appRef.tick();
+
+            expect(count('.probe-tab')).toBe(1);
+            expect(count('.dv-default-tab')).toBe(0);
+        });
+
+        it('lets an explicit tabComponent win over the default tab component', () => {
+            const api = init({
+                tabComponents: { custom: ProbeTabAltComponent },
+                defaultTabComponent: ProbeTabComponent,
+            });
+
+            api.addPanel({
+                id: 'p1',
+                component: 'probe',
+                tabComponent: 'custom',
+            });
+            appRef.tick();
+
+            expect(count('.probe-tab-alt')).toBe(1);
+            expect(count('.probe-tab')).toBe(0);
+        });
+
+        it('applies a defaultTabComponent rebound after init to panels added afterwards', () => {
+            const api = init({ defaultTabComponent: undefined });
+
+            api.addPanel({ id: 'p1', component: 'probe' });
+            appRef.tick();
+            expect(count('.dv-default-tab')).toBe(1);
+
+            rebind('defaultTabComponent', ProbeTabComponent);
+            api.addPanel({ id: 'p2', component: 'probe' });
+            appRef.tick();
+            expect(count('.probe-tab')).toBe(1);
+
+            rebind('defaultTabComponent', ProbeTabAltComponent);
+            api.addPanel({ id: 'p3', component: 'probe' });
+            appRef.tick();
+            expect(count('.probe-tab-alt')).toBe(1);
+            expect(count('.probe-tab')).toBe(1);
+
+            rebind('defaultTabComponent', undefined);
+            api.addPanel({ id: 'p4', component: 'probe' });
+            appRef.tick();
+            expect(count('.dv-default-tab')).toBe(2);
+        });
+
+        it('passes tabLocation to the tab component', () => {
+            const api = init({
+                defaultTabComponent: ProbeTabLocationComponent,
+            });
+
+            api.addPanel({ id: 'p1', component: 'probe' });
+            appRef.tick();
+
+            expect(
+                fixture.nativeElement.querySelector('.probe-tab-location')
+                    .textContent
+            ).toBe('header');
+        });
+    });
+
+    describe('watermarkComponent', () => {
+        it('set -> unset: a new empty group falls back to the built-in watermark', () => {
+            const api = init({ watermarkComponent: ProbeWatermarkComponent });
+
+            api.addGroup();
+            appRef.tick();
+            expect(count('.probe-watermark')).toBeGreaterThan(0);
+
+            expect(() => rebind('watermarkComponent', undefined)).not.toThrow();
+            expect(() => api.addGroup()).not.toThrow();
+            appRef.tick();
+
+            expect(count('.probe-watermark')).toBe(0);
+            expect(count('.dv-watermark')).toBeGreaterThan(0);
+        });
+
+        it('unset -> set: a new empty group renders the Angular watermark', () => {
+            const api = init({ watermarkComponent: undefined });
+
+            api.addGroup();
+            appRef.tick();
+            expect(count('.probe-watermark')).toBe(0);
+
+            rebind('watermarkComponent', ProbeWatermarkComponent);
+            api.addGroup();
+            appRef.tick();
+
+            expect(count('.probe-watermark')).toBeGreaterThan(0);
+        });
+    });
+
+    describe('leftHeaderActionsComponent', () => {
+        it('set -> unset: a new group renders no Angular header actions', () => {
+            const api = init({
+                leftHeaderActionsComponent: ProbeLeftActionsComponent,
+            });
+
+            api.addGroup();
+            appRef.tick();
+            expect(count('.probe-left-actions')).toBe(1);
+
+            expect(() =>
+                rebind('leftHeaderActionsComponent', undefined)
+            ).not.toThrow();
+            expect(() => api.addGroup()).not.toThrow();
+            appRef.tick();
+
+            expect(count('.probe-left-actions')).toBe(0);
+        });
+
+        it('unset -> set: a new group renders the Angular header actions', () => {
+            const api = init({ leftHeaderActionsComponent: undefined });
+
+            api.addGroup();
+            appRef.tick();
+            expect(count('.probe-left-actions')).toBe(0);
+
+            expect(() =>
+                rebind('leftHeaderActionsComponent', ProbeLeftActionsComponent)
+            ).not.toThrow();
+            expect(() => api.addGroup()).not.toThrow();
+            appRef.tick();
+
+            expect(count('.probe-left-actions')).toBe(2);
+        });
     });
 });

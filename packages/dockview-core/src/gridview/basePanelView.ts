@@ -101,7 +101,11 @@ export abstract class BasePanelView<T extends PanelApiImpl>
 
         if (this.part) {
             if (this._params) {
-                this.part.update(this._params.params);
+                // Same shape as `update()` below: the part receives a
+                // `PanelUpdateEvent`, never the bare params object, otherwise
+                // framework parts that spread the argument as component props
+                // would merge the user's param keys over `api`/`params`.
+                this.part.update({ params: this._params.params });
             }
         }
     }

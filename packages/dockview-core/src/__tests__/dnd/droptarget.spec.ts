@@ -131,6 +131,29 @@ describe('droptarget', () => {
             );
         });
 
+        test.each([
+            [{ position: 'top', edge: true, edgeGroup: true }, true],
+            [{ position: 'top', edge: true }, false],
+        ] as const)('an edge cell carries the resolver edgeGroup hint to the drop (%j)', (result, edgeGroup) => {
+            let dropped: { edgeGroup?: boolean } | undefined;
+            droptarget = new Droptarget(element, {
+                canDisplayOverlay: () => true,
+                acceptedTargetZones: ALL,
+                getPositionResolver: () => ({ resolve: () => result }),
+            });
+            droptarget.onDrop((e) => {
+                dropped = e;
+            });
+
+            fireEvent.dragEnter(element);
+            fireEvent(
+                element,
+                createOffsetDragOverEvent({ clientX: 100, clientY: 50 })
+            );
+            fireEvent.drop(element);
+            expect(dropped?.edgeGroup).toBe(edgeGroup);
+        });
+
         test('a null result shows no drop target', () => {
             droptarget = new Droptarget(element, {
                 canDisplayOverlay: () => true,

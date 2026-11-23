@@ -138,7 +138,7 @@ export function mountVueComponent<T extends Record<string, any>>(
 
     return {
         update: (newProps: any) => {
-            runningProps = { ...props, ...newProps };
+            runningProps = { ...runningProps, ...newProps };
             vNode = cloneVNode(vNode, runningProps);
             render(vNode, element);
         },

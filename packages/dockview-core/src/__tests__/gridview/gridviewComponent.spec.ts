@@ -1,3 +1,4 @@
+import { GridviewApi } from '../../api/component.api';
 import { GridviewComponent } from '../../gridview/gridviewComponent';
 import { GridviewPanel } from '../../gridview/gridviewPanel';
 import { CompositeDisposable } from '../../lifecycle';
@@ -3388,5 +3389,58 @@ describe('gridview', () => {
 
         disposable.dispose();
         gridview.dispose();
+    });
+
+    test('onDidLayoutChange carries reasons: geometry on a resize, structure on an add', () => {
+        // explicit fake timers: queueMicrotask is faked, so the coalesced
+        // ping is flushed with runAllTicks()
+        jest.useFakeTimers();
+        try {
+            const gridview = new GridviewComponent(container, {
+                proportionalLayout: false,
+                orientation: Orientation.HORIZONTAL,
+                createComponent: (options) => {
+                    switch (options.name) {
+                        case 'default':
+                            return new TestGridview(options.id, options.name);
+                        default:
+                            throw new Error('unsupported');
+                    }
+                },
+            });
+            gridview.layout(800, 400);
+            const api = new GridviewApi(gridview);
+
+            const pings: string[][] = [];
+            const disposable = api.onDidLayoutChange((e) =>
+                pings.push([...e.reasons].sort())
+            );
+
+            const panel1 = gridview.addPanel({
+                id: 'panel1',
+                component: 'default',
+            });
+            gridview.addPanel({
+                id: 'panel2',
+                component: 'default',
+                position: { referencePanel: 'panel1', direction: 'right' },
+            });
+            jest.runAllTicks();
+
+            expect(pings).toHaveLength(1);
+            expect(pings[0]).toContain('structure');
+            expect(pings[0]).not.toContain('geometry');
+            pings.length = 0;
+
+            panel1.api.setSize({ width: 300 });
+            jest.runAllTicks();
+
+            expect(pings).toEqual([['geometry']]);
+
+            disposable.dispose();
+            gridview.dispose();
+        } finally {
+            jest.useRealTimers();
+        }
     });
 });

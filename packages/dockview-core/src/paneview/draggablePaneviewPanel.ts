@@ -207,8 +207,12 @@ export abstract class DraggablePaneviewPanel extends PaneviewPanel {
         const fromIndex = allPanels.indexOf(existingPanel);
         let toIndex = containerApi.panels.indexOf(this);
 
+        // `to` is the insertion index after the source has been removed, so
+        // a slot only disappears above the target when the source precedes it
         if (event.position === 'left' || event.position === 'top') {
-            toIndex = Math.max(0, toIndex - 1);
+            if (fromIndex < toIndex) {
+                toIndex--;
+            }
         }
         if (event.position === 'right' || event.position === 'bottom') {
             if (fromIndex > toIndex) {

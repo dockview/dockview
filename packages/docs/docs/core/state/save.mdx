@@ -15,6 +15,9 @@ This section describes how to serialize a Dockview instance.
 
 To retrieve the current state of Dockview call `toJSON()`.
 You can listen to the event `onDidLayoutChange` to determine when the layout has changed.
+The event's `reasons` set says what changed (`'geometry'`, `'structure'`,
+`'activePanel'`, `'panelTitle'` or `'panelParameters'`), should you want to
+persist some changes and not others.
 
 <FrameworkSpecific framework='React'>
 ```tsx

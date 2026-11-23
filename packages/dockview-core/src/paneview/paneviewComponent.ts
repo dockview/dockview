@@ -1,5 +1,6 @@
 import { PaneviewApi } from '../api/component.api';
 import { Emitter, Event } from '../events';
+import { LayoutChangeEvent } from '../types';
 import {
     CompositeDisposable,
     IDisposable,
@@ -115,7 +116,7 @@ export interface IPaneviewComponent extends IDisposable {
     readonly onDidAddView: Event<PaneviewPanel>;
     readonly onDidRemoveView: Event<PaneviewPanel>;
     readonly onDidDrop: Event<PaneviewDidDropEvent>;
-    readonly onDidLayoutChange: Event<void>;
+    readonly onDidLayoutChange: Event<LayoutChangeEvent>;
     readonly onDidLayoutFromJSON: Event<void>;
     readonly onUnhandledDragOver: Event<PaneviewDndOverlayEvent>;
     addPanel<T extends object = Parameters>(
@@ -143,8 +144,9 @@ export class PaneviewComponent extends Resizable implements IPaneviewComponent {
     private readonly _onDidLayoutfromJSON = new Emitter<void>();
     readonly onDidLayoutFromJSON: Event<void> = this._onDidLayoutfromJSON.event;
 
-    private readonly _onDidLayoutChange = new Emitter<void>();
-    readonly onDidLayoutChange: Event<void> = this._onDidLayoutChange.event;
+    private readonly _onDidLayoutChange = new Emitter<LayoutChangeEvent>();
+    readonly onDidLayoutChange: Event<LayoutChangeEvent> =
+        this._onDidLayoutChange.event;
 
     private readonly _onDidDrop = new Emitter<PaneviewDidDropEvent>();
     readonly onDidDrop: Event<PaneviewDidDropEvent> = this._onDidDrop.event;
@@ -175,7 +177,11 @@ export class PaneviewComponent extends Resizable implements IPaneviewComponent {
 
         this._disposable.value = new CompositeDisposable(
             this._paneview.onDidChange(() => {
-                this._onDidLayoutChange.fire(undefined);
+                // one signal for sash drag, pane expand / collapse and
+                // add / remove view; all of them relayout the panes
+                this._onDidLayoutChange.fire({
+                    reasons: new Set(['geometry']),
+                });
             }),
             this._paneview.onDidAddView((e) => this._onDidAddView.fire(e)),
             this._paneview.onDidRemoveView((e) => this._onDidRemoveView.fire(e))
@@ -322,6 +328,13 @@ export class PaneviewComponent extends Resizable implements IPaneviewComponent {
     removePanel(panel: PaneviewPanel): void {
         const views = this.panels;
         const index = views.indexOf(panel);
+
+        // indexOf yields -1 for a stale or foreign reference; removePane(-1)
+        // would otherwise splice the last pane, so refuse like splitview does.
+        if (index < 0) {
+            throw new Error(`unknown paneview panel ${panel.id}`);
+        }
+
         this.paneview.removePane(index);
 
         this.doRemovePanel(panel);
@@ -447,6 +460,11 @@ export class PaneviewComponent extends Resizable implements IPaneviewComponent {
                             accessor: this,
                         });
                         panel.orientation = this.paneview.orientation;
+                        // the descriptor adds the pane hidden without telling
+                        // it, so sync the panel api's isVisible state here
+                        if (view.visible === false) {
+                            panel.setVisible(false);
+                        }
                     });
 
                     setTimeout(() => {

@@ -116,6 +116,24 @@ export class ViewItem {
         }
     }
 
+    /**
+     * Rescales the size, or the cached size while hidden, by `factor`.
+     */
+    scale(factor: number): void {
+        if (this._cachedVisibleSize !== undefined) {
+            this._cachedVisibleSize = Math.round(
+                this._cachedVisibleSize * factor
+            );
+            return;
+        }
+
+        this.size = clamp(
+            Math.round(this.size * factor),
+            this.minimumSize,
+            this.maximumSize
+        );
+    }
+
     dispose(): IView {
         this.disposable.dispose();
         return this.view;

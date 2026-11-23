@@ -23,6 +23,8 @@ export class AngularPanePart implements IPanePart {
             component: this.angularComponent,
             injector: this.injector,
             environmentInjector: this.environmentInjector,
+            // a pane part also receives the panel's `title`, as React/Vue do
+            extraInputs: ['title'],
         });
     }
 

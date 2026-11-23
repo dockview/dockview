@@ -298,6 +298,107 @@ describe('pinned tabs: integration', () => {
         expect(order()).toEqual(['a', 'b', 'c']);
     });
 
+    test('a pinned panel moved into another group lands in its pinned block', () => {
+        const dockview = make({ enabled: true });
+        const a = dockview.addPanel({ id: 'a', component: 'default' });
+        a.api.setPinned(true);
+
+        // A second group holding two unpinned panels.
+        const z1 = dockview.addPanel({
+            id: 'z1',
+            component: 'default',
+            position: { direction: 'right' },
+        });
+        dockview.addPanel({
+            id: 'z2',
+            component: 'default',
+            position: { referenceGroup: z1.api.group },
+        });
+        const order = () => z1.api.group.model.panels.map((p) => p.id);
+        expect(order()).toEqual(['z1', 'z2']);
+
+        // No pin-change event fires on a cross-group move; the pinned panel
+        // must still be placed ahead of the destination's unpinned tabs.
+        a.api.moveTo({ group: z1.api.group });
+
+        expect(a.api.group).toBe(z1.api.group);
+        expect(a.api.isPinned).toBe(true);
+        expect(order()).toEqual(['a', 'z1', 'z2']);
+    });
+
+    test('a pinned panel moved into a group with pinned tabs appends to the pinned block', () => {
+        const dockview = make({ enabled: true });
+        const a = dockview.addPanel({ id: 'a', component: 'default' });
+        a.api.setPinned(true);
+
+        const z1 = dockview.addPanel({
+            id: 'z1',
+            component: 'default',
+            position: { direction: 'right' },
+        });
+        const z2 = dockview.addPanel({
+            id: 'z2',
+            component: 'default',
+            position: { referenceGroup: z1.api.group },
+        });
+        z2.api.setPinned(true);
+        const order = () => z1.api.group.model.panels.map((p) => p.id);
+        expect(order()).toEqual(['z2', 'z1']);
+
+        a.api.moveTo({ group: z1.api.group });
+
+        // Existing pinned block first, the arrival after it, unpinned last.
+        expect(order()).toEqual(['z2', 'a', 'z1']);
+        // The destination's active panel is not stolen by the enforcement.
+        expect(z1.api.group.model.activePanel?.id).toBe('a');
+    });
+
+    test('an unpinned panel moved into a group with pinned tabs stays behind them', () => {
+        const dockview = make({ enabled: true });
+        const a = dockview.addPanel({ id: 'a', component: 'default' });
+
+        const z1 = dockview.addPanel({
+            id: 'z1',
+            component: 'default',
+            position: { direction: 'right' },
+        });
+        z1.api.setPinned(true);
+        const order = () => z1.api.group.model.panels.map((p) => p.id);
+
+        // Drop at index 0, ahead of the pinned tab.
+        a.api.moveTo({ group: z1.api.group, index: 0 });
+
+        expect(order()).toEqual(['z1', 'a']);
+    });
+
+    test('a within-group move is left to the drop resolver (deferred flip survives)', async () => {
+        const dockview = make({
+            enabled: true,
+            togglePinOnCrossBoundaryDrag: true,
+        });
+        const { c, order } = threePanels(dockview);
+        c.api.setPinned(true);
+        expect(order()).toEqual(['c', 'a', 'b']);
+
+        // A header drop of the pinned tab past the boundary: the resolver
+        // lets it land and defers the unpin to a microtask.
+        const index = dockview.pinnedTabsService!.resolveDropIndex(
+            c.api.group,
+            'c',
+            2
+        );
+        expect(index).toBe(2);
+        c.api.moveTo({ index });
+
+        // The move hook must not clamp it back before the flip runs.
+        expect(order()).toEqual(['a', 'b', 'c']);
+        expect(c.api.isPinned).toBe(true);
+
+        await Promise.resolve();
+        expect(c.api.isPinned).toBe(false);
+        expect(order()).toEqual(['a', 'b', 'c']);
+    });
+
     test('the active panel survives a pin reorder', () => {
         const dockview = make({ enabled: true });
         const { a, c, order } = threePanels(dockview);
@@ -447,6 +548,7 @@ describe('pinned tabs: reorder guard', () => {
             onDidOptionsChange: stub,
             onDidLayoutFromJSON: stub,
             onDidRemovePanel: stub,
+            onDidMovePanel: stub,
         } as any);
     };
 
@@ -1020,5 +1122,7 @@ describe('pinned tabs: separate-row mode', () => {
         // Exactly one pinned row tab ('a'), now living in the destination group.
         expect(rowTabs().map((el) => el.textContent)).toEqual(['a']);
         expect(a.api.group).toBe(z.api.group);
+        // The arrival is placed ahead of the destination's unpinned tab.
+        expect(z.api.group.model.panels.map((p) => p.id)).toEqual(['a', 'z']);
     });
 });

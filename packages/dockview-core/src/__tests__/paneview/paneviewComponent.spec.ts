@@ -8,6 +8,8 @@ import {
     PanePanelComponentInitParameter,
 } from '../../paneview/paneviewPanel';
 import { Orientation } from '../../splitview/splitview';
+import { LocalSelectionTransfer, PaneTransfer } from '../../dnd/dataTransfer';
+import { DroptargetEvent, Position } from '../../dnd/droptarget';
 
 class TestPanel extends PaneviewPanel {
     constructor(id: string, component: string) {
@@ -279,6 +281,61 @@ describe('paneviewComponent', () => {
         const v2b = json2.views.find((v) => v.data.id === 'panel2')!;
         expect(v2b.visible).toBe(false);
         expect(v2b.size).toBeGreaterThan(0);
+
+        paneview.dispose();
+    });
+
+    test('a restored hidden pane reports isVisible false and reopens at its cached size', () => {
+        const paneview = new PaneviewComponent(container, {
+            createComponent: (options) => {
+                switch (options.name) {
+                    case 'default':
+                        return new TestPanel(options.id, options.name);
+                    default:
+                        throw new Error('unsupported');
+                }
+            },
+        });
+
+        paneview.layout(300, 600);
+
+        paneview.addPanel({
+            id: 'panel1',
+            component: 'default',
+            title: 'Panel 1',
+            isExpanded: true,
+        });
+        const panel2 = paneview.addPanel({
+            id: 'panel2',
+            component: 'default',
+            title: 'Panel 2',
+            isExpanded: true,
+        });
+
+        paneview.setVisible(panel2, false);
+        expect(panel2.api.isVisible).toBe(false);
+
+        const json = paneview.toJSON();
+        const cachedSize = json.views.find((v) => v.data.id === 'panel2')!.size;
+        expect(cachedSize).toBeGreaterThan(0);
+
+        paneview.fromJSON(JSON.parse(JSON.stringify(json)));
+        paneview.layout(300, 600);
+
+        const restored1 = paneview.getPanel('panel1')!;
+        const restored2 = paneview.getPanel('panel2')!;
+        // the api must agree with the splitview: hidden, not merely size 0
+        expect(restored2.api.isVisible).toBe(false);
+        expect(restored1.api.isVisible).toBe(true);
+
+        // showing it again must bring back the pre-hide size
+        paneview.setVisible(restored2, true);
+        expect(restored2.api.isVisible).toBe(true);
+
+        const json2 = paneview.toJSON();
+        const v2 = json2.views.find((v) => v.data.id === 'panel2')!;
+        expect('visible' in v2).toBe(false);
+        expect(v2.size).toBe(cachedSize);
 
         paneview.dispose();
     });
@@ -770,5 +827,118 @@ describe('paneviewComponent', () => {
         expect(paneview.element.children).toHaveLength(1);
 
         paneview.dispose();
+    });
+    describe('removePanel', () => {
+        const create = () => {
+            const paneview = new PaneviewComponent(container, {
+                createComponent: (options) =>
+                    new TestPanel(options.id, options.name),
+            });
+            paneview.layout(1000, 1000);
+            for (const id of ['A', 'B', 'C']) {
+                paneview.addPanel({ id, component: 'default', title: id });
+            }
+            return paneview;
+        };
+        const ids = (paneview: PaneviewComponent) =>
+            paneview.panels.map((panel) => panel.id);
+
+        test('removing the same panel twice throws and leaves the other panels intact', () => {
+            const paneview = create();
+            const a = paneview.getPanel('A')!;
+            const c = paneview.getPanel('C')!;
+            const cSpy = jest.spyOn(c, 'dispose');
+
+            paneview.removePanel(a);
+            expect(ids(paneview)).toEqual(['B', 'C']);
+
+            expect(() => paneview.removePanel(a)).toThrow(
+                'unknown paneview panel A'
+            );
+
+            expect(ids(paneview)).toEqual(['B', 'C']);
+            expect(cSpy).not.toHaveBeenCalled();
+            expect(paneview.element.contains(c.element)).toBe(true);
+
+            paneview.dispose();
+        });
+
+        test('removing a reference held across fromJSON does not delete a different pane', () => {
+            const paneview = create();
+            const staleA = paneview.getPanel('A')!;
+
+            paneview.fromJSON(paneview.toJSON());
+            expect(ids(paneview)).toEqual(['A', 'B', 'C']);
+
+            const newC = paneview.getPanel('C')!;
+            const cSpy = jest.spyOn(newC, 'dispose');
+
+            expect(() => paneview.removePanel(staleA)).toThrow(
+                'unknown paneview panel A'
+            );
+
+            expect(ids(paneview)).toEqual(['A', 'B', 'C']);
+            expect(cSpy).not.toHaveBeenCalled();
+            // the live panel of the same id is still removable
+            paneview.removePanel(paneview.getPanel('A')!);
+            expect(ids(paneview)).toEqual(['B', 'C']);
+
+            paneview.dispose();
+        });
+    });
+
+    describe('drag reorder via onDrop', () => {
+        const create = () => {
+            const paneview = new PaneviewComponent(container, {
+                createComponent: (options) =>
+                    new TestPanel(options.id, options.name),
+            });
+            paneview.layout(1000, 1000);
+            for (const id of ['A', 'B', 'C', 'D']) {
+                paneview.addPanel({ id, component: 'default', title: id });
+            }
+            return paneview;
+        };
+
+        // simulate dropping `fromId` onto the `position` half of `ontoId`
+        const drop = (
+            paneview: PaneviewComponent,
+            fromId: string,
+            ontoId: string,
+            position: Position
+        ) => {
+            LocalSelectionTransfer.getInstance<PaneTransfer>().setData(
+                [new PaneTransfer(paneview.id, fromId)],
+                PaneTransfer.prototype
+            );
+            try {
+                // onDrop is private; reach it through its structural shape
+                (
+                    paneview.getPanel(ontoId) as unknown as {
+                        onDrop(event: DroptargetEvent): void;
+                    }
+                ).onDrop({
+                    position,
+                    nativeEvent: new Event('drop') as unknown as DragEvent,
+                });
+            } finally {
+                LocalSelectionTransfer.getInstance<PaneTransfer>().clearData(
+                    PaneTransfer.prototype
+                );
+            }
+            return paneview.panels.map((panel) => panel.id);
+        };
+
+        test.each<[string, string, Position, string[]]>([
+            ['C', 'B', 'top', ['A', 'C', 'B', 'D']],
+            ['D', 'B', 'top', ['A', 'D', 'B', 'C']],
+            ['A', 'C', 'top', ['B', 'A', 'C', 'D']],
+            ['A', 'C', 'bottom', ['B', 'C', 'A', 'D']],
+            ['D', 'B', 'bottom', ['A', 'B', 'D', 'C']],
+        ])('dragging %s onto %s (%s half)', (fromId, ontoId, position, expected) => {
+            const paneview = create();
+            expect(drop(paneview, fromId, ontoId, position)).toEqual(expected);
+            paneview.dispose();
+        });
     });
 });

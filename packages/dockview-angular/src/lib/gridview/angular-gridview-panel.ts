@@ -4,7 +4,13 @@ import {
     EnvironmentInjector,
     TemplateRef,
 } from '@angular/core';
-import { GridviewPanel, IFrameworkPart } from 'dockview';
+import {
+    GridviewPanel,
+    GridviewApi,
+    GridviewComponent,
+    GridviewInitParameters,
+    IFrameworkPart,
+} from 'dockview';
 import { AngularRenderer } from '../utils/angular-renderer';
 
 export class AngularGridviewPanel extends GridviewPanel {
@@ -27,6 +33,10 @@ export class AngularGridviewPanel extends GridviewPanel {
         renderer.init({
             params: this._params?.params ?? {},
             api: this.api,
+            containerApi: new GridviewApi(
+                (this._params as GridviewInitParameters)
+                    .accessor as GridviewComponent
+            ),
         });
         this.element.appendChild(renderer.element);
         return renderer;

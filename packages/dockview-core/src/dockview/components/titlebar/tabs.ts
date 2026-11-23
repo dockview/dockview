@@ -49,6 +49,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
     private readonly _scrollbar: Scrollbar | null = null;
 
     private _tabs: IValueDisposable<Tab>[] = [];
+    private _overflowRefreshPending = false;
     private readonly _tabMap = new Map<string, IValueDisposable<Tab>>();
     private selectedIndex = -1;
     private _showTabsOverflowControl = false;
@@ -482,29 +483,16 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         // `handlePointerDragEnd` also commits the reorder.
         // `canDisplayOverlay` declines, so nothing latches here.
         //
-        // Transparent for payloads the strip cannot commit, which would
-        // otherwise be stranded: mirrors `handlePointerDragEnd`'s guard - our
-        // own view, started in this strip, and either a single tab or a chip,
-        // both of which commit on release here. A whole-group drag carries a
-        // null `panelId` and no tab group, commits nothing here, and stays the
-        // root's.
+        // Transparent for payloads the strip does not commit, which would
+        // otherwise be stranded. `pointerReleaseOwner` decides both this and
+        // the commit in `handlePointerDragEnd`, so the two agree.
         const tabsListPointerTarget = pointerBackend.createDropTarget(
             this._tabsList,
             {
                 acceptedTargetZones: ['center'],
                 canDisplayOverlay: () => false,
-                isHitTestTransparent: () => {
-                    const data = getPanelData();
-
-                    if (
-                        data?.viewId !== this.accessor.id ||
-                        data.groupId !== this.group.id
-                    ) {
-                        return true;
-                    }
-
-                    return data.panelId === null && !data.tabGroupId;
-                },
+                isHitTestTransparent: () =>
+                    this._reorder.pointerReleaseOwner() === null,
             }
         );
 
@@ -670,47 +658,26 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                         return;
                     }
 
-                    const insertionIndex =
-                        animState.currentInsertionIndex as number;
-                    const sourceIndex = animState.sourceIndex;
-                    const adjustedIndex =
-                        insertionIndex -
-                        (sourceIndex !== -1 && sourceIndex < insertionIndex
-                            ? 1
-                            : 0);
-
-                    const sourceCurrentGroup =
-                        this.group.model.getTabGroupForPanel(
-                            animState.sourceTabId
-                        );
-                    if (
-                        adjustedIndex === sourceIndex &&
-                        !animState.targetTabGroupId &&
-                        !sourceCurrentGroup
-                    ) {
-                        this._reorder.uncollapseSourceTab(
-                            animState.sourceTabId
-                        );
+                    // Shared with the pointer backend's commit so both
+                    // resolve the slot and its tab group the same way.
+                    const drop = this._reorder.resolveTabDrop(animState);
+                    this._reorder.uncollapseSourceTab(animState.sourceTabId);
+                    if (!drop) {
                         this.resetTabTransforms();
                         return;
                     }
 
-                    this._reorder.uncollapseSourceTab(animState.sourceTabId);
-
+                    const sourceIndex = animState.sourceIndex;
                     const firstPositions = this.snapshotTabPositions();
                     this.resetTabTransforms();
-                    this._onDrop.fire({
-                        event,
-                        index: adjustedIndex,
-                        targetTabGroupId: animState.targetTabGroupId,
-                    });
+                    this._onDrop.fire({ event, ...drop });
                     this.runFlipAnimation(
                         firstPositions,
                         animState.sourceTabId,
-                        animState.sourceIndex === -1,
+                        sourceIndex === -1,
                         {
-                            from: Math.min(sourceIndex, adjustedIndex),
-                            to: Math.max(sourceIndex, adjustedIndex),
+                            from: Math.min(sourceIndex, drop.index),
+                            to: Math.max(sourceIndex, drop.index),
                         }
                     );
                 },
@@ -956,7 +923,15 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
 
         const disposable = new CompositeDisposable(
             tab.onDragStart((event) => {
+                const wasPrevented = event.defaultPrevented;
                 this._onTabDragStart.fire({ nativeEvent: event, panel });
+
+                // `onWillDragPanel` vetoed the drag (see `PointerDragSource`
+                // for why only a flip during the hook counts). No drag end
+                // will follow, so arm nothing.
+                if (event.defaultPrevented && !wasPrevented) {
+                    return;
+                }
 
                 // Both HTML5 and pointer drags initialize _animState. Cleanup
                 // is wired in both paths: HTML5 via dragend/drop on _tabsList,
@@ -1187,6 +1162,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         const value: IValueDisposable<Tab> = { value: tab, disposable };
 
         this.addTab(value, index);
+        this._scheduleOverflowRefresh();
 
         // A new tab may have been inserted between a chip and its
         // group's first tab, so reposition all chips to stay correct.
@@ -1202,6 +1178,12 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
     }
 
     delete(id: string): void {
+        // Unknown ids are a no-op: `splice(-1, 1)` would drop the last tab.
+        const index = this.indexOf(id);
+        if (index === -1) {
+            return;
+        }
+
         if (this._animState?.sourceTabId === id) {
             this.resetTabTransforms();
             this._animState = null;
@@ -1210,24 +1192,13 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         // Force-clean any pending transitionend listener
         this._tabGroupManager.cleanupTransition(id);
 
-        const index = this.indexOf(id);
-
-        if (index < 0) {
-            // No tab for this id (e.g. a hidden panel, which has none).
-            // Without this guard `splice(-1, 1)` would drop the last tab.
-            return;
-        }
-
-        const tabToRemove = this._tabs.splice(index, 1)[0];
+        const { value, disposable } = this._tabs.splice(index, 1)[0];
         this._tabMap.delete(id);
 
-        if (tabToRemove) {
-            const { value, disposable } = tabToRemove;
-
-            disposable.dispose();
-            value.dispose();
-            value.element.remove();
-        }
+        disposable.dispose();
+        value.dispose();
+        value.element.remove();
+        this._scheduleOverflowRefresh();
 
         // If a non-source tab was removed during active drag, refresh positions
         if (this._animState) {
@@ -1263,6 +1234,27 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         if (this.selectedIndex < 0) {
             this.selectedIndex = index;
         }
+    }
+
+    /** Re-evaluate overflow after the tab list changed: the `OverflowObserver`
+     *  only fires when the strip itself resizes. Coalesced on a microtask and
+     *  evaluated the way the observer does. */
+    private _scheduleOverflowRefresh(): void {
+        if (this._overflowRefreshPending || !this._showTabsOverflowControl) {
+            return;
+        }
+        this._overflowRefreshPending = true;
+        queueMicrotask(() => {
+            this._overflowRefreshPending = false;
+            if (this.isDisposed || !this._showTabsOverflowControl) {
+                return;
+            }
+            const el = this._tabsList;
+            const hasOverflow =
+                el.scrollWidth > el.clientWidth ||
+                el.scrollHeight > el.clientHeight;
+            this.toggleDropdown({ reset: !hasOverflow });
+        });
     }
 
     private toggleDropdown(options: { reset: boolean }): void {

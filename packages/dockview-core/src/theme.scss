@@ -12,6 +12,8 @@
     // that blank `--dv-drag-over-background-color` (e.g. the spaced themes);
     // override per theme to match.
     --dv-edge-dock-indicator-color: rgba(56, 139, 253, 0.9);
+    // Thickness of the dock-to-edge drop strip shown while dragging.
+    --dv-edge-drop-strip-size: 8px;
     --dv-tabs-container-scrollbar-color: #888;
     --dv-icon-hover-background-color: rgba(90, 93, 94, 0.31);
     --dv-floating-box-shadow:
@@ -361,6 +363,7 @@
     --dv-inactivegroup-visiblepanel-tab-color: #8a9bbf;
     --dv-inactivegroup-hiddenpanel-tab-color: #5e6f8e;
     --dv-separator-border: var(--dv-color-nord-polar-3);
+    --dv-paneview-header-border-color: var(--dv-color-nord-polar-3);
     --dv-paneview-active-outline-color: var(--dv-color-nord-frost);
     --dv-active-sash-color: var(--dv-color-nord-frost);
     --dv-scrollbar-background-color: rgba(76, 86, 106, 0.5);
@@ -447,6 +450,7 @@
     --dv-inactivegroup-visiblepanel-tab-color: #8a9bbf;
     --dv-inactivegroup-hiddenpanel-tab-color: #5e6f8e;
     --dv-separator-border: transparent;
+    --dv-paneview-header-border-color: var(--dv-color-nord-polar-3);
     --dv-paneview-active-outline-color: var(--dv-color-nord-frost);
     --dv-active-sash-color: var(--dv-color-nord-frost);
     --dv-scrollbar-background-color: rgba(76, 86, 106, 0.5);
@@ -494,6 +498,7 @@
     --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-mocha-subtext0);
     --dv-inactivegroup-hiddenpanel-tab-color: rgba(166, 173, 200, 0.5);
     --dv-separator-border: var(--dv-color-mocha-surface1);
+    --dv-paneview-header-border-color: var(--dv-color-mocha-surface1);
     --dv-paneview-active-outline-color: var(--dv-color-mocha-mauve);
     --dv-active-sash-color: var(--dv-color-mocha-mauve);
     --dv-scrollbar-background-color: rgba(49, 50, 68, 0.8);
@@ -582,6 +587,7 @@
     --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-mocha-subtext0);
     --dv-inactivegroup-hiddenpanel-tab-color: rgba(166, 173, 200, 0.5);
     --dv-separator-border: transparent;
+    --dv-paneview-header-border-color: var(--dv-color-mocha-surface1);
     --dv-paneview-active-outline-color: var(--dv-color-mocha-mauve);
     --dv-active-sash-color: var(--dv-color-mocha-mauve);
     --dv-scrollbar-background-color: rgba(49, 50, 68, 0.8);
@@ -620,6 +626,7 @@
     --dv-inactivegroup-visiblepanel-tab-color: rgba(248, 248, 242, 0.5);
     --dv-inactivegroup-hiddenpanel-tab-color: rgba(117, 113, 94, 0.5);
     --dv-separator-border: var(--dv-color-monokai-bg-light);
+    --dv-paneview-header-border-color: var(--dv-color-monokai-bg-light);
     --dv-paneview-active-outline-color: var(--dv-color-monokai-green);
     --dv-active-sash-color: var(--dv-color-monokai-green);
     --dv-scrollbar-background-color: rgba(117, 113, 94, 0.5);
@@ -700,6 +707,7 @@
     --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-sol-base1);
     --dv-inactivegroup-hiddenpanel-tab-color: rgba(147, 161, 161, 0.6);
     --dv-separator-border: var(--dv-color-sol-base2);
+    --dv-paneview-header-border-color: var(--dv-color-sol-base2);
     --dv-paneview-active-outline-color: var(--dv-color-sol-blue);
     --dv-active-sash-color: var(--dv-color-sol-blue);
     --dv-scrollbar-background-color: rgba(101, 123, 131, 0.25);
@@ -742,6 +750,7 @@
     --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-sol-base1);
     --dv-inactivegroup-hiddenpanel-tab-color: rgba(147, 161, 161, 0.6);
     --dv-separator-border: transparent;
+    --dv-paneview-header-border-color: var(--dv-color-sol-base2);
     --dv-paneview-active-outline-color: var(--dv-color-sol-blue);
     --dv-active-sash-color: var(--dv-color-sol-blue);
     --dv-floating-box-shadow:
@@ -791,6 +800,7 @@
     --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-gh-fg-subtle);
     --dv-inactivegroup-hiddenpanel-tab-color: rgba(110, 118, 129, 0.5);
     --dv-separator-border: var(--dv-color-gh-border);
+    --dv-paneview-header-border-color: var(--dv-color-gh-border);
     --dv-paneview-active-outline-color: var(--dv-color-gh-accent);
     --dv-active-sash-color: var(--dv-color-gh-accent);
     --dv-scrollbar-background-color: rgba(48, 54, 61, 0.7);
@@ -839,6 +849,7 @@
     --dv-inactivegroup-visiblepanel-tab-color: var(--dv-color-gh-fg-subtle);
     --dv-inactivegroup-hiddenpanel-tab-color: rgba(110, 118, 129, 0.5);
     --dv-separator-border: transparent;
+    --dv-paneview-header-border-color: var(--dv-color-gh-border);
     --dv-paneview-active-outline-color: var(--dv-color-gh-accent);
     --dv-active-sash-color: var(--dv-color-gh-accent);
     --dv-scrollbar-background-color: rgba(48, 54, 61, 0.7);
@@ -888,6 +899,7 @@
     );
     --dv-inactivegroup-hiddenpanel-tab-color: rgba(110, 118, 129, 0.4);
     --dv-separator-border: var(--dv-color-gh-light-border);
+    --dv-paneview-header-border-color: var(--dv-color-gh-light-border);
     --dv-paneview-active-outline-color: var(--dv-color-gh-light-accent);
     --dv-active-sash-color: var(--dv-color-gh-light-accent);
     --dv-scrollbar-background-color: rgba(208, 215, 222, 0.5);
@@ -941,6 +953,7 @@
     );
     --dv-inactivegroup-hiddenpanel-tab-color: rgba(110, 118, 129, 0.4);
     --dv-separator-border: transparent;
+    --dv-paneview-header-border-color: var(--dv-color-gh-light-border);
     --dv-paneview-active-outline-color: var(--dv-color-gh-light-accent);
     --dv-active-sash-color: var(--dv-color-gh-light-accent);
     --dv-floating-box-shadow:

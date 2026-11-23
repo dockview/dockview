@@ -202,7 +202,10 @@ export class Tab extends CompositeDisposable {
             }),
             onDragStart: (event) => {
                 this._onDragStart.fire(event);
+                // A vetoed drag (`onWillDragPanel` called `preventDefault()`)
+                // gets no `dragend` to strip the class again.
                 if (
+                    !event.defaultPrevented &&
                     !(event instanceof PointerEvent) &&
                     this.accessor.options.theme?.tabAnimation === 'smooth'
                 ) {

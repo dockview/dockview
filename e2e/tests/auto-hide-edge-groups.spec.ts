@@ -163,6 +163,63 @@ test.describe('auto-hide edge groups (peek)', () => {
         await expect(page.locator('.dv-edge-peek')).toHaveCount(0);
     });
 
+    test('a pinned left edge group shrinks when its sash is dragged inward (#1717)', async ({
+        page,
+    }) => {
+        await setup(page);
+        await edgeTab(page).click();
+        await page.locator('.dv-edge-peek-pin').click(); // pin → dock
+        const group = page.locator('[data-testid="dv-edge-group-edge-left"]');
+        await expect(group).toHaveClass(/dv-edge-tool-window/);
+
+        const width = async () => (await group.boundingBox())!.width;
+        const sashCentre = () =>
+            page.evaluate(() => {
+                const g = document
+                    .querySelector('[data-testid="dv-edge-group-edge-left"]')!
+                    .getBoundingClientRect();
+                const sash = [...document.querySelectorAll('.dv-sash')]
+                    .map((s) => s.getBoundingClientRect())
+                    .filter((r) => r.width > 0 && r.height > g.height / 2)
+                    .sort(
+                        (a, b) =>
+                            Math.abs(a.x + a.width / 2 - g.right) -
+                            Math.abs(b.x + b.width / 2 - g.right)
+                    )[0];
+                return {
+                    x: sash.x + sash.width / 2,
+                    y: sash.y + sash.height / 2,
+                };
+            });
+        const dragSash = async (dx: number) => {
+            const c = await sashCentre();
+            await page.mouse.move(c.x, c.y);
+            await page.mouse.down();
+            await page.mouse.move(c.x + dx / 2, c.y, { steps: 5 });
+            await page.mouse.move(c.x + dx, c.y, { steps: 5 });
+            await page.mouse.up();
+        };
+
+        const start = await width();
+        expect(start).toBeGreaterThan(150);
+
+        let previous = start;
+        for (let i = 0; i < 3; i++) {
+            await dragSash(-30);
+            await page.evaluate(
+                () => new Promise((r) => requestAnimationFrame(() => r(null)))
+            );
+            const now = await width();
+            expect(now).toBeLessThanOrEqual(previous + 1);
+            previous = now;
+        }
+        expect(previous).toBeLessThan(start - 30);
+
+        await page.locator('.dv-groupview-edge .dv-edge-peek-pin').click();
+        await expect(group).not.toHaveClass(/dv-edge-tool-window/);
+        await expect.poll(width).toBeLessThan(60);
+    });
+
     test('the close button closes the panel and removes the peek', async ({
         page,
     }) => {

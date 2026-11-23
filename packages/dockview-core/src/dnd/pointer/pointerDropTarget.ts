@@ -54,6 +54,7 @@ export class PointerDropTarget
     private _overlayElement: HTMLElement | undefined;
     private _state: Position | undefined;
     private _edge = false;
+    private _edgeGroup = false;
     private _acceptedTargetZonesSet: Set<Position>;
 
     private readonly _onDrop = new Emitter<DroptargetEvent>();
@@ -170,6 +171,7 @@ export class PointerDropTarget
             nativeEvent: event.pointerEvent,
             position: quadrant,
             edge: resolved.edge,
+            edgeGroup: resolved.edgeGroup,
         });
         this._onWillShowOverlay.fire(willShow);
         if (willShow.defaultPrevented) {
@@ -186,9 +188,11 @@ export class PointerDropTarget
             this._clearOwnOverlay();
             this._state = quadrant;
             this._edge = true;
+            this._edgeGroup = resolved.edgeGroup;
             return;
         }
         this._edge = false;
+        this._edgeGroup = false;
 
         if (overrideTarget) {
             renderAnchoredOverlay({
@@ -240,6 +244,7 @@ export class PointerDropTarget
     private _onDropEvent(event: PointerDragEvent): void {
         const state = this._state;
         const edge = this._edge;
+        const edgeGroup = this._edgeGroup;
         const overrideTarget = this.options.getOverrideTarget?.();
         this._removeOverlay();
         overrideTarget?.clear();
@@ -248,6 +253,7 @@ export class PointerDropTarget
                 position: state,
                 nativeEvent: event.pointerEvent,
                 edge,
+                edgeGroup,
             });
         }
     }
@@ -264,7 +270,7 @@ export class PointerDropTarget
         width: number,
         height: number,
         event: DragEvent | PointerEvent
-    ): { position: Position; edge: boolean } | null {
+    ): { position: Position; edge: boolean; edgeGroup: boolean } | null {
         const resolver = this.options.getPositionResolver?.();
         if (resolver) {
             const result = resolver.resolve({
@@ -276,11 +282,15 @@ export class PointerDropTarget
                 event,
             });
             return result
-                ? { position: result.position, edge: !!result.edge }
+                ? {
+                      position: result.position,
+                      edge: !!result.edge,
+                      edgeGroup: !!result.edgeGroup,
+                  }
                 : null;
         }
         const position = this._calculateQuadrant(x, y, width, height);
-        return position ? { position, edge: false } : null;
+        return position ? { position, edge: false, edgeGroup: false } : null;
     }
 
     private _calculateQuadrant(
@@ -338,6 +348,7 @@ export class PointerDropTarget
 
     private _removeOverlay(): void {
         this._edge = false;
+        this._edgeGroup = false;
         if (this._targetElement) {
             this._state = undefined;
             this._targetElement.parentElement?.classList.remove(

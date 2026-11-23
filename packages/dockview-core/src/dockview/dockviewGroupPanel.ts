@@ -17,6 +17,7 @@ import {
     DockviewGroupPanelApi,
     DockviewGroupPanelApiImpl,
 } from '../api/dockviewGroupPanelApi';
+import { GridConstraintChangeEvent2 } from '../api/gridviewPanelApi';
 
 const MINIMUM_DOCKVIEW_GROUP_PANEL_WIDTH = 100;
 const MINIMUM_DOCKVIEW_GROUP_PANEL_HEIGHT = 100;
@@ -38,6 +39,10 @@ export class DockviewGroupPanel
 
     // Track explicitly set constraints to override panel constraints
     private readonly _explicitConstraints: Partial<Constraints> = {};
+
+    // the constraints the grid last saw; an active panel change that alters
+    // them must be announced or the grid keeps aggregating the old values
+    private _lastConstraints: Required<Constraints>;
 
     override get minimumWidth(): number {
         if (typeof this._explicitConstraints.minimumWidth === 'number') {
@@ -146,37 +151,77 @@ export class DockviewGroupPanel
             this
         );
 
+        this._lastConstraints = this.currentConstraints();
+
         this.addDisposables(
             this.model.onDidActivePanelChange((event) => {
                 this.api._onDidActivePanelChange.fire(event);
+                this.notifyIfConstraintsChanged();
             }),
-            this.api.onDidConstraintsChangeInternal((event: any) => {
-                if (event.minimumWidth !== undefined) {
-                    this._explicitConstraints.minimumWidth =
-                        typeof event.minimumWidth === 'function'
-                            ? event.minimumWidth()
-                            : event.minimumWidth;
-                }
-                if (event.minimumHeight !== undefined) {
-                    this._explicitConstraints.minimumHeight =
-                        typeof event.minimumHeight === 'function'
-                            ? event.minimumHeight()
-                            : event.minimumHeight;
-                }
-                if (event.maximumWidth !== undefined) {
-                    this._explicitConstraints.maximumWidth =
-                        typeof event.maximumWidth === 'function'
-                            ? event.maximumWidth()
-                            : event.maximumWidth;
-                }
-                if (event.maximumHeight !== undefined) {
-                    this._explicitConstraints.maximumHeight =
-                        typeof event.maximumHeight === 'function'
-                            ? event.maximumHeight()
-                            : event.maximumHeight;
-                }
+            // removing the last panel clears the active panel without an
+            // active-panel event, so the grid must be told here
+            this.model.onDidRemovePanel(() => {
+                this.notifyIfConstraintsChanged();
             })
         );
+    }
+
+    protected override applyConstraints(
+        event: GridConstraintChangeEvent2
+    ): void {
+        if (event.minimumWidth !== undefined) {
+            this._explicitConstraints.minimumWidth =
+                typeof event.minimumWidth === 'function'
+                    ? event.minimumWidth()
+                    : event.minimumWidth;
+        }
+        if (event.minimumHeight !== undefined) {
+            this._explicitConstraints.minimumHeight =
+                typeof event.minimumHeight === 'function'
+                    ? event.minimumHeight()
+                    : event.minimumHeight;
+        }
+        if (event.maximumWidth !== undefined) {
+            this._explicitConstraints.maximumWidth =
+                typeof event.maximumWidth === 'function'
+                    ? event.maximumWidth()
+                    : event.maximumWidth;
+        }
+        if (event.maximumHeight !== undefined) {
+            this._explicitConstraints.maximumHeight =
+                typeof event.maximumHeight === 'function'
+                    ? event.maximumHeight()
+                    : event.maximumHeight;
+        }
+        // the override is in place: the grid is told the new values once
+        super.applyConstraints(event);
+        this._lastConstraints = this.currentConstraints();
+    }
+
+    private currentConstraints(): Required<Constraints> {
+        return {
+            minimumWidth: this.minimumWidth,
+            maximumWidth: this.maximumWidth,
+            minimumHeight: this.minimumHeight,
+            maximumHeight: this.maximumHeight,
+        };
+    }
+
+    private notifyIfConstraintsChanged(): void {
+        const previous = this._lastConstraints;
+        const current = this.currentConstraints();
+
+        if (
+            previous.minimumWidth === current.minimumWidth &&
+            previous.maximumWidth === current.maximumWidth &&
+            previous.minimumHeight === current.minimumHeight &&
+            previous.maximumHeight === current.maximumHeight
+        ) {
+            return;
+        }
+
+        this._lastConstraints = current;
+        this.notifyConstraintsChanged();
     }
 
     override focus(): void {

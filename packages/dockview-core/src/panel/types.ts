@@ -26,6 +26,11 @@ export interface IPanel extends IDisposable {
 }
 
 export interface IFrameworkPart extends IDisposable {
+    /**
+     * Called with a {@link PanelUpdateEvent} (`{ params }`) holding the
+     * panel's full, merged parameters. Fired after `updateParameters` and
+     * after each layout.
+     */
     update(params: Parameters): void;
 }
 

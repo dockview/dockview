@@ -65,9 +65,15 @@ function cloneNode<T extends Node>(
         for (let i = node.children.length - 1; i >= 0; i--) {
             const child = node.children[i];
 
+            // A branch's `size` is its own-axis extent; its extent along the
+            // parent axis is `orthogonalSize`. Leaves store the parent-axis
+            // extent in `size`.
+            const childSize =
+                child instanceof BranchNode ? child.orthogonalSize : child.size;
+
             result.addChild(
                 cloneNode(child, child.size, child.orthogonalSize),
-                childSizing(node, i, child.size),
+                childSizing(node, i, childSize),
                 0,
                 true
             );
@@ -1110,19 +1116,22 @@ export class Gridview implements IDisposable {
         grandParent.removeChild(parentIndex, sizing).dispose();
 
         if (sibling instanceof BranchNode) {
-            // replace the parent with the siblings children
-            sizes.splice(
-                parentIndex,
-                1,
-                ...sibling.children.map((c) => c.size)
+            // A child's extent along the sibling's axis (which is also the
+            // grandparent's axis) is `size` for a leaf but `orthogonalSize`
+            // for a branch, whose `size` is its own-axis extent.
+            const childSizes = sibling.children.map((c) =>
+                c instanceof BranchNode ? c.orthogonalSize : c.size
             );
+
+            // replace the parent with the siblings children
+            sizes.splice(parentIndex, 1, ...childSizes);
 
             // and add those siblings to the grandparent. If the sibling branch
             // itself was hidden its children must stay hidden too, otherwise
             // they come back visible once the branch is flattened away.
             for (let i = 0; i < sibling.children.length; i++) {
                 const child = sibling.children[i];
-                const childSize = childSizing(sibling, i, child.size);
+                const childSize = childSizing(sibling, i, childSizes[i]);
                 grandParent.addChild(
                     child,
                     !isSiblingVisible && typeof childSize === 'number'

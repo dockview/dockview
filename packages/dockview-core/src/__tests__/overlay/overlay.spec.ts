@@ -1052,6 +1052,170 @@ describe('overlay', () => {
         });
     });
 
+    describe('container without layout', () => {
+        // jsdom never lays out, so with no rect mocks every
+        // getBoundingClientRect() is 0x0 - exactly what a browser reports for
+        // a container under a display:none ancestor or one not yet attached.
+        function setup() {
+            const container = document.createElement('div');
+            const content = document.createElement('div');
+            document.body.appendChild(container);
+            container.appendChild(content);
+            return { container, content };
+        }
+
+        test('setBounds keeps the requested top/left when the container has no layout', () => {
+            const { container, content } = setup();
+            const cut = new Overlay({
+                height: 10,
+                width: 10,
+                left: 0,
+                top: 0,
+                container,
+                content,
+            });
+
+            cut.setBounds({ top: 80, left: 120, width: 300, height: 200 });
+
+            expect(cut.element.style.top).toBe('80px');
+            expect(cut.element.style.left).toBe('120px');
+            expect(cut.element.style.width).toBe('300px');
+            expect(cut.element.style.height).toBe('200px');
+            expect(cut.toJSON()).toEqual({
+                top: 80,
+                left: 120,
+                width: 300,
+                height: 200,
+            });
+
+            cut.dispose();
+        });
+
+        test('setBounds keeps the requested bottom/right when the container has no layout', () => {
+            const { container, content } = setup();
+            const cut = new Overlay({
+                height: 10,
+                width: 10,
+                right: 0,
+                bottom: 0,
+                container,
+                content,
+            });
+
+            cut.setBounds({ bottom: 80, right: 120, width: 300, height: 200 });
+
+            expect(cut.element.style.bottom).toBe('80px');
+            expect(cut.element.style.right).toBe('120px');
+            expect(cut.toJSON()).toEqual({
+                bottom: 80,
+                right: 120,
+                width: 300,
+                height: 200,
+            });
+
+            cut.dispose();
+        });
+
+        test('the constructor keeps the initial bounds when the container has no layout', () => {
+            const { container, content } = setup();
+            const cut = new Overlay({
+                height: 200,
+                width: 300,
+                left: 120,
+                top: 80,
+                minimumInViewportWidth: 100,
+                minimumInViewportHeight: 100,
+                container,
+                content,
+            });
+
+            expect(cut.element.style.top).toBe('80px');
+            expect(cut.element.style.left).toBe('120px');
+
+            // a later constrain pass (layout) must not zero it either
+            cut.setBounds();
+
+            expect(cut.element.style.top).toBe('80px');
+            expect(cut.element.style.left).toBe('120px');
+
+            cut.dispose();
+        });
+
+        test('a hidden overlay inside a laid-out container is left where it is', () => {
+            const { container, content } = setup();
+            const cut = new Overlay({
+                height: 200,
+                width: 300,
+                left: 120,
+                top: 80,
+                container,
+                content,
+            });
+
+            // the container has layout but the overlay (display:none) does not
+            jest.spyOn(container, 'getBoundingClientRect').mockImplementation(
+                () =>
+                    mockGetBoundingClientRect({
+                        left: 50,
+                        top: 50,
+                        width: 1000,
+                        height: 1000,
+                    })
+            );
+            cut.setVisible(false);
+
+            cut.setBounds();
+
+            expect(cut.element.style.top).toBe('80px');
+            expect(cut.element.style.left).toBe('120px');
+
+            cut.dispose();
+        });
+
+        test('clamping resumes once the container has layout', () => {
+            const { container, content } = setup();
+            const cut = new Overlay({
+                height: 200,
+                width: 300,
+                left: 1200,
+                top: 900,
+                container,
+                content,
+            });
+
+            // untouched while nothing is laid out...
+            expect(cut.element.style.top).toBe('900px');
+            expect(cut.element.style.left).toBe('1200px');
+
+            jest.spyOn(container, 'getBoundingClientRect').mockImplementation(
+                () =>
+                    mockGetBoundingClientRect({
+                        left: 0,
+                        top: 0,
+                        width: 1000,
+                        height: 1000,
+                    })
+            );
+            jest.spyOn(cut.element, 'getBoundingClientRect').mockImplementation(
+                () =>
+                    mockGetBoundingClientRect({
+                        left: 1200,
+                        top: 900,
+                        width: 300,
+                        height: 200,
+                    })
+            );
+
+            // ...and pulled back inside the container on the next pass
+            cut.setBounds();
+
+            expect(cut.element.style.top).toBe('800px');
+            expect(cut.element.style.left).toBe('700px');
+
+            cut.dispose();
+        });
+    });
+
     describe('minimum-in-viewport (no constraint configured)', () => {
         test('omitting the minimum options leaves clamping unconstrained', () => {
             const container = document.createElement('div');

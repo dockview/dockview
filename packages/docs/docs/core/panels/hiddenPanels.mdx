@@ -79,8 +79,8 @@ api.onDidPanelHiddenChange((event) => {
 The flag is saved as `hidden: true` on the panel entry in `toJSON()` and is
 omitted when a panel is shown, so existing layouts are unchanged. `fromJSON`
 restores hidden panels without a tab and never seeds one as a group's active
-panel. Hiding or showing a panel fires `onDidLayoutChange`, so a layout saved on
-that event picks the change up.
+panel. Hiding or showing a panel fires `onDidLayoutChange` with the `'structure'`
+reason, so a layout saved on that event picks the change up.
 
 ```json
 {

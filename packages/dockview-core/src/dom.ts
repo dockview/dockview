@@ -408,6 +408,23 @@ export function getHitTestRoot(node: Node): DocumentOrShadowRoot {
     return node.ownerDocument ?? document;
 }
 
+/**
+ * The document an event was dispatched in, read from its target: a node's
+ * owner document, a window's document, or the document itself. Duck-typed,
+ * since `instanceof` fails for targets from another window (a popout).
+ */
+export function getEventDocument(event: Event): Document | null {
+    const target = event.target;
+    if (!target) {
+        return null;
+    }
+    const node = target as Partial<Node>;
+    if (node.nodeType === Node.DOCUMENT_NODE) {
+        return target as Document;
+    }
+    return node.ownerDocument ?? (target as Partial<Window>).document ?? null;
+}
+
 export function addTestId(element: HTMLElement, id: string): void {
     element.dataset.testid = id;
 }
