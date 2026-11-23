@@ -705,7 +705,11 @@ export class DockviewGroupPanelModel
 
                 // A drop that moved nothing (refused or cancelled) can still
                 // change the panel's tab group where it stands.
-                if (!moved && draggedPanelId) {
+                if (
+                    !moved &&
+                    draggedPanelId &&
+                    dragData?.viewId === this.accessor.id
+                ) {
                     this._applyDropTabGroupInPlace(
                         draggedPanelId,
                         event.targetTabGroupId

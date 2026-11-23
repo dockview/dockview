@@ -54,11 +54,12 @@ function dropOnStrip(
     group: DockviewGroupPanel,
     panelId: string,
     index: number,
-    targetTabGroupId: string | null
+    targetTabGroupId: string | null,
+    viewId: string = dockview.id
 ): void {
     const transfer = LocalSelectionTransfer.getInstance<PanelTransfer>();
     transfer.setData(
-        [new PanelTransfer(dockview.id, group.id, panelId)],
+        [new PanelTransfer(viewId, group.id, panelId)],
         PanelTransfer.prototype
     );
     (group.model as any).tabsContainer.tabs.fireDrop({
@@ -382,6 +383,32 @@ describe('tab group placement', () => {
             dockview.dispose();
         });
 
+        test('throws, without changing anything, for contradictory placement fields', () => {
+            const { dockview, group } = setup();
+            const x = createTabGroup(dockview, group, ['a', 'b']);
+            const c = dockview.getGroupPanel('c')!;
+
+            expect(() =>
+                c.api.moveTo({ group, tabGroup: x, index: 0 })
+            ).toThrow(/index cannot be combined with tabGroup/);
+            expect(() => c.api.moveTo({ group, indexInTabGroup: 0 })).toThrow(
+                /indexInTabGroup requires a tabGroup/
+            );
+            expect(() =>
+                dockview.addPanel({
+                    id: 'e',
+                    component: 'default',
+                    position: { referenceGroup: group, tabGroup: x, index: 1 },
+                })
+            ).toThrow(/index cannot be combined with tabGroup/);
+
+            expect(strip(group)).toEqual(['a', 'b', 'c', 'd']);
+            expect(x.panelIds).toEqual(['a', 'b']);
+            expect(dockview.getGroupPanel('e')).toBeUndefined();
+
+            dockview.dispose();
+        });
+
         test('throws for a tab group with an edge position', () => {
             const { dockview, group } = setup();
             const x = createTabGroup(dockview, group, ['a', 'b']);
@@ -486,6 +513,19 @@ describe('tab group placement', () => {
 
             expect(group.model.getTabGroups()).toEqual([]);
             expect(strip(group)).toEqual(['a']);
+
+            dockview.dispose();
+        });
+
+        test('a tab from another dockview instance leaves a same-id panel alone', () => {
+            const { dockview, group } = setup(['a', 'b', 'c']);
+            const x = createTabGroup(dockview, group, ['a', 'b']);
+
+            dropOnStrip(dockview, group, 'c', 1, x.id, 'another-instance');
+            dropOnStrip(dockview, group, 'a', 0, null, 'another-instance');
+
+            expect(x.panelIds).toEqual(['a', 'b']);
+            expect(strip(group)).toEqual(['a', 'b', 'c']);
 
             dockview.dispose();
         });

@@ -63,7 +63,9 @@ api.addPanel({
     position: { referenceGroup: 'group-1', tabGroup, indexInTabGroup: 0 },
 });
 
-api.getPanel('panel-3').api.moveTo({ group, tabGroup });
+// panel-3 is already in group-1: join the tab group without changing group
+const panel = api.getPanel('panel-3');
+panel?.api.moveTo({ group: panel.group, tabGroup });
 ```
 
 A plain `index` never splits a tab group: a panel placed between two tabs of a tab group moves to the nearer edge of it. See [Move panel](/docs/core/panels/move#tab-groups).

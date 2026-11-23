@@ -125,6 +125,7 @@ import {
 import { IHeaderActionsHost } from './headerActionsService';
 import { AnchoredBox, AnchorPosition, Box, LayoutChangeReason } from '../types';
 import { ITabGroup } from './tabGroup';
+import { validatePanelPlacement } from './panelPlacement';
 import {
     DEFAULT_FLOATING_GROUP_OVERFLOW_SIZE,
     DEFAULT_FLOATING_GROUP_POSITION,
@@ -4842,6 +4843,9 @@ export class DockviewComponent
                     isPanelOptionsWithGroup(options.position))
                     ? options.position
                     : undefined;
+            if (placement) {
+                validatePanelPlacement(placement);
+            }
             const tabGroupId = tabGroupIdOf(placement?.tabGroup);
             if (tabGroupId !== undefined) {
                 this.validateTabGroupPlacement(
