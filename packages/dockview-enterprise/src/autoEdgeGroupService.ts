@@ -286,9 +286,8 @@ export class AutoEdgeGroupService
 
     /** `dockToEdgeGroups` enables the edge, and an edge group already there
      *  is not locked against a dragged panel. */
-    private _canDockToEdge(position: Position): position is EdgeGroupPosition {
+    private _canDockToEdge(position: EdgeGroupPosition): boolean {
         return (
-            isEdge(position) &&
             isEdgeGroupEnabled(this.host.options.dockToEdgeGroups, position) &&
             (this.host
                 .getEdgeGroupPanel(position)
@@ -337,7 +336,7 @@ export class AutoEdgeGroupService
         // Show the edge-group indicator line for an edge-group cell (the edge
         // drop strip), else iff the pointer is in the true outer band, so it
         // never lights up for a compass outer-ring cell or a normal split.
-        if (!this._canDockToEdge(e.position)) {
+        if (!isEdge(e.position) || !this._canDockToEdge(e.position)) {
             this._hide();
             return;
         }
@@ -350,7 +349,11 @@ export class AutoEdgeGroupService
 
     private _onWillDrop(e: DockviewWillDropEvent): void {
         this._hide();
-        if (e.kind !== 'edge' || !this._canDockToEdge(e.position)) {
+        if (
+            e.kind !== 'edge' ||
+            !isEdge(e.position) ||
+            !this._canDockToEdge(e.position)
+        ) {
             return;
         }
         const data = e.getData();

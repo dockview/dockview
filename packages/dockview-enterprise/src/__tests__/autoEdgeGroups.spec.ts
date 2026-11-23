@@ -353,6 +353,11 @@ describe('a drag onto a locked edge group (real component)', () => {
         await flush();
 
         expect(edge.model.panels.map((p) => p.id)).toEqual(['l1']);
+        // Left to core, which splits the grid at that edge instead.
+        const landed = dockview.getGroupPanel('p1')!.group;
+        expect(landed).not.toBe(edge);
+        expect(landed).not.toBe(source);
+        expect(landed.api.location.type).toBe('grid');
         dockview.dispose();
     });
 });

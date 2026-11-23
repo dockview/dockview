@@ -327,7 +327,10 @@ export class KeyboardDockingService
             return;
         }
         this._clearPreview();
-        this._preview = this.host.showDropPreview(group, move.position);
+        // A locked target refuses this landing (`_commit`), so don't preview it.
+        if (group.model.acceptsUserDrop(move.position)) {
+            this._preview = this.host.showDropPreview(group, move.position);
+        }
 
         const name = group.activePanel?.title ?? group.id;
         const m = this._messages;

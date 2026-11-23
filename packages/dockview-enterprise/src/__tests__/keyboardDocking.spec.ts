@@ -116,6 +116,8 @@ describe('accessibility: keyboard docking', () => {
             p1Group().locked = locked;
 
             pickP1Group();
+            // The refused landing gets no drop preview.
+            expect(container.querySelector('.dv-drop-target')).toBeNull();
             fireEvent.keyDown(dockview.element, { key: 'Enter' });
 
             expect(region().textContent).toBe('That move is not allowed.');
