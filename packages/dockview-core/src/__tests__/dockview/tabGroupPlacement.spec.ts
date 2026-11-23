@@ -2,6 +2,7 @@ import { DockviewComponent } from '../../dockview/dockviewComponent';
 import { DockviewGroupPanel } from '../../dockview/dockviewGroupPanel';
 import { IContentRenderer } from '../../dockview/types';
 import { ITabGroup } from '../../dockview/tabGroup';
+import { LocalSelectionTransfer, PanelTransfer } from '../../dnd/dataTransfer';
 
 class TestContent implements IContentRenderer {
     readonly element = document.createElement('div');
@@ -46,6 +47,27 @@ const strip = (group: DockviewGroupPanel): string[] =>
 
 const tabCount = (group: DockviewGroupPanel): number =>
     group.element.querySelectorAll('.dv-tab').length;
+
+/** Drop `panelId` on `group`'s tab strip, as a resolved tab drag would. */
+function dropOnStrip(
+    dockview: DockviewComponent,
+    group: DockviewGroupPanel,
+    panelId: string,
+    index: number,
+    targetTabGroupId: string | null
+): void {
+    const transfer = LocalSelectionTransfer.getInstance<PanelTransfer>();
+    transfer.setData(
+        [new PanelTransfer(dockview.id, group.id, panelId)],
+        PanelTransfer.prototype
+    );
+    (group.model as any).tabsContainer.tabs.fireDrop({
+        event: new Event('drop'),
+        index,
+        targetTabGroupId,
+    });
+    transfer.clearData(PanelTransfer.prototype);
+}
 
 describe('tab group placement', () => {
     describe('an index never splits a tab group', () => {
@@ -426,6 +448,57 @@ describe('tab group placement', () => {
 
             expect(x.panelIds).toEqual(['b', 'd']);
             expect(strip(group)).toEqual(['b', 'd', 'c', 'a']);
+
+            dockview.dispose();
+        });
+    });
+
+    describe('tab drops', () => {
+        test('a drop between two members joins the tab group at that slot', () => {
+            const { dockview, group } = setup();
+            const x = createTabGroup(dockview, group, ['a', 'b', 'd']);
+
+            dropOnStrip(dockview, group, 'c', 1, x.id);
+
+            expect(x.panelIds).toEqual(['a', 'c', 'b', 'd']);
+            expect(strip(group)).toEqual(['a', 'c', 'b', 'd']);
+
+            dockview.dispose();
+        });
+
+        test('an ungrouped drop between two members snaps to the nearer edge', () => {
+            const { dockview, group } = setup();
+            const x = createTabGroup(dockview, group, ['a', 'b', 'd']);
+
+            dropOnStrip(dockview, group, 'c', 1, null);
+
+            expect(x.panelIds).toEqual(['a', 'b', 'd']);
+            expect(strip(group)).toEqual(['c', 'a', 'b', 'd']);
+
+            dockview.dispose();
+        });
+
+        test('a lone tab dropped at its own slot still leaves its tab group', () => {
+            const { dockview, group } = setup(['a']);
+            createTabGroup(dockview, group, ['a']);
+
+            dropOnStrip(dockview, group, 'a', 0, null);
+
+            expect(group.model.getTabGroups()).toEqual([]);
+            expect(strip(group)).toEqual(['a']);
+
+            dockview.dispose();
+        });
+
+        test('a cancelled drop still applies its tab group change in place', () => {
+            const { dockview, group } = setup(['a', 'b', 'c']);
+            const x = createTabGroup(dockview, group, ['a', 'b']);
+            dockview.onWillDrop((event) => event.preventDefault());
+
+            dropOnStrip(dockview, group, 'c', 2, x.id);
+
+            expect(x.panelIds).toEqual(['a', 'b', 'c']);
+            expect(strip(group)).toEqual(['a', 'b', 'c']);
 
             dockview.dispose();
         });

@@ -689,7 +689,7 @@ export class DockviewGroupPanelModel
                       )
                     : event.index;
 
-                this.handleDropEvent(
+                const moved = this.handleDropEvent(
                     'header',
                     event.event,
                     'center',
@@ -702,6 +702,15 @@ export class DockviewGroupPanelModel
                         resolvedIndex
                     )
                 );
+
+                // A drop that moved nothing (refused or cancelled) can still
+                // change the panel's tab group where it stands.
+                if (!moved && draggedPanelId) {
+                    this._applyDropTabGroupInPlace(
+                        draggedPanelId,
+                        event.targetTabGroupId
+                    );
+                }
             }),
 
             this.contentContainer.onDidFocus(() => {
@@ -2053,6 +2062,29 @@ export class DockviewGroupPanelModel
         return this.canDisplayOverlay(event, position, 'content');
     }
 
+    /** Join or leave `targetTabGroupId` without moving the panel. */
+    private _applyDropTabGroupInPlace(
+        panelId: string,
+        targetTabGroupId: string | null | undefined
+    ): void {
+        if (targetTabGroupId === null) {
+            this.removePanelFromTabGroup(panelId);
+            return;
+        }
+        const tabGroup =
+            targetTabGroupId === undefined
+                ? undefined
+                : this._tabGroupMap.get(targetTabGroupId);
+        const index = this._panels.findIndex((p) => p.id === panelId);
+        if (!tabGroup || index === -1) {
+            return;
+        }
+        const indexInTabGroup = tabGroup.panelIds.filter(
+            (id) => this._panels.findIndex((p) => p.id === id) < index
+        ).length;
+        this.addPanelToTabGroup(tabGroup.id, panelId, indexInTabGroup);
+    }
+
     /** The tab group a dropped panel joins, and its position in it, worked
      *  out from the drop index before the panel moves. */
     private _tabGroupPlacementForDrop(
@@ -2092,16 +2124,16 @@ export class DockviewGroupPanelModel
         edge?: boolean,
         edgeGroup?: boolean,
         tabGroupPlacement?: TabGroupPlacement
-    ): void {
+    ): boolean {
         if (this.locked === 'no-drop-target') {
-            return;
+            return false;
         }
 
         // An `edge` content drop (a resolver's outer "dock to the layout edge"
         // cell) docks against the whole layout, not this group.
         if (type === 'content' && edge) {
             this.accessor.dockToLayoutEdge(event, position, edgeGroup);
-            return;
+            return false;
         }
 
         function getKind(): DockviewGroupDropLocation {
@@ -2130,7 +2162,7 @@ export class DockviewGroupPanelModel
         this._onWillDrop.fire(willDropEvent);
 
         if (willDropEvent.defaultPrevented) {
-            return;
+            return false;
         }
 
         const data = getPanelData();
@@ -2141,14 +2173,14 @@ export class DockviewGroupPanelModel
                     // don't allow to drop on self for center position
 
                     if (position === 'center') {
-                        return;
+                        return false;
                     }
 
                     if (data.panelId === null && !data.tabGroupId) {
                         // Full-group drops on self are a no-op.
                         // Tab-group drags are partial moves: an edge drop
                         // splits the layout and creates a new group.
-                        return;
+                        return false;
                     }
                 }
             }
@@ -2156,7 +2188,7 @@ export class DockviewGroupPanelModel
             if (type === 'header') {
                 if (data.groupId === this.id) {
                     if (data.panelId === null && !data.tabGroupId) {
-                        return;
+                        return false;
                     }
                 }
             }
@@ -2171,7 +2203,7 @@ export class DockviewGroupPanelModel
                     index,
                     tabGroupId: data.tabGroupId,
                 });
-                return;
+                return false;
             }
 
             // ITabsContainer.indexOf(id) is a domain method with no `includes`
@@ -2187,7 +2219,7 @@ export class DockviewGroupPanelModel
                 this.tabsContainer.size === 1 &&
                 this.accessor.options.closeEmptyGroups !== false
             ) {
-                return;
+                return false;
             }
 
             const { groupId, panelId } = data;
@@ -2195,7 +2227,7 @@ export class DockviewGroupPanelModel
             if (isSameGroup && !position) {
                 const oldIndex = this.tabsContainer.indexOf(panelId);
                 if (oldIndex === index) {
-                    return;
+                    return false;
                 }
             }
 
@@ -2206,6 +2238,7 @@ export class DockviewGroupPanelModel
                 index,
                 ...tabGroupPlacement,
             });
+            return true;
         } else {
             this._onDidDrop.fire(
                 new DockviewDidDropEvent({
@@ -2219,6 +2252,7 @@ export class DockviewGroupPanelModel
                 })
             );
         }
+        return false;
     }
 
     updateDragAndDropState(): void {
