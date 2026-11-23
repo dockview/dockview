@@ -385,6 +385,68 @@ test.describe('multi-row tabs (wrap mode)', () => {
         await reorderAcrossRows(page, 'overflow=wrap&smooth=1');
     });
 
+    // Drag the last (ungrouped) tab onto the left half of member 8 of a tab
+    // group spanning tabs 0-9. Returns the tab titles' numbers in strip order
+    // and whether the dragged tab joined the tab group.
+    const dropIntoTabGroup = async (page, query: string) => {
+        await page.goto(`/e2e/fixtures/index.html?${query}`);
+        await page.waitForFunction(() => (window as any).__ready === true);
+        await page.evaluate(() => (window as any).__dv.setupWrapTabs(20));
+        await page.evaluate(
+            (ids) => (window as any).__dv.groupTabs(ids, 'X'),
+            Array.from({ length: 10 }, (_, i) => `wrap-tab-${i}`)
+        );
+
+        const s = (await page
+            .locator('.dv-tab', { hasText: 'wrap-tab-long-title-19' })
+            .boundingBox())!;
+        const t = (await page
+            .locator('.dv-tab', { hasText: 'wrap-tab-long-title-8' })
+            .boundingBox())!;
+        await page.mouse.move(s.x + s.width / 2, s.y + s.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(s.x + s.width / 2 + 6, s.y + s.height / 2);
+        await page.mouse.move(t.x + 3, t.y + t.height / 2, { steps: 20 });
+        await page.mouse.up();
+
+        const order: number[] = await page.evaluate(() =>
+            Array.from(
+                document.querySelectorAll('.dv-tabs-container .dv-tab')
+            ).map((tab) =>
+                Number(
+                    (tab as HTMLElement).innerText
+                        .trim()
+                        .replace('wrap-tab-long-title-', '')
+                )
+            )
+        );
+        const joined: boolean = await page.evaluate(() =>
+            (window as any).__dv.isInTabGroup('wrap-tab-19')
+        );
+        return { order, joined };
+    };
+
+    test('a tab dropped on a tab group member joins it at that slot (default mode)', async ({
+        page,
+    }) => {
+        const { order, joined } = await dropIntoTabGroup(page, 'overflow=wrap');
+        expect(order.slice(0, 11)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 19, 8, 9]);
+        expect(joined).toBe(true);
+    });
+
+    test('a tab dropped inside a tab group it is not joining snaps to the nearer edge (smooth mode)', async ({
+        page,
+    }) => {
+        // the wrapped smooth reorder never joins a tab group, so the drop
+        // lands at the group's nearer edge rather than splitting it
+        const { order, joined } = await dropIntoTabGroup(
+            page,
+            'overflow=wrap&smooth=1'
+        );
+        expect(order.slice(0, 11)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 19]);
+        expect(joined).toBe(false);
+    });
+
     // Arrow Up/Down move the roving focus between wrapped rows (core keeps
     // Left/Right within a row). Real geometry: the target is the tab in the
     // adjacent row whose horizontal centre is nearest the focused tab's.
