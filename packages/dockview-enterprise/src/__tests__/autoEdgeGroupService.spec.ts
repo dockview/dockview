@@ -37,7 +37,10 @@ describe('auto edge group service (branch coverage)', () => {
         height: 1000,
     } as DOMRect;
 
-    function createHost(dockToEdgeGroups: unknown = true) {
+    function createHost(
+        dockToEdgeGroups: unknown = true,
+        lockedEdges: Record<string, boolean | 'no-drop-target'> = {}
+    ) {
         const overlayRoot = document.createElement('div');
         document.body.appendChild(overlayRoot);
         const willShow = new Emitter<DockviewWillShowOverlayLocationEvent>();
@@ -63,6 +66,18 @@ describe('auto edge group service (branch coverage)', () => {
             onWillDragGroup: willDragGroup.event,
             createEdgeDropTarget,
             revealEdgeGroupWithData: reveal,
+            // An existing edge group at a position, locked as given.
+            getEdgeGroupPanel: (position: string) =>
+                position in lockedEdges
+                    ? {
+                          model: {
+                              acceptsUserDrop: (p: string) =>
+                                  lockedEdges[position] === false ||
+                                  (lockedEdges[position] === true &&
+                                      p !== 'center'),
+                          },
+                      }
+                    : undefined,
         };
         const service = new AutoEdgeGroupService(host as any);
         return {
@@ -108,8 +123,11 @@ describe('auto edge group service (branch coverage)', () => {
         document.body.innerHTML = '';
     });
 
-    function host(dockToEdgeGroups: unknown = true) {
-        const h = createHost(dockToEdgeGroups);
+    function host(
+        dockToEdgeGroups: unknown = true,
+        lockedEdges: Record<string, boolean | 'no-drop-target'> = {}
+    ) {
+        const h = createHost(dockToEdgeGroups, lockedEdges);
         created.push(h.service);
         return h;
     }
@@ -753,5 +771,83 @@ describe('auto edge group service (branch coverage)', () => {
             jest.runAllTimers();
             expect(strips(b.overlayRoot)).toEqual([]);
         });
+    });
+
+    // An existing edge group that is locked takes no dragged panel, so its
+    // edge is not offered as an edge-group drop at all.
+    describe.each([
+        true,
+        'no-drop-target',
+    ] as const)('an edge whose group is locked (%p)', (locked) => {
+        const transfer = LocalSelectionTransfer.getInstance<PanelTransfer>();
+
+        test('an outer-band drop there is left to core', () => {
+            const { willDrop, reveal } = host(true, { left: locked });
+            const preventDefault = jest.fn();
+            willDrop.fire({
+                kind: 'edge',
+                position: 'left',
+                edgeGroup: true,
+                nativeEvent: { clientX: 4, clientY: 500 },
+                getData: () => ({ groupId: 'g1', panelId: 'p1' }),
+                preventDefault,
+            } as any);
+            expect(preventDefault).not.toHaveBeenCalled();
+            expect(reveal).not.toHaveBeenCalled();
+        });
+
+        test('the resolver offers no edge cell there', () => {
+            const { service } = host(true, { left: locked });
+            expect(
+                service.resolveEdge({
+                    x: 5,
+                    y: 500,
+                    width: 1000,
+                    height: 1000,
+                    zones: new Set<Position>(['left']),
+                    event: { clientX: 5, clientY: 500 } as any,
+                })
+            ).toBeNull();
+        });
+
+        test('no highlight is shown there', () => {
+            const { overlayRoot, willShow } = host(true, { left: locked });
+            willShow.fire({
+                kind: 'edge',
+                position: 'left',
+                nativeEvent: { clientX: 5, clientY: 500 },
+            } as any);
+            expect(overlayRoot.querySelector('.dv-auto-edge-band')).toBeNull();
+        });
+
+        test('no drop strip is mounted there; other edges keep theirs', () => {
+            jest.useFakeTimers();
+            transfer.setData(
+                [new PanelTransfer('dock', 'g1', 'p1')],
+                PanelTransfer.prototype
+            );
+            const { willDragPanel, dropTargets } = host(
+                { top: true, left: true },
+                { left: locked }
+            );
+            willDragPanel.fire({ nativeEvent: new Event('dragstart') });
+            jest.runAllTimers();
+            expect(dropTargets.map((t) => t.position)).toEqual(['top']);
+            transfer.clearData(PanelTransfer.prototype);
+            jest.useRealTimers();
+        });
+    });
+
+    test('an unlocked existing edge group still takes the drop (control)', () => {
+        const { willDrop, reveal } = host(true, { left: false });
+        willDrop.fire({
+            kind: 'edge',
+            position: 'left',
+            edgeGroup: true,
+            nativeEvent: { clientX: 4, clientY: 500 },
+            getData: () => ({ groupId: 'g1', panelId: 'p1' }),
+            preventDefault: jest.fn(),
+        } as any);
+        expect(reveal).toHaveBeenCalled();
     });
 });

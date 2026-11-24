@@ -1980,6 +1980,18 @@ export class DockviewGroupPanelModel
     }
 
     /**
+     * Whether a user gesture may move panels into this group at `position`.
+     * `locked: true` allows only the splits around it, `'no-drop-target'`
+     * nothing. API calls are not limited by `locked`.
+     */
+    acceptsUserDrop(position: Position): boolean {
+        if (this.locked === 'no-drop-target') {
+            return false;
+        }
+        return !(this.locked && position === 'center');
+    }
+
+    /**
      * Whether a content drop at `position` is allowed: the locked rules, the
      * shift-to-not-drop gesture, the same-component shortcut, then the
      * `canDisplayOverlay` veto. The single source of truth for the content drop
@@ -1989,10 +2001,7 @@ export class DockviewGroupPanelModel
         event: DragEvent | PointerEvent,
         position: Position
     ): boolean {
-        if (
-            this.locked === 'no-drop-target' ||
-            (this.locked && position === 'center')
-        ) {
+        if (!this.acceptsUserDrop(position)) {
             return false;
         }
 
@@ -2018,6 +2027,15 @@ export class DockviewGroupPanelModel
         edgeGroup?: boolean
     ): void {
         if (this.locked === 'no-drop-target') {
+            return;
+        }
+
+        // A locked group takes no new panels from a header drop.
+        if (
+            this.locked &&
+            type === 'header' &&
+            getPanelData()?.groupId !== this.id
+        ) {
             return;
         }
 
