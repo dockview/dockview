@@ -90,10 +90,21 @@ type ViewItemSize = number | { cachedVisibleSize: number };
 export type DistributeSizing = { type: 'distribute' };
 export type SplitSizing = { type: 'split'; index: number };
 export type InvisibleSizing = { type: 'invisible'; cachedVisibleSize: number };
-export type Sizing = DistributeSizing | SplitSizing | InvisibleSizing;
+/**
+ * On removal, the freed space goes to the nearest visible view before the
+ * removed one, or after it when none precedes it. Every other view keeps its
+ * size. Only meaningful on removal.
+ */
+export type AdjacentSizing = { type: 'adjacent' };
+export type Sizing =
+    | DistributeSizing
+    | SplitSizing
+    | InvisibleSizing
+    | AdjacentSizing;
 
 export namespace Sizing {
     export const Distribute: DistributeSizing = { type: 'distribute' };
+    export const Adjacent: AdjacentSizing = { type: 'adjacent' };
     export function Split(index: number): SplitSizing {
         return { type: 'split', index };
     }
@@ -470,6 +481,7 @@ export class Splitview {
         } else if (size.type === 'invisible') {
             viewSize = { cachedVisibleSize: size.cachedVisibleSize };
         } else {
+            // distribute, and adjacent, which only has a meaning on removal
             viewSize = view.minimumSize;
         }
 
@@ -705,6 +717,16 @@ export class Splitview {
             sashItem.disposable();
         }
 
+        if (sizing?.type === 'adjacent') {
+            // Grow the neighbour by the freed space before laying out, so the
+            // relayout finds no deficit to hand to the last view. It still
+            // clamps the neighbour to its constraints and spills the rest.
+            const neighbour = this.findAdjacentVisibleView(index);
+            if (neighbour) {
+                neighbour.size += viewItem.size;
+            }
+        }
+
         if (!skipLayout) {
             this.relayout();
         }
@@ -716,6 +738,24 @@ export class Splitview {
         this._onDidRemoveView.fire(viewItem.view);
 
         return viewItem.view;
+    }
+
+    /**
+     * The nearest visible view before `index`, else the nearest at or after
+     * it. `index` is the slot a view was just removed from.
+     */
+    private findAdjacentVisibleView(index: number): ViewItem | undefined {
+        for (let i = index - 1; i >= 0; i--) {
+            if (this.viewItems[i].visible) {
+                return this.viewItems[i];
+            }
+        }
+        for (let i = index; i < this.viewItems.length; i++) {
+            if (this.viewItems[i].visible) {
+                return this.viewItems[i];
+            }
+        }
+        return undefined;
     }
 
     getViewCachedVisibleSize(index: number): number | undefined {

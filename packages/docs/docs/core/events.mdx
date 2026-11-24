@@ -96,7 +96,7 @@ api.onDidRemoveGroup((group: DockviewGroupPanel) => {});
 api.onDidActiveGroupChange((group: DockviewGroupPanel | undefined) => {});
 ```
 
-Moving the last panel out of a group destroys the group it leaves behind, and that destruction is reported through `onDidRemoveGroup`. This holds whether the panel was dropped into another group or floated out into a window of its own. Edge groups are the exception: they are permanent, so emptying one leaves it in place and reports nothing. The same applies to every group when [`closeEmptyGroups`](/docs/core/watermark#keeping-empty-groups) is `false`: the emptied group stays and no remove event fires. Floating a whole group out of the grid relocates it intact, so that reports neither an add nor a remove.
+Moving the last panel out of a group destroys the group it leaves behind, and that destruction is reported through `onDidRemoveGroup`. This holds whether the panel was dropped into another group or floated out into a window of its own. Edge groups are the exception: they are permanent, so emptying one leaves it in place and reports nothing. The same applies to every group when [`closeEmptyGroups`](/docs/core/watermark#keeping-empty-groups) is `false`: the emptied group stays and no remove event fires. Floating a whole group out of the grid relocates it intact, so that reports neither an add nor a remove. The same is true when a group's only panel is dropped on another group's edge: the group itself moves to the new position, keeping its id, and only `onDidMovePanel` fires.
 
 ## Layout
 
