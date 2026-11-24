@@ -311,7 +311,7 @@
         display: inline-flex;
         align-items: center;
         flex-shrink: 0;
-        margin-right: 4px;
+        margin-inline-end: 4px;
         opacity: 0.7;
         // Decorative indicator; clicks/drags belong to the tab beneath it.
         pointer-events: none;
@@ -343,7 +343,7 @@
     }
 
     .dv-tab-pin {
-        margin-right: 0;
+        margin-inline-end: 0;
     }
 }
 
