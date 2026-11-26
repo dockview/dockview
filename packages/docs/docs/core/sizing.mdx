@@ -214,9 +214,8 @@ closing that split hands the space back.
 | `'distribute'` (default) | 50% | | 50% |
 | `'adjacent'` | 90% | | 10% |
 
-Minimum and maximum size constraints still apply. If the adjacent group cannot
-take all of the space, the remainder goes to the next group that can. A hidden
-group is skipped.
+Minimum and maximum size constraints still apply: space the adjacent group
+cannot take is shared with the other groups. A hidden group is skipped.
 
 <FrameworkSpecific framework='JavaScript'>
 ```ts

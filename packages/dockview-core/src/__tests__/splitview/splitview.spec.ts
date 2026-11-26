@@ -144,7 +144,6 @@ describe('splitview', () => {
                 splitview.getViewSize(i)
             );
 
-        // three views sized 700 / 200 / 100 out of 1000
         function create(firstMaximumSize = 1000) {
             const splitview = new Splitview(container, {
                 orientation: Orientation.HORIZONTAL,

@@ -18,9 +18,7 @@ describe('dockview remove sizing', () => {
         instances.splice(0).forEach((dockview) => dockview.dispose());
     });
 
-    /**
-     * One row (or column) of three groups sized 700 / 200 / 100 out of 1000.
-     */
+    // a / b / c sized 700 / 200 / 100 along `direction`
     function createDockview(
         direction: Direction,
         options: Partial<DockviewComponentOptions> = {}
@@ -145,7 +143,6 @@ describe('dockview remove sizing', () => {
                     position: direction === 'right' ? 'bottom' : 'right',
                 },
             });
-            // b now shares c's slot, split along the other axis
             expect(sizes(dockview, direction)).toEqual([900, 100, 100]);
         });
 

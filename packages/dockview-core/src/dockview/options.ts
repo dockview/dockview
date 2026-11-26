@@ -464,11 +464,8 @@ export interface DockviewOptions {
      */
     closeEmptyGroups?: boolean;
     /**
-     * How the remaining groups in a row or column are sized when a group is
-     * removed: `distribute` (default) shares the row or column evenly,
-     * `adjacent` gives the freed space to the group before the removed one,
-     * or to the one after it when it was first, and leaves every other group
-     * as it was.
+     * How groups are sized after one is removed: `distribute` (default) shares
+     * the row or column evenly, `adjacent` gives the space to the neighbour.
      */
     removeSizing?: 'distribute' | 'adjacent';
     /**

@@ -300,7 +300,6 @@ export abstract class BaseGrid<T extends IGridPanelView>
         options?: {
             skipActive?: boolean;
             skipDispose?: boolean;
-            /** How the remaining groups share the freed space. */
             sizing?: Sizing;
         }
     ): T {

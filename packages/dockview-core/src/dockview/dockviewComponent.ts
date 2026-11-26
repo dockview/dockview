@@ -6828,10 +6828,7 @@ export class DockviewComponent
         return panel;
     }
 
-    /**
-     * Sizing for the groups left behind when one is removed from a row or
-     * column. `undefined` keeps each gridview's own default.
-     */
+    /** `undefined` keeps each gridview's own removal default. */
     private sizingForRemove(): Sizing | undefined {
         return this.options.removeSizing === 'adjacent'
             ? Sizing.Adjacent
