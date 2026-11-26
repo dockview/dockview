@@ -464,6 +464,11 @@ export interface DockviewOptions {
      */
     closeEmptyGroups?: boolean;
     /**
+     * How groups are sized after one is removed: `distribute` (default) shares
+     * the row or column evenly, `adjacent` gives the space to the neighbour.
+     */
+    removeSizing?: 'distribute' | 'adjacent';
+    /**
      * Supplies the id for every group dockview creates without an explicit
      * id: a panel added at a new position, a drop that splits the layout, a
      * group popped out or floated, `addGroup()` without an `id`. Defaults to
@@ -831,6 +836,7 @@ export const PROPERTY_KEYS_DOCKVIEW: (keyof DockviewOptions)[] = (() => {
         className: undefined,
         noPanelsOverlay: undefined,
         closeEmptyGroups: undefined,
+        removeSizing: undefined,
         groupIdGenerator: undefined,
         dndEdges: undefined,
         dropPositionResolver: undefined,

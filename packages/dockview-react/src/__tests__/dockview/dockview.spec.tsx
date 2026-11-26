@@ -71,6 +71,32 @@ describe('gridview react', () => {
         );
     });
 
+    test('forwards removeSizing on mount and when the prop changes', () => {
+        let api: DockviewApi;
+        const onReady = (event: DockviewReadyEvent) => {
+            api = event.api;
+        };
+        const wrapper = render(
+            <DockviewReact
+                components={components}
+                onReady={onReady}
+                removeSizing="adjacent"
+            />
+        );
+        expect((api! as any).component.options.removeSizing).toBe('adjacent');
+        const update = jest.spyOn(api!, 'updateOptions');
+        wrapper.rerender(
+            <DockviewReact
+                components={components}
+                onReady={onReady}
+                removeSizing="distribute"
+            />
+        );
+        expect(update).toHaveBeenCalledWith(
+            expect.objectContaining({ removeSizing: 'distribute' })
+        );
+    });
+
     test('that passing defaultTabComponent does not mutate the caller-owned tabComponents object', () => {
         const tabComponents: Record<string, React.FunctionComponent<any>> = {
             myTab: () => <div />,

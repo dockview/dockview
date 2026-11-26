@@ -138,6 +138,65 @@ describe('splitview', () => {
         splitview.dispose();
     });
 
+    describe('Sizing.Adjacent on removal', () => {
+        const sizes = (splitview: Splitview) =>
+            [...Array(splitview.length).keys()].map((i) =>
+                splitview.getViewSize(i)
+            );
+
+        function create(firstMaximumSize = 1000) {
+            const splitview = new Splitview(container, {
+                orientation: Orientation.HORIZONTAL,
+            });
+            splitview.layout(1000, 100);
+            splitview.addView(new Testview(0, firstMaximumSize));
+            splitview.addView(new Testview(0, 1000));
+            splitview.addView(new Testview(0, 1000));
+            splitview.resizeView(0, 700);
+            splitview.resizeView(2, 100);
+            expect(sizes(splitview)).toEqual([700, 200, 100]);
+            return splitview;
+        }
+
+        test('gives the space to the view before', () => {
+            const splitview = create();
+            splitview.removeView(1, Sizing.Adjacent);
+            expect(sizes(splitview)).toEqual([900, 100]);
+            splitview.dispose();
+        });
+
+        test('gives the space to the view after when the first is removed', () => {
+            const splitview = create();
+            splitview.removeView(0, Sizing.Adjacent);
+            expect(sizes(splitview)).toEqual([900, 100]);
+            splitview.dispose();
+        });
+
+        test('skips a hidden view before', () => {
+            const splitview = create();
+            splitview.setViewVisible(0, false);
+            const [, b, c] = sizes(splitview);
+            expect(b + c).toBe(1000);
+            splitview.removeView(1, Sizing.Adjacent);
+            expect(sizes(splitview)).toEqual([0, 1000]);
+            splitview.dispose();
+        });
+
+        test('clamps the neighbour to its maximum and spills the rest', () => {
+            const splitview = create(750);
+            splitview.removeView(1, Sizing.Adjacent);
+            expect(sizes(splitview)).toEqual([750, 250]);
+            splitview.dispose();
+        });
+
+        test('without a sizing the last view still takes the space', () => {
+            const splitview = create();
+            splitview.removeView(1);
+            expect(sizes(splitview)).toEqual([700, 300]);
+            splitview.dispose();
+        });
+    });
+
     test('has views and sashes', () => {
         const splitview = new Splitview(container, {
             orientation: Orientation.HORIZONTAL,

@@ -77,6 +77,17 @@ describe('DockviewVue Component', () => {
         expect(update).toHaveBeenCalledWith({ dropSizing: 'split' });
     });
 
+    test('forwards removeSizing on mount and when the prop changes', async () => {
+        wrapper = mountDockview({ removeSizing: 'adjacent' });
+        await flushPromises();
+        const api = (wrapper.emitted('ready')![0][0] as any).api as DockviewApi;
+        expect((api as any).component.options.removeSizing).toBe('adjacent');
+        const update = vi.spyOn(api, 'updateOptions');
+        await wrapper.setProps({ removeSizing: 'distribute' });
+        await nextTick();
+        expect(update).toHaveBeenCalledWith({ removeSizing: 'distribute' });
+    });
+
     test('forwards fallthrough style/class attributes to the root container', async () => {
         // Regression test for #1510: the SFC renders multiple root nodes
         // (the host element plus <DockviewPortals>), so Vue cannot

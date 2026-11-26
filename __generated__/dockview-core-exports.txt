@@ -10,6 +10,7 @@ AddPanelOptions
 AddPanelPositionOptions
 AddPaneviewComponentOptions
 AddSplitviewComponentOptions
+AdjacentSizing
 AdvancedDnDModule
 AdvancedDnDService
 AdvancedOverflowRenderParams

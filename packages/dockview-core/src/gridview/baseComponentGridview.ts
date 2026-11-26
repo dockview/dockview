@@ -297,7 +297,11 @@ export abstract class BaseGrid<T extends IGridPanelView>
 
     protected doRemoveGroup(
         group: T,
-        options?: { skipActive?: boolean; skipDispose?: boolean }
+        options?: {
+            skipActive?: boolean;
+            skipDispose?: boolean;
+            sizing?: Sizing;
+        }
     ): T {
         if (!this._groups.has(group.id)) {
             throw new Error('invalid operation');
@@ -305,7 +309,10 @@ export abstract class BaseGrid<T extends IGridPanelView>
 
         const item = this._groups.get(group.id);
 
-        const view = this.gridview.remove(group, Sizing.Distribute);
+        const view = this.gridview.remove(
+            group,
+            options?.sizing ?? Sizing.Distribute
+        );
 
         if (item && !options?.skipDispose) {
             item.disposable.dispose();

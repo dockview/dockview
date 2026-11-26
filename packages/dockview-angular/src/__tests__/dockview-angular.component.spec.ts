@@ -121,6 +121,7 @@ describe('DockviewAngularComponent', () => {
             ['defaultHeaderPosition', 'bottom'],
             ['disableDnd', true],
             ['dropSizing', 'distribute'],
+            ['removeSizing', 'adjacent'],
             ['dndStrategy', 'pointer'],
             ['noPanelsOverlay', 'emptyGroup'],
             ['closeEmptyGroups', false],

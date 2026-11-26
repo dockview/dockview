@@ -5394,7 +5394,7 @@ export class DockviewComponent
             if (members.length <= 1) {
                 return false;
             }
-            floating.gridview.remove(group);
+            floating.gridview.remove(group, this.sizingForRemove());
             if (floating.group === group) {
                 // The anchor left; promote a remaining member.
                 floating.setAnchorGroup(members.find((m) => m !== group)!);
@@ -5408,7 +5408,7 @@ export class DockviewComponent
             if (members.length <= 1) {
                 return false;
             }
-            popout.gridview.remove(group);
+            popout.gridview.remove(group, this.sizingForRemove());
             if (popout.popoutGroup === group) {
                 // The anchor left; promote a remaining member and rebind the
                 // window's anchor-relative state (focus routing) to it. The
@@ -5583,7 +5583,10 @@ export class DockviewComponent
             return group;
         }
 
-        const re = super.doRemoveGroup(group, options);
+        const re = super.doRemoveGroup(group, {
+            ...options,
+            sizing: this.sizingForRemove(),
+        });
 
         if (!options?.skipActive) {
             if (this.activePanel !== activePanel) {
@@ -6823,6 +6826,13 @@ export class DockviewComponent
         });
 
         return panel;
+    }
+
+    /** `undefined` keeps each gridview's own removal default. */
+    private sizingForRemove(): Sizing | undefined {
+        return this.options.removeSizing === 'adjacent'
+            ? Sizing.Adjacent
+            : undefined;
     }
 
     /**
