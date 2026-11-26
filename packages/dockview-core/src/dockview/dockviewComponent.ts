@@ -352,6 +352,9 @@ type MoveGroupOrPanelOptions = {
         tabGroup?: ITabGroup | string | null;
         /** Position within `tabGroup`. */
         indexInTabGroup?: number;
+        /** Keep the panel on its side of the pinned block. Defaults to true;
+         *  drops leave this to the pinned-tab drop resolver. */
+        clampToPinned?: boolean;
     };
     skipSetActive?: boolean;
     keepEmptyGroups?: boolean;
@@ -5986,6 +5989,7 @@ export class DockviewComponent
                 index,
                 tabGroupId,
                 indexInTabGroup: options.to.indexInTabGroup,
+                clampToPinned: options.to.clampToPinned,
                 skipSetActive:
                     (options.skipSetActive ?? false) &&
                     !isDestinationGroupEmpty,
@@ -6872,6 +6876,7 @@ export class DockviewComponent
                             index,
                             tabGroup,
                             indexInTabGroup,
+                            clampToPinned: false,
                         },
                     });
                 }),

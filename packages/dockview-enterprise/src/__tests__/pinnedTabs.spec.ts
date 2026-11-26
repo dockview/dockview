@@ -371,6 +371,45 @@ describe('pinned tabs: integration', () => {
         expect(order()).toEqual(['z1', 'a']);
     });
 
+    test('an API move keeps a tab on its side of the pinned block', () => {
+        const dockview = make({ enabled: true });
+        const { a, b, c, order } = threePanels(dockview);
+        dockview.addPanel({ id: 'd', component: 'default' });
+        a.api.setPinned(true);
+        b.api.setPinned(true);
+        expect(order()).toEqual(['a', 'b', 'c', 'd']);
+
+        // an unpinned tab cannot land before the pinned block
+        c.api.moveTo({ index: 0 });
+        expect(order()).toEqual(['a', 'b', 'c', 'd']);
+
+        // a pinned tab cannot land after it
+        a.api.moveTo({ index: 3 });
+        expect(order()).toEqual(['b', 'a', 'c', 'd']);
+        expect(a.api.isPinned).toBe(true);
+    });
+
+    test('a pinned tab moved by index never splits a tab group', () => {
+        const dockview = make({ enabled: true });
+        const { a, order } = threePanels(dockview);
+        dockview.addPanel({ id: 'd', component: 'default' });
+        const groupId = a.api.group.id;
+        const x = dockview.api.createTabGroup({ groupId, label: 'X' });
+        for (const panelId of ['b', 'c', 'd']) {
+            dockview.api.addPanelToTabGroup({
+                groupId,
+                panelId,
+                tabGroupId: x.id,
+            });
+        }
+        a.api.setPinned(true);
+
+        a.api.moveTo({ index: 2 });
+
+        expect(order()).toEqual(['a', 'b', 'c', 'd']);
+        expect(x.panelIds).toEqual(['b', 'c', 'd']);
+    });
+
     test('a within-group move is left to the drop resolver (deferred flip survives)', async () => {
         const dockview = make({
             enabled: true,
@@ -388,7 +427,16 @@ describe('pinned tabs: integration', () => {
             2
         );
         expect(index).toBe(2);
-        c.api.moveTo({ index });
+        // as the header drop does: the resolver has placed it, so no clamp
+        dockview.moveGroupOrPanel({
+            from: { groupId: c.api.group.id, panelId: 'c' },
+            to: {
+                group: c.api.group,
+                position: 'center',
+                index,
+                clampToPinned: false,
+            },
+        });
 
         // The move hook must not clamp it back before the flip runs.
         expect(order()).toEqual(['a', 'b', 'c']);

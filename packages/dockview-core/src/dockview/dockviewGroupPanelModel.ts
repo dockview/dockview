@@ -58,6 +58,41 @@ import {
     TabGroupOptions,
 } from './tabGroup';
 import { EdgeGroupPosition } from './dockviewShell';
+import { TabStrip } from './tabStrip';
+
+/** The items of the longest run whose `key` strictly increases, in order. */
+function longestIncreasingRun<T>(
+    items: readonly T[],
+    key: (item: T) => number
+): Set<T> {
+    // tails[k]: index of the smallest last item of a run of length k + 1
+    const tails: number[] = [];
+    const parent: number[] = new Array(items.length).fill(-1);
+    items.forEach((item, i) => {
+        const value = key(item);
+        let lo = 0;
+        let hi = tails.length;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (key(items[tails[mid]]) < value) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        parent[i] = lo > 0 ? tails[lo - 1] : -1;
+        tails[lo] = i;
+    });
+    const run = new Set<T>();
+    for (
+        let i = tails.length > 0 ? tails[tails.length - 1] : -1;
+        i !== -1;
+        i = parent[i]
+    ) {
+        run.add(items[i]);
+    }
+    return run;
+}
 
 interface TabGroupPlacement {
     /** The tab group a moved panel joins; `null` for none. */
@@ -388,7 +423,11 @@ export class DockviewGroupPanelModel
 
     private readonly _tabGroups: TabGroup[] = [];
     private readonly _tabGroupMap = new Map<string, TabGroup>();
-    private readonly _panelToTabGroup = new Map<string, TabGroup>();
+    /** The source of truth for tab order and tab group membership;
+     *  `_panels` is its flat order. */
+    private readonly _strip = new TabStrip<IDockviewPanel>(
+        (panel) => !!panel.api.isPinned
+    );
     private _tabGroupIdCounter = 0;
     private _pendingTabGroupUpdate = false;
 
@@ -849,6 +888,17 @@ export class DockviewGroupPanelModel
         });
         this._tabGroups.push(tabGroup);
         this._tabGroupMap.set(id, tabGroup);
+        tabGroup.setOwner({
+            addPanel: (panelId, index) =>
+                this.addPanelToTabGroup(id, panelId, index),
+            removePanel: (panelId) => {
+                if (this._strip.tabGroupOf(panelId) !== tabGroup) {
+                    return false;
+                }
+                this.removePanelFromTabGroup(panelId);
+                return true;
+            },
+        });
 
         this._tabGroupDisposables.set(
             id,
@@ -883,11 +933,11 @@ export class DockviewGroupPanelModel
         }
 
         this._bracketTabGroupMutation(() => {
-            // Remove all panels from the group (they stay in the flat panel list)
+            // The members stay where they are, as top-level tabs.
             const panelIds = [...tabGroup.panelIds];
+            this._strip.unwrap(tabGroup);
             for (const panelId of panelIds) {
-                tabGroup.removePanel(panelId);
-                this._panelToTabGroup.delete(panelId);
+                tabGroup.removeMember(panelId);
                 this._onDidRemovePanelFromTabGroup.fire({ tabGroup, panelId });
             }
 
@@ -906,12 +956,12 @@ export class DockviewGroupPanelModel
         }
 
         // Ensure the panel actually exists in this group model
-        if (!this._panels.some((p) => p.id === panelId)) {
+        if (!this._strip.has(panelId)) {
             return;
         }
 
         // Remove from any existing group first
-        const existingGroup = this.getTabGroupForPanel(panelId);
+        const existingGroup = this._strip.tabGroupOf(panelId);
         if (existingGroup?.id === tabGroupId) {
             return; // already in this group, nothing to mutate
         }
@@ -921,12 +971,8 @@ export class DockviewGroupPanelModel
                 this.removePanelFromTabGroup(panelId);
             }
 
-            tabGroup.addPanel(panelId, index);
-            this._panelToTabGroup.set(panelId, tabGroup);
-
-            // Enforce contiguity: move the panel in the flat _panels array
-            // to the correct global position matching its group-local index
-            this._enforceContiguity(tabGroup, panelId);
+            this._strip.join(panelId, tabGroup, index);
+            this._applyStrip([panelId]);
 
             this._onDidAddPanelToTabGroup.fire({ tabGroup, panelId });
         });
@@ -946,11 +992,8 @@ export class DockviewGroupPanelModel
             return;
         }
 
-        tabGroup.removePanel(panelId);
-        tabGroup.addPanel(panelId, newIndex);
-
-        // Re-enforce contiguity in the flat array
-        this._enforceContiguity(tabGroup, panelId);
+        this._strip.reorderInTabGroup(panelId, newIndex);
+        this._applyStrip([panelId]);
 
         this.tabsContainer.updateTabGroups();
     }
@@ -966,14 +1009,13 @@ export class DockviewGroupPanelModel
         const sourceGroup = this._findTabGroupForPanel(sourcePanelId);
         const targetGroup = this._tabGroupMap.get(targetTabGroupId);
 
-        if (!targetGroup) {
+        if (!targetGroup || !this._strip.has(sourcePanelId)) {
             return;
         }
 
         if (sourceGroup) {
-            sourceGroup.removePanel(sourcePanelId);
-            this._panelToTabGroup.delete(sourcePanelId);
-            this._moveOutOfGroupSpan(sourceGroup, sourcePanelId);
+            this._strip.leave(sourcePanelId);
+            this._applyStrip([sourcePanelId]);
             this._onDidRemovePanelFromTabGroup.fire({
                 tabGroup: sourceGroup,
                 panelId: sourcePanelId,
@@ -985,9 +1027,8 @@ export class DockviewGroupPanelModel
             }
         }
 
-        targetGroup.addPanel(sourcePanelId, targetIndex);
-        this._panelToTabGroup.set(sourcePanelId, targetGroup);
-        this._enforceContiguity(targetGroup, sourcePanelId);
+        this._strip.join(sourcePanelId, targetGroup, targetIndex);
+        this._applyStrip([sourcePanelId]);
         this._onDidAddPanelToTabGroup.fire({
             tabGroup: targetGroup,
             panelId: sourcePanelId,
@@ -1004,44 +1045,20 @@ export class DockviewGroupPanelModel
             return;
         }
 
-        // Collect group panels in their current order
-        const groupPanelIds = new Set(tabGroup.panelIds);
-        const groupPanels = tabGroup.panelIds
-            .map((pid) => this._panels.find((p) => p.id === pid))
-            .filter((p): p is IDockviewPanel => p !== undefined);
-
-        if (groupPanels.length === 0) {
-            return;
-        }
-
-        // Count how many group panels sit before the target index so
-        // we can compensate after removing them from the array.
-        let groupPanelsBefore = 0;
+        // `targetIndex` counts the tab group's own members; drop them.
+        const memberIds = new Set(tabGroup.panelIds);
+        let membersBefore = 0;
         for (let i = 0; i < Math.min(targetIndex, this._panels.length); i++) {
-            if (groupPanelIds.has(this._panels[i].id)) {
-                groupPanelsBefore++;
+            if (memberIds.has(this._panels[i].id)) {
+                membersBefore++;
             }
         }
 
-        // Remove group panels from the flat array
-        for (const panel of groupPanels) {
-            const idx = this._panels.indexOf(panel);
-            if (idx !== -1) {
-                this._panels.splice(idx, 1);
-            }
-        }
-
-        // Adjust target index to account for removed panels
-        const adjustedIndex = targetIndex - groupPanelsBefore;
-
-        // Clamp target index to valid range after removal
-        const insertAt = Math.max(
-            0,
-            Math.min(adjustedIndex, this._panels.length)
+        this._strip.moveTabGroup(
+            tabGroup,
+            Math.max(0, targetIndex - membersBefore)
         );
-
-        // Insert group panels at the target position
-        this._panels.splice(insertAt, 0, ...groupPanels);
+        this._panels.splice(0, this._panels.length, ...this._strip.toArray());
 
         // Rebuild the tabs container to match new order
         for (const panel of this._panels) {
@@ -1056,40 +1073,54 @@ export class DockviewGroupPanelModel
     }
 
     /**
-     * Ensure a panel is at the correct global index in _panels
-     * to maintain contiguity of its tab group members.
+     * Refresh `_panels` from the strip, then move the tabs whose place
+     * changed. Of `moved`, those whose index changed are the ones re-created
+     * even if a different set would need fewer moves.
      */
-    private _enforceContiguity(tabGroup: TabGroup, panelId: string): void {
-        const panel = this._panels.find((p) => p.id === panelId);
-        if (!panel) {
-            return;
-        }
-
-        const localIndex = tabGroup.indexOfPanel(panelId);
-        const currentIndex = this._panels.indexOf(panel);
-
-        // Remove first so the target index always lies within the strip.
-        this._panels.splice(currentIndex, 1);
-        const targetIndex = this._computeGlobalIndex(
-            tabGroup.panelIds.filter((id) => id !== panelId),
-            localIndex,
-            currentIndex
+    private _applyStrip(moved: readonly string[] = []): void {
+        const previous = new Map(this._panels.map((p, i) => [p.id, i]));
+        const next = this._strip.toArray();
+        this._panels.splice(0, this._panels.length, ...next);
+        const forced = new Set(
+            moved.filter(
+                (id) =>
+                    previous.has(id) &&
+                    previous.get(id) !== next.findIndex((p) => p.id === id)
+            )
         );
-        this._panels.splice(targetIndex, 0, panel);
-
-        if (targetIndex !== currentIndex) {
-            // Reorder in the tabs container to match
-            this._reinsertTab(panel, targetIndex);
-        }
+        this._syncTabOrder(next, previous, forced);
     }
 
-    /** Move `panel`'s tab to `index` by delete + re-open. The fresh `Tab`
-     *  renders inactive under a new DOM id, so the active highlight and the
-     *  tabpanel's `aria-labelledby` are re-applied when it is the active one. */
-    private _reinsertTab(panel: IDockviewPanel, index: number): void {
-        this.tabsContainer.delete(panel.id);
-        this.tabsContainer.openPanel(panel, index);
-        if (panel === this._activePanel) {
+    /** Re-create the tabs outside the longest run already in order. A fresh
+     *  `Tab` renders inactive under a new DOM id, so the active highlight and
+     *  the tabpanel's `aria-labelledby` are re-applied when it is the active
+     *  one. */
+    private _syncTabOrder(
+        next: readonly IDockviewPanel[],
+        previous: ReadonlyMap<string, number>,
+        moved: ReadonlySet<string>
+    ): void {
+        const candidates = next.filter(
+            (p) => previous.has(p.id) && !moved.has(p.id)
+        );
+        const kept = longestIncreasingRun(
+            candidates,
+            (p) => previous.get(p.id)!
+        );
+        const reinsert = next.filter((p) => previous.has(p.id) && !kept.has(p));
+        if (reinsert.length === 0) {
+            return;
+        }
+        for (const panel of reinsert) {
+            this.tabsContainer.delete(panel.id);
+        }
+        const reinserted = new Set(reinsert);
+        next.forEach((panel, index) => {
+            if (reinserted.has(panel)) {
+                this.tabsContainer.openPanel(panel, index);
+            }
+        });
+        if (this._activePanel && reinserted.has(this._activePanel)) {
             this._syncActiveTab();
         }
     }
@@ -1106,91 +1137,22 @@ export class DockviewGroupPanelModel
         );
     }
 
-    /**
-     * Index in _panels for a panel inserted at `localIndex` among
-     * `memberIds`, the other members of its tab group: after its nearest
-     * preceding member in the strip, else before its nearest following one.
-     * The panel must not be in _panels.
-     */
-    private _computeGlobalIndex(
-        memberIds: readonly string[],
-        localIndex: number,
-        fallbackIndex: number
-    ): number {
-        const indexOfMember = (i: number): number =>
-            this._panels.findIndex((p) => p.id === memberIds[i]);
-
-        for (let i = localIndex - 1; i >= 0; i--) {
-            const index = indexOfMember(i);
-            if (index !== -1) {
-                return index + 1;
-            }
-        }
-        for (let i = localIndex; i < memberIds.length; i++) {
-            const index = indexOfMember(i);
-            if (index !== -1) {
-                return index;
-            }
-        }
-
-        // No other member in the strip
-        return Math.min(fallbackIndex, this._panels.length);
-    }
-
     removePanelFromTabGroup(panelId: string): void {
-        this._removeFromTabGroup(panelId, false);
-    }
-
-    private _removeFromTabGroup(
-        panelId: string,
-        retainEmptyTabGroup: boolean
-    ): void {
-        const tabGroup = this._findTabGroupForPanel(panelId);
+        const tabGroup = this._strip.tabGroupOf(panelId);
         if (!tabGroup) {
             return;
         }
 
         this._bracketTabGroupMutation(() => {
-            tabGroup.removePanel(panelId);
-            this._panelToTabGroup.delete(panelId);
-            this._moveOutOfGroupSpan(tabGroup, panelId);
+            this._strip.leave(panelId);
+            this._applyStrip([panelId]);
             this._onDidRemovePanelFromTabGroup.fire({ tabGroup, panelId });
 
             // Auto-destroy empty groups
-            if (tabGroup.isEmpty && !retainEmptyTabGroup) {
+            if (tabGroup.isEmpty) {
                 tabGroup.dispose();
             }
         });
-    }
-
-    /** Keep a group's members contiguous: a panel that left `tabGroup` while
-     *  sitting between two members moves to just after the group. No-op for an
-     *  edge member or a panel no longer in this model. */
-    private _moveOutOfGroupSpan(tabGroup: TabGroup, panelId: string): void {
-        const currentIndex = this._panels.findIndex((p) => p.id === panelId);
-        if (currentIndex === -1 || tabGroup.isEmpty) {
-            return;
-        }
-        const memberIds = tabGroup.panelIds;
-        const firstIdx = this._panels.findIndex((p) => p.id === memberIds[0]);
-        const lastIdx = this._panels.findIndex(
-            (p) => p.id === memberIds[memberIds.length - 1]
-        );
-        if (
-            firstIdx === -1 ||
-            lastIdx === -1 ||
-            currentIndex < firstIdx ||
-            currentIndex > lastIdx
-        ) {
-            return;
-        }
-
-        const [panel] = this._panels.splice(currentIndex, 1);
-        // Removing it shifted the last member down by one, so `lastIdx` is
-        // now the slot right after the group.
-        this._panels.splice(lastIdx, 0, panel);
-
-        this._reinsertTab(panel, lastIdx);
     }
 
     getTabGroups(): readonly ITabGroup[] {
@@ -1219,7 +1181,7 @@ export class DockviewGroupPanelModel
     }
 
     private _findTabGroupForPanel(panelId: string): TabGroup | undefined {
-        return this._panelToTabGroup.get(panelId);
+        return this._strip.tabGroupOf(panelId);
     }
 
     private _removeTabGroupInternal(tabGroup: TabGroup): void {
@@ -1227,9 +1189,9 @@ export class DockviewGroupPanelModel
         if (index !== -1) {
             this._tabGroups.splice(index, 1);
             this._tabGroupMap.delete(tabGroup.id);
-            for (const panelId of tabGroup.panelIds) {
-                this._panelToTabGroup.delete(panelId);
-            }
+            // Any members stay where they are, as top-level tabs.
+            this._strip.unwrap(tabGroup);
+            this._applyStrip();
 
             this._onDidDestroyTabGroup.fire({ tabGroup });
 
@@ -1335,12 +1297,12 @@ export class DockviewGroupPanelModel
             const concreteGroup = this._tabGroupMap.get(tabGroup.id)!;
             for (const panelId of data.panelIds) {
                 // Only add panels that actually exist in this group model
-                if (this._panels.some((p) => p.id === panelId)) {
-                    tabGroup.addPanel(panelId);
-                    this._panelToTabGroup.set(panelId, concreteGroup);
-                    this._enforceContiguity(concreteGroup, panelId);
+                if (this._strip.has(panelId)) {
+                    this._strip.leave(panelId);
+                    this._strip.join(panelId, concreteGroup);
                 }
             }
+            this._applyStrip([...concreteGroup.panelIds]);
 
             if (data.collapsed) {
                 tabGroup.collapse();
@@ -1563,6 +1525,10 @@ export class DockviewGroupPanelModel
             tabGroupId?: string;
             /** Position within `tabGroupId`. Defaults to the end. */
             indexInTabGroup?: number;
+            /** Keep a newly added panel on its side of the pinned block.
+             *  Defaults to true; drops leave this to the pinned-tab drop
+             *  resolver. */
+            clampToPinned?: boolean;
         } = {}
     ): number {
         // Clamp before any mutation: the panel may already have left its
@@ -1576,29 +1542,10 @@ export class DockviewGroupPanelModel
             options.index = 0;
         }
 
-        const isNew = !this._panels.includes(panel);
         const tabGroup =
-            isNew && options.tabGroupId !== undefined
+            options.tabGroupId !== undefined && !this._strip.has(panel.id)
                 ? this._tabGroupMap.get(options.tabGroupId)
                 : undefined;
-        let indexInTabGroup = 0;
-        if (tabGroup) {
-            const memberIds = tabGroup.panelIds;
-            indexInTabGroup = Math.max(
-                0,
-                Math.min(
-                    options.indexInTabGroup ?? memberIds.length,
-                    memberIds.length
-                )
-            );
-            options.index = this._computeGlobalIndex(
-                memberIds,
-                indexInTabGroup,
-                options.index
-            );
-        } else if (isNew && !panel.api.isPinned) {
-            options.index = this._indexOutsideTabGroups(options.index);
-        }
 
         const skipSetActive = !!options.skipSetActive;
 
@@ -1609,10 +1556,18 @@ export class DockviewGroupPanelModel
 
         this.doAddPanel(panel, options.index, {
             skipSetActive: skipSetActive,
+            tabGroup,
+            indexInTabGroup: options.indexInTabGroup,
+            clampToPinned: options.clampToPinned,
         });
 
         if (tabGroup) {
-            this.addPanelToTabGroup(tabGroup.id, panel.id, indexInTabGroup);
+            this._bracketTabGroupMutation(() =>
+                this._onDidAddPanelToTabGroup.fire({
+                    tabGroup,
+                    panelId: panel.id,
+                })
+            );
         }
 
         // a new tab can change the header's extent (e.g. push it to wrap)
@@ -1641,25 +1596,6 @@ export class DockviewGroupPanelModel
         }
 
         return this._panels.indexOf(panel);
-    }
-
-    /** `index`, moved to the nearer edge of any tab group it falls inside
-     *  (after the group on a tie), so an ungrouped panel never splits one. */
-    private _indexOutsideTabGroups(index: number): number {
-        for (const tabGroup of this._tabGroups) {
-            const indexes = tabGroup.panelIds
-                .map((id) => this._panels.findIndex((p) => p.id === id))
-                .filter((i) => i !== -1);
-            if (indexes.length === 0) {
-                continue;
-            }
-            const first = Math.min(...indexes);
-            const last = Math.max(...indexes);
-            if (index > first && index <= last) {
-                return index - first < last + 1 - index ? first : last + 1;
-            }
-        }
-        return index;
     }
 
     public removePanel(
@@ -1864,14 +1800,11 @@ export class DockviewGroupPanelModel
         panel: IDockviewPanel,
         retainEmptyTabGroup = false
     ): void {
-        const index = this.panels.indexOf(panel);
-
         if (this._activePanel === panel) {
             this.contentContainer.closePanel();
         }
 
         this.tabsContainer.delete(panel.id);
-        this._panels.splice(index, 1);
 
         if (this.mostRecentlyUsed.includes(panel)) {
             const index = this.mostRecentlyUsed.indexOf(panel);
@@ -1884,8 +1817,25 @@ export class DockviewGroupPanelModel
             this._panelDisposables.delete(panel.id);
         }
 
-        // Remove panel from its tab group (auto-destroys empty groups)
-        this._removeFromTabGroup(panel.id, retainEmptyTabGroup);
+        // Take the panel out of the strip, and out of its tab group
+        // (auto-destroys empty groups)
+        const tabGroup = this._strip.tabGroupOf(panel.id);
+        if (tabGroup) {
+            this._bracketTabGroupMutation(() => {
+                this._strip.remove(panel.id);
+                this._applyStrip();
+                this._onDidRemovePanelFromTabGroup.fire({
+                    tabGroup,
+                    panelId: panel.id,
+                });
+                if (tabGroup.isEmpty && !retainEmptyTabGroup) {
+                    tabGroup.dispose();
+                }
+            });
+        } else {
+            this._strip.remove(panel.id);
+            this._applyStrip();
+        }
 
         // The active panel is always one of the group's panels: clear it
         // before announcing the removal so listeners see the emptied group.
@@ -1901,10 +1851,32 @@ export class DockviewGroupPanelModel
         index: number = this.panels.length,
         options?: {
             skipSetActive?: boolean;
+            tabGroup?: TabGroup;
+            indexInTabGroup?: number;
+            clampToPinned?: boolean;
         }
     ): void {
-        const existingPanel = this._panels.indexOf(panel);
-        const hasExistingPanel = existingPanel > -1;
+        const hasExistingPanel = this._strip.has(panel.id);
+
+        if (!hasExistingPanel) {
+            const slot = this._strip.slotForIndex(
+                index,
+                options?.clampToPinned === false
+                    ? undefined
+                    : !!panel.api.isPinned
+            );
+            if (options?.tabGroup) {
+                this._strip.insertIntoTabGroup(
+                    panel,
+                    options.tabGroup,
+                    options.indexInTabGroup,
+                    slot
+                );
+            } else {
+                this._strip.insert(panel, slot);
+            }
+            index = this._strip.toArray().indexOf(panel);
+        }
 
         this.tabsContainer.show();
         this.contentContainer.show();
@@ -1923,7 +1895,7 @@ export class DockviewGroupPanelModel
         }
 
         this.updateMru(panel);
-        this.panels.splice(index, 0, panel);
+        this._panels.splice(0, this._panels.length, ...this._strip.toArray());
 
         this._panelDisposables.set(
             panel.id,

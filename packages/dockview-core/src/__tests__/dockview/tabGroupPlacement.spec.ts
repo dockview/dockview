@@ -209,7 +209,7 @@ describe('tab group placement', () => {
 
             dockview.dispose();
         });
-        test('a pinned panel is placed at the exact index', () => {
+        test('a pinned panel stays in the pinned block, so it never splits a tab group', () => {
             const { dockview, group } = setup();
             createTabGroup(dockview, group, ['a', 'b', 'd']);
             const c = dockview.getGroupPanel('c')!;
@@ -217,7 +217,8 @@ describe('tab group placement', () => {
 
             c.api.moveTo({ group, index: 1 });
 
-            expect(strip(group)).toEqual(['a', 'c', 'b', 'd']);
+            // no other tab is pinned, so the pinned block ends at index 0
+            expect(strip(group)).toEqual(['c', 'a', 'b', 'd']);
 
             dockview.dispose();
         });
@@ -584,6 +585,96 @@ describe('tab group placement', () => {
 
             expect(x.panelIds).toEqual(['a', 'b', 'c']);
             expect(strip(group)).toEqual(['a', 'b', 'c']);
+
+            dockview.dispose();
+        });
+    });
+
+    describe('one source of truth', () => {
+        test('tabGroup.addPanel and removePanel keep the strip in order', () => {
+            const { dockview, group } = setup();
+            const x = createTabGroup(dockview, group, ['a', 'b']);
+            const added: string[] = [];
+            const removed: string[] = [];
+            dockview.api.onDidAddPanelToTabGroup((e) => added.push(e.panelId));
+            dockview.api.onDidRemovePanelFromTabGroup((e) =>
+                removed.push(e.panelId)
+            );
+
+            x.addPanel('d', 1);
+            expect(x.panelIds).toEqual(['a', 'd', 'b']);
+            expect(strip(group)).toEqual(['a', 'd', 'b', 'c']);
+
+            expect(x.removePanel('a')).toBe(true);
+            expect(x.removePanel('c')).toBe(false);
+            expect(strip(group)).toEqual(['a', 'd', 'b', 'c']);
+            expect(x.panelIds).toEqual(['d', 'b']);
+
+            expect(added).toEqual(['d']);
+            expect(removed).toEqual(['a']);
+
+            dockview.dispose();
+        });
+
+        test('moveTabGroup never lands inside another tab group', () => {
+            const { dockview, group } = setup(['a', 'b', 'c', 'd', 'e']);
+            const x = createTabGroup(dockview, group, ['a', 'b'], 'X');
+            createTabGroup(dockview, group, ['c', 'd'], 'Y');
+
+            // index 3 of the full strip is between c and d
+            group.model.moveTabGroup(x.id, 3);
+
+            expect(strip(group)).toEqual(['c', 'd', 'a', 'b', 'e']);
+            expect(tabCount(group)).toBe(5);
+
+            dockview.dispose();
+        });
+
+        test('disposing a tab group leaves its members in place', () => {
+            const { dockview, group } = setup();
+            const x = createTabGroup(dockview, group, ['b', 'c']);
+
+            x.dispose();
+            dockview.getGroupPanel('d')!.api.moveTo({ group, index: 2 });
+
+            expect(group.model.getTabGroups()).toEqual([]);
+            expect(strip(group)).toEqual(['a', 'b', 'd', 'c']);
+
+            dockview.dispose();
+        });
+
+        test('only tabs whose place changed are re-created', () => {
+            const { dockview, group } = setup();
+            const x = createTabGroup(dockview, group, ['a', 'b']);
+            const tabIds = (): Record<string, string | undefined> =>
+                Object.fromEntries(
+                    group.panels.map((p) => [
+                        p.id,
+                        group.model.header.getTabId(p.id),
+                    ])
+                );
+
+            // `c` already sits right after X: joining moves nothing
+            const before = tabIds();
+            dockview.api.addPanelToTabGroup({
+                groupId: group.id,
+                panelId: 'c',
+                tabGroupId: x.id,
+            });
+            expect(tabIds()).toEqual(before);
+
+            // `d` moves to the front of X: only its tab is re-created
+            dockview.getGroupPanel('d')!.api.moveTo({
+                group,
+                tabGroup: x,
+                indexInTabGroup: 0,
+            });
+            const after = tabIds();
+            expect(strip(group)).toEqual(['d', 'a', 'b', 'c']);
+            expect(after.a).toBe(before.a);
+            expect(after.b).toBe(before.b);
+            expect(after.c).toBe(before.c);
+            expect(after.d).not.toBe(before.d);
 
             dockview.dispose();
         });

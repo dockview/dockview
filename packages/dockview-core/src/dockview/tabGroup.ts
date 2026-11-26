@@ -66,7 +66,14 @@ export interface ITabGroup {
     dispose(): void;
 }
 
+/** Applies membership changes requested through a tab group's public API. */
+export interface TabGroupOwner {
+    addPanel(panelId: string, index?: number): void;
+    removePanel(panelId: string): boolean;
+}
+
 export class TabGroup extends CompositeDisposable implements ITabGroup {
+    private _owner: TabGroupOwner | undefined;
     private _label: string;
     private _color: string | undefined;
     private _collapsed = false;
@@ -164,7 +171,29 @@ export class TabGroup extends CompositeDisposable implements ITabGroup {
         );
     }
 
+    /** Route `addPanel`/`removePanel` through `owner`, which keeps the tab
+     *  strip in order. */
+    setOwner(owner: TabGroupOwner | undefined): void {
+        this._owner = owner;
+    }
+
     addPanel(panelId: string, index?: number): void {
+        if (this._owner) {
+            this._owner.addPanel(panelId, index);
+            return;
+        }
+        this.insertMember(panelId, index);
+    }
+
+    removePanel(panelId: string): boolean {
+        if (this._owner) {
+            return this._owner.removePanel(panelId);
+        }
+        return this.removeMember(panelId);
+    }
+
+    /** Insert into the member list only. */
+    insertMember(panelId: string, index?: number): void {
         if (this.isDisposed) {
             return;
         }
@@ -181,7 +210,8 @@ export class TabGroup extends CompositeDisposable implements ITabGroup {
         this._onDidPanelChange.fire({ panelId, type: 'add' });
     }
 
-    removePanel(panelId: string): boolean {
+    /** Remove from the member list only. */
+    removeMember(panelId: string): boolean {
         if (this.isDisposed) {
             return false;
         }
