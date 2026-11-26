@@ -949,10 +949,7 @@ export class DockviewGroupPanelModel
         });
     }
 
-    /**
-     * Move a panel to a new index within its tab group.
-     * Updates both the group's panelIds order and the flat _panels array.
-     */
+    /** Move a panel to a new index within its tab group. */
     movePanelWithinGroup(
         tabGroupId: string,
         panelId: string,
