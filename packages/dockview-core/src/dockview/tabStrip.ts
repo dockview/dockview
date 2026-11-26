@@ -4,22 +4,25 @@ type TabStripItem<T> = { readonly panel: T } | { readonly tabGroup: TabGroup };
 
 /** Where a panel goes in the strip. */
 export type TabStripTarget =
-    /** A top-level panel at flat `index`, counted without the panel. With
-     *  `pinned` set, kept on that side of the pinned block. */
-    | { readonly index: number; readonly pinned?: boolean }
+    /** At flat `index`, counted without the panel, within the panel's
+     *  section. Leaves any tab group. */
+    | { readonly index: number }
     /** A member of `tabGroup` at `index` among its members (default: last). */
     | { readonly tabGroup: TabGroup; readonly index?: number };
 
 /**
- * The order of a group's tabs, as top-level items: a panel, or a tab group
- * holding its members. The flat tab order is derived from it, so a tab
- * group's members are always contiguous and in the tab group's own order.
+ * The order of a group's tabs: a pinned section of panels, then an unpinned
+ * section of items, each a panel or a tab group holding its members. The
+ * flat tab order is derived from it, so pinned tabs always come first and a
+ * tab group's members are always contiguous and in the tab group's own
+ * order. Tab groups live only in the unpinned section.
  *
  * A tab group has a place in the strip only while it has members; an empty
  * one is not an item. Member lists are edited silently: the caller fires the
  * tab group's events once the strip is in its final state.
  */
 export class TabStrip<T extends { readonly id: string }> {
+    private readonly _pinned: T[] = [];
     private readonly _items: TabStripItem<T>[] = [];
     private readonly _panels = new Map<string, T>();
     private readonly _tabGroupOf = new Map<string, TabGroup>();
@@ -32,7 +35,7 @@ export class TabStrip<T extends { readonly id: string }> {
 
     /** The flat tab order. */
     toArray(): T[] {
-        const result: T[] = [];
+        const result: T[] = [...this._pinned];
         for (const item of this._items) {
             if ('panel' in item) {
                 result.push(item.panel);
@@ -56,19 +59,25 @@ export class TabStrip<T extends { readonly id: string }> {
         return this._tabGroupOf.get(panelId);
     }
 
-    /** Add a new panel at `target`. A disposed tab group leaves it top-level
-     *  at `fallbackIndex`; one without members takes its place there. */
+    /**
+     * Add a new panel at `target`. A pinned panel goes in the pinned section
+     * whatever the target. A disposed tab group leaves the panel top-level at
+     * `fallbackIndex`; one without members takes its place there.
+     */
     add(panel: T, target: TabStripTarget, fallbackIndex: number): void {
         this._panels.set(panel.id, panel);
+        const index = 'tabGroup' in target ? fallbackIndex : target.index;
+        if (this.isPinned(panel)) {
+            this._pinned.splice(this.clampPinned(index), 0, panel);
+            return;
+        }
         if ('tabGroup' in target && !target.tabGroup.isDisposed) {
             this.addMember(panel.id, target.tabGroup, target.index, () =>
                 this.slotForIndex(fallbackIndex)
             );
             return;
         }
-        const index = 'tabGroup' in target ? fallbackIndex : target.index;
-        const pinned = 'tabGroup' in target ? undefined : target.pinned;
-        this._items.splice(this.slotForIndex(index, pinned), 0, { panel });
+        this._items.splice(this.slotForIndex(index), 0, { panel });
     }
 
     /**
@@ -79,6 +88,14 @@ export class TabStrip<T extends { readonly id: string }> {
     move(panelId: string, target: TabStripTarget): void {
         const panel = this._panels.get(panelId);
         if (!panel) {
+            return;
+        }
+        if (this._pinned.includes(panel)) {
+            // pinned panels stay in the pinned section, out of tab groups
+            if (!('tabGroup' in target)) {
+                this._pinned.splice(this._pinned.indexOf(panel), 1);
+                this._pinned.splice(this.clampPinned(target.index), 0, panel);
+            }
             return;
         }
         const current = this._tabGroupOf.get(panelId);
@@ -103,9 +120,34 @@ export class TabStrip<T extends { readonly id: string }> {
         }
 
         this.detach(panelId);
-        this._items.splice(this.slotForIndex(target.index, target.pinned), 0, {
-            panel,
-        });
+        this._items.splice(this.slotForIndex(target.index), 0, { panel });
+    }
+
+    /**
+     * Move every panel whose pinned state no longer matches its section: a
+     * newly pinned panel leaves its tab group for the end of the pinned
+     * section, a newly unpinned one goes to the front of the unpinned
+     * section. Returns the moved panels with the tab group each one left.
+     */
+    reconcilePinned(): { panel: T; leftTabGroup?: TabGroup }[] {
+        const changes: { panel: T; leftTabGroup?: TabGroup }[] = [];
+        const unpinned = this._pinned.filter((p) => !this.isPinned(p));
+        for (const panel of unpinned) {
+            this._pinned.splice(this._pinned.indexOf(panel), 1);
+        }
+        this._items.splice(0, 0, ...unpinned.map((panel) => ({ panel })));
+        changes.push(...unpinned.map((panel) => ({ panel })));
+
+        const pinned = this.toArray().filter(
+            (p) => this.isPinned(p) && !this._pinned.includes(p)
+        );
+        for (const panel of pinned) {
+            const leftTabGroup = this._tabGroupOf.get(panel.id);
+            this.detach(panel.id);
+            this._pinned.push(panel);
+            changes.push({ panel, leftTabGroup });
+        }
+        return changes;
     }
 
     /**
@@ -133,7 +175,12 @@ export class TabStrip<T extends { readonly id: string }> {
     /** Remove a panel. Returns the tab group it was in. */
     remove(panelId: string): TabGroup | undefined {
         const tabGroup = this._tabGroupOf.get(panelId);
-        this.detach(panelId);
+        const pinnedIndex = this._pinned.findIndex((p) => p.id === panelId);
+        if (pinnedIndex === -1) {
+            this.detach(panelId);
+        } else {
+            this._pinned.splice(pinnedIndex, 1);
+        }
         this._panels.delete(panelId);
         return tabGroup;
     }
@@ -172,12 +219,13 @@ export class TabStrip<T extends { readonly id: string }> {
     }
 
     /**
-     * The top-level slot for a panel placed at flat `index`. An index between
-     * two members of a tab group moves to the nearer edge of it (after it on
-     * a tie). With `pinned` set, the slot is also kept on its side of the
-     * pinned block: `true` keeps it within, `false` keeps it after.
+     * The unpinned slot for a panel placed at flat `index` (counted from the
+     * start of the strip; an index in the pinned section lands at the front
+     * of the unpinned one). An index between two members of a tab group
+     * moves to the nearer edge of it, after it on a tie.
      */
-    private slotForIndex(index: number, pinned?: boolean): number {
+    private slotForIndex(flatIndex: number): number {
+        const index = flatIndex - this._pinned.length;
         let slot = this._items.length;
         let start = 0;
         for (let i = 0; i < this._items.length; i++) {
@@ -193,12 +241,11 @@ export class TabStrip<T extends { readonly id: string }> {
             }
             start = end;
         }
+        return slot;
+    }
 
-        if (pinned === undefined) {
-            return slot;
-        }
-        const boundary = this.pinnedBoundary();
-        return pinned ? Math.min(slot, boundary) : Math.max(slot, boundary);
+    private clampPinned(index: number): number {
+        return Math.max(0, Math.min(index, this._pinned.length));
     }
 
     /** Add `panelId` to `tabGroup`'s members; a tab group without members
@@ -242,18 +289,6 @@ export class TabStrip<T extends { readonly id: string }> {
 
     private lengthOf(item: TabStripItem<T>): number {
         return 'panel' in item ? 1 : item.tabGroup.size;
-    }
-
-    private pinnedBoundary(): number {
-        let boundary = 0;
-        while (boundary < this._items.length) {
-            const item = this._items[boundary];
-            if (!('panel' in item) || !this.isPinned(item.panel)) {
-                break;
-            }
-            boundary++;
-        }
-        return boundary;
     }
 
     private clampSlot(slot: number): number {

@@ -70,6 +70,8 @@ panel?.api.moveTo({ group: panel.group, tabGroup });
 
 A plain `index` never splits a tab group: a panel placed between two tabs of a tab group moves to the nearer edge of it. See [Move panel](/docs/core/panels/move#tab-groups).
 
+A [pinned tab](/docs/core/panels/pinnedTabs) can't be in a tab group: adding one to a tab group unpins it, and pinning a grouped tab takes it out of its tab group.
+
 ## Querying tab groups
 
 ```ts

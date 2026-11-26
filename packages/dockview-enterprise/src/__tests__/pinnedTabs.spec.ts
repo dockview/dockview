@@ -410,7 +410,56 @@ describe('pinned tabs: integration', () => {
         expect(x.panelIds).toEqual(['b', 'c', 'd']);
     });
 
-    test('a within-group move is left to the drop resolver (deferred flip survives)', async () => {
+    test('pinning a tab takes it out of its tab group', () => {
+        const dockview = make({ enabled: true });
+        const { a, order } = threePanels(dockview);
+        const groupId = a.api.group.id;
+        const x = dockview.api.createTabGroup({ groupId, label: 'X' });
+        for (const panelId of ['b', 'c']) {
+            dockview.api.addPanelToTabGroup({
+                groupId,
+                panelId,
+                tabGroupId: x.id,
+            });
+        }
+        const removed: string[] = [];
+        dockview.api.onDidRemovePanelFromTabGroup((e) =>
+            removed.push(e.panelId)
+        );
+
+        dockview.getGroupPanel('c')!.api.setPinned(true);
+
+        expect(order()).toEqual(['c', 'a', 'b']);
+        expect(x.panelIds).toEqual(['b']);
+        expect(removed).toEqual(['c']);
+    });
+
+    test('adding a pinned tab to a tab group unpins it', () => {
+        const dockview = make({ enabled: true });
+        const { a, b, order } = threePanels(dockview);
+        const groupId = a.api.group.id;
+        a.api.setPinned(true);
+        const x = dockview.api.createTabGroup({ groupId, label: 'X' });
+        dockview.api.addPanelToTabGroup({
+            groupId,
+            panelId: 'c',
+            tabGroupId: x.id,
+        });
+
+        dockview.api.addPanelToTabGroup({
+            groupId,
+            panelId: 'a',
+            tabGroupId: x.id,
+            index: 0,
+        });
+
+        expect(a.api.isPinned).toBe(false);
+        expect(x.panelIds).toEqual(['a', 'c']);
+        expect(order()).toEqual(['b', 'a', 'c']);
+        expect(b.api.isPinned).toBe(false);
+    });
+
+    test('a drop across the boundary flips the pin, then lands where dropped', () => {
         const dockview = make({
             enabled: true,
             togglePinOnCrossBoundaryDrag: true,
@@ -420,30 +469,19 @@ describe('pinned tabs: integration', () => {
         expect(order()).toEqual(['c', 'a', 'b']);
 
         // A header drop of the pinned tab past the boundary: the resolver
-        // lets it land and defers the unpin to a microtask.
+        // unpins it first, then the drop places it.
         const index = dockview.pinnedTabsService!.resolveDropIndex(
             c.api.group,
             'c',
             2
         );
         expect(index).toBe(2);
-        // as the header drop does: the resolver has placed it, so no clamp
+        expect(c.api.isPinned).toBe(false);
         dockview.moveGroupOrPanel({
             from: { groupId: c.api.group.id, panelId: 'c' },
-            to: {
-                group: c.api.group,
-                position: 'center',
-                index,
-                clampToPinned: false,
-            },
+            to: { group: c.api.group, position: 'center', index },
         });
 
-        // The move hook must not clamp it back before the flip runs.
-        expect(order()).toEqual(['a', 'b', 'c']);
-        expect(c.api.isPinned).toBe(true);
-
-        await Promise.resolve();
-        expect(c.api.isPinned).toBe(false);
         expect(order()).toEqual(['a', 'b', 'c']);
     });
 
@@ -680,7 +718,7 @@ describe('pinned tabs: reorder guard', () => {
     });
 
     describe('flip (togglePinOnCrossBoundaryDrag: true)', () => {
-        test('dragging an unpinned tab into the pinned zone pins it', async () => {
+        test('dragging an unpinned tab into the pinned zone pins it', () => {
             const svc = makeService({
                 enabled: true,
                 togglePinOnCrossBoundaryDrag: true,
@@ -691,14 +729,12 @@ describe('pinned tabs: reorder guard', () => {
                 { id: 'a', pinned: false, setPinned },
             ]);
 
+            // pinned before the move, so the strip places it in the block
             expect(svc.resolveDropIndex(g, 'a', 0)).toBe(0);
-            expect(setPinned).not.toHaveBeenCalled(); // deferred
-
-            await Promise.resolve();
             expect(setPinned).toHaveBeenCalledWith(true);
         });
 
-        test('dragging a pinned tab into the unpinned zone unpins it', async () => {
+        test('dragging a pinned tab into the unpinned zone unpins it', () => {
             const svc = makeService({
                 enabled: true,
                 togglePinOnCrossBoundaryDrag: true,
@@ -711,8 +747,6 @@ describe('pinned tabs: reorder guard', () => {
 
             // boundary excluding p = 0; index 1 crosses into the unpinned zone
             expect(svc.resolveDropIndex(g, 'p', 1)).toBe(1);
-
-            await Promise.resolve();
             expect(setPinned).toHaveBeenCalledWith(false);
         });
     });

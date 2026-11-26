@@ -277,6 +277,8 @@ export interface IDockviewGroupPanelModel extends IPanel {
     readonly onDidRemovePanel: Event<DockviewGroupChangeEvent>;
     /** The order of the tabs already in the group changed. */
     readonly onDidChangeTabOrder: Event<void>;
+    /** Move panels whose pinned state changed into their section. */
+    reconcilePinnedOrder(): void;
     readonly onDidActivePanelChange: Event<DockviewGroupActivePanelChangeEvent>;
     readonly onMove: Event<GroupMoveEvent>;
     locked: DockviewGroupPanelLocked;
@@ -973,11 +975,12 @@ export class DockviewGroupPanelModel
             return; // already in this group, nothing to mutate
         }
 
-        this._bracketTabGroupMutation(() =>
+        this._bracketTabGroupMutation(() => {
+            this._unpinToJoin(panelId);
             this._moveInStrip(panelId, () =>
                 this._strip.move(panelId, { tabGroup, index })
-            )
-        );
+            );
+        });
     }
 
     /**
@@ -1048,6 +1051,48 @@ export class DockviewGroupPanelModel
         this._applyStrip([...tabGroup.panelIds]);
 
         this.tabsContainer.updateTabGroups();
+    }
+
+    /** Unpin a panel about to join a tab group: tab groups live only in the
+     *  unpinned section. */
+    private _unpinToJoin(panelId: string): void {
+        const panel = this._panels.find((p) => p.id === panelId);
+        if (panel?.api.isPinned) {
+            panel.api.setPinned(false);
+        }
+    }
+
+    /**
+     * Move panels whose pinned state changed into their section: a newly
+     * pinned panel leaves its tab group for the end of the pinned block, a
+     * newly unpinned one goes to the front of the rest.
+     */
+    reconcilePinnedOrder(): void {
+        const changes = this._strip.reconcilePinned();
+        if (changes.length === 0) {
+            return;
+        }
+        const apply = (): void => {
+            this._applyStrip(changes.map(({ panel }) => panel.id));
+            for (const { panel, leftTabGroup } of changes) {
+                if (!leftTabGroup) {
+                    continue;
+                }
+                leftTabGroup.notifyPanelChange(panel.id, 'remove');
+                this._onDidRemovePanelFromTabGroup.fire({
+                    tabGroup: leftTabGroup,
+                    panelId: panel.id,
+                });
+                if (leftTabGroup.isEmpty) {
+                    leftTabGroup.dispose();
+                }
+            }
+        };
+        if (changes.some(({ leftTabGroup }) => leftTabGroup)) {
+            this._bracketTabGroupMutation(apply);
+        } else {
+            apply();
+        }
     }
 
     /**
@@ -1535,10 +1580,6 @@ export class DockviewGroupPanelModel
             tabGroupId?: string;
             /** Position within `tabGroupId`. Defaults to the end. */
             indexInTabGroup?: number;
-            /** Keep a newly added panel on its side of the pinned block.
-             *  Defaults to true; drops leave this to the pinned-tab drop
-             *  resolver. */
-            clampToPinned?: boolean;
         } = {}
     ): number {
         // Clamp before any mutation: the panel may already have left its
@@ -1557,6 +1598,11 @@ export class DockviewGroupPanelModel
                 ? this._tabGroupMap.get(options.tabGroupId)
                 : undefined;
 
+        if (tabGroup?.isDisposed === false && panel.api.isPinned) {
+            // tab groups live only in the unpinned section
+            panel.api.setPinned(false);
+        }
+
         const skipSetActive = !!options.skipSetActive;
 
         // ensure the group is updated before we fire any events
@@ -1568,7 +1614,6 @@ export class DockviewGroupPanelModel
             skipSetActive: skipSetActive,
             tabGroup,
             indexInTabGroup: options.indexInTabGroup,
-            clampToPinned: options.clampToPinned,
         });
 
         if (tabGroup && this._strip.tabGroupOf(panel.id) === tabGroup) {
@@ -1620,7 +1665,6 @@ export class DockviewGroupPanelModel
             index?: number;
             tabGroupId?: string;
             indexInTabGroup?: number;
-            clampToPinned?: boolean;
             skipSetActive?: boolean;
         } = {}
     ): void {
@@ -1632,22 +1676,19 @@ export class DockviewGroupPanelModel
                 ? undefined
                 : this._tabGroupMap.get(options.tabGroupId);
 
-        this._bracketTabGroupMutation(() =>
+        this._bracketTabGroupMutation(() => {
+            if (tabGroup) {
+                this._unpinToJoin(panel.id);
+            }
             this._moveInStrip(panel.id, () =>
                 this._strip.move(
                     panel.id,
                     tabGroup
                         ? { tabGroup, index: options.indexInTabGroup }
-                        : {
-                              index: options.index ?? this._panels.length,
-                              pinned:
-                                  options.clampToPinned === false
-                                      ? undefined
-                                      : !!panel.api.isPinned,
-                          }
+                        : { index: options.index ?? this._panels.length }
                 )
-            )
-        );
+            );
+        });
 
         if (!options.skipSetActive) {
             this.doSetActivePanel(panel);
@@ -1905,7 +1946,6 @@ export class DockviewGroupPanelModel
             skipSetActive?: boolean;
             tabGroup?: TabGroup;
             indexInTabGroup?: number;
-            clampToPinned?: boolean;
         }
     ): void {
         const hasExistingPanel = this._strip.has(panel.id);
@@ -1918,13 +1958,7 @@ export class DockviewGroupPanelModel
                           tabGroup: options.tabGroup,
                           index: options.indexInTabGroup,
                       }
-                    : {
-                          index,
-                          pinned:
-                              options?.clampToPinned === false
-                                  ? undefined
-                                  : !!panel.api.isPinned,
-                      },
+                    : { index },
                 index
             );
             index = this._strip.toArray().indexOf(panel);
@@ -1957,7 +1991,8 @@ export class DockviewGroupPanelModel
                 ),
                 panel.api.onDidParametersChange((event) =>
                     this._onDidPanelParametersChange.fire(event)
-                )
+                ),
+                panel.api.onDidChangePinned(() => this.reconcilePinnedOrder())
             )
         );
 

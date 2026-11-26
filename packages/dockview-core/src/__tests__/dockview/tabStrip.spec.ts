@@ -116,22 +116,57 @@ describe('TabStrip', () => {
             expect(s.tabGroupOf('d')).toBeUndefined();
         });
 
-        test('keeps a panel on its side of the pinned block', () => {
+        test('keeps a panel in its section', () => {
             const s = new TabStrip<P>((p) => !!p.pinned);
             s.add({ id: 'p1', pinned: true }, { index: 0 }, 0);
             s.add({ id: 'p2', pinned: true }, { index: 1 }, 1);
             s.add({ id: 'a' }, { index: 2 }, 2);
             s.add({ id: 'b' }, { index: 3 }, 3);
 
-            s.add({ id: 'u' }, { index: 0, pinned: false }, 0);
+            s.add({ id: 'u' }, { index: 0 }, 0);
             expect(order(s)).toEqual(['p1', 'p2', 'u', 'a', 'b']);
 
-            s.add({ id: 'p3', pinned: true }, { index: 4, pinned: true }, 4);
+            s.add({ id: 'p3', pinned: true }, { index: 4 }, 4);
             expect(order(s)).toEqual(['p1', 'p2', 'p3', 'u', 'a', 'b']);
 
-            // without a pinned side the index is not clamped
             s.move('b', { index: 0 });
-            expect(order(s)).toEqual(['b', 'p1', 'p2', 'p3', 'u', 'a']);
+            expect(order(s)).toEqual(['p1', 'p2', 'p3', 'b', 'u', 'a']);
+            s.move('p1', { index: 5 });
+            expect(order(s)).toEqual(['p2', 'p3', 'p1', 'b', 'u', 'a']);
+
+            // a pinned panel never joins a tab group
+            s.move('p2', { tabGroup: new TabGroup('x') });
+            expect(s.tabGroupOf('p2')).toBeUndefined();
+        });
+    });
+
+    describe('reconcilePinned', () => {
+        test('pinning leaves the tab group for the end of the pinned block', () => {
+            const { s, x } = withTabGroup();
+            const d = s.toArray().find((p) => p.id === 'd')!;
+            const a = s.toArray().find((p) => p.id === 'a')!;
+            a.pinned = true;
+            d.pinned = true;
+
+            expect(s.reconcilePinned()).toEqual([
+                { panel: a, leftTabGroup: undefined },
+                { panel: d, leftTabGroup: x },
+            ]);
+            expect(order(s)).toEqual(['a', 'd', 'b', 'c', 'e', 'f']);
+            expect(x.panelIds).toEqual(['c', 'e']);
+        });
+
+        test('unpinning returns a panel to the front of the rest', () => {
+            const s = new TabStrip<P>((p) => !!p.pinned);
+            const p1 = { id: 'p1', pinned: true };
+            s.add(p1, { index: 0 }, 0);
+            s.add({ id: 'p2', pinned: true }, { index: 1 }, 1);
+            s.add({ id: 'a' }, { index: 2 }, 2);
+
+            p1.pinned = false;
+            expect(s.reconcilePinned()).toEqual([{ panel: p1 }]);
+            expect(order(s)).toEqual(['p2', 'p1', 'a']);
+            expect(s.reconcilePinned()).toEqual([]);
         });
     });
 

@@ -266,6 +266,7 @@ describe('dockviewGroupPanelModel', () => {
             renderer: 'onlyWhenVisible',
             onDidTitleChange: new Emitter().event,
             onDidParametersChange: new Emitter().event,
+            onDidChangePinned: new Emitter().event,
         });
 
         dockview = fromPartial<DockviewComponent>({

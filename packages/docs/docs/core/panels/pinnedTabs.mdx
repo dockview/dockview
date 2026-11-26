@@ -90,6 +90,8 @@ Pin, unpin and observe a tab programmatically through its panel `api`.
 
 Placing a tab by `index` (with `moveTo`, or `addPanel` within a group) keeps it on its side of the pin boundary: a pinned tab stays within the pinned block, and an unpinned tab lands after it.
 
+Pinned tabs are never part of a [tab group](/docs/core/panels/tabGroups): pinning a tab takes it out of its tab group, and adding a pinned tab to a tab group unpins it.
+
 <DocRef
     declaration="DockviewPanelApi"
     methods={['isPinned', 'setPinned', 'onDidChangePinned']}
