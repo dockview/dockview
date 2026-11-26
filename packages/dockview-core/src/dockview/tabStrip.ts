@@ -2,6 +2,14 @@ import { TabGroup } from './tabGroup';
 
 type TabStripItem<T> = { readonly panel: T } | { readonly tabGroup: TabGroup };
 
+/**
+ * The edge of the span `[start, end)` nearer to `index`, after it on a tie:
+ * where an index that would land inside a tab group goes instead.
+ */
+export function nearerEdge(index: number, start: number, end: number): number {
+    return index - start < end - index ? start : end;
+}
+
 /** Where a panel goes in the strip. */
 export type TabStripTarget =
     /** At flat `index`, counted without the panel, within the panel's
@@ -264,7 +272,7 @@ export class TabStrip<T extends { readonly id: string }> {
             const end = start + this.lengthOf(this._items[i]);
             if (index < end) {
                 // strictly inside a tab group
-                slot = index - start < end - index ? i : i + 1;
+                slot = nearerEdge(index, start, end) === start ? i : i + 1;
                 break;
             }
             start = end;

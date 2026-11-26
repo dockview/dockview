@@ -12,6 +12,7 @@ import { Tab } from '../tab/tab';
 import { TabDropIndexEvent } from './tabsContainer';
 import { TabGroupManager } from './tabGroups';
 import { ITabGroup } from '../../tabGroup';
+import { nearerEdge } from '../../tabStrip';
 
 export interface TabAnimationState {
     sourceTabId: string;
@@ -81,6 +82,36 @@ interface WrappedLine {
     start: number;
     end: number;
     items: WrappedTabEntry[];
+}
+
+/** A tab the drag moves past, at its original main-axis offset from the
+ *  start of the strip. */
+interface StripStop {
+    /** Index in the live tab list. */
+    index: number;
+    start: number;
+    /** Size of the chip drawn before the tab, 0 unless it leads a tab group. */
+    chip: number;
+    size: number;
+}
+
+/** The live tab list indexes of a tab group's first and last stops. */
+interface TabGroupSpan {
+    tabGroup: ITabGroup;
+    first: number;
+    last: number;
+}
+
+interface DragOverTarget {
+    insertionIndex: number | null;
+    targetTabGroupId: string | null;
+}
+
+interface StripLayout {
+    stops: StripStop[];
+    spans: TabGroupSpan[];
+    /** The offset after the last stop. */
+    end: number;
 }
 
 export interface ITabReorderHost {
@@ -658,51 +689,25 @@ export class TabReorderController extends CompositeDisposable {
             return;
         }
 
-        // Multi-row wrap: the 1-D x-accumulation below assumes a single row.
-        // In wrap use a 2-D hit-test (row by y, slot by x within the row) and
-        // a discrete drop indicator instead of the gap animation. Group-chip
-        // drags are excluded because they carry group-move semantics ("can't
-        // drop inside another group") the single-tab hit-test doesn't model, and
-        // chips don't wrap in v1, so they keep the 1-D path (whose gap animation
-        // no-ops in wrap anyway).
+        // Multi-row wrap: the 1-D walk below assumes a single row. In wrap use
+        // a 2-D hit-test (row by y, slot by x within the row) and a discrete
+        // drop indicator instead of the gap animation. Group-chip drags are
+        // excluded because they carry group-move semantics ("can't drop
+        // inside another group") the single-tab hit-test doesn't model, and
+        // chips don't wrap in v1, so they keep the 1-D path (whose gap
+        // animation no-ops in wrap anyway).
         if (this._wrapMode && !this._animState.sourceTabGroupId) {
             this.handleWrappedDragOver(event.clientX, event.clientY ?? 0);
             return;
         }
 
         // Tabs flow along x in a horizontal header and along y in a vertical
-        // one, so the walk below follows whichever coordinate is the main axis.
+        // one, so the walk follows whichever coordinate is the main axis.
         const mousePos = this._mainAxisCoord(event.clientX, event.clientY ?? 0);
-        const firstPanelToGroup = this._buildFirstPanelToGroupMap();
-
-        // Accumulation approach: compute where the drag image's leading edge
-        // would be, then walk tabs in flow order using their original sizes.
-        // A tab fits before the gap if the cumulative size of all preceding
-        // non-source tabs <= available space.
-        let insertionIndex = this._computeDragOverInsertionIndex(
+        const { insertionIndex, targetTabGroupId } = this._resolveDragOver(
             mousePos,
-            firstPanelToGroup
+            this._walkStrip()
         );
-        let targetTabGroupId: string | null = null;
-
-        // Determine which tab group (if any) the insertion index falls within.
-        //
-        // We use snapshot-based positions to compute original chip boundaries.
-        // This avoids reading getBoundingClientRect() on chips whose live
-        // position is shifted by the drag gap margin, which caused oscillation
-        // / visual jumps.
-        if (
-            insertionIndex !== null &&
-            this._tabGroupManager.chipRenderers.size > 0
-        ) {
-            const resolved = this._resolveInsertionAgainstTabGroups(
-                mousePos,
-                insertionIndex,
-                firstPanelToGroup
-            );
-            insertionIndex = resolved.insertionIndex;
-            targetTabGroupId = resolved.targetTabGroupId;
-        }
 
         if (
             insertionIndex === this._animState.currentInsertionIndex &&
@@ -720,361 +725,202 @@ export class TabReorderController extends CompositeDisposable {
     }
 
     /**
-     * Build a lookup from the first panel ID of each non-source group → group
-     * ID, so the accumulation walk can add chip widths when it reaches a
-     * group's first tab.
+     * Lay the strip out as the drag sees it: every tab but the dragged
+     * one(s), in tab order, at its original (snapshot) main-axis offset, plus
+     * the span of each tab group among them. Snapshot sizes keep the walk
+     * independent of the gap margins it causes. A tab group's chip sits
+     * before its first member; it takes space only while that member stays.
      */
-    private _buildFirstPanelToGroupMap(): Map<string, string> {
-        const firstPanelToGroup = new Map<string, string>();
-        if (this._tabGroupManager.chipRenderers.size === 0) {
-            return firstPanelToGroup;
+    private _walkStrip(): StripLayout {
+        const animState = this._animState!;
+        const tabGroupOf = new Map<string, ITabGroup>();
+        if (this._tabGroupManager.chipRenderers.size > 0) {
+            for (const tg of this.group.model.getTabGroups()) {
+                for (const id of tg.panelIds) {
+                    tabGroupOf.set(id, tg);
+                }
+            }
         }
-        for (const tg of this.group.model.getTabGroups()) {
-            if (tg.id === this._animState!.sourceTabGroupId) {
+
+        const stops: StripStop[] = [];
+        const spans: TabGroupSpan[] = [];
+        let offset = 0;
+        for (let i = 0; i < this._tabs.length; i++) {
+            const tab = this._tabs[i].value;
+            const id = tab.panel.id;
+            if (
+                id === animState.sourceTabId ||
+                animState.sourceGroupPanelIds?.has(id)
+            ) {
                 continue;
             }
-            if (tg.panelIds.length > 0) {
-                firstPanelToGroup.set(tg.panelIds[0], tg.id);
+            const tabGroup = tabGroupOf.get(id);
+            const chip =
+                tabGroup?.panelIds[0] === id
+                    ? (animState.chipSizes.get(tabGroup.id) ?? 0)
+                    : 0;
+            const size = this._mainAxisSize(
+                animState.tabPositions.get(id) ??
+                    tab.element.getBoundingClientRect()
+            );
+            stops.push({ index: i, start: offset, chip, size });
+            offset += chip + size;
+
+            const span = spans[spans.length - 1];
+            if (tabGroup && span?.tabGroup === tabGroup) {
+                span.last = i;
+            } else if (tabGroup) {
+                spans.push({ tabGroup, first: i, last: i });
             }
         }
-        return firstPanelToGroup;
+        return { stops, spans, end: offset };
     }
 
     /**
-     * Walk the tabs in flow order by their original main-axis sizes and return
-     * the insertion slot for the drag image's leading edge (null if no slot
-     * fits).
+     * The insertion slot (an index into the live tab list, counting the
+     * dragged tab) and the tab group a drop there joins, for the drag image
+     * at `mousePos`.
      */
-    private _computeDragOverInsertionIndex(
+    private _resolveDragOver(
         mousePos: number,
-        firstPanelToGroup: Map<string, string>
+        layout: StripLayout
+    ): DragOverTarget {
+        const animState = this._animState!;
+        const ins = this._insertionIndex(mousePos, layout);
+        if (ins === null) {
+            return { insertionIndex: null, targetTabGroupId: null };
+        }
+        const slotStart =
+            animState.containerStart + this._offsetAt(layout, ins);
+        const chipEnd = (tg: ITabGroup, fraction = 1): number =>
+            slotStart + (animState.chipSizes.get(tg.id) ?? 0) * fraction;
+        const outside = (): DragOverTarget => ({
+            insertionIndex: ins,
+            targetTabGroupId: this._sourceTabGroupAtOwnSlot(
+                ins,
+                mousePos,
+                chipEnd
+            ),
+        });
+
+        for (const span of layout.spans) {
+            const target = this._resolveAgainstSpan(
+                span,
+                ins,
+                mousePos,
+                chipEnd
+            );
+            if (target !== undefined) {
+                return target ?? outside();
+            }
+        }
+        return outside();
+    }
+
+    /**
+     * The slot the drag image's leading edge reaches: a tab moves back once
+     * the image covers its chip and half of it (like Chrome's tab drag).
+     * Null when no tab but the dragged one is in the strip.
+     */
+    private _insertionIndex(
+        mousePos: number,
+        layout: StripLayout
     ): number | null {
         const animState = this._animState!;
-        const sourceGroupPanelIds = animState.sourceGroupPanelIds;
-        const dragLeadingEdge = mousePos - animState.cursorOffsetFromDragStart;
-        const availableSpace = dragLeadingEdge - animState.containerStart;
-        let accSize = 0;
+        const space =
+            mousePos -
+            animState.cursorOffsetFromDragStart -
+            animState.containerStart;
         let insertionIndex: number | null = null;
-
-        for (let i = 0; i < this._tabs.length; i++) {
-            const tab = this._tabs[i].value;
-            if (tab.panel.id === animState.sourceTabId) {
+        for (const stop of layout.stops) {
+            if (stop.start + stop.chip + stop.size / 2 <= space) {
+                insertionIndex = stop.index + 1;
                 continue;
             }
-            if (sourceGroupPanelIds?.has(tab.panel.id)) {
-                continue;
-            }
-
-            // If this tab is the first of a non-source group, include
-            // the chip size (the chip sits before it in the DOM).
-            const groupId = firstPanelToGroup.get(tab.panel.id);
-            if (groupId) {
-                const chipSize = animState.chipSizes.get(groupId) ?? 0;
-                if (accSize + chipSize > availableSpace) {
-                    // Chip alone overflows, so the gap goes before this group
-                    insertionIndex ??= i;
-                    break;
-                }
-                accSize += chipSize;
-            }
-
-            // Use the original size (before collapse/transforms)
-            const origRect = animState.tabPositions.get(tab.panel.id);
-            const tabSize = this._mainAxisSize(
-                origRect ?? tab.element.getBoundingClientRect()
-            );
-
-            // Shift at the midpoint: a tab moves back once the drag image
-            // covers half of it (like Chrome's tab drag behavior).
-            if (accSize + tabSize / 2 <= availableSpace) {
-                accSize += tabSize;
-                insertionIndex = i + 1;
-            } else {
-                insertionIndex ??= i;
-                break;
-            }
+            insertionIndex ??= stop.index;
+            break;
         }
         return insertionIndex;
     }
 
     /**
-     * Rebuild the accumulated original main-axis size up to `insertionIndex`,
-     * walking the tabs exactly the way the accumulation loop does, so callers
-     * know the original trailing edge of the chip (if any) that precedes the
-     * insertion slot.
+     * How the tab group `span` governs slot `ins`: `undefined` when the slot
+     * is neither in it nor just before it, null when the drop stays outside
+     * it, else the target. A tab group drag never lands inside another tab
+     * group, so it snaps to the nearer edge. A tab drag joins the tab group
+     * it lands in, except at its first slot, where the cursor must be past
+     * the chip.
      */
-    private _accumulatedSizeUpTo(
-        insertionIndex: number,
-        firstPanelToGroup: Map<string, string>
-    ): number {
-        const animState = this._animState!;
-        const sourceGroupPanelIds = animState.sourceGroupPanelIds;
-        let accUpTo = 0;
-        for (let i = 0; i < this._tabs.length; i++) {
-            const tab = this._tabs[i].value;
-            if (tab.panel.id === animState.sourceTabId) {
-                continue;
-            }
-            if (sourceGroupPanelIds?.has(tab.panel.id)) {
-                continue;
-            }
-            if (i >= insertionIndex) {
-                break;
-            }
-            const gid = firstPanelToGroup.get(tab.panel.id);
-            if (gid) {
-                accUpTo += animState.chipSizes.get(gid) ?? 0;
-            }
-            const origRect = animState.tabPositions.get(tab.panel.id);
-            accUpTo += this._mainAxisSize(
-                origRect ?? tab.element.getBoundingClientRect()
-            );
+    private _resolveAgainstSpan(
+        { tabGroup: tg, first, last }: TabGroupSpan,
+        ins: number,
+        mousePos: number,
+        chipEnd: (tg: ITabGroup, fraction?: number) => number
+    ): DragOverTarget | null | undefined {
+        const inside = ins >= first && ins <= last;
+        if (!inside && ins !== first - 1) {
+            return undefined;
         }
-        return accUpTo;
+        if (this._animState!.sourceTabGroupId) {
+            const insertionIndex = inside
+                ? nearerEdge(ins, first, last + 1)
+                : ins;
+            return { insertionIndex, targetTabGroupId: null };
+        }
+        const joined = { insertionIndex: ins, targetTabGroupId: tg.id };
+        if (inside) {
+            return ins === first && mousePos < chipEnd(tg) ? null : joined;
+        }
+        // Just before the tab group: a drop past the chip joins at the front,
+        // but only when the dragged tab itself is all that sits in between. A
+        // collapsed tab group's chip is its whole extent, so half of it is
+        // enough.
+        if (this._tabs[ins]?.value.panel.id !== this._animState!.sourceTabId) {
+            return undefined;
+        }
+        if (mousePos < chipEnd(tg, tg.collapsed ? 0.5 : 1)) {
+            return null;
+        }
+        return { ...joined, insertionIndex: first };
+    }
+
+    /** The original main-axis offset of insertion slot `index`, before the
+     *  chip of the tab that follows it. */
+    private _offsetAt(layout: StripLayout, index: number): number {
+        return (
+            layout.stops.find((stop) => stop.index >= index)?.start ??
+            layout.end
+        );
     }
 
     /**
-     * Given a raw insertion index, snap it out of / into any tab group it falls
-     * within and resolve the target group (if the drop should merge into one).
+     * The tab group a single tab released at its own slot stays in: the
+     * spans exclude the dragged tab, so a lone or last member's own slot
+     * falls in none. At the first member's slot the chip edge gates it.
      */
-    private _resolveInsertionAgainstTabGroups(
-        mousePos: number,
+    private _sourceTabGroupAtOwnSlot(
         insertionIndex: number,
-        firstPanelToGroup: Map<string, string>
-    ): { insertionIndex: number; targetTabGroupId: string | null } {
-        const isGroupDrag = !!this._animState!.sourceTabGroupId;
-        const accUpTo = this._accumulatedSizeUpTo(
-            insertionIndex,
-            firstPanelToGroup
-        );
-
-        for (const tg of this.group.model.getTabGroupsInTabOrder()) {
-            const resolved = this._evaluateTabGroupForInsertion(
-                tg,
-                mousePos,
-                insertionIndex,
-                accUpTo,
-                isGroupDrag
-            );
-            if (resolved) {
-                return resolved.targetTabGroupId
-                    ? resolved
-                    : (this._keepSourceGroupAtOwnSlot(
-                          mousePos,
-                          resolved.insertionIndex,
-                          accUpTo
-                      ) ?? resolved);
-            }
-        }
-        return (
-            this._keepSourceGroupAtOwnSlot(
-                mousePos,
-                insertionIndex,
-                accUpTo
-            ) ?? {
-                insertionIndex,
-                targetTabGroupId: null,
-            }
-        );
-    }
-
-    /** A single tab released at its own slot that no other group claimed stays
-     *  in its group (the ranges above exclude the source, so a lone or last
-     *  member's own slot has no range). At the first slot the chip edge gates it. */
-    private _keepSourceGroupAtOwnSlot(
         mousePos: number,
-        insertionIndex: number,
-        accUpTo: number
-    ): { insertionIndex: number; targetTabGroupId: string | null } | null {
-        const animState = this._animState!;
-        const sourceIndex = animState.sourceIndex;
+        chipEnd: (tg: ITabGroup) => number
+    ): string | null {
+        const { sourceIndex, sourceTabId, sourceGroupPanelIds } =
+            this._animState!;
         if (
-            animState.sourceGroupPanelIds ||
+            sourceGroupPanelIds ||
             sourceIndex === -1 ||
             (insertionIndex !== sourceIndex &&
-                insertionIndex !== sourceIndex + 1)
+                insertionIndex !== sourceIndex + 1) ||
+            this._tabGroupManager.chipRenderers.size === 0
         ) {
             return null;
         }
         const tg = this.group.model
             .getTabGroups()
-            .find((candidate) =>
-                candidate.panelIds.includes(animState.sourceTabId)
-            );
-        if (!tg) {
+            .find((candidate) => candidate.panelIds.includes(sourceTabId));
+        if (!tg || (tg.panelIds[0] === sourceTabId && mousePos < chipEnd(tg))) {
             return null;
         }
-        if (tg.panelIds[0] === animState.sourceTabId) {
-            const chipSize = animState.chipSizes.get(tg.id) ?? 0;
-            const chipOriginalEnd =
-                animState.containerStart + accUpTo + chipSize;
-            if (mousePos < chipOriginalEnd) {
-                return null;
-            }
-        }
-        return { insertionIndex, targetTabGroupId: tg.id };
-    }
-
-    /**
-     * Evaluate a single tab group against the proposed insertion index.
-     * Returns the resolved `{ insertionIndex, targetTabGroupId }` when this
-     * group governs the slot (the caller stops iterating), or `null` when the
-     * group is irrelevant and the caller should keep looking.
-     */
-    private _evaluateTabGroupForInsertion(
-        tg: ITabGroup,
-        mousePos: number,
-        insertionIndex: number,
-        accUpTo: number,
-        isGroupDrag: boolean
-    ): { insertionIndex: number; targetTabGroupId: string | null } | null {
-        const range = this._resolveGroupRange(tg);
-        if (!range) {
-            return null;
-        }
-        const { firstIdx, lastIdx } = range;
-
-        const isInsideRange =
-            insertionIndex >= firstIdx && insertionIndex <= lastIdx;
-        const isJustBeforeGroup =
-            !isInsideRange && insertionIndex === firstIdx - 1;
-
-        if (!isInsideRange && !isJustBeforeGroup) {
-            return null;
-        }
-
-        if (isGroupDrag) {
-            return this._resolveGroupDragTarget(
-                insertionIndex,
-                firstIdx,
-                lastIdx,
-                isInsideRange
-            );
-        }
-        return this._resolveTabDragTarget(
-            tg,
-            mousePos,
-            insertionIndex,
-            accUpTo,
-            firstIdx,
-            isJustBeforeGroup
-        );
-    }
-
-    /**
-     * The index range this group occupies in the live tab list, excluding the
-     * source tab / source group tabs (so dragging a tab out of its own group
-     * doesn't inflate the range). Null when the group has no effective tabs or
-     * its bounds can't be located.
-     */
-    private _resolveGroupRange(
-        tg: ITabGroup
-    ): { firstIdx: number; lastIdx: number } | null {
-        const animState = this._animState!;
-        const sourceGroupPanelIds = animState.sourceGroupPanelIds;
-        const effectivePanelIds = tg.panelIds.filter(
-            (pid) =>
-                pid !== animState.sourceTabId && !sourceGroupPanelIds?.has(pid)
-        );
-        if (effectivePanelIds.length === 0) {
-            return null;
-        }
-        const firstIdx = this._tabs.findIndex(
-            (t) => t.value.panel.id === effectivePanelIds[0]
-        );
-        const lastIdx = this._tabs.findIndex(
-            (t) =>
-                t.value.panel.id ===
-                effectivePanelIds[effectivePanelIds.length - 1]
-        );
-        if (firstIdx === -1 || lastIdx === -1) {
-            return null;
-        }
-        return { firstIdx, lastIdx };
-    }
-
-    /** Insertion target for a group-chip drag: a group can't be dropped inside
-     *  another group, so snap out of the range; a just-before slot is kept. */
-    private _resolveGroupDragTarget(
-        insertionIndex: number,
-        firstIdx: number,
-        lastIdx: number,
-        isInsideRange: boolean
-    ): { insertionIndex: number; targetTabGroupId: string | null } {
-        if (isInsideRange) {
-            // Snap to just before or just after this group based on cursor
-            // position relative to the group's midpoint. For `isJustBeforeGroup`
-            // the index is already outside (immediately left of the group) and
-            // is a valid drop position, so leave it untouched (issue #1264).
-            const groupMid = (firstIdx + lastIdx + 1) / 2;
-            return {
-                insertionIndex:
-                    insertionIndex < groupMid ? firstIdx : lastIdx + 1,
-                targetTabGroupId: null,
-            };
-        }
-        // Just before the group: accept the index as-is. Groups can be dropped
-        // at the slot immediately left of another group's first tab.
-        return { insertionIndex, targetTabGroupId: null };
-    }
-
-    /** Insertion target for a single-tab drag against a group: decide whether
-     *  the drop merges into the group based on the cursor vs the chip edge. */
-    private _resolveTabDragTarget(
-        tg: ITabGroup,
-        mousePos: number,
-        insertionIndex: number,
-        accUpTo: number,
-        firstIdx: number,
-        isJustBeforeGroup: boolean
-    ): { insertionIndex: number; targetTabGroupId: string | null } | null {
-        const animState = this._animState!;
-        const chipSize = animState.chipSizes.get(tg.id) ?? 0;
-
-        if (isJustBeforeGroup) {
-            // Only allow dropping into position 0 when just the source tab (or
-            // source group tabs) sits between insertionIndex and firstIdx: the
-            // source is being dragged away from that slot, so we are
-            // effectively "just before" the group.
-            if (!this._onlySourceBetween(insertionIndex, firstIdx)) {
-                return null;
-            }
-            const threshold = tg.collapsed
-                ? animState.containerStart + accUpTo + chipSize / 2
-                : animState.containerStart + accUpTo + chipSize;
-            if (mousePos >= threshold) {
-                return { insertionIndex: firstIdx, targetTabGroupId: tg.id };
-            }
-            return { insertionIndex, targetTabGroupId: null };
-        }
-
-        // isInsideRange, single-tab drag.
-        const chipOriginalEnd = animState.containerStart + accUpTo + chipSize;
-        if (insertionIndex === firstIdx) {
-            return {
-                insertionIndex,
-                targetTabGroupId: mousePos >= chipOriginalEnd ? tg.id : null,
-            };
-        }
-        return { insertionIndex, targetTabGroupId: tg.id };
-    }
-
-    /**
-     * Whether every tab in the half-open range `[from, to)` is the source tab
-     * or one of the source group's tabs.
-     */
-    private _onlySourceBetween(from: number, to: number): boolean {
-        const animState = this._animState!;
-        for (let j = from; j < to; j++) {
-            const pid = this._tabs[j].value.panel.id;
-            if (
-                pid !== animState.sourceTabId &&
-                !animState.sourceGroupPanelIds?.has(pid)
-            ) {
-                return false;
-            }
-        }
-        return true;
+        return tg.id;
     }
 
     /**
@@ -1340,69 +1186,30 @@ export class TabReorderController extends CompositeDisposable {
     }
 
     /**
-     * When the insertion lands at or before a group's first tab, the chip is
-     * shifted so the gap appears before the entire group. Returns that chip
-     * element, or null when no chip should shift.
-     *
-     * A chip shifts when dropping outside the group (targetTabGroupId null), or
-     * when dropping inside a collapsed group (whose tabs are invisible, so
-     * putting the gap on them has no visual effect).
+     * The chip that takes the gap margin, so the gap shows before the whole
+     * tab group: the chip of the tab group whose first member is the first
+     * tab at or after the insertion slot, unless the drop joins that tab
+     * group (its open tabs show the gap instead) or the dragged tab is one
+     * of its members (the gap belongs after the chip, where the tab was). A
+     * collapsed tab group's tabs are hidden, so its chip shifts even when
+     * the drop joins it.
      */
     private _computeChipToShift(insertionIndex: number): HTMLElement | null {
-        if (this._tabGroupManager.chipRenderers.size === 0) {
+        const animState = this._animState!;
+        const { stops, spans } = this._walkStrip();
+        const next = stops.find((stop) => stop.index >= insertionIndex);
+        const tg = spans.find((span) => span.first === next?.index)?.tabGroup;
+        if (
+            !tg ||
+            tg.panelIds.includes(animState.sourceTabId) ||
+            (animState.targetTabGroupId !== null &&
+                !(animState.targetTabGroupId === tg.id && tg.collapsed))
+        ) {
             return null;
         }
-        for (const tg of this.group.model.getTabGroupsInTabOrder()) {
-            const result = this._chipToShiftForGroup(tg, insertionIndex);
-            // `undefined` means "keep looking"; a defined result (element or
-            // null) is the final answer for the group governing this slot.
-            if (result !== undefined) {
-                return result;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * The chip to shift for a single group, or `undefined` to keep scanning the
-     * remaining groups. A defined result (the chip element, or null when the
-     * governing group has no shiftable chip) stops the scan.
-     */
-    private _chipToShiftForGroup(
-        tg: ITabGroup,
-        insertionIndex: number
-    ): HTMLElement | null | undefined {
-        const animState = this._animState!;
-        if (tg.id === animState.sourceTabGroupId) return undefined;
-        // Skip the group that the dragged tab belongs to: the gap should
-        // appear after the chip (where the tab was), not before it.
-        if (tg.panelIds.includes(animState.sourceTabId)) return undefined;
-        const effectivePids = tg.panelIds.filter(
-            (pid) =>
-                pid !== animState.sourceTabId &&
-                !animState.sourceGroupPanelIds?.has(pid)
+        return (
+            this._tabGroupManager.chipRenderers.get(tg.id)?.chip.element ?? null
         );
-        if (effectivePids.length === 0) return undefined;
-        const firstIdx = this._tabs.findIndex(
-            (t) => t.value.panel.id === effectivePids[0]
-        );
-
-        const shouldShiftChip =
-            !animState.targetTabGroupId ||
-            (animState.targetTabGroupId === tg.id && tg.collapsed);
-        if (!shouldShiftChip) return undefined;
-        if (firstIdx < insertionIndex) return undefined;
-
-        // firstIdx >= insertionIndex: this group governs the slot. Only shift
-        // when just the source tab(s) sit between the insertion slot and the
-        // group's first tab.
-        if (this._onlySourceBetween(insertionIndex, firstIdx)) {
-            const chipEntry = this._tabGroupManager.chipRenderers.get(tg.id);
-            if (chipEntry) {
-                return chipEntry.chip.element;
-            }
-        }
-        return null;
     }
 
     /** Reset non-source chip margins, then apply the gap margin to the chip or
