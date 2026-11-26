@@ -257,6 +257,12 @@ export interface IDockviewGroupPanelModel extends IPanel {
     closeAllPanels(): void;
     containsPanel(panel: IDockviewPanel): boolean;
     removePanel: (panelOrId: IDockviewPanel | string) => IDockviewPanel;
+    /** Apply a panel's current `isHidden` flag to the tab strip and active
+     *  panel. Called by `DockviewComponent.setPanelHidden` after the flag has
+     *  been set on the panel. */
+    updatePanelHidden(panel: IDockviewPanel): void;
+    /** The panels that are not hidden, in tab order. */
+    readonly visiblePanels: IDockviewPanel[];
     moveToNext(options?: {
         panel?: IDockviewPanel;
         suppressRoll?: boolean;
@@ -462,6 +468,10 @@ export class DockviewGroupPanelModel
 
     get panels(): IDockviewPanel[] {
         return this._panels;
+    }
+
+    get visiblePanels(): IDockviewPanel[] {
+        return this._panels.filter((panel) => !panel.isHidden);
     }
 
     get size(): number {
@@ -1057,7 +1067,7 @@ export class DockviewGroupPanelModel
             this.tabsContainer.delete(panel.id);
         }
         for (let i = 0; i < this._panels.length; i++) {
-            this.tabsContainer.openPanel(this._panels[i], i);
+            this.openTab(this._panels[i], i);
         }
         this._syncActiveTab();
 
@@ -1097,7 +1107,7 @@ export class DockviewGroupPanelModel
      *  tabpanel's `aria-labelledby` are re-applied when it is the active one. */
     private _reinsertTab(panel: IDockviewPanel, index: number): void {
         this.tabsContainer.delete(panel.id);
-        this.tabsContainer.openPanel(panel, index);
+        this.openTab(panel, index);
         if (panel === this._activePanel) {
             this._syncActiveTab();
         }
@@ -1273,7 +1283,7 @@ export class DockviewGroupPanelModel
         for (let i = activePanelIndex + 1; i < this._panels.length; i++) {
             const candidate = this._panels[i];
             const candidateGroup = this._findTabGroupForPanel(candidate.id);
-            if (!candidateGroup?.collapsed) {
+            if (!candidate.isHidden && !candidateGroup?.collapsed) {
                 this.doSetActivePanel(candidate);
                 this.updateContainer();
                 return;
@@ -1283,7 +1293,7 @@ export class DockviewGroupPanelModel
         for (let i = activePanelIndex - 1; i >= 0; i--) {
             const candidate = this._panels[i];
             const candidateGroup = this._findTabGroupForPanel(candidate.id);
-            if (!candidateGroup?.collapsed) {
+            if (!candidate.isHidden && !candidateGroup?.collapsed) {
                 this.doSetActivePanel(candidate);
                 this.updateContainer();
                 return;
@@ -1302,8 +1312,10 @@ export class DockviewGroupPanelModel
         }
 
         // Watermark is showing because all groups were collapsed.
-        // Activate the first panel in the newly expanded group.
-        const firstPanelId = tabGroup.panelIds[0];
+        // Activate the first visible panel in the newly expanded group.
+        const firstPanelId = tabGroup.panelIds.find(
+            (id) => !this._panels.find((p) => p.id === id)?.isHidden
+        );
         if (firstPanelId) {
             const panel = this._panels.find((p) => p.id === firstPanelId);
             if (panel) {
@@ -1467,7 +1479,9 @@ export class DockviewGroupPanelModel
 
     public toJSON(): GroupPanelViewState {
         const result: GroupPanelViewState = {
-            views: this.tabsContainer.panels,
+            // From the panel list, not the tab strip: a hidden panel has no
+            // tab but still belongs to the group and must round-trip.
+            views: this._panels.map((panel) => panel.id),
             activeView: this._activePanel?.id,
             id: this.id,
         };
@@ -1498,11 +1512,18 @@ export class DockviewGroupPanelModel
         options ??= {};
         options.panel ??= this.activePanel;
 
-        const index = options.panel ? this.panels.indexOf(options.panel) : -1;
+        // Hidden panels have no tab, so navigation steps over them.
+        const panels = this.visiblePanels;
+
+        if (panels.length === 0) {
+            return;
+        }
+
+        const index = options.panel ? panels.indexOf(options.panel) : -1;
 
         let normalizedIndex: number;
 
-        if (index < this.panels.length - 1) {
+        if (index < panels.length - 1) {
             normalizedIndex = index + 1;
         } else if (options.suppressRoll) {
             return;
@@ -1510,7 +1531,7 @@ export class DockviewGroupPanelModel
             normalizedIndex = 0;
         }
 
-        this.openPanel(this.panels[normalizedIndex]);
+        this.openPanel(panels[normalizedIndex]);
     }
 
     public moveToPrevious(options?: {
@@ -1524,7 +1545,14 @@ export class DockviewGroupPanelModel
             return;
         }
 
-        const index = this.panels.indexOf(options.panel);
+        // Hidden panels have no tab, so navigation steps over them.
+        const panels = this.visiblePanels;
+
+        if (panels.length === 0) {
+            return;
+        }
+
+        const index = panels.indexOf(options.panel);
 
         let normalizedIndex: number;
 
@@ -1533,10 +1561,10 @@ export class DockviewGroupPanelModel
         } else if (options.suppressRoll) {
             return;
         } else {
-            normalizedIndex = this.panels.length - 1;
+            normalizedIndex = panels.length - 1;
         }
 
-        this.openPanel(this.panels[normalizedIndex]);
+        this.openPanel(panels[normalizedIndex]);
     }
 
     public containsPanel(panel: IDockviewPanel): boolean {
@@ -1574,11 +1602,13 @@ export class DockviewGroupPanelModel
             options.index = 0;
         }
 
-        const skipSetActive = !!options.skipSetActive;
+        // A hidden panel joins (or stays in) the group without a tab and is
+        // never made active; `setPanelHidden` is the only way to bring it back.
+        const skipSetActive = !!options.skipSetActive || panel.isHidden;
 
         // ensure the group is updated before we fire any events
         panel.updateParentGroup(this.groupPanel, {
-            skipSetActive: options.skipSetActive,
+            skipSetActive,
         });
 
         this.doAddPanel(panel, options.index, {
@@ -1602,7 +1632,7 @@ export class DockviewGroupPanelModel
             this.accessor.doSetGroupActive(this.groupPanel);
         }
 
-        if (!options.skipSetActive) {
+        if (!skipSetActive) {
             this.updateContainer();
         } else {
             // `skipSetActive` leaves the group's active panel alone; it must
@@ -1687,7 +1717,7 @@ export class DockviewGroupPanelModel
         if (!this._activePanel && this.panels.length > 0) {
             const candidate = this._panels.find((p) => {
                 const tg = this._findTabGroupForPanel(p.id);
-                return !tg?.collapsed;
+                return !p.isHidden && !tg?.collapsed;
             });
             if (candidate) {
                 this.doSetActivePanel(candidate);
@@ -1792,11 +1822,16 @@ export class DockviewGroupPanelModel
         this.invalidateHeaderSize();
 
         if (isActivePanel && this.panels.length > 0) {
-            const nextPanel = this.mostRecentlyUsed[0];
-            this.openPanel(nextPanel, {
-                skipSetActive: options?.skipSetActive,
-                skipSetGroupActive: options?.skipSetActiveGroup,
-            });
+            const nextPanel = this.mostRecentlyUsedVisiblePanel();
+            if (nextPanel) {
+                this.openPanel(nextPanel, {
+                    skipSetActive: options?.skipSetActive,
+                    skipSetGroupActive: options?.skipSetActiveGroup,
+                });
+            } else {
+                // every remaining panel is hidden: nothing to show
+                this.doSetActivePanel(undefined);
+            }
         }
 
         if (!options?.skipSetActive) {
@@ -1852,9 +1887,11 @@ export class DockviewGroupPanelModel
         this.tabsContainer.show();
         this.contentContainer.show();
 
-        this.tabsContainer.openPanel(panel, index);
+        this.openTab(panel, index);
 
-        if (!options?.skipSetActive) {
+        if (panel.isHidden) {
+            // no tab and no content: the panel is parked until shown again
+        } else if (!options?.skipSetActive) {
             this.contentContainer.openPanel(panel);
         } else if (panel.api.renderer === 'always') {
             this.contentContainer.renderPanel(panel, { asActive: false });
@@ -1881,6 +1918,69 @@ export class DockviewGroupPanelModel
         );
 
         this._onDidAddPanel.fire({ panel });
+    }
+
+    /**
+     * Open a panel's tab at the strip index matching `panelIndex` in
+     * `_panels`. Hidden panels have no tab, so the strip index is the count
+     * of visible panels ahead of it rather than the raw panel index. A hidden
+     * panel gets no tab at all; every path that (re)creates tabs goes through
+     * here so a hidden tab can't be resurrected by a reorder.
+     */
+    private openTab(panel: IDockviewPanel, panelIndex: number): void {
+        if (panel.isHidden) {
+            return;
+        }
+
+        let tabIndex = 0;
+        const end = Math.min(panelIndex, this._panels.length);
+        for (let i = 0; i < end; i++) {
+            const other = this._panels[i];
+            if (other !== panel && !other.isHidden) {
+                tabIndex++;
+            }
+        }
+
+        this.tabsContainer.openPanel(panel, tabIndex);
+    }
+
+    private mostRecentlyUsedVisiblePanel(): IDockviewPanel | undefined {
+        return this.mostRecentlyUsed.find((panel) => !panel.isHidden);
+    }
+
+    updatePanelHidden(panel: IDockviewPanel): void {
+        const index = this._panels.indexOf(panel);
+
+        if (index < 0) {
+            // Not (yet) a member: `doAddPanel` reads the flag when it joins.
+            return;
+        }
+
+        if (panel.isHidden) {
+            if (this._activePanel === panel) {
+                this.contentContainer.closePanel();
+                this._activePanel = undefined;
+                const next = this.mostRecentlyUsedVisiblePanel();
+                if (next) {
+                    this.doSetActivePanel(next);
+                }
+            }
+            this.tabsContainer.delete(panel.id);
+        } else {
+            this.openTab(panel, index);
+            if (panel.api.renderer === 'always') {
+                this.contentContainer.renderPanel(panel, { asActive: false });
+            }
+            if (!this._activePanel) {
+                // The watermark was showing; this is the only thing to show.
+                this.doSetActivePanel(panel);
+            }
+        }
+
+        // the strip gained or lost a tab (e.g. a wrap row)
+        this.invalidateHeaderSize();
+        this.updateContainer();
+        this.updateAccessibleLabel();
     }
 
     private doSetActivePanel(panel: IDockviewPanel | undefined): void {

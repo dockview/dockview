@@ -77,6 +77,12 @@ export class DefaultDockviewDeserialzier implements IPanelDeserializer {
             panel.setPinned(true);
         }
 
+        // Set before the panel joins its group so it is added without a tab
+        // and is never picked as the active panel.
+        if (panelData.hidden) {
+            panel.setHidden(true);
+        }
+
         return panel;
     }
 }

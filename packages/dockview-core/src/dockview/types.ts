@@ -73,4 +73,7 @@ export interface GroupviewPanelState {
     /** Pinned tab state (PinnedTabs module). Emitted only when `true`; absent
      *  layouts load unpinned. */
     pinned?: boolean;
+    /** Hidden panel state (`panel.api.setHidden`). Emitted only when `true`;
+     *  absent layouts load with every panel shown. */
+    hidden?: boolean;
 }

@@ -908,6 +908,13 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         if (this._tabMap.has(panel.id)) {
             return;
         }
+        if (panel.isHidden) {
+            // A hidden panel has no tab: it is absent from `_tabs`, so the
+            // overflow dropdown, pinned ordering, wrap rows and DnD never see
+            // it. The group model normally filters before reaching here; this
+            // is the backstop for any path that re-creates tabs wholesale.
+            return;
+        }
         const tab = new Tab(panel, this.accessor, this.group);
         tab.setContent(panel.view.tab);
         if (this._direction !== 'horizontal') {
