@@ -2,14 +2,22 @@ import { TabGroup } from './tabGroup';
 
 type TabStripItem<T> = { readonly panel: T } | { readonly tabGroup: TabGroup };
 
+/** Where a panel goes in the strip. */
+export type TabStripTarget =
+    /** A top-level panel at flat `index`, counted without the panel. With
+     *  `pinned` set, kept on that side of the pinned block. */
+    | { readonly index: number; readonly pinned?: boolean }
+    /** A member of `tabGroup` at `index` among its members (default: last). */
+    | { readonly tabGroup: TabGroup; readonly index?: number };
+
 /**
  * The order of a group's tabs, as top-level items: a panel, or a tab group
  * holding its members. The flat tab order is derived from it, so a tab
  * group's members are always contiguous and in the tab group's own order.
  *
  * A tab group has a place in the strip only while it has members; an empty
- * one is not an item. Members are read from, and written through, the
- * `TabGroup` itself.
+ * one is not an item. Member lists are edited silently: the caller fires the
+ * tab group's events once the strip is in its final state.
  */
 export class TabStrip<T extends { readonly id: string }> {
     private readonly _items: TabStripItem<T>[] = [];
@@ -48,102 +56,56 @@ export class TabStrip<T extends { readonly id: string }> {
         return this._tabGroupOf.get(panelId);
     }
 
-    /**
-     * The top-level slot for a panel placed at flat `index`, counted without
-     * that panel. An index between two members of a tab group moves to the
-     * nearer edge of it (after it on a tie), so a top-level panel never splits
-     * one. With `pinned` set, the slot is also kept on its side of the pinned
-     * block: `true` keeps it within, `false` keeps it after.
-     */
-    slotForIndex(index: number, pinned?: boolean): number {
-        let slot = this._items.length;
-        let start = 0;
-        for (let i = 0; i < this._items.length; i++) {
-            if (index <= start) {
-                slot = i;
-                break;
-            }
-            const length = this.lengthOf(this._items[i]);
-            const end = start + length;
-            if (index < end) {
-                // strictly inside a tab group
-                slot = index - start < end - index ? i : i + 1;
-                break;
-            }
-            start = end;
-        }
-
-        if (pinned === undefined) {
-            return slot;
-        }
-        const boundary = this.pinnedBoundary();
-        return pinned ? Math.min(slot, boundary) : Math.max(slot, boundary);
-    }
-
-    /** Add a panel as a top-level item at `slot`. */
-    insert(panel: T, slot: number): void {
+    /** Add a new panel at `target`. A disposed tab group leaves it top-level
+     *  at `fallbackIndex`; one without members takes its place there. */
+    add(panel: T, target: TabStripTarget, fallbackIndex: number): void {
         this._panels.set(panel.id, panel);
-        this._items.splice(this.clampSlot(slot), 0, { panel });
-    }
-
-    /**
-     * Add a panel to `tabGroup` at `index` among its members, without firing
-     * the tab group's `onDidPanelChange`. A tab group without members takes
-     * its place at `slot`; a disposed one leaves the panel top-level there.
-     */
-    insertIntoTabGroup(
-        panel: T,
-        tabGroup: TabGroup,
-        index: number | undefined,
-        slot: number
-    ): void {
-        if (tabGroup.isDisposed) {
-            this.insert(panel, slot);
+        if ('tabGroup' in target && !target.tabGroup.isDisposed) {
+            this.addMember(panel.id, target.tabGroup, target.index, () =>
+                this.slotForIndex(fallbackIndex)
+            );
             return;
         }
-        this._panels.set(panel.id, panel);
-        if (this.slotOfTabGroup(tabGroup) === -1) {
-            this._items.splice(this.clampSlot(slot), 0, { tabGroup });
-        }
-        this._tabGroupOf.set(panel.id, tabGroup);
-        tabGroup.insertMember(panel.id, index, true);
+        const index = 'tabGroup' in target ? fallbackIndex : target.index;
+        const pinned = 'tabGroup' in target ? undefined : target.pinned;
+        this._items.splice(this.slotForIndex(index, pinned), 0, { panel });
     }
 
     /**
-     * Remove a panel. A tab group it leaves without members gives up its
-     * place. Returns the tab group the panel was in.
+     * Move a panel to `target`. Moving into a tab group places the panel by
+     * the tab group: a tab group without members takes the panel's place. A
+     * disposed tab group is a no-op.
      */
-    remove(panelId: string): TabGroup | undefined {
-        const tabGroup = this._tabGroupOf.get(panelId);
-        if (tabGroup) {
-            this.removeMember(tabGroup, panelId);
-        } else {
+    move(panelId: string, target: TabStripTarget): void {
+        const panel = this._panels.get(panelId);
+        if (!panel) {
+            return;
+        }
+        const current = this._tabGroupOf.get(panelId);
+
+        if ('tabGroup' in target) {
+            const tabGroup = target.tabGroup;
+            if (tabGroup.isDisposed) {
+                return;
+            }
+            if (tabGroup === current) {
+                tabGroup.removeMember(panelId);
+                tabGroup.insertMember(panelId, target.index);
+                return;
+            }
+            if (current) {
+                this.leave(panelId);
+            }
             const slot = this.slotOfPanel(panelId);
-            if (slot !== -1) {
-                this._items.splice(slot, 1);
-            }
-        }
-        this._panels.delete(panelId);
-        return tabGroup;
-    }
-
-    /**
-     * Move a top-level panel into `tabGroup` at `index` among its members. A
-     * tab group without members takes the panel's place. No-op for a panel
-     * in a tab group or a disposed tab group.
-     */
-    join(panelId: string, tabGroup: TabGroup, index?: number): void {
-        const slot = this.slotOfPanel(panelId);
-        if (slot === -1 || tabGroup.isDisposed) {
+            this._items.splice(slot, 1);
+            this.addMember(panelId, tabGroup, target.index, () => slot);
             return;
         }
-        if (this.slotOfTabGroup(tabGroup) === -1) {
-            this._items.splice(slot, 1, { tabGroup });
-        } else {
-            this._items.splice(slot, 1);
-        }
-        this._tabGroupOf.set(panelId, tabGroup);
-        tabGroup.insertMember(panelId, index);
+
+        this.detach(panelId);
+        this._items.splice(this.slotForIndex(target.index, target.pinned), 0, {
+            panel,
+        });
     }
 
     /**
@@ -168,20 +130,17 @@ export class TabStrip<T extends { readonly id: string }> {
         return tabGroup;
     }
 
-    /** Move a member to `index` among its tab group's members. */
-    reorderInTabGroup(panelId: string, index: number): void {
+    /** Remove a panel. Returns the tab group it was in. */
+    remove(panelId: string): TabGroup | undefined {
         const tabGroup = this._tabGroupOf.get(panelId);
-        if (!tabGroup) {
-            return;
-        }
-        tabGroup.removeMember(panelId);
-        tabGroup.insertMember(panelId, index);
+        this.detach(panelId);
+        this._panels.delete(panelId);
+        return tabGroup;
     }
 
     /**
-     * Move a tab group to flat `index`, counted without its members. The
-     * index is resolved as for a top-level panel, so it never lands inside
-     * another tab group.
+     * Move a tab group to flat `index`, counted without its members, resolved
+     * as for a top-level panel so it never lands inside another tab group.
      */
     moveTabGroup(tabGroup: TabGroup, index: number): void {
         const slot = this.slotOfTabGroup(tabGroup);
@@ -210,6 +169,64 @@ export class TabStrip<T extends { readonly id: string }> {
             }
         }
         this._items.splice(slot, 1, ...panels);
+    }
+
+    /**
+     * The top-level slot for a panel placed at flat `index`. An index between
+     * two members of a tab group moves to the nearer edge of it (after it on
+     * a tie). With `pinned` set, the slot is also kept on its side of the
+     * pinned block: `true` keeps it within, `false` keeps it after.
+     */
+    private slotForIndex(index: number, pinned?: boolean): number {
+        let slot = this._items.length;
+        let start = 0;
+        for (let i = 0; i < this._items.length; i++) {
+            if (index <= start) {
+                slot = i;
+                break;
+            }
+            const end = start + this.lengthOf(this._items[i]);
+            if (index < end) {
+                // strictly inside a tab group
+                slot = index - start < end - index ? i : i + 1;
+                break;
+            }
+            start = end;
+        }
+
+        if (pinned === undefined) {
+            return slot;
+        }
+        const boundary = this.pinnedBoundary();
+        return pinned ? Math.min(slot, boundary) : Math.max(slot, boundary);
+    }
+
+    /** Add `panelId` to `tabGroup`'s members; a tab group without members
+     *  takes its place at `slot()`. */
+    private addMember(
+        panelId: string,
+        tabGroup: TabGroup,
+        index: number | undefined,
+        slot: () => number
+    ): void {
+        if (this.slotOfTabGroup(tabGroup) === -1) {
+            this._items.splice(this.clampSlot(slot()), 0, { tabGroup });
+        }
+        this._tabGroupOf.set(panelId, tabGroup);
+        tabGroup.insertMember(panelId, index);
+    }
+
+    /** Take a panel out of the items, or out of its tab group's members. */
+    private detach(panelId: string): void {
+        const tabGroup = this._tabGroupOf.get(panelId);
+        if (tabGroup) {
+            this.removeMember(tabGroup, panelId);
+            return;
+        }
+        const slot = this.slotOfPanel(panelId);
+        if (slot !== -1) {
+            this._items.splice(slot, 1);
+        }
     }
 
     private removeMember(tabGroup: TabGroup, panelId: string): void {

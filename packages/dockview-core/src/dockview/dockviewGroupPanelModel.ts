@@ -938,6 +938,7 @@ export class DockviewGroupPanelModel
             this._strip.unwrap(tabGroup);
             for (const panelId of panelIds) {
                 tabGroup.removeMember(panelId);
+                tabGroup.notifyPanelChange(panelId, 'remove');
                 this._onDidRemovePanelFromTabGroup.fire({ tabGroup, panelId });
             }
 
@@ -966,16 +967,11 @@ export class DockviewGroupPanelModel
             return; // already in this group, nothing to mutate
         }
 
-        this._bracketTabGroupMutation(() => {
-            if (existingGroup) {
-                this.removePanelFromTabGroup(panelId);
-            }
-
-            this._strip.join(panelId, tabGroup, index);
-            this._applyStrip([panelId]);
-
-            this._onDidAddPanelToTabGroup.fire({ tabGroup, panelId });
-        });
+        this._bracketTabGroupMutation(() =>
+            this._moveInStrip(panelId, () =>
+                this._strip.move(panelId, { tabGroup, index })
+            )
+        );
     }
 
     /**
@@ -992,8 +988,9 @@ export class DockviewGroupPanelModel
             return;
         }
 
-        this._strip.reorderInTabGroup(panelId, newIndex);
-        this._applyStrip([panelId]);
+        this._moveInStrip(panelId, () =>
+            this._strip.move(panelId, { tabGroup, index: newIndex })
+        );
 
         this.tabsContainer.updateTabGroups();
     }
@@ -1006,33 +1003,17 @@ export class DockviewGroupPanelModel
         targetTabGroupId: string,
         targetIndex?: number
     ): void {
-        const sourceGroup = this._findTabGroupForPanel(sourcePanelId);
         const targetGroup = this._tabGroupMap.get(targetTabGroupId);
-
         if (!targetGroup || !this._strip.has(sourcePanelId)) {
             return;
         }
 
-        if (sourceGroup) {
-            this._strip.leave(sourcePanelId);
-            this._applyStrip([sourcePanelId]);
-            this._onDidRemovePanelFromTabGroup.fire({
-                tabGroup: sourceGroup,
-                panelId: sourcePanelId,
-            });
-
-            // Auto-destroy empty source group
-            if (sourceGroup.isEmpty) {
-                sourceGroup.dispose();
-            }
-        }
-
-        this._strip.join(sourcePanelId, targetGroup, targetIndex);
-        this._applyStrip([sourcePanelId]);
-        this._onDidAddPanelToTabGroup.fire({
-            tabGroup: targetGroup,
-            panelId: sourcePanelId,
-        });
+        this._moveInStrip(sourcePanelId, () =>
+            this._strip.move(sourcePanelId, {
+                tabGroup: targetGroup,
+                index: targetIndex,
+            })
+        );
     }
 
     /**
@@ -1070,6 +1051,39 @@ export class DockviewGroupPanelModel
         this._syncActiveTab();
 
         this.tabsContainer.updateTabGroups();
+    }
+
+    /**
+     * Apply `move` to `panelId` in the strip, re-sync the tabs, then fire the
+     * tab group events: the tab group it left (disposed once empty), then the
+     * one it joined. A reorder within one tab group fires that tab group's
+     * remove and add.
+     */
+    private _moveInStrip(panelId: string, move: () => void): void {
+        const before = this._strip.tabGroupOf(panelId);
+        move();
+        const after = this._strip.tabGroupOf(panelId);
+        this._applyStrip([panelId]);
+
+        if (before && before === after) {
+            before.notifyPanelChange(panelId, 'remove');
+            before.notifyPanelChange(panelId, 'add');
+            return;
+        }
+        if (before) {
+            before.notifyPanelChange(panelId, 'remove');
+            this._onDidRemovePanelFromTabGroup.fire({
+                tabGroup: before,
+                panelId,
+            });
+            if (before.isEmpty) {
+                before.dispose();
+            }
+        }
+        if (after) {
+            after.notifyPanelChange(panelId, 'add');
+            this._onDidAddPanelToTabGroup.fire({ tabGroup: after, panelId });
+        }
     }
 
     /**
@@ -1143,16 +1157,9 @@ export class DockviewGroupPanelModel
             return;
         }
 
-        this._bracketTabGroupMutation(() => {
-            this._strip.leave(panelId);
-            this._applyStrip([panelId]);
-            this._onDidRemovePanelFromTabGroup.fire({ tabGroup, panelId });
-
-            // Auto-destroy empty groups
-            if (tabGroup.isEmpty) {
-                tabGroup.dispose();
-            }
-        });
+        this._bracketTabGroupMutation(() =>
+            this._moveInStrip(panelId, () => this._strip.leave(panelId))
+        );
     }
 
     getTabGroups(): readonly ITabGroup[] {
@@ -1303,7 +1310,8 @@ export class DockviewGroupPanelModel
                     this._strip.has(panelId) &&
                     !this._strip.tabGroupOf(panelId)
                 ) {
-                    this._strip.join(panelId, concreteGroup);
+                    this._strip.move(panelId, { tabGroup: concreteGroup });
+                    concreteGroup.notifyPanelChange(panelId, 'add');
                 }
             }
             this._applyStrip([...concreteGroup.panelIds]);
@@ -1565,9 +1573,9 @@ export class DockviewGroupPanelModel
             clampToPinned: options.clampToPinned,
         });
 
-        if (tabGroup) {
+        if (tabGroup && this._strip.tabGroupOf(panel.id) === tabGroup) {
             this._bracketTabGroupMutation(() => {
-                tabGroup.notifyMemberAdded(panel.id);
+                tabGroup.notifyPanelChange(panel.id, 'add');
                 this._onDidAddPanelToTabGroup.fire({
                     tabGroup,
                     panelId: panel.id,
@@ -1829,6 +1837,7 @@ export class DockviewGroupPanelModel
             this._bracketTabGroupMutation(() => {
                 this._strip.remove(panel.id);
                 this._applyStrip();
+                tabGroup.notifyPanelChange(panel.id, 'remove');
                 this._onDidRemovePanelFromTabGroup.fire({
                     tabGroup,
                     panelId: panel.id,
@@ -1864,22 +1873,22 @@ export class DockviewGroupPanelModel
         const hasExistingPanel = this._strip.has(panel.id);
 
         if (!hasExistingPanel) {
-            const slot = this._strip.slotForIndex(
-                index,
-                options?.clampToPinned === false
-                    ? undefined
-                    : !!panel.api.isPinned
+            this._strip.add(
+                panel,
+                options?.tabGroup
+                    ? {
+                          tabGroup: options.tabGroup,
+                          index: options.indexInTabGroup,
+                      }
+                    : {
+                          index,
+                          pinned:
+                              options?.clampToPinned === false
+                                  ? undefined
+                                  : !!panel.api.isPinned,
+                      },
+                index
             );
-            if (options?.tabGroup) {
-                this._strip.insertIntoTabGroup(
-                    panel,
-                    options.tabGroup,
-                    options.indexInTabGroup,
-                    slot
-                );
-            } else {
-                this._strip.insert(panel, slot);
-            }
             index = this._strip.toArray().indexOf(panel);
         }
 

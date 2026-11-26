@@ -185,7 +185,10 @@ export class TabGroup extends CompositeDisposable implements ITabGroup {
             this._owner.addPanel(panelId, index);
             return;
         }
-        this.insertMember(panelId, index);
+        if (!this._panelIds.includes(panelId)) {
+            this.insertMember(panelId, index);
+            this.notifyPanelChange(panelId, 'add');
+        }
     }
 
     removePanel(panelId: string): boolean {
@@ -195,12 +198,15 @@ export class TabGroup extends CompositeDisposable implements ITabGroup {
         if (this._owner) {
             return this._owner.removePanel(panelId);
         }
-        return this.removeMember(panelId);
+        const removed = this.removeMember(panelId);
+        if (removed) {
+            this.notifyPanelChange(panelId, 'remove');
+        }
+        return removed;
     }
 
-    /** Insert into the member list only. With `silent`, the caller fires
-     *  `onDidPanelChange` later through `notifyMemberAdded`. */
-    insertMember(panelId: string, index?: number, silent = false): void {
+    /** Insert into the member list only, without firing `onDidPanelChange`. */
+    insertMember(panelId: string, index?: number): void {
         if (this.isDisposed) {
             return;
         }
@@ -214,18 +220,15 @@ export class TabGroup extends CompositeDisposable implements ITabGroup {
                 : Math.max(0, Math.min(index, this._panelIds.length));
 
         this._panelIds.splice(insertIndex, 0, panelId);
-        if (!silent) {
-            this._onDidPanelChange.fire({ panelId, type: 'add' });
+    }
+
+    notifyPanelChange(panelId: string, type: 'add' | 'remove'): void {
+        if (!this.isDisposed) {
+            this._onDidPanelChange.fire({ panelId, type });
         }
     }
 
-    notifyMemberAdded(panelId: string): void {
-        if (!this.isDisposed && this._panelIds.includes(panelId)) {
-            this._onDidPanelChange.fire({ panelId, type: 'add' });
-        }
-    }
-
-    /** Remove from the member list only. */
+    /** Remove from the member list only, without firing `onDidPanelChange`. */
     removeMember(panelId: string): boolean {
         if (this.isDisposed) {
             return false;
@@ -235,7 +238,6 @@ export class TabGroup extends CompositeDisposable implements ITabGroup {
             return false;
         }
         this._panelIds.splice(index, 1);
-        this._onDidPanelChange.fire({ panelId, type: 'remove' });
         return true;
     }
 
