@@ -1,4 +1,8 @@
-import { toggleClass } from '../../../dom';
+import {
+    parseCssTimeMs,
+    prefersReducedMotion,
+    toggleClass,
+} from '../../../dom';
 import { addDisposableListener } from '../../../events';
 import {
     getPanelData,
@@ -36,6 +40,23 @@ import {
     NoneTabGroupIndicator,
     WrapTabGroupIndicator,
 } from './tabGroupIndicator';
+
+// Keep in sync with the `var(--dv-transition-duration, 200ms)` fallbacks in tabs.scss.
+const DEFAULT_TRANSITION_MS = 200;
+const EXPAND_FALLBACK_SLACK_MS = 100;
+
+interface CollapseAnimationEntry {
+    animation: Animation;
+    el: HTMLElement;
+    // Not read from `animation.playbackRate`: `reverse()` is a pending change,
+    // so the getter reports the old direction until the animation is ready.
+    collapsing: boolean;
+}
+
+interface TabTarget {
+    el: HTMLElement;
+    pid: string;
+}
 
 const EMPTY_MAP: ReadonlyMap<string, HTMLElement> = new Map();
 
@@ -90,6 +111,11 @@ export class TabGroupManager {
     private _indicator: ITabGroupIndicator | null = null;
     private _skipNextCollapseAnimation = false;
     private readonly _pendingTransitionCleanups = new Map<string, () => void>();
+    /** In-flight WAAPI collapses (forward or reversed), keyed by panel id. */
+    private readonly _collapseAnimations = new Map<
+        string,
+        CollapseAnimationEntry
+    >();
 
     get chipRenderers(): ReadonlyMap<string, ChipRendererEntry> {
         return this._chipRenderers;
@@ -203,8 +229,8 @@ export class TabGroupManager {
         this._indicator?.positionUnderlines();
     }
 
-    trackUnderlines(): void {
-        this._indicator?.trackUnderlines();
+    trackUnderlines(durationMs?: number): void {
+        this._indicator?.trackUnderlines(durationMs);
     }
 
     setGroupDragImage(
@@ -302,6 +328,7 @@ export class TabGroupManager {
     cleanupTransition(panelId: string): void {
         this._pendingTransitionCleanups.get(panelId)?.();
         this._pendingTransitionCleanups.delete(panelId);
+        this._cancelCollapseAnimation(panelId);
     }
 
     updateDragAndDropState(): void {
@@ -366,6 +393,10 @@ export class TabGroupManager {
             cleanup();
         }
         this._pendingTransitionCleanups.clear();
+
+        for (const panelId of this._collapseAnimations.keys()) {
+            this._cancelCollapseAnimation(panelId);
+        }
 
         for (const [, entry] of this._chipRenderers) {
             entry.chip.element.remove();
@@ -715,66 +746,20 @@ export class TabGroupManager {
             }
         }
 
+        // Resolved at most once per pass, and only when something animates.
+        let durationMs: number | undefined;
+        const getDurationMs = () =>
+            (durationMs ??= this._transitionDurationMs(this._ctx.tabsList));
+
         for (const tabEntry of tabs) {
             const tab = tabEntry.value;
-            const panelId = tab.panel.id;
-            const tg = panelGroupMap.get(panelId);
-
-            const isGrouped = !!tg;
-            toggleClass(tab.element, 'dv-tab--grouped', isGrouped);
-
+            const tg = panelGroupMap.get(tab.panel.id);
             if (tg) {
-                const ids = tg.panelIds;
-                const isFirst = ids[0] === panelId;
-                const isLast = ids[ids.length - 1] === panelId;
-
-                toggleClass(tab.element, 'dv-tab--group-first', isFirst);
-                toggleClass(tab.element, 'dv-tab--group-last', isLast);
-
-                // Expose the resolved group color as a CSS custom property
-                // so pure-CSS themes can use it for borders, backgrounds, etc.
-                applyTabGroupAccent(
-                    tab.element,
-                    tg.color,
-                    this._ctx.accessor.tabGroupColorPalette
-                );
-
-                // Collapse / expand with animation
-                const isCollapsed = tab.element.classList.contains(
-                    'dv-tab--group-collapsed'
-                );
-                if (!tg.collapsed && isCollapsed) {
-                    // Collapsed → expanding: animate back
-                    hasAnimation = true;
-                    tab.element.classList.remove('dv-tab--group-collapsed');
-                    tab.element.classList.add('dv-tab--group-expanding');
-
-                    // Clean up any previous transitionend listener
-                    // from a rapid collapse/expand cycle
-                    this._pendingTransitionCleanups.get(panelId)?.();
-
-                    const onEnd = () => {
-                        tab.element.classList.remove('dv-tab--group-expanding');
-                        tab.element.style.removeProperty('width');
-                        tab.element.removeEventListener('transitionend', onEnd);
-                        clearTimeout(fallbackTimer);
-                        this._pendingTransitionCleanups.delete(panelId);
-                    };
-                    // Fallback in case transitionend never fires
-                    // (e.g. element removed from DOM mid-transition)
-                    const fallbackTimer = setTimeout(onEnd, 300);
-                    this._pendingTransitionCleanups.set(panelId, onEnd);
-                    tab.element.addEventListener('transitionend', onEnd);
-                }
+                hasAnimation =
+                    this._syncGroupedTab(tab, tg, getDurationMs) ||
+                    hasAnimation;
             } else {
-                toggleClass(tab.element, 'dv-tab--group-first', false);
-                toggleClass(tab.element, 'dv-tab--group-last', false);
-                tab.element.classList.remove(
-                    'dv-tab--group-collapsed',
-                    'dv-tab--group-expanding'
-                );
-                tab.element.style.removeProperty('width');
-                tab.element.style.removeProperty('--dv-tab-group-color');
+                this._syncUngroupedTab(tab);
             }
         }
 
@@ -783,70 +768,8 @@ export class TabGroupManager {
         // Handle collapse animation per group
         for (const tg of tabGroups) {
             activeGroupIds.add(tg.id);
-
-            const hasNewCollapse =
-                tg.collapsed &&
-                tg.panelIds.some((pid) => {
-                    const te = tabMap.get(pid);
-                    return (
-                        te &&
-                        !te.value.element.classList.contains(
-                            'dv-tab--group-collapsed'
-                        )
-                    );
-                });
-
-            if (hasNewCollapse) {
-                if (this._skipNextCollapseAnimation) {
-                    // Apply collapsed state instantly (no animation).
-                    // Disable transitions so the CSS transition on
-                    // dv-tab--group-collapsed doesn't fire.
-                    const affected: HTMLElement[] = [];
-                    for (const pid of tg.panelIds) {
-                        const te = tabMap.get(pid);
-                        if (te) {
-                            te.value.element.style.transition = 'none';
-                            te.value.element.classList.add(
-                                'dv-tab--group-collapsed'
-                            );
-                            affected.push(te.value.element);
-                        }
-                    }
-                    if (affected.length > 0) {
-                        // `void` marks this offsetHeight read as an intentional
-                        // layout reflow, not a dead expression.
-                        void affected[0].offsetHeight; // single reflow
-                        for (const el of affected) {
-                            el.style.removeProperty('transition');
-                        }
-                    }
-                } else {
-                    hasAnimation = true;
-                    const isVert = this._ctx.getDirection() === 'vertical';
-                    for (const pid of tg.panelIds) {
-                        const te = tabMap.get(pid);
-                        if (
-                            te &&
-                            !te.value.element.classList.contains(
-                                'dv-tab--group-collapsed'
-                            )
-                        ) {
-                            const rect =
-                                te.value.element.getBoundingClientRect();
-                            if (isVert) {
-                                te.value.element.style.height = `${rect.height}px`;
-                            } else {
-                                te.value.element.style.width = `${rect.width}px`;
-                            }
-                            // `void` marks this read as an intentional reflow.
-                            void te.value.element.offsetHeight; // force reflow
-                            te.value.element.classList.add(
-                                'dv-tab--group-collapsed'
-                            );
-                        }
-                    }
-                }
-            }
+            hasAnimation =
+                this._collapseGroup(tg, tabMap, getDurationMs) || hasAnimation;
         }
 
         this._skipNextCollapseAnimation = false;
@@ -855,10 +778,320 @@ export class TabGroupManager {
         if (this._indicator) {
             this._indicator.syncUnderlineElements(activeGroupIds);
             if (hasAnimation) {
-                this._indicator.trackUnderlines();
+                this._indicator.trackUnderlines(
+                    getDurationMs() + EXPAND_FALLBACK_SLACK_MS
+                );
             } else {
                 this._indicator.positionUnderlines();
             }
         }
+    }
+
+    /** Returns whether an animation is now in flight for the tab. */
+    private _syncGroupedTab(
+        tab: Tab,
+        tg: ITabGroup,
+        getDurationMs: () => number
+    ): boolean {
+        const panelId = tab.panel.id;
+        const ids = tg.panelIds;
+        toggleClass(tab.element, 'dv-tab--grouped', true);
+        toggleClass(tab.element, 'dv-tab--group-first', ids[0] === panelId);
+        toggleClass(
+            tab.element,
+            'dv-tab--group-last',
+            ids[ids.length - 1] === panelId
+        );
+
+        // Expose the resolved group color as a CSS custom property
+        // so pure-CSS themes can use it for borders, backgrounds, etc.
+        applyTabGroupAccent(
+            tab.element,
+            tg.color,
+            this._ctx.accessor.tabGroupColorPalette
+        );
+
+        if (tg.collapsed || !this._isCollapsing(tab.element, panelId)) {
+            return false;
+        }
+
+        const inFlight = this._inFlightCollapse(tab.element, panelId);
+        if (inFlight) {
+            // Mid-collapse: play it backwards rather than swapping classes.
+            this._setCollapseDirection(inFlight, false);
+        } else {
+            this._expandTab(tab.element, panelId, getDurationMs());
+        }
+        return true;
+    }
+
+    private _syncUngroupedTab(tab: Tab): void {
+        toggleClass(tab.element, 'dv-tab--grouped', false);
+        toggleClass(tab.element, 'dv-tab--group-first', false);
+        toggleClass(tab.element, 'dv-tab--group-last', false);
+        this._cancelCollapseAnimation(tab.panel.id);
+        tab.element.classList.remove(
+            'dv-tab--group-collapsed',
+            'dv-tab--group-expanding'
+        );
+        tab.element.style.removeProperty('width');
+        tab.element.style.removeProperty('height');
+        tab.element.style.removeProperty('--dv-tab-group-color');
+    }
+
+    /** Expand a tab collapsed at rest via the CSS transition. */
+    private _expandTab(
+        el: HTMLElement,
+        panelId: string,
+        durationMs: number
+    ): void {
+        el.classList.remove('dv-tab--group-collapsed');
+        el.classList.add('dv-tab--group-expanding');
+
+        this._pendingTransitionCleanups.get(panelId)?.();
+
+        const onEnd = () => {
+            el.classList.remove('dv-tab--group-expanding');
+            el.style.removeProperty('width');
+            el.style.removeProperty('height');
+            el.removeEventListener('transitionend', onEnd);
+            clearTimeout(fallbackTimer);
+            this._pendingTransitionCleanups.delete(panelId);
+        };
+        // In case transitionend never fires (e.g. element removed mid-transition).
+        const fallbackTimer = setTimeout(
+            onEnd,
+            durationMs + EXPAND_FALLBACK_SLACK_MS
+        );
+        this._pendingTransitionCleanups.set(panelId, onEnd);
+        el.addEventListener('transitionend', onEnd);
+    }
+
+    /** Returns whether an animation was started. */
+    private _collapseGroup(
+        tg: ITabGroup,
+        tabMap: ReadonlyMap<string, IValueDisposable<Tab>>,
+        getDurationMs: () => number
+    ): boolean {
+        if (!tg.collapsed) {
+            return false;
+        }
+        const toCollapse: TabTarget[] = [];
+        for (const pid of tg.panelIds) {
+            const te = tabMap.get(pid);
+            if (te && !this._isCollapsing(te.value.element, pid)) {
+                toCollapse.push({ el: te.value.element, pid });
+            }
+        }
+        if (toCollapse.length === 0) {
+            return false;
+        }
+
+        if (this._skipNextCollapseAnimation) {
+            this._applyCollapsedInstantly(toCollapse);
+            return false;
+        }
+        return this._animateTabCollapse(
+            toCollapse,
+            this._ctx.getDirection() === 'vertical',
+            getDurationMs
+        );
+    }
+
+    /**
+     * Apply the resting class with its CSS transition suppressed, committed
+     * by a single reflow.
+     */
+    private _applyCollapsedInstantly(tabs: readonly TabTarget[]): void {
+        for (const { el, pid } of tabs) {
+            this._cancelCollapseAnimation(pid);
+            el.style.transition = 'none';
+            el.classList.add('dv-tab--group-collapsed');
+        }
+        tabs[0].el.getBoundingClientRect(); // single reflow for the batch
+        for (const { el } of tabs) {
+            el.style.removeProperty('transition');
+        }
+    }
+
+    /** Collapsed at rest, or playing a forward collapse. */
+    private _isCollapsing(el: HTMLElement, panelId: string): boolean {
+        if (el.classList.contains('dv-tab--group-collapsed')) {
+            return true;
+        }
+        return this._inFlightCollapse(el, panelId)?.collapsing === true;
+    }
+
+    /**
+     * The running collapse for `el`, if any. An entry left by a previous
+     * element under the same panel id (tab re-created by a group move) is
+     * stale and gets cancelled.
+     */
+    private _inFlightCollapse(
+        el: HTMLElement,
+        panelId: string
+    ): CollapseAnimationEntry | undefined {
+        const entry = this._collapseAnimations.get(panelId);
+        if (!entry) {
+            return undefined;
+        }
+        if (entry.el !== el) {
+            this._cancelCollapseAnimation(panelId);
+            return undefined;
+        }
+        return entry;
+    }
+
+    private _setCollapseDirection(
+        entry: CollapseAnimationEntry,
+        collapsing: boolean
+    ): void {
+        if (entry.collapsing !== collapsing) {
+            entry.collapsing = collapsing;
+            entry.animation.reverse();
+        }
+    }
+
+    /**
+     * `--dv-transition-duration` in ms, or the default when unset (as in every
+     * shipped theme) or non-literal. Don't fall back to the element's own
+     * `transition-duration`: a tab at rest declares none and reads `0s`.
+     */
+    private _transitionDurationMs(
+        el: HTMLElement,
+        computed:
+            | CSSStyleDeclaration
+            | undefined = el.ownerDocument.defaultView?.getComputedStyle(el)
+    ): number {
+        if (!computed) {
+            return DEFAULT_TRANSITION_MS;
+        }
+        return parseCssTimeMs(
+            computed.getPropertyValue('--dv-transition-duration'),
+            DEFAULT_TRANSITION_MS
+        );
+    }
+
+    /**
+     * Animate the tabs of one group to the collapsed state with WAAPI.
+     * Returns whether an animation is in flight (false on the instant paths).
+     *
+     * `.dv-tab--group-collapsed` is `!important`, which outranks animation
+     * keyframes, so it is only applied once the animation settles; meanwhile
+     * the tab wears `--group-collapsing` and the animation's `fill: 'both'`
+     * holds the end frame across the swap.
+     */
+    private _animateTabCollapse(
+        tabs: readonly TabTarget[],
+        isVert: boolean,
+        getDurationMs: () => number
+    ): boolean {
+        const first = tabs[0].el;
+        const win = first.ownerDocument.defaultView;
+
+        if (
+            prefersReducedMotion(first.ownerDocument) ||
+            typeof first.animate !== 'function'
+        ) {
+            for (const { pid } of tabs) {
+                this._pendingTransitionCleanups.get(pid)?.();
+            }
+            this._applyCollapsedInstantly(tabs);
+            return false;
+        }
+
+        const fresh: TabTarget[] = [];
+        for (const tab of tabs) {
+            const reversing = this._inFlightCollapse(tab.el, tab.pid);
+            if (reversing) {
+                this._setCollapseDirection(reversing, true);
+            } else {
+                fresh.push(tab);
+            }
+        }
+        if (fresh.length === 0) {
+            return true;
+        }
+
+        // Read everything before any write (one layout per group), including
+        // before the expand cleanups below, so a tab still mid-expand is
+        // measured at its current size.
+        const frames = fresh.map(({ el }) => {
+            const computed = win?.getComputedStyle(el);
+            const rect = el.getBoundingClientRect();
+            const from: Keyframe = {
+                paddingTop: computed?.paddingTop ?? '',
+                paddingRight: computed?.paddingRight ?? '',
+                paddingBottom: computed?.paddingBottom ?? '',
+                paddingLeft: computed?.paddingLeft ?? '',
+                marginTop: computed?.marginTop ?? '',
+                marginRight: computed?.marginRight ?? '',
+                marginBottom: computed?.marginBottom ?? '',
+                marginLeft: computed?.marginLeft ?? '',
+                opacity: computed?.opacity ?? '1',
+            };
+            const to: Keyframe = {
+                paddingTop: '0px',
+                paddingRight: '0px',
+                paddingBottom: '0px',
+                paddingLeft: '0px',
+                marginTop: '0px',
+                marginRight: '0px',
+                marginBottom: '0px',
+                marginLeft: '0px',
+                opacity: '0',
+            };
+            if (isVert) {
+                from.height = `${rect.height}px`;
+                to.height = '0px';
+            } else {
+                from.width = `${rect.width}px`;
+                to.width = '0px';
+            }
+            return { computed, from, to };
+        });
+        const duration = getDurationMs();
+
+        for (const { pid } of fresh) {
+            this._pendingTransitionCleanups.get(pid)?.();
+        }
+        fresh.forEach(({ el, pid }, i) => {
+            // No inline `transition: none` needed: `--group-collapsing` has no
+            // transition and the swap below changes no animated value.
+            el.classList.add('dv-tab--group-collapsing');
+
+            const animation = el.animate([frames[i].from, frames[i].to], {
+                duration,
+                easing: 'ease-out',
+                fill: 'both',
+            });
+            const entry = { animation, el, collapsing: true };
+            this._collapseAnimations.set(pid, entry);
+
+            animation.onfinish = () => {
+                if (this._collapseAnimations.get(pid) !== entry) {
+                    return;
+                }
+                this._collapseAnimations.delete(pid);
+                if (entry.collapsing) {
+                    el.classList.add('dv-tab--group-collapsed');
+                }
+                el.classList.remove('dv-tab--group-collapsing');
+                animation.cancel();
+            };
+        });
+        return true;
+    }
+
+    /** Leaves the tab governed by its classes alone. */
+    private _cancelCollapseAnimation(panelId: string): void {
+        const entry = this._collapseAnimations.get(panelId);
+        if (!entry) {
+            return;
+        }
+        this._collapseAnimations.delete(panelId);
+        entry.animation.onfinish = null;
+        entry.animation.cancel();
+        entry.el.classList.remove('dv-tab--group-collapsing');
     }
 }
