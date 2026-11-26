@@ -32,6 +32,43 @@ calls `registerModules(Modules)` at import (a side effect — hence
 (`AdvancedDnD`, `TabGroupChips` and `ContextMenu` are FREE and live in
 `dockview-core`, not here.)
 
+## Multi-window layouts (`src/multiWindow/`)
+
+Not a module: one function over the public `DockviewApi`, exported from the
+index with nothing to register. The window side of a layout spread over
+several windows or processes, reaching an orchestrator only through the
+`MultiWindowTransport` interface (`transport.ts`). A transport belongs to one
+window: `windowId` is a plain property and no call takes a window id.
+
+Window side, each a `CompositeDisposable` with `Emitter` events like the rest
+of dockview; failures go to `console.error`/`console.warn` with a `dockview:`
+prefix, as core reports its own:
+
+- `multiWindow.ts` (`installMultiWindow` returning a `MultiWindow`): the public
+  install, composing the three internal pieces below. Only the `MultiWindow`
+  type is exported.
+- `crossWindowDnd.ts` (`CrossWindowDnd`): a drag's `DataTransfer` carries a
+  session id; the orchestrator carries the payload (`MultiWindowDragPayload`: a panel's
+  `toJSON()` or `serializeGroup` output); the drop rebuilds it with
+  `addPanelFromJSON` / `addGroupFromJSON`.
+- `windowWorkspace.ts` (`WindowWorkspace`): `fromJSON` in at start, `toJSON`
+  out on every change.
+- `sharedHistory.ts` (`SharedHistory`): reports local steps, carries out the
+  `MultiWindowHistoryRequest`s that come back.
+
+Orchestrator side, `orchestrator/`:
+
+- `multiWindowOrchestrator.ts` (`MultiWindowOrchestrator`, exported): an orchestrator
+  for one heap, composed from the pure `dragSessions.ts`,
+  `workspaceRegistry.ts` and `historySequencer.ts` (not exported; tests import
+  them directly), which the Tauri demo ports to Rust in
+  `packages/dockview-tauri-demo/src-tauri/src/orchestrator/`. Keep the two
+  in step.
+
+Narrow drag events with a `'dataTransfer' in event` check, not
+`instanceof DragEvent`: jsdom defines neither `DragEvent` nor `DataTransfer`,
+and `multiWindow.spec.ts` drives real drags with a fake `DataTransfer`.
+
 ## How it fits the module system
 
 - Core owns the contracts: the `ServiceCollection` slots and `IFooService` /
