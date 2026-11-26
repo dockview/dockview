@@ -670,9 +670,6 @@ describe('tabs - animation', () => {
                 featureGroup,
                 monitoringGroup,
             ];
-            (group.model as any).getTabGroupsInTabOrder = (
-                group.model as any
-            ).getTabGroups;
 
             // Set up chip renderers map so the code knows there are chips
             const chipRenderers = (tabs as any)._tabGroupManager
@@ -738,7 +735,6 @@ describe('tabs - animation', () => {
                 collapsed,
             };
             (group.model as any).getTabGroups = () => [monitoring];
-            (group.model as any).getTabGroupsInTabOrder = () => [monitoring];
             (tabs as any)._tabGroupManager._chipRenderers.set(
                 'monitoring-group',
                 {
@@ -790,9 +786,6 @@ describe('tabs - animation', () => {
                 collapsed: false,
             };
             (group.model as any).getTabGroups = () => [groupA];
-            (group.model as any).getTabGroupsInTabOrder = (
-                group.model as any
-            ).getTabGroups;
 
             const chipRenderers = (tabs as any)._tabGroupManager
                 ._chipRenderers as Map<string, any>;
@@ -867,9 +860,6 @@ describe('tabs - animation', () => {
                 featureGroup,
                 monitoringGroup,
             ];
-            (group.model as any).getTabGroupsInTabOrder = (
-                group.model as any
-            ).getTabGroups;
 
             const chipRenderers = (tabs as any)._tabGroupManager
                 ._chipRenderers as Map<string, any>;
@@ -1541,9 +1531,6 @@ describe('tabs - animation', () => {
             tabGroup.addPanel(panelIds[0]);
 
             (group.model as any).getTabGroups = () => [tabGroup];
-            (group.model as any).getTabGroupsInTabOrder = (
-                group.model as any
-            ).getTabGroups;
             (group.model as any).getTabGroupForPanel = (pid: string) =>
                 tabGroup.containsPanel(pid) ? tabGroup : undefined;
 
@@ -1755,9 +1742,6 @@ describe('tabs - animation', () => {
 
             // The tab group does not exist in this group (simulate cross-group)
             (group.model as any).getTabGroups = () => [];
-            (group.model as any).getTabGroupsInTabOrder = (
-                group.model as any
-            ).getTabGroups;
 
             // Set up PanelTransfer so _commitGroupMove reads it
             const transfer = dataTransfer.LocalSelectionTransfer.getInstance();
@@ -1804,9 +1788,6 @@ describe('tabs - animation', () => {
 
             // The tab group does not exist in this group
             (group.model as any).getTabGroups = () => [];
-            (group.model as any).getTabGroupsInTabOrder = (
-                group.model as any
-            ).getTabGroups;
 
             const transfer = dataTransfer.LocalSelectionTransfer.getInstance();
             transfer.setData(
@@ -2024,9 +2005,6 @@ describe('tabs - animation', () => {
             otherGroup.addPanel('panel-b');
             otherGroup.addPanel('panel-c');
             (group.model as any).getTabGroups = () => [tabGroup, otherGroup];
-            (group.model as any).getTabGroupsInTabOrder = (
-                group.model as any
-            ).getTabGroups;
             (group.model as any).getTabGroupForPanel = (pid: string) =>
                 tabGroup.containsPanel(pid)
                     ? tabGroup
@@ -2148,14 +2126,10 @@ describe('tabs - animation', () => {
             // the dragged tab group; that group lives in another dockview
             // group. Simulate the cross-group condition.
             (group.model as any).getTabGroups = () => [];
-            (group.model as any).getTabGroupsInTabOrder = (
-                group.model as any
-            ).getTabGroups;
             (accessor as any).moveGroupOrPanel = jest.fn();
             (accessor as any).getPanel = jest.fn().mockReturnValue({
                 model: {
                     getTabGroups: () => [tabGroup],
-                    getTabGroupsInTabOrder: () => [tabGroup],
                 },
             });
 
@@ -2229,9 +2203,6 @@ describe('tabs - animation', () => {
             // new panel order. This is the path that actually runs on drop.
             const panelOrder = ['panel-a', 'panel-b', 'panel-c', 'panel-d'];
             (group.model as any).getTabGroups = () => [tabGroup];
-            (group.model as any).getTabGroupsInTabOrder = (
-                group.model as any
-            ).getTabGroups;
             (group.model as any).moveTabGroup = (
                 tabGroupId: string,
                 targetIndex: number

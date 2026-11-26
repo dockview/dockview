@@ -834,17 +834,6 @@ describe('tab group placement', () => {
             dockview.dispose();
         });
 
-        test('getTabGroupsInTabOrder follows the strip, not creation order', () => {
-            const { dockview, group } = setup();
-            const x = createTabGroup(dockview, group, ['c', 'd'], 'X');
-            const y = createTabGroup(dockview, group, ['a', 'b'], 'Y');
-
-            expect(group.model.getTabGroups()).toEqual([x, y]);
-            expect(group.model.getTabGroupsInTabOrder()).toEqual([y, x]);
-
-            dockview.dispose();
-        });
-
         test('restoring a tab group fires add only for panels that joined it', () => {
             const { dockview, group } = setup(['a', 'b']);
             const added: string[] = [];

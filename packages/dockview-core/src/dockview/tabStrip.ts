@@ -67,13 +67,6 @@ export class TabStrip<T extends { readonly id: string }> {
         return this._tabGroupOf.get(panelId);
     }
 
-    /** The tab groups with members, in tab order. */
-    tabGroups(): TabGroup[] {
-        return this._items.flatMap((item) =>
-            'tabGroup' in item ? [item.tabGroup] : []
-        );
-    }
-
     /**
      * The position among `tabGroup`'s members for a panel dropped at flat
      * `index`, counted without `excludeId` (the dragged panel).

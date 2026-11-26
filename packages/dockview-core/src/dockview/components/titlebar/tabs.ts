@@ -1158,8 +1158,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         this.addTab(value, index);
         this._scheduleOverflowRefresh();
 
-        // A new tab may have been inserted between a chip and its
-        // group's first tab, so reposition all chips to stay correct.
+        // A new tab may sit between a chip and its tab group's first tab.
         this._tabGroupManager.render();
 
         // If a tab was added during active drag, refresh positions

@@ -255,16 +255,13 @@ describe('TabStrip', () => {
         expect(events).toEqual([]);
     });
 
-    test('lists tab groups in tab order and finds a drop position among members', () => {
+    test('finds a drop position among a tab group’s members', () => {
         const s = strip(['a', 'b', 'c', 'd']);
-        const x = new TabGroup('x');
         const y = new TabGroup('y');
         s.move('c', { tabGroup: y });
         s.move('d', { tabGroup: y });
-        s.move('a', { tabGroup: x });
-        expect(s.tabGroups()).toEqual([x, y]);
 
-        // `b` dropped at flat index 3 of `a [y: c d]` lands after c
+        // counted without b, index 2 of `a [y: c d]` is after c
         expect(s.indexInTabGroupAt(y, 2, 'b')).toBe(1);
         expect(s.indexInTabGroupAt(y, 1, 'b')).toBe(0);
     });

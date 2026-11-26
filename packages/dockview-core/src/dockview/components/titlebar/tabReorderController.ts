@@ -704,9 +704,10 @@ export class TabReorderController extends CompositeDisposable {
         // Tabs flow along x in a horizontal header and along y in a vertical
         // one, so the walk follows whichever coordinate is the main axis.
         const mousePos = this._mainAxisCoord(event.clientX, event.clientY ?? 0);
+        const layout = this._walkStrip();
         const { insertionIndex, targetTabGroupId } = this._resolveDragOver(
             mousePos,
-            this._walkStrip()
+            layout
         );
 
         if (
@@ -720,7 +721,7 @@ export class TabReorderController extends CompositeDisposable {
         this._animState.targetTabGroupId = targetTabGroupId;
 
         if (this.accessor.options.theme?.tabAnimation === 'smooth') {
-            this.applyDragOverTransforms();
+            this.applyDragOverTransforms(false, layout);
         }
     }
 
@@ -1143,7 +1144,10 @@ export class TabReorderController extends CompositeDisposable {
         }
     }
 
-    applyDragOverTransforms(skipTransition = false): void {
+    applyDragOverTransforms(
+        skipTransition = false,
+        layout?: StripLayout
+    ): void {
         // The gap animation is 1-D (single-row margin shifting) and fights the
         // wrap flow layout, so wrap uses a discrete drop indicator instead.
         if (this._wrapMode) {
@@ -1163,7 +1167,10 @@ export class TabReorderController extends CompositeDisposable {
 
         const insertionIndex = this._animState.currentInsertionIndex;
         const gapSize = this._computeGapSize();
-        const chipToShift = this._computeChipToShift(insertionIndex);
+        const chipToShift = this._computeChipToShift(
+            insertionIndex,
+            layout ?? this._walkStrip()
+        );
         this._applyGapMargins(
             insertionIndex,
             gapSize,
@@ -1194,9 +1201,11 @@ export class TabReorderController extends CompositeDisposable {
      * collapsed tab group's tabs are hidden, so its chip shifts even when
      * the drop joins it.
      */
-    private _computeChipToShift(insertionIndex: number): HTMLElement | null {
+    private _computeChipToShift(
+        insertionIndex: number,
+        { stops, spans }: StripLayout
+    ): HTMLElement | null {
         const animState = this._animState!;
-        const { stops, spans } = this._walkStrip();
         const next = stops.find((stop) => stop.index >= insertionIndex);
         const tg = spans.find((span) => span.first === next?.index)?.tabGroup;
         if (
@@ -1429,10 +1438,8 @@ export class TabReorderController extends CompositeDisposable {
         if (underline) {
             underline.style.removeProperty('display');
         }
-        // The subsequent moveTabGroup will re-create tabs and call
-        // updateTabGroups → render. For collapsed groups
-        // the new tabs don't have dv-tab--group-collapsed yet, which
-        // would trigger the collapse animation. Skip it.
+        // A move to another group rebuilds the tab group there; when it is
+        // collapsed, its new tabs must not run the collapse animation.
         this._tabGroupManager.skipNextCollapseAnimation = true;
     }
 

@@ -245,9 +245,6 @@ export interface IDockviewGroupPanelModel extends IPanel {
     readonly onDidChangeTabOrder: Event<void>;
     /** Move panels whose pinned state changed into their section. */
     reconcilePinnedOrder(): void;
-    /** The tab groups with members, in tab order (`getTabGroups` is in
-     *  creation order). */
-    getTabGroupsInTabOrder(): readonly ITabGroup[];
     readonly onDidActivePanelChange: Event<DockviewGroupActivePanelChangeEvent>;
     readonly onMove: Event<GroupMoveEvent>;
     locked: DockviewGroupPanelLocked;
@@ -1151,10 +1148,6 @@ export class DockviewGroupPanelModel
 
     getTabGroups(): readonly ITabGroup[] {
         return this._tabGroups;
-    }
-
-    getTabGroupsInTabOrder(): readonly ITabGroup[] {
-        return this._strip.tabGroups();
     }
 
     updateTabGroups(): void {

@@ -632,9 +632,6 @@ describe('tabs', () => {
                 onDidCollapseChange: noopEvent,
             };
             (group.model as any).getTabGroups = () => [groupX];
-            (group.model as any).getTabGroupsInTabOrder = (
-                group.model as any
-            ).getTabGroups;
             tabs.updateTabGroups();
 
             LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
@@ -694,9 +691,6 @@ describe('tabs', () => {
                 onDidCollapseChange: noopEvent,
             };
             (group.model as any).getTabGroups = () => [groupY];
-            (group.model as any).getTabGroupsInTabOrder = (
-                group.model as any
-            ).getTabGroups;
             tabs.updateTabGroups();
 
             LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
@@ -800,7 +794,6 @@ describe('tabs', () => {
                 locked: false,
                 model: fromPartial({
                     getTabGroups: jest.fn().mockReturnValue([]),
-                    getTabGroupsInTabOrder: jest.fn().mockReturnValue([]),
                     getTabGroupForPanel: jest.fn().mockReturnValue(null),
                 }),
             });

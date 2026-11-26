@@ -85,6 +85,11 @@ interface ChipRendererEntry {
     pointerDropTarget: IDropTarget;
 }
 
+/** Flush pending style changes so the next class change transitions. */
+function forceReflow(el: HTMLElement): void {
+    el.getBoundingClientRect();
+}
+
 export class TabGroupManager {
     private readonly _chipRenderers = new Map<string, ChipRendererEntry>();
     private _indicator: ITabGroupIndicator | null = null;
@@ -163,12 +168,28 @@ export class TabGroupManager {
      * is left to `update`, which creates the chip first.
      */
     render(): void {
-        if (this._chipRenderers.size === 0 && !this._indicator) {
-            return; // no tab group has rendered: nothing to place or clear
+        if (
+            this._chipRenderers.size === 0 &&
+            (this._indicator?.underlines.size ?? 0) === 0
+        ) {
+            return; // nothing rendered and nothing left to clear
         }
         const tabGroups = this._ctx.group.model
             .getTabGroups()
             .filter((tg) => this._chipRenderers.has(tg.id));
+
+        let hasAnimation = this._renderTabs(tabGroups);
+        for (const tg of tabGroups) {
+            hasAnimation = this._collapseTabs(tg) || hasAnimation;
+        }
+        this._skipNextCollapseAnimation = false;
+        this._syncIndicator(tabGroups, hasAnimation);
+    }
+
+    /** Place each chip before its tab group's first tab, give every tab its
+     *  tab group's classes, and drop chips with no tab to lead. Returns
+     *  whether a tab started animating. */
+    private _renderTabs(tabGroups: readonly ITabGroup[]): boolean {
         const tabGroupOf = new Map<string, ITabGroup>();
         for (const tg of tabGroups) {
             for (const id of tg.panelIds) {
@@ -180,14 +201,7 @@ export class TabGroupManager {
         let hasAnimation = false;
         for (const { value: tab } of this._ctx.getTabs()) {
             const tg = tabGroupOf.get(tab.panel.id);
-            const chipEl =
-                tg?.panelIds[0] === tab.panel.id
-                    ? this._chipRenderers.get(tg.id)?.chip.element
-                    : undefined;
-            if (tg && chipEl) {
-                if (chipEl.nextSibling !== tab.element) {
-                    this._ctx.tabsList.insertBefore(chipEl, tab.element);
-                }
+            if (tg && this._placeChip(tg, tab.panel.id, tab.element)) {
                 led.add(tg.id);
             }
             hasAnimation = this._renderTab(tab, tg) || hasAnimation;
@@ -197,22 +211,44 @@ export class TabGroupManager {
                 entry.chip.element.remove();
             }
         }
+        return hasAnimation;
+    }
 
-        for (const tg of tabGroups) {
-            hasAnimation = this._collapseTabs(tg) || hasAnimation;
+    /** Put `tabGroup`'s chip before `tabEl` when it is the first member's
+     *  tab. Returns whether the chip leads it. */
+    private _placeChip(
+        tabGroup: ITabGroup,
+        panelId: string,
+        tabEl: HTMLElement
+    ): boolean {
+        if (tabGroup.panelIds[0] !== panelId) {
+            return false;
         }
-        this._skipNextCollapseAnimation = false;
+        const chipEl = this._chipRenderers.get(tabGroup.id)?.chip.element;
+        if (!chipEl) {
+            return false;
+        }
+        if (chipEl.nextSibling !== tabEl) {
+            this._ctx.tabsList.insertBefore(chipEl, tabEl);
+        }
+        return true;
+    }
 
+    private _syncIndicator(
+        tabGroups: readonly ITabGroup[],
+        hasAnimation: boolean
+    ): void {
         this._ensureIndicator();
-        if (this._indicator) {
-            this._indicator.syncUnderlineElements(
-                new Set(tabGroups.map((tg) => tg.id))
-            );
-            if (hasAnimation) {
-                this._indicator.trackUnderlines();
-            } else {
-                this._indicator.positionUnderlines();
-            }
+        if (!this._indicator) {
+            return;
+        }
+        this._indicator.syncUnderlineElements(
+            new Set(tabGroups.map((tg) => tg.id))
+        );
+        if (hasAnimation) {
+            this._indicator.trackUnderlines();
+        } else {
+            this._indicator.positionUnderlines();
         }
     }
 
@@ -823,8 +859,7 @@ export class TabGroupManager {
             } else {
                 el.style.width = `${rect.width}px`;
             }
-            // `void` marks this read as an intentional reflow.
-            void el.offsetHeight; // force reflow
+            forceReflow(el);
             el.classList.add('dv-tab--group-collapsed');
         }
         return true;
