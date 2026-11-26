@@ -547,6 +547,10 @@ export interface IAutoEdgeGroupHost {
         element: HTMLElement,
         position: EdgeGroupPosition
     ): IDisposable;
+    /** The edge group at `position`, if one exists. */
+    getEdgeGroupPanel(
+        position: EdgeGroupPosition
+    ): DockviewGroupPanel | undefined;
     /** Reveal (create-or-fill) the edge group at `position` and drop the dragged
      *  item into it. The primitive behind drag-revealed edges. */
     revealEdgeGroupWithData(

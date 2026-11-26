@@ -522,7 +522,9 @@ export class TabReorderController extends CompositeDisposable {
         if (
             !data ||
             !(data.panelId || data.tabGroupId) ||
-            data.groupId === this.group.id
+            data.groupId === this.group.id ||
+            // A locked group takes no new panels from its header.
+            this.group.locked
         ) {
             return false;
         }
@@ -1583,6 +1585,10 @@ export class TabReorderController extends CompositeDisposable {
             // their inline `margin-left` would otherwise persist as a
             // visible gap (issue #1243).
             this.resetTabTransforms();
+            // A locked group takes no new panels from its header.
+            if (this.group.locked) {
+                return;
+            }
             this.accessor.moveGroupOrPanel({
                 from: {
                     groupId: data.groupId,

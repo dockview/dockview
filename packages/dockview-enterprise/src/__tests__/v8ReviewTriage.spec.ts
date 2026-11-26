@@ -110,6 +110,7 @@ describe('v8 review triage', () => {
             createEdgeDropTarget: () => ({ dispose: () => undefined }),
             revealEdgeGroupWithData: (pos: any, data: any, opts: any): void =>
                 dockview.revealEdgeGroupWithData(pos, data, opts),
+            getEdgeGroupPanel: (pos: any) => dockview.getEdgeGroupPanel(pos),
         };
         const service = new AutoEdgeGroupService(svcHost as any);
 

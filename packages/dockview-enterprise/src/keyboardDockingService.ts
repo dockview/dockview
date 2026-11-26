@@ -327,7 +327,10 @@ export class KeyboardDockingService
             return;
         }
         this._clearPreview();
-        this._preview = this.host.showDropPreview(group, move.position);
+        // A locked target refuses this landing (`_commit`), so don't preview it.
+        if (group.model.acceptsUserDrop(move.position)) {
+            this._preview = this.host.showDropPreview(group, move.position);
+        }
 
         const name = group.activePanel?.title ?? group.id;
         const m = this._messages;
@@ -358,6 +361,12 @@ export class KeyboardDockingService
         const source = move.source;
         const name = group.activePanel?.title ?? group.id;
         const m = this._messages;
+        // A locked group refuses the move; stay in move mode to pick again.
+        if (!group.model.acceptsUserDrop(position)) {
+            this.host.announce(m.moveNotAllowed());
+            this._showHint(m.moveNotAllowed());
+            return;
+        }
         this._exit();
         try {
             this.host.dockPanel(source, group, position);
