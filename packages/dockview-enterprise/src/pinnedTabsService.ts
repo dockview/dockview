@@ -115,6 +115,7 @@ class SecondRowController extends CompositeDisposable {
             // event fires), so re-render on add as well as remove.
             this.group.model.onDidAddPanel(() => this.render()),
             this.group.model.onDidRemovePanel(() => this.render()),
+            this.group.model.onDidChangeTabOrder(() => this.render()),
             // Active changes are frequent (every tab click) but don't change the
             // pinned set, so flip the active class without rebuilding the row.
             this.group.model.onDidActivePanelChange(() => this._syncActive()),

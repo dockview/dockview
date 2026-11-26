@@ -5941,22 +5941,34 @@ export class DockviewComponent
     ): void {
         const destinationGroup = options.to.group;
         const tabGroupId = tabGroupIdOf(options.to.tabGroup);
-        const isSameGroup = sourceGroup === destinationGroup;
-        const sourceIndex = sourceGroup.panels.findIndex(
-            (panel) => panel.id === sourceItemId
-        );
+
+        if (sourceGroup === destinationGroup) {
+            // A reorder within the group: the panel stays put, only its place
+            // in the tab strip changes.
+            const panel = sourceGroup.panels.find((p) => p.id === sourceItemId);
+            if (!panel) {
+                throw new Error(`dockview: No panel with id ${sourceItemId}`);
+            }
+            this.movingLock(() =>
+                sourceGroup.model.movePanel(panel, {
+                    index: options.to.index,
+                    tabGroupId,
+                    indexInTabGroup: options.to.indexInTabGroup,
+                    clampToPinned: options.to.clampToPinned,
+                    skipSetActive: options.skipSetActive,
+                })
+            );
+            if (!options.skipSetActive) {
+                this.doSetGroupAndPanelActive(destinationGroup);
+            }
+            this.fireDidMovePanel(panel, sourceGroup);
+            return;
+        }
 
         const removedPanel: IDockviewPanel | undefined = this.movingLock(() =>
             sourceGroup.model.removePanel(sourceItemId, {
                 skipSetActive: false,
                 skipSetActiveGroup: true,
-                // A panel moving within its own tab group must not dissolve it
-                // while it is briefly out of it.
-                retainEmptyTabGroup:
-                    isSameGroup &&
-                    tabGroupId !== undefined &&
-                    sourceGroup.model.getTabGroupForPanel(sourceItemId)?.id ===
-                        tabGroupId,
             })
         );
 
@@ -5964,12 +5976,7 @@ export class DockviewComponent
             throw new Error(`dockview: No panel with id ${sourceItemId}`);
         }
 
-        // keep the source group when moving within it
-        if (
-            !this.keepEmptyGroups(options) &&
-            sourceGroup.model.size === 0 &&
-            !isSameGroup
-        ) {
+        if (!this.keepEmptyGroups(options) && sourceGroup.model.size === 0) {
             // remove the group and do not set a new group as active
             this.doRemoveGroup(sourceGroup, { skipActive: true });
         }
@@ -5977,16 +5984,10 @@ export class DockviewComponent
         // Check if destination group is empty - if so, force render the component
         const isDestinationGroupEmpty = destinationGroup.model.size === 0;
 
-        // Joining a tab group places the panel by its members; the index only
-        // matters when the tab group has no other members.
-        let index = options.to.index;
-        if (tabGroupId !== undefined) {
-            index = isSameGroup ? sourceIndex : undefined;
-        }
-
         this.movingLock(() =>
             destinationGroup.model.openPanel(removedPanel, {
-                index,
+                // Joining a tab group places the panel by its members.
+                index: tabGroupId === undefined ? options.to.index : undefined,
                 tabGroupId,
                 indexInTabGroup: options.to.indexInTabGroup,
                 clampToPinned: options.to.clampToPinned,

@@ -713,7 +713,7 @@ describe('tab group placement', () => {
             dockview.dispose();
         });
 
-        test('joining through moveTo fires the tab group events after the panel is added', () => {
+        test('joining through moveTo within the group fires only the tab group events', () => {
             const { dockview, group } = setup();
             const x = createTabGroup(dockview, group, ['a', 'b']);
             const events: string[] = [];
@@ -730,12 +730,8 @@ describe('tab group placement', () => {
 
             dockview.getGroupPanel('d')!.api.moveTo({ group, tabGroup: x });
 
-            expect(events).toEqual([
-                'remove d',
-                'add d',
-                'member add d',
-                'join d',
-            ]);
+            // a reorder within the group: no remove or add
+            expect(events).toEqual(['member add d', 'join d']);
 
             dockview.dispose();
         });
@@ -754,6 +750,46 @@ describe('tab group placement', () => {
             expect(t2.panelIds).toEqual(['c']);
             expect(strip(group)).toEqual(['a', 'b', 'c']);
             expect(removed).toEqual([]);
+
+            dockview.dispose();
+        });
+    });
+
+    describe('moving within a group', () => {
+        test('is a move: no remove or add, and the active panel never changes', () => {
+            const { dockview, group } = setup();
+            const b = dockview.getGroupPanel('b')!;
+            b.api.setActive();
+            const events: string[] = [];
+            group.model.onDidRemovePanel((e) =>
+                events.push(`remove ${e.panel.id}`)
+            );
+            group.model.onDidAddPanel((e) => events.push(`add ${e.panel.id}`));
+            group.model.onDidActivePanelChange((e) =>
+                events.push(`active ${e.panel?.id}`)
+            );
+            group.model.onDidChangeTabOrder(() => events.push('order'));
+            dockview.onDidMovePanel((e) => events.push(`move ${e.panel.id}`));
+
+            b.api.moveTo({ group, index: 3 });
+
+            expect(strip(group)).toEqual(['a', 'c', 'd', 'b']);
+            expect(events).toEqual(['order', 'move b']);
+            expect(group.activePanel).toBe(b);
+
+            dockview.dispose();
+        });
+
+        test('keeps an inactive panel inactive with skipSetActive', () => {
+            const { dockview, group } = setup();
+            const a = dockview.getGroupPanel('a')!;
+            const d = dockview.getGroupPanel('d')!;
+            a.api.setActive();
+
+            d.api.moveTo({ group, index: 0, skipSetActive: true });
+
+            expect(strip(group)).toEqual(['d', 'a', 'b', 'c']);
+            expect(group.activePanel).toBe(a);
 
             dockview.dispose();
         });

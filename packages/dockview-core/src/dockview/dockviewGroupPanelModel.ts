@@ -275,6 +275,8 @@ export interface IDockviewGroupPanelModel extends IPanel {
     readonly onWillDrop: Event<DockviewWillDropEvent>;
     readonly onDidAddPanel: Event<DockviewGroupChangeEvent>;
     readonly onDidRemovePanel: Event<DockviewGroupChangeEvent>;
+    /** The order of the tabs already in the group changed. */
+    readonly onDidChangeTabOrder: Event<void>;
     readonly onDidActivePanelChange: Event<DockviewGroupActivePanelChangeEvent>;
     readonly onMove: Event<GroupMoveEvent>;
     locked: DockviewGroupPanelLocked;
@@ -410,6 +412,9 @@ export class DockviewGroupPanelModel
         new Emitter<DockviewGroupChangeEvent>();
     readonly onDidRemovePanel: Event<DockviewGroupChangeEvent> =
         this._onDidRemovePanel.event;
+
+    private readonly _onDidChangeTabOrder = new Emitter<void>();
+    readonly onDidChangeTabOrder: Event<void> = this._onDidChangeTabOrder.event;
 
     private readonly _onDidActivePanelChange =
         new Emitter<DockviewGroupActivePanelChangeEvent>();
@@ -815,6 +820,7 @@ export class DockviewGroupPanelModel
             this._onWillDrop,
             this._onDidAddPanel,
             this._onDidRemovePanel,
+            this._onDidChangeTabOrder,
             this._onDidActivePanelChange,
             this._onUnhandledDragOver,
             this._onDidPanelTitleChange,
@@ -1049,6 +1055,7 @@ export class DockviewGroupPanelModel
             this.tabsContainer.openPanel(this._panels[i], i);
         }
         this._syncActiveTab();
+        this._onDidChangeTabOrder.fire();
 
         this.tabsContainer.updateTabGroups();
     }
@@ -1137,6 +1144,7 @@ export class DockviewGroupPanelModel
         if (this._activePanel && reinserted.has(this._activePanel)) {
             this._syncActiveTab();
         }
+        this._onDidChangeTabOrder.fire();
     }
 
     /** Point the strip's active highlight and the tabpanel's
@@ -1611,13 +1619,57 @@ export class DockviewGroupPanelModel
         return this._panels.indexOf(panel);
     }
 
+    /**
+     * Move a panel already in this group to a new place in its tab strip: a
+     * reorder, so it is not removed and re-added and no panel events fire.
+     * Without `tabGroupId` the panel leaves any tab group.
+     */
+    public movePanel(
+        panel: IDockviewPanel,
+        options: {
+            index?: number;
+            tabGroupId?: string;
+            indexInTabGroup?: number;
+            clampToPinned?: boolean;
+            skipSetActive?: boolean;
+        } = {}
+    ): void {
+        if (!this._strip.has(panel.id)) {
+            return;
+        }
+        const tabGroup =
+            options.tabGroupId === undefined
+                ? undefined
+                : this._tabGroupMap.get(options.tabGroupId);
+
+        this._bracketTabGroupMutation(() =>
+            this._moveInStrip(panel.id, () =>
+                this._strip.move(
+                    panel.id,
+                    tabGroup
+                        ? { tabGroup, index: options.indexInTabGroup }
+                        : {
+                              index: options.index ?? this._panels.length,
+                              pinned:
+                                  options.clampToPinned === false
+                                      ? undefined
+                                      : !!panel.api.isPinned,
+                          }
+                )
+            )
+        );
+
+        if (!options.skipSetActive) {
+            this.doSetActivePanel(panel);
+            this.updateContainer();
+        }
+    }
+
     public removePanel(
         groupItemOrId: IDockviewPanel | string,
         options?: {
             skipSetActive?: boolean;
             skipSetActiveGroup?: boolean;
-            /** Keep the panel's tab group even if this leaves it empty. */
-            retainEmptyTabGroup?: boolean;
         }
     ): IDockviewPanel {
         const id =
@@ -1784,12 +1836,11 @@ export class DockviewGroupPanelModel
         options?: {
             skipSetActive?: boolean;
             skipSetActiveGroup?: boolean;
-            retainEmptyTabGroup?: boolean;
         }
     ): IDockviewPanel {
         const isActivePanel = this._activePanel === panel;
 
-        this.doRemovePanel(panel, !!options?.retainEmptyTabGroup);
+        this.doRemovePanel(panel);
 
         // removing a tab can change the header's extent (e.g. drop a wrap row)
         this.invalidateHeaderSize();
@@ -1809,10 +1860,7 @@ export class DockviewGroupPanelModel
         return panel;
     }
 
-    private doRemovePanel(
-        panel: IDockviewPanel,
-        retainEmptyTabGroup = false
-    ): void {
+    private doRemovePanel(panel: IDockviewPanel): void {
         if (this._activePanel === panel) {
             this.contentContainer.closePanel();
         }
@@ -1842,7 +1890,7 @@ export class DockviewGroupPanelModel
                     tabGroup,
                     panelId: panel.id,
                 });
-                if (tabGroup.isEmpty && !retainEmptyTabGroup) {
+                if (tabGroup.isEmpty) {
                     tabGroup.dispose();
                 }
             });
