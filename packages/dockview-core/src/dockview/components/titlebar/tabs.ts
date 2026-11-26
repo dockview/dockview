@@ -823,11 +823,11 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         this._focusTab(activeIndex > -1 ? activeIndex : 0);
     }
 
-    setActivePanel(panel: IDockviewPanel): void {
+    setActivePanel(panel: IDockviewPanel | undefined): void {
         const isVertical = this._direction === 'vertical';
 
         for (const tab of this._tabs) {
-            const isActivePanel = panel.id === tab.value.panel.id;
+            const isActivePanel = panel?.id === tab.value.panel.id;
             tab.value.setActive(isActivePanel);
 
             if (isActivePanel) {

@@ -793,5 +793,20 @@ describe('tab group placement', () => {
 
             dockview.dispose();
         });
+
+        test('collapsing the active tab group with nothing else to show clears the highlight', () => {
+            const { dockview, group } = setup(['a', 'b']);
+            const x = createTabGroup(dockview, group, ['a', 'b']);
+            dockview.getGroupPanel('b')!.api.setActive();
+
+            x.collapse();
+
+            expect(group.activePanel).toBeUndefined();
+            expect(
+                group.element.querySelectorAll('.dv-active-tab')
+            ).toHaveLength(0);
+
+            dockview.dispose();
+        });
     });
 });

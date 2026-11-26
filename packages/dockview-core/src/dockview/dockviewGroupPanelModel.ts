@@ -1045,17 +1045,7 @@ export class DockviewGroupPanelModel
             tabGroup,
             Math.max(0, targetIndex - membersBefore)
         );
-        this._panels.splice(0, this._panels.length, ...this._strip.toArray());
-
-        // Rebuild the tabs container to match new order
-        for (const panel of this._panels) {
-            this.tabsContainer.delete(panel.id);
-        }
-        for (let i = 0; i < this._panels.length; i++) {
-            this.tabsContainer.openPanel(this._panels[i], i);
-        }
-        this._syncActiveTab();
-        this._onDidChangeTabOrder.fire();
+        this._applyStrip([...tabGroup.panelIds]);
 
         this.tabsContainer.updateTabGroups();
     }
@@ -1999,6 +1989,8 @@ export class DockviewGroupPanelModel
                 // default to 'user' for minimal test accessors.
                 origin: this.accessor.currentOrigin?.() ?? 'user',
             });
+        } else {
+            this.tabsContainer.setActivePanel(undefined);
         }
 
         this.updateAccessibleLabel();
