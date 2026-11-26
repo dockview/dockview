@@ -39,15 +39,21 @@ NX handles build ordering automatically via `dependsOn: ["^build"]`. The depende
 
 ### Testing
 
--   `yarn test` - Run Jest tests across all packages via NX
+-   `yarn test` - Run tests across all packages via NX (Jest, except `dockview-vue` which uses Vitest)
 -   `yarn test:cov` - Run tests with coverage (root-level Jest invocation for SonarCloud unified coverage)
 
 ### Linting & Formatting
 
--   `yarn lint` - Run ESLint across all packages via NX
--   `yarn lint:fix` - Run ESLint with automatic fixing
--   `yarn format` - Run Prettier across all packages
--   `yarn format:check` - Check Prettier formatting
+-   `yarn lint` - Run Biome's linter across all packages via NX
+-   `yarn lint:fix` - Run Biome's linter with automatic fixing
+-   `yarn format` - Run Biome's formatter across all packages
+-   `yarn format:check` - Check Biome formatting
+
+> **Biome, not ESLint or Prettier.** Linting and formatting are both
+> [Biome](https://biomejs.dev), configured in the root `biome.json` (4-space
+> indent, single quotes, 80 columns). Running `npx prettier` reformats files
+> to a different style, so always format through `yarn format` or
+> `npx nx run <package>:format`.
 
 ### Documentation
 
@@ -115,10 +121,10 @@ NX handles build ordering automatically via `dependsOn: ["^build"]`. The depende
 
 ### Testing Strategy
 
--   Jest with ts-jest preset for TypeScript support
+-   Jest with `@swc/jest` for TypeScript (Vitest for `dockview-vue`)
 -   Testing Library for React component testing
 -   Coverage reporting with SonarCloud integration
--   Each package has its own jest.config.ts extending root configuration
+-   Each Jest package has its own jest.config.ts extending root configuration
 
 ### Code Quality
 
@@ -131,8 +137,8 @@ NX handles build ordering automatically via `dependsOn: ["^build"]`. The depende
     and prefer gating any behavioural change behind an opt-in option. Passing
     tests are necessary but not sufficient here — the absence of a test
     asserting the old behaviour is not permission to change it.
--   ESLint configuration extends recommended TypeScript rules
--   Prettier for code formatting
+-   Biome handles both linting and formatting; its configuration lives in the
+    root `biome.json` and extends the recommended rules
 -   Linting targets source files in packages/\*/src/\*\* (excludes tests, docs, node_modules)
 -   Current rules focus on TypeScript best practices while allowing some flexibility
 -   **SonarCloud must introduce no new issues.** Every PR runs a SonarCloud
