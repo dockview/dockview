@@ -1189,6 +1189,7 @@ export class DockviewGroupPanelModel
         if (index !== -1) {
             this._tabGroups.splice(index, 1);
             this._tabGroupMap.delete(tabGroup.id);
+            tabGroup.setOwner(undefined);
             // Any members stay where they are, as top-level tabs.
             this._strip.unwrap(tabGroup);
             this._applyStrip();
@@ -1296,9 +1297,12 @@ export class DockviewGroupPanelModel
 
             const concreteGroup = this._tabGroupMap.get(tabGroup.id)!;
             for (const panelId of data.panelIds) {
-                // Only add panels that actually exist in this group model
-                if (this._strip.has(panelId)) {
-                    this._strip.leave(panelId);
+                // Only add panels that actually exist in this group model,
+                // and only to the first tab group that lists them
+                if (
+                    this._strip.has(panelId) &&
+                    !this._strip.tabGroupOf(panelId)
+                ) {
                     this._strip.join(panelId, concreteGroup);
                 }
             }
@@ -1562,12 +1566,13 @@ export class DockviewGroupPanelModel
         });
 
         if (tabGroup) {
-            this._bracketTabGroupMutation(() =>
+            this._bracketTabGroupMutation(() => {
+                tabGroup.notifyMemberAdded(panel.id);
                 this._onDidAddPanelToTabGroup.fire({
                     tabGroup,
                     panelId: panel.id,
-                })
-            );
+                });
+            });
         }
 
         // a new tab can change the header's extent (e.g. push it to wrap)

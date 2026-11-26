@@ -87,8 +87,9 @@ export class TabStrip<T extends { readonly id: string }> {
     }
 
     /**
-     * Add a panel to `tabGroup` at `index` among its members. A tab group
-     * without members takes its place at `slot`.
+     * Add a panel to `tabGroup` at `index` among its members, without firing
+     * the tab group's `onDidPanelChange`. A tab group without members takes
+     * its place at `slot`; a disposed one leaves the panel top-level there.
      */
     insertIntoTabGroup(
         panel: T,
@@ -96,12 +97,16 @@ export class TabStrip<T extends { readonly id: string }> {
         index: number | undefined,
         slot: number
     ): void {
+        if (tabGroup.isDisposed) {
+            this.insert(panel, slot);
+            return;
+        }
         this._panels.set(panel.id, panel);
         if (this.slotOfTabGroup(tabGroup) === -1) {
             this._items.splice(this.clampSlot(slot), 0, { tabGroup });
         }
         this._tabGroupOf.set(panel.id, tabGroup);
-        tabGroup.insertMember(panel.id, index);
+        tabGroup.insertMember(panel.id, index, true);
     }
 
     /**
@@ -124,11 +129,12 @@ export class TabStrip<T extends { readonly id: string }> {
 
     /**
      * Move a top-level panel into `tabGroup` at `index` among its members. A
-     * tab group without members takes the panel's place.
+     * tab group without members takes the panel's place. No-op for a panel
+     * in a tab group or a disposed tab group.
      */
     join(panelId: string, tabGroup: TabGroup, index?: number): void {
         const slot = this.slotOfPanel(panelId);
-        if (slot === -1) {
+        if (slot === -1 || tabGroup.isDisposed) {
             return;
         }
         if (this.slotOfTabGroup(tabGroup) === -1) {

@@ -178,6 +178,9 @@ export class TabGroup extends CompositeDisposable implements ITabGroup {
     }
 
     addPanel(panelId: string, index?: number): void {
+        if (this.isDisposed) {
+            return;
+        }
         if (this._owner) {
             this._owner.addPanel(panelId, index);
             return;
@@ -186,14 +189,18 @@ export class TabGroup extends CompositeDisposable implements ITabGroup {
     }
 
     removePanel(panelId: string): boolean {
+        if (this.isDisposed) {
+            return false;
+        }
         if (this._owner) {
             return this._owner.removePanel(panelId);
         }
         return this.removeMember(panelId);
     }
 
-    /** Insert into the member list only. */
-    insertMember(panelId: string, index?: number): void {
+    /** Insert into the member list only. With `silent`, the caller fires
+     *  `onDidPanelChange` later through `notifyMemberAdded`. */
+    insertMember(panelId: string, index?: number, silent = false): void {
         if (this.isDisposed) {
             return;
         }
@@ -207,7 +214,15 @@ export class TabGroup extends CompositeDisposable implements ITabGroup {
                 : Math.max(0, Math.min(index, this._panelIds.length));
 
         this._panelIds.splice(insertIndex, 0, panelId);
-        this._onDidPanelChange.fire({ panelId, type: 'add' });
+        if (!silent) {
+            this._onDidPanelChange.fire({ panelId, type: 'add' });
+        }
+    }
+
+    notifyMemberAdded(panelId: string): void {
+        if (!this.isDisposed && this._panelIds.includes(panelId)) {
+            this._onDidPanelChange.fire({ panelId, type: 'add' });
+        }
     }
 
     /** Remove from the member list only. */

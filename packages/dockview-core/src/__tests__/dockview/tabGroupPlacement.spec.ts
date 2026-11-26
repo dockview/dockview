@@ -678,5 +678,84 @@ describe('tab group placement', () => {
 
             dockview.dispose();
         });
+
+        test('moving the only member into its own tab group keeps the panel', () => {
+            const { dockview, group } = setup(['a', 'b']);
+            const x = createTabGroup(dockview, group, ['a']);
+
+            group.model.movePanelBetweenGroups('a', x.id, 0);
+
+            expect(strip(group)).toEqual(['a', 'b']);
+            expect(group.model.size).toBe(2);
+            expect(tabCount(group)).toBe(2);
+
+            dockview.dispose();
+        });
+
+        test('a disposed tab group no longer changes membership', () => {
+            const { dockview, group } = setup(['a', 'b']);
+            const old = group.model.createTabGroup({ id: 'g' });
+            old.addPanel('a');
+            old.removePanel('a'); // empties and disposes it
+            const replacement = group.model.createTabGroup({ id: 'g' });
+
+            old.addPanel('b');
+            expect(old.removePanel('b')).toBe(false);
+
+            expect(replacement.panelIds).toEqual([]);
+            expect(
+                dockview.api.getTabGroupForPanel({
+                    groupId: group.id,
+                    panelId: 'b',
+                })
+            ).toBeUndefined();
+
+            dockview.dispose();
+        });
+
+        test('joining through moveTo fires the tab group events after the panel is added', () => {
+            const { dockview, group } = setup();
+            const x = createTabGroup(dockview, group, ['a', 'b']);
+            const events: string[] = [];
+            group.model.onDidRemovePanel((e) =>
+                events.push(`remove ${e.panel.id}`)
+            );
+            group.model.onDidAddPanel((e) => events.push(`add ${e.panel.id}`));
+            x.onDidPanelChange((e) =>
+                events.push(`member ${e.type} ${e.panelId}`)
+            );
+            dockview.api.onDidAddPanelToTabGroup((e) =>
+                events.push(`join ${e.panelId}`)
+            );
+
+            dockview.getGroupPanel('d')!.api.moveTo({ group, tabGroup: x });
+
+            expect(events).toEqual([
+                'remove d',
+                'add d',
+                'member add d',
+                'join d',
+            ]);
+
+            dockview.dispose();
+        });
+
+        test('a saved panel listed in two tab groups stays in the first', () => {
+            const { dockview, group } = setup(['a', 'b', 'c']);
+            const removed: string[] = [];
+            group.model.restoreTabGroups([
+                { id: 't1', collapsed: false, panelIds: ['a', 'b'] },
+                { id: 't2', collapsed: false, panelIds: ['b', 'c'] },
+            ]);
+            const [t1, t2] = group.model.getTabGroups();
+            t1.onDidPanelChange((e) => removed.push(e.panelId));
+
+            expect(t1.panelIds).toEqual(['a', 'b']);
+            expect(t2.panelIds).toEqual(['c']);
+            expect(strip(group)).toEqual(['a', 'b', 'c']);
+            expect(removed).toEqual([]);
+
+            dockview.dispose();
+        });
     });
 });
