@@ -60,40 +60,6 @@ import {
 import { EdgeGroupPosition } from './dockviewShell';
 import { TabStrip } from './tabStrip';
 
-/** The items of the longest run whose `key` strictly increases, in order. */
-function longestIncreasingRun<T>(
-    items: readonly T[],
-    key: (item: T) => number
-): Set<T> {
-    // tails[k]: index of the smallest last item of a run of length k + 1
-    const tails: number[] = [];
-    const parent: number[] = new Array(items.length).fill(-1);
-    items.forEach((item, i) => {
-        const value = key(item);
-        let lo = 0;
-        let hi = tails.length;
-        while (lo < hi) {
-            const mid = (lo + hi) >> 1;
-            if (key(items[tails[mid]]) < value) {
-                lo = mid + 1;
-            } else {
-                hi = mid;
-            }
-        }
-        parent[i] = lo > 0 ? tails[lo - 1] : -1;
-        tails[lo] = i;
-    });
-    const run = new Set<T>();
-    for (
-        let i = tails.length > 0 ? tails[tails.length - 1] : -1;
-        i !== -1;
-        i = parent[i]
-    ) {
-        run.add(items[i]);
-    }
-    return run;
-}
-
 interface TabGroupPlacement {
     /** The tab group a moved panel joins; `null` for none. */
     tabGroup: string | null;
@@ -1048,7 +1014,7 @@ export class DockviewGroupPanelModel
             tabGroup,
             Math.max(0, targetIndex - membersBefore)
         );
-        this._applyStrip([...tabGroup.panelIds]);
+        this._applyStrip();
 
         this.tabsContainer.updateTabGroups();
     }
@@ -1073,7 +1039,7 @@ export class DockviewGroupPanelModel
             return;
         }
         const apply = (): void => {
-            this._applyStrip(changes.map(({ panel }) => panel.id));
+            this._applyStrip();
             for (const { panel, leftTabGroup } of changes) {
                 if (!leftTabGroup) {
                     continue;
@@ -1105,7 +1071,7 @@ export class DockviewGroupPanelModel
         const before = this._strip.tabGroupOf(panelId);
         move();
         const after = this._strip.tabGroupOf(panelId);
-        this._applyStrip([panelId]);
+        this._applyStrip();
 
         if (before && before === after) {
             before.notifyPanelChange(panelId, 'remove');
@@ -1129,57 +1095,22 @@ export class DockviewGroupPanelModel
     }
 
     /**
-     * Refresh `_panels` from the strip, then move the tabs whose place
-     * changed. Of `moved`, those whose index changed are the ones re-created
-     * even if a different set would need fewer moves.
+     * Refresh `_panels` from the strip and put the tabs already shown in the
+     * same order, moving their elements rather than re-creating them.
      */
-    private _applyStrip(moved: readonly string[] = []): void {
-        const previous = new Map(this._panels.map((p, i) => [p.id, i]));
+    private _applyStrip(): void {
+        const previous = this._panels.map((p) => p.id);
         const next = this._strip.toArray();
         this._panels.splice(0, this._panels.length, ...next);
-        const forced = new Set(
-            moved.filter(
-                (id) =>
-                    previous.has(id) &&
-                    previous.get(id) !== next.findIndex((p) => p.id === id)
-            )
-        );
-        this._syncTabOrder(next, previous, forced);
-    }
 
-    /** Re-create the tabs outside the longest run already in order. A fresh
-     *  `Tab` renders inactive under a new DOM id, so the active highlight and
-     *  the tabpanel's `aria-labelledby` are re-applied when it is the active
-     *  one. */
-    private _syncTabOrder(
-        next: readonly IDockviewPanel[],
-        previous: ReadonlyMap<string, number>,
-        moved: ReadonlySet<string>
-    ): void {
-        const candidates = next.filter(
-            (p) => previous.has(p.id) && !moved.has(p.id)
-        );
-        const kept = longestIncreasingRun(
-            candidates,
-            (p) => previous.get(p.id)!
-        );
-        const reinsert = next.filter((p) => previous.has(p.id) && !kept.has(p));
-        if (reinsert.length === 0) {
-            return;
+        const nextIds = new Set(next.map((p) => p.id));
+        const previousIds = new Set(previous);
+        const shown = next.map((p) => p.id).filter((id) => previousIds.has(id));
+        const before = previous.filter((id) => nextIds.has(id));
+        if (shown.some((id, index) => before[index] !== id)) {
+            this.tabsContainer.reorder(shown);
+            this._onDidChangeTabOrder.fire();
         }
-        for (const panel of reinsert) {
-            this.tabsContainer.delete(panel.id);
-        }
-        const reinserted = new Set(reinsert);
-        next.forEach((panel, index) => {
-            if (reinserted.has(panel)) {
-                this.tabsContainer.openPanel(panel, index);
-            }
-        });
-        if (this._activePanel && reinserted.has(this._activePanel)) {
-            this._syncActiveTab();
-        }
-        this._onDidChangeTabOrder.fire();
     }
 
     /** Point the strip's active highlight and the tabpanel's
@@ -1357,7 +1288,7 @@ export class DockviewGroupPanelModel
                     concreteGroup.notifyPanelChange(panelId, 'add');
                 }
             }
-            this._applyStrip([...concreteGroup.panelIds]);
+            this._applyStrip();
 
             if (data.collapsed) {
                 tabGroup.collapse();

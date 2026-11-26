@@ -643,7 +643,7 @@ describe('tab group placement', () => {
             dockview.dispose();
         });
 
-        test('only tabs whose place changed are re-created', () => {
+        test('tabs keep their element when the order changes', () => {
             const { dockview, group } = setup();
             const x = createTabGroup(dockview, group, ['a', 'b']);
             const tabIds = (): Record<string, string | undefined> =>
@@ -653,30 +653,55 @@ describe('tab group placement', () => {
                         group.model.header.getTabId(p.id),
                     ])
                 );
-
-            // `c` already sits right after X: joining moves nothing
             const before = tabIds();
+
             dockview.api.addPanelToTabGroup({
                 groupId: group.id,
                 panelId: 'c',
                 tabGroupId: x.id,
             });
-            expect(tabIds()).toEqual(before);
-
-            // `d` moves to the front of X: only its tab is re-created
             dockview.getGroupPanel('d')!.api.moveTo({
                 group,
                 tabGroup: x,
                 indexInTabGroup: 0,
             });
-            const after = tabIds();
+            group.model.moveTabGroup(x.id, 0);
+
             expect(strip(group)).toEqual(['d', 'a', 'b', 'c']);
-            expect(after.a).toBe(before.a);
-            expect(after.b).toBe(before.b);
-            expect(after.c).toBe(before.c);
-            expect(after.d).not.toBe(before.d);
+            expect(tabIds()).toEqual(before);
+            expect(
+                Array.from(group.element.querySelectorAll('.dv-tab')).map(
+                    (el) => (el as HTMLElement).dataset.tabPanelId
+                )
+            ).toEqual(['d', 'a', 'b', 'c']);
 
             dockview.dispose();
+        });
+
+        test('a moved tab keeps focus', () => {
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            const dockview = new DockviewComponent(container, {
+                createComponent: () => new TestContent(),
+            });
+            dockview.layout(1000, 500);
+            for (const id of ['a', 'b', 'c']) {
+                dockview.addPanel({ id, component: 'default' });
+            }
+            const group = dockview.groups[0];
+            const tab = document.getElementById(
+                group.model.header.getTabId('a')!
+            )!;
+            tab.focus();
+            expect(document.activeElement).toBe(tab);
+
+            dockview.getGroupPanel('a')!.api.moveTo({ group, index: 2 });
+
+            expect(strip(group)).toEqual(['b', 'c', 'a']);
+            expect(document.activeElement).toBe(tab);
+
+            dockview.dispose();
+            container.remove();
         });
 
         test('moving the only member into its own tab group keeps the panel', () => {

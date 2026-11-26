@@ -60,6 +60,9 @@ export interface ITabsContainer extends IDisposable {
     hidden: boolean;
     direction: DockviewHeaderDirection;
     delete(id: string): void;
+    /** Put the existing tabs in `order` (panel ids), moving tab elements
+     *  rather than re-creating them. */
+    reorder(order: readonly string[]): void;
     indexOf(id: string): number;
     getTabId(panelId: string): string | undefined;
     getPanelForTab(element: Element): IDockviewPanel | undefined;
@@ -406,6 +409,10 @@ export class TabsContainer
 
     setActive(_isGroupActive: boolean) {
         // noop
+    }
+
+    reorder(order: readonly string[]): void {
+        this.tabs.reorder(order);
     }
 
     delete(id: string): void {
