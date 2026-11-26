@@ -29,7 +29,7 @@ model. When writing or editing docs:
 - `build-templates:local` - Generate templates using local package references
 - `typecheck` - Run TypeScript type checking
 
-**Do NOT format the docs package.** It is deliberately excluded from Prettier / `nx format` / `format:check`. Don't run Prettier on files under `packages/docs/` and don't "fix" formatting warnings here — CI does not check it.
+**Do NOT format the docs package.** It is deliberately excluded from Biome (`!packages/docs/**` in the root `biome.json`) and has no `format` / `format:check` target. Don't run Biome, Prettier or any other formatter on files under `packages/docs/` and don't "fix" formatting warnings here — CI does not check it.
 
 ## Documentation Structure
 

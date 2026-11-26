@@ -19,8 +19,8 @@ Vue 3 bindings for dockview.
 
 ## Testing
 
-- `test` - Jest with `@vue/vue3-jest` transformer and `@vue/test-utils`
-- Config: `jest.config.ts` (project name: `dockview-vue`)
+- `test` - Vitest (`vitest run`) with `@vue/test-utils`; the `dockview` package must be built first, as the SFC compiler resolves prop types from its `dist`
+- Config: the `test` block in `vite.config.ts`
 
 ## Config Files
 
