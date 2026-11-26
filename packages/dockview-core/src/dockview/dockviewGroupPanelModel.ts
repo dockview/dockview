@@ -245,6 +245,9 @@ export interface IDockviewGroupPanelModel extends IPanel {
     readonly onDidChangeTabOrder: Event<void>;
     /** Move panels whose pinned state changed into their section. */
     reconcilePinnedOrder(): void;
+    /** The tab groups with members, in tab order (`getTabGroups` is in
+     *  creation order). */
+    getTabGroupsInTabOrder(): readonly ITabGroup[];
     readonly onDidActivePanelChange: Event<DockviewGroupActivePanelChangeEvent>;
     readonly onMove: Event<GroupMoveEvent>;
     locked: DockviewGroupPanelLocked;
@@ -1138,6 +1141,10 @@ export class DockviewGroupPanelModel
 
     getTabGroups(): readonly ITabGroup[] {
         return this._tabGroups;
+    }
+
+    getTabGroupsInTabOrder(): readonly ITabGroup[] {
+        return this._strip.tabGroups();
     }
 
     updateTabGroups(): void {
@@ -2107,18 +2114,14 @@ export class DockviewGroupPanelModel
         if (!tabGroup) {
             return { tabGroup: null };
         }
-        const strip = this._panels
-            .map((p) => p.id)
-            .filter((id) => id !== draggedPanelId);
-        const dropIndex = index ?? strip.length;
-        const indexInTabGroup = tabGroup.panelIds.filter((id) => {
-            if (id === draggedPanelId) {
-                return false;
-            }
-            const position = strip.indexOf(id);
-            return position !== -1 && position < dropIndex;
-        }).length;
-        return { tabGroup: tabGroup.id, indexInTabGroup };
+        return {
+            tabGroup: tabGroup.id,
+            indexInTabGroup: this._strip.indexInTabGroupAt(
+                tabGroup,
+                index ?? this._panels.length,
+                draggedPanelId
+            ),
+        };
     }
 
     private handleDropEvent(

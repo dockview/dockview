@@ -848,7 +848,7 @@ export class TabReorderController extends CompositeDisposable {
             firstPanelToGroup
         );
 
-        for (const tg of this.group.model.getTabGroups()) {
+        for (const tg of this.group.model.getTabGroupsInTabOrder()) {
             const resolved = this._evaluateTabGroupForInsertion(
                 tg,
                 mousePos,
@@ -1352,7 +1352,7 @@ export class TabReorderController extends CompositeDisposable {
         if (this._tabGroupManager.chipRenderers.size === 0) {
             return null;
         }
-        for (const tg of this.group.model.getTabGroups()) {
+        for (const tg of this.group.model.getTabGroupsInTabOrder()) {
             const result = this._chipToShiftForGroup(tg, insertionIndex);
             // `undefined` means "keep looking"; a defined result (element or
             // null) is the final answer for the group governing this slot.
