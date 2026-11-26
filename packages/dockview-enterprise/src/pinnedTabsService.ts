@@ -304,8 +304,8 @@ class SecondRowController extends CompositeDisposable {
                     );
                     // The within-row index is the strip index (pinned tabs are
                     // the first N of the strip); `skipSetActive` keeps a reorder
-                    // from stealing activation. `enforceOrder` preserves this
-                    // manual order, and `render()` reconciles the row on dragend.
+                    // from stealing activation. The strip keeps this manual
+                    // order, and `render()` reconciles the row on dragend.
                     panel?.api.moveTo({
                         index: targetIndex,
                         skipSetActive: true,
@@ -326,8 +326,8 @@ class SecondRowController extends CompositeDisposable {
         // computed against the pre-pin row before the block grows.
         const slot = this._insertionSlot(event.clientX);
         this._clearIndicator();
-        // Pinning appends the panel to the pinned block (enforceOrder) and
-        // re-renders the row; move it to the drop slot within the block.
+        // Pinning appends the panel to the pinned block and re-renders the
+        // row; move it to the drop slot within the block.
         incoming.api.setPinned(true);
         const pinnedCount = this.group.model.panels.filter(
             (p) => p.api.isPinned
@@ -406,7 +406,7 @@ class SecondRowController extends CompositeDisposable {
             ?.classList.remove('dv-pinned-tab--dragging');
         // Release the shared payload + row-drag flag raised on dragstart. The
         // main strip's drop handler already read them synchronously during any
-        // drop, and a deferred unpin captured its panel directly.
+        // drop.
         LocalSelectionTransfer.getInstance<PanelTransfer>().clearData(
             PanelTransfer.prototype
         );
@@ -707,12 +707,11 @@ export class PinnedTabsService
      * Keep a header drop on the correct side of the pin boundary. By default a
      * cross-boundary drop is **clamped** back (Chrome-style). Opt in to
      * flipping the dragged panel's pinned state with
-     * `togglePinOnCrossBoundaryDrag: true` (VS-Code-style). The flip is
-     * deferred to a microtask so it runs after the in-progress move settles,
-     * then the pinned-change handler re-orders the strip.
+     * `togglePinOnCrossBoundaryDrag: true` (VS-Code-style). The flip happens
+     * before the move, so the strip places the tab in its new section.
      *
-     * The boundary is the pinned count *excluding the dragged panel* (it is
-     * removed and re-inserted during the move, so the index is post-removal).
+     * The boundary is the pinned count *excluding the dragged panel*: the
+     * index is counted without it.
      */
     resolveDropIndex(
         group: DockviewGroupPanel,
@@ -774,13 +773,10 @@ export class PinnedTabsService
 
     /**
      * Re-assert the pinned-first order on `group`'s tab strip, for pinned
-     * state set without the panel's pin event reaching the strip (a restore,
-     * a mode change). A no-op while the feature is dormant.
+     * state the strip has not seen change: a restore, or pinning turned on or
+     * off (with it off, no tab counts as pinned).
      */
     enforceOrder(group: DockviewGroupPanel): void {
-        if (!this._host.options.pinnedTabs?.enabled) {
-            return;
-        }
         group.model.reconcilePinnedOrder();
     }
 

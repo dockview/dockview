@@ -73,6 +73,7 @@ describe('AngularHeaderActionsRenderer', () => {
     function makeStubGroup() {
         const onDidAddPanel = makeEmitter<void>();
         const onDidRemovePanel = makeEmitter<void>();
+        const onDidChangeTabOrder = makeEmitter<void>();
         const onDidActivePanelChange = makeEmitter<void>();
         const onDidActiveChange = makeEmitter<void>();
         const onDidLocationChange = makeEmitter<{ location: any }>();
@@ -92,6 +93,7 @@ describe('AngularHeaderActionsRenderer', () => {
                 headerPosition: 'top',
                 onDidAddPanel: onDidAddPanel.subscribe,
                 onDidRemovePanel: onDidRemovePanel.subscribe,
+                onDidChangeTabOrder: onDidChangeTabOrder.subscribe,
                 onDidActivePanelChange: onDidActivePanelChange.subscribe,
             },
         };
@@ -101,6 +103,7 @@ describe('AngularHeaderActionsRenderer', () => {
             emitters: {
                 onDidAddPanel,
                 onDidRemovePanel,
+                onDidChangeTabOrder,
                 onDidActivePanelChange,
                 onDidActiveChange,
                 onDidLocationChange,
@@ -167,6 +170,14 @@ describe('AngularHeaderActionsRenderer', () => {
         application.tick();
         expect(renderer.element.querySelector('.panels')!.textContent).toBe(
             '0'
+        );
+
+        // a reorder within the group refreshes `panels` too
+        group.model.panels.push({ id: 'b' });
+        emitters.onDidChangeTabOrder.fire();
+        application.tick();
+        expect(renderer.element.querySelector('.panels')!.textContent).toBe(
+            '1'
         );
 
         renderer.dispose();

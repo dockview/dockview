@@ -459,6 +459,29 @@ describe('pinned tabs: integration', () => {
         expect(b.api.isPinned).toBe(false);
     });
 
+    test('with pinning turned off, a still-flagged tab can join a tab group', () => {
+        const dockview = make({ enabled: true });
+        const { a, order } = threePanels(dockview);
+        const groupId = a.api.group.id;
+        dockview.getGroupPanel('c')!.api.setPinned(true);
+        dockview.updateOptions({ pinnedTabs: { enabled: false } });
+        const x = dockview.api.createTabGroup({ groupId, label: 'X' });
+
+        dockview.api.addPanelToTabGroup({
+            groupId,
+            panelId: 'a',
+            tabGroupId: x.id,
+        });
+        dockview.api.addPanelToTabGroup({
+            groupId,
+            panelId: 'c',
+            tabGroupId: x.id,
+        });
+
+        expect(x.panelIds).toEqual(['a', 'c']);
+        expect(order()).toEqual(['a', 'c', 'b']);
+    });
+
     test('a drop across the boundary flips the pin, then lands where dropped', () => {
         const dockview = make({
             enabled: true,

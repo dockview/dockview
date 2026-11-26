@@ -30,6 +30,7 @@ describe('registry renderers retain params across partial updates', () => {
     test('VueHeaderActionsRenderer.updateLocation keeps the enriched props', () => {
         const onDidAddPanel = new DockviewEmitter<any>();
         const onDidRemovePanel = new DockviewEmitter<any>();
+        const onDidChangeTabOrder = new DockviewEmitter<any>();
         const onDidActivePanelChange = new DockviewEmitter<any>();
         const onDidActiveChange = new DockviewEmitter<any>();
         const onDidLocationChange = new DockviewEmitter<any>();
@@ -39,6 +40,7 @@ describe('registry renderers retain params across partial updates', () => {
         const groupModel = {
             onDidAddPanel: onDidAddPanel.event,
             onDidRemovePanel: onDidRemovePanel.event,
+            onDidChangeTabOrder: onDidChangeTabOrder.event,
             onDidActivePanelChange: onDidActivePanelChange.event,
             get panels() {
                 return panels;
@@ -90,6 +92,7 @@ describe('registry renderers retain params across partial updates', () => {
         renderer.dispose();
         onDidAddPanel.dispose();
         onDidRemovePanel.dispose();
+        onDidChangeTabOrder.dispose();
         onDidActivePanelChange.dispose();
         onDidActiveChange.dispose();
         onDidLocationChange.dispose();

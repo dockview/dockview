@@ -12,6 +12,7 @@ describe('headerActionsRenderer', () => {
                 return {
                     onDidAddPanel: jest.fn(),
                     onDidRemovePanel: jest.fn(),
+                    onDidChangeTabOrder: jest.fn(),
                     onDidActivePanelChange: jest.fn(),
                 };
             }
@@ -48,6 +49,9 @@ describe('headerActionsRenderer', () => {
                 location: { type: 'grid' },
             },
         });
+
+        // a reorder within the group refreshes the `panels` prop
+        expect(groupview.onDidChangeTabOrder).toHaveBeenCalled();
 
         const update = jest.fn();
 

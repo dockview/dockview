@@ -844,5 +844,26 @@ describe('tab group placement', () => {
 
             dockview.dispose();
         });
+
+        test('restoring a tab group fires add only for panels that joined it', () => {
+            const { dockview, group } = setup(['a', 'b']);
+            const added: string[] = [];
+            const original = group.model.createTabGroup.bind(group.model);
+            jest.spyOn(group.model, 'createTabGroup').mockImplementation(
+                (options) => {
+                    const tabGroup = original(options);
+                    tabGroup.onDidPanelChange((e) => added.push(e.panelId));
+                    return tabGroup;
+                }
+            );
+
+            group.model.restoreTabGroups([
+                { id: 't1', collapsed: false, panelIds: ['a', 'missing', 'b'] },
+            ]);
+
+            expect(added).toEqual(['a', 'b']);
+
+            dockview.dispose();
+        });
     });
 });

@@ -401,8 +401,8 @@ export class DockviewGroupPanelModel
     private readonly _tabGroupMap = new Map<string, TabGroup>();
     /** The source of truth for tab order and tab group membership;
      *  `_panels` is its flat order. */
-    private readonly _strip = new TabStrip<IDockviewPanel>(
-        (panel) => !!panel.api.isPinned
+    private readonly _strip = new TabStrip<IDockviewPanel>((panel) =>
+        this._isPinned(panel)
     );
     private _tabGroupIdCounter = 0;
     private _pendingTabGroupUpdate = false;
@@ -1022,11 +1022,21 @@ export class DockviewGroupPanelModel
         this.tabsContainer.updateTabGroups();
     }
 
+    /** Pinned for tab order: only while pinning is enabled and the pinned
+     *  tabs feature is present, so a stale flag never locks a tab in front. */
+    private _isPinned(panel: IDockviewPanel): boolean {
+        return (
+            !!panel.api.isPinned &&
+            !!this.accessor.options?.pinnedTabs?.enabled &&
+            !!this.accessor.pinnedTabsService
+        );
+    }
+
     /** Unpin a panel about to join a tab group: tab groups live only in the
      *  unpinned section. */
     private _unpinToJoin(panelId: string): void {
         const panel = this._panels.find((p) => p.id === panelId);
-        if (panel?.api.isPinned) {
+        if (panel && this._isPinned(panel)) {
             panel.api.setPinned(false);
         }
     }
@@ -1292,7 +1302,9 @@ export class DockviewGroupPanelModel
                     !this._strip.tabGroupOf(panelId)
                 ) {
                     this._strip.move(panelId, { tabGroup: concreteGroup });
-                    concreteGroup.notifyPanelChange(panelId, 'add');
+                    if (this._strip.tabGroupOf(panelId) === concreteGroup) {
+                        concreteGroup.notifyPanelChange(panelId, 'add');
+                    }
                 }
             }
             this._applyStrip();
@@ -1536,7 +1548,7 @@ export class DockviewGroupPanelModel
                 ? this._tabGroupMap.get(options.tabGroupId)
                 : undefined;
 
-        if (tabGroup?.isDisposed === false && panel.api.isPinned) {
+        if (tabGroup?.isDisposed === false && this._isPinned(panel)) {
             // tab groups live only in the unpinned section
             panel.api.setPinned(false);
         }

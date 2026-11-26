@@ -370,6 +370,7 @@ describe('mountVueComponent', () => {
 describe('VueHeaderActionsRenderer', () => {
     let onDidAddPanel: DockviewEmitter<any>;
     let onDidRemovePanel: DockviewEmitter<any>;
+    let onDidChangeTabOrder: DockviewEmitter<any>;
     let onDidActivePanelChange: DockviewEmitter<any>;
     let onDidActiveChange: DockviewEmitter<any>;
     let onDidLocationChange: DockviewEmitter<any>;
@@ -383,6 +384,7 @@ describe('VueHeaderActionsRenderer', () => {
     beforeEach(() => {
         onDidAddPanel = new DockviewEmitter();
         onDidRemovePanel = new DockviewEmitter();
+        onDidChangeTabOrder = new DockviewEmitter();
         onDidActivePanelChange = new DockviewEmitter();
         onDidActiveChange = new DockviewEmitter();
         onDidLocationChange = new DockviewEmitter();
@@ -394,6 +396,7 @@ describe('VueHeaderActionsRenderer', () => {
         const groupModel = {
             onDidAddPanel: onDidAddPanel.event,
             onDidRemovePanel: onDidRemovePanel.event,
+            onDidChangeTabOrder: onDidChangeTabOrder.event,
             onDidActivePanelChange: onDidActivePanelChange.event,
             get panels() {
                 return panels;
@@ -431,6 +434,7 @@ describe('VueHeaderActionsRenderer', () => {
     afterEach(() => {
         onDidAddPanel.dispose();
         onDidRemovePanel.dispose();
+        onDidChangeTabOrder.dispose();
         onDidActivePanelChange.dispose();
         onDidActiveChange.dispose();
         onDidLocationChange.dispose();
@@ -505,6 +509,28 @@ describe('VueHeaderActionsRenderer', () => {
         panels = [...panels, newPanel];
 
         onDidAddPanel.fire(undefined);
+
+        expect(vueRenderMock).toHaveBeenCalled();
+
+        renderer.dispose();
+    });
+
+    test('should update panels reactively when the tab order changes', () => {
+        const renderer = new VueHeaderActionsRenderer(
+            mockComponent,
+            mockParent,
+            groupPanel
+        );
+
+        renderer.init({
+            api: groupPanel.api,
+            containerApi: {} as any,
+            group: groupPanel as any,
+        });
+
+        vueRenderMock.mockClear();
+
+        onDidChangeTabOrder.fire(undefined);
 
         expect(vueRenderMock).toHaveBeenCalled();
 

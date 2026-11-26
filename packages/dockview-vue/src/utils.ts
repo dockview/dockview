@@ -359,6 +359,9 @@ export class VueHeaderActionsRenderer
             this.group.model.onDidRemovePanel(() => {
                 this.updateProps();
             }),
+            this.group.model.onDidChangeTabOrder(() => {
+                this.updateProps();
+            }),
             this.group.model.onDidActivePanelChange(() => {
                 this.updateProps();
             }),
