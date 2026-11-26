@@ -409,6 +409,51 @@ describe('tab group placement', () => {
             dockview.dispose();
         });
 
+        test('a rejected placement fires no layout mutation events', () => {
+            const { dockview, group } = setup();
+            const x = createTabGroup(dockview, group, ['a', 'b']);
+            const events: string[] = [];
+            dockview.onWillMutateLayout((e) => events.push(`will:${e.kind}`));
+            dockview.onDidMutateLayout((e) => events.push(`did:${e.kind}`));
+            const c = dockview.getGroupPanel('c')!;
+
+            expect(() =>
+                c.api.moveTo({ group, tabGroup: 'missing' })
+            ).toThrow();
+            expect(() =>
+                c.api.moveTo({ group, position: 'right', tabGroup: x })
+            ).toThrow();
+            expect(() =>
+                dockview.addPanel({
+                    id: 'e',
+                    component: 'default',
+                    position: { referenceGroup: group, tabGroup: 'missing' },
+                })
+            ).toThrow();
+            expect(() =>
+                dockview.addPanel({
+                    id: 'e',
+                    component: 'default',
+                    position: { referenceGroup: group, tabGroup: x, index: 1 },
+                })
+            ).toThrow();
+            expect(() =>
+                dockview.addPanel({
+                    id: 'e',
+                    component: 'default',
+                    position: {
+                        referencePanel: 'a',
+                        direction: 'below',
+                        tabGroup: x,
+                    },
+                })
+            ).toThrow();
+
+            expect(events).toEqual([]);
+
+            dockview.dispose();
+        });
+
         test('throws for a tab group with an edge position', () => {
             const { dockview, group } = setup();
             const x = createTabGroup(dockview, group, ['a', 'b']);

@@ -4692,7 +4692,56 @@ export class DockviewComponent
     addPanel<T extends object = Parameters>(
         options: AddPanelOptions<T>
     ): DockviewPanel {
+        this.validateAddPanelPlacement(options);
         return this.mutation('add', () => this._doAddPanel(options));
+    }
+
+    /** Throw, before anything changes, for a `position` whose tab group
+     *  placement is invalid. A missing reference is left to `_doAddPanel`. */
+    private validateAddPanelPlacement(
+        options?: Pick<AddPanelOptions, 'position' | 'floating'>
+    ): void {
+        const position = options?.position;
+        if (
+            !position ||
+            !(
+                isPanelOptionsWithPanel(position) ||
+                isPanelOptionsWithGroup(position)
+            )
+        ) {
+            return;
+        }
+        validatePanelPlacement(position);
+        const tabGroupId = tabGroupIdOf(position.tabGroup);
+        if (tabGroupId === undefined) {
+            return;
+        }
+        let referenceGroup: DockviewGroupPanel | undefined;
+        if (isPanelOptionsWithPanel(position)) {
+            const referencePanel =
+                typeof position.referencePanel === 'string'
+                    ? this.getGroupPanel(position.referencePanel)
+                    : position.referencePanel;
+            referenceGroup = referencePanel
+                ? this.findGroup(referencePanel)
+                : undefined;
+        } else {
+            referenceGroup =
+                typeof position.referenceGroup === 'string'
+                    ? this._groups.get(position.referenceGroup)?.value
+                    : position.referenceGroup;
+        }
+        if (!referenceGroup) {
+            return;
+        }
+        const target = toTarget(<Direction>position.direction || 'within');
+        this.validateTabGroupPlacement(
+            referenceGroup,
+            !options?.floating &&
+                (referenceGroup.api.location.type === 'edge' ||
+                    target === 'center'),
+            tabGroupId
+        );
     }
 
     /**
@@ -4711,6 +4760,8 @@ export class DockviewComponent
                 `dockview: serialized panel ${state.id} has no contentComponent`
             );
         }
+
+        this.validateAddPanelPlacement(options);
 
         return this.mutation('add', () => {
             const panel = this._doAddPanel({
@@ -4843,17 +4894,7 @@ export class DockviewComponent
                     isPanelOptionsWithGroup(options.position))
                     ? options.position
                     : undefined;
-            if (placement) {
-                validatePanelPlacement(placement);
-            }
             const tabGroupId = tabGroupIdOf(placement?.tabGroup);
-            if (tabGroupId !== undefined) {
-                this.validateTabGroupPlacement(
-                    referenceGroup,
-                    isWithinGroup,
-                    tabGroupId
-                );
-            }
 
             if (options.floating) {
                 const group = this.createGroup();
@@ -5855,6 +5896,14 @@ export class DockviewComponent
     }
 
     moveGroupOrPanel(options: MoveGroupOrPanelOptions): void {
+        const tabGroupId = tabGroupIdOf(options.to.tabGroup);
+        if (tabGroupId !== undefined) {
+            this.validateTabGroupPlacement(
+                options.to.group,
+                !options.to.position || options.to.position === 'center',
+                tabGroupId
+            );
+        }
         this.mutation('move', () => this._doMoveGroupOrPanel(options));
     }
 
@@ -5995,15 +6044,6 @@ export class DockviewComponent
                 });
             }
             return;
-        }
-
-        const tabGroupId = tabGroupIdOf(options.to.tabGroup);
-        if (tabGroupId !== undefined) {
-            this.validateTabGroupPlacement(
-                destinationGroup,
-                !destinationTarget || destinationTarget === 'center',
-                tabGroupId
-            );
         }
 
         if (!destinationTarget || destinationTarget === 'center') {

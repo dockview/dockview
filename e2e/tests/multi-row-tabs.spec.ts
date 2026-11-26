@@ -396,6 +396,10 @@ test.describe('multi-row tabs (wrap mode)', () => {
             (ids) => (window as any).__dv.groupTabs(ids, 'X'),
             Array.from({ length: 10 }, (_, i) => `wrap-tab-${i}`)
         );
+        // the chip mounts on a microtask and shifts the tabs; measure after it
+        await expect(
+            page.locator('.dv-tab-group-chip', { hasText: 'X' })
+        ).toHaveCount(1);
 
         const s = (await page
             .locator('.dv-tab', { hasText: 'wrap-tab-long-title-19' })
