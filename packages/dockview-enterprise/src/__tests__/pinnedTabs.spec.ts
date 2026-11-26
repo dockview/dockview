@@ -219,12 +219,12 @@ describe('pinned tabs: integration', () => {
         expect(tabEl(c).querySelector('.dv-tab-pin')).not.toBeNull();
     });
 
-    test('the pinned class survives a reorder (which recreates the tab)', () => {
+    test('the pinned class survives a reorder', () => {
         const dockview = make({ enabled: true });
         const { a, c } = threePanels(dockview);
 
         c.api.setPinned(true);
-        // Reorder unpinned tabs to force the strip (and tab elements) to rebuild.
+        // reorder the unpinned tabs
         a.api.moveTo({ index: 2 });
 
         expect(tabEl(c).classList.contains('dv-tab--pinned')).toBe(true);
@@ -1077,6 +1077,15 @@ describe('pinned tabs: separate-row mode', () => {
         expect(moveTo).toHaveBeenCalledWith({ index: 2, skipSetActive: true });
         expect(order()).toEqual(['b', 'c', 'a']);
         // The row DOM reconciles to the new order after the drop.
+        expect(rowTabs().map((el) => el.textContent)).toEqual(['b', 'c', 'a']);
+    });
+
+    test('the row follows a reorder made through the API', () => {
+        const dockview = make({ enabled: true, mode: 'separate-row' });
+        const { a } = setupThreePinned(dockview);
+
+        a.api.moveTo({ index: 2 });
+
         expect(rowTabs().map((el) => el.textContent)).toEqual(['b', 'c', 'a']);
     });
 
