@@ -1160,7 +1160,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
 
         // A new tab may have been inserted between a chip and its
         // group's first tab, so reposition all chips to stay correct.
-        this._tabGroupManager.positionAllChips();
+        this._tabGroupManager.render();
 
         // If a tab was added during active drag, refresh positions
         if (this._animState) {
@@ -1206,7 +1206,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         this._tabs = next;
         refocus?.focus();
 
-        this._tabGroupManager.positionAllChips();
+        this._tabGroupManager.render();
         this._scheduleOverflowRefresh();
         if (this._animState) {
             this._animState.tabPositions = this.snapshotTabPositions();

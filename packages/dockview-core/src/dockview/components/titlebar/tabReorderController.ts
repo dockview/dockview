@@ -1430,7 +1430,7 @@ export class TabReorderController extends CompositeDisposable {
             underline.style.removeProperty('display');
         }
         // The subsequent moveTabGroup will re-create tabs and call
-        // updateTabGroups → _updateTabGroupClasses. For collapsed groups
+        // updateTabGroups → render. For collapsed groups
         // the new tabs don't have dv-tab--group-collapsed yet, which
         // would trigger the collapse animation. Skip it.
         this._tabGroupManager.skipNextCollapseAnimation = true;

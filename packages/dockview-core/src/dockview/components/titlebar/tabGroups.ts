@@ -125,7 +125,6 @@ export class TabGroupManager {
         for (const tabGroup of tabGroups) {
             activeGroupIds.add(tabGroup.id);
             this._ensureChipForGroup(tabGroup);
-            this._positionChipForGroup(tabGroup);
         }
 
         // Remove chips for dissolved/destroyed groups
@@ -139,7 +138,7 @@ export class TabGroupManager {
             }
         }
 
-        this._updateTabGroupClasses();
+        this.render();
     }
 
     /**
@@ -152,15 +151,68 @@ export class TabGroupManager {
             const entry = this._chipRenderers.get(tabGroup.id);
             entry?.chip.update?.({ tabGroup });
         }
-        this._updateTabGroupClasses();
+        this.render();
     }
 
-    positionAllChips(): void {
-        if (this._chipRenderers.size === 0) {
-            return;
+    /**
+     * Bring the chips and tab classes in line with the tab groups in one
+     * walk over the tabs: each chip goes before its tab group's first
+     * member, every tab takes its tab group's classes and accent, and a
+     * newly collapsed tab group collapses its tabs. A chip whose tab group
+     * has no tab to lead leaves the strip. A tab group without a chip yet
+     * is left to `update`, which creates the chip first.
+     */
+    render(): void {
+        if (this._chipRenderers.size === 0 && !this._indicator) {
+            return; // no tab group has rendered: nothing to place or clear
         }
-        for (const tabGroup of this._ctx.group.model.getTabGroups()) {
-            this._positionChipForGroup(tabGroup);
+        const tabGroups = this._ctx.group.model
+            .getTabGroups()
+            .filter((tg) => this._chipRenderers.has(tg.id));
+        const tabGroupOf = new Map<string, ITabGroup>();
+        for (const tg of tabGroups) {
+            for (const id of tg.panelIds) {
+                tabGroupOf.set(id, tg);
+            }
+        }
+
+        const led = new Set<string>();
+        let hasAnimation = false;
+        for (const { value: tab } of this._ctx.getTabs()) {
+            const tg = tabGroupOf.get(tab.panel.id);
+            const chipEl =
+                tg?.panelIds[0] === tab.panel.id
+                    ? this._chipRenderers.get(tg.id)?.chip.element
+                    : undefined;
+            if (tg && chipEl) {
+                if (chipEl.nextSibling !== tab.element) {
+                    this._ctx.tabsList.insertBefore(chipEl, tab.element);
+                }
+                led.add(tg.id);
+            }
+            hasAnimation = this._renderTab(tab, tg) || hasAnimation;
+        }
+        for (const [id, entry] of this._chipRenderers) {
+            if (!led.has(id)) {
+                entry.chip.element.remove();
+            }
+        }
+
+        for (const tg of tabGroups) {
+            hasAnimation = this._collapseTabs(tg) || hasAnimation;
+        }
+        this._skipNextCollapseAnimation = false;
+
+        this._ensureIndicator();
+        if (this._indicator) {
+            this._indicator.syncUnderlineElements(
+                new Set(tabGroups.map((tg) => tg.id))
+            );
+            if (hasAnimation) {
+                this._indicator.trackUnderlines();
+            } else {
+                this._indicator.positionUnderlines();
+            }
         }
     }
 
@@ -555,15 +607,10 @@ export class TabGroupManager {
         const disposables: IDisposable[] = [
             tabGroup.onDidChange(() => {
                 chip.update?.({ tabGroup });
-                this._updateTabGroupClasses();
+                this.render();
             }),
-            tabGroup.onDidPanelChange(() => {
-                this._positionChipForGroup(tabGroup);
-                this._updateTabGroupClasses();
-            }),
-            tabGroup.onDidCollapseChange(() => {
-                this._updateTabGroupClasses();
-            }),
+            tabGroup.onDidPanelChange(() => this.render()),
+            tabGroup.onDidCollapseChange(() => this.render()),
         ];
 
         // Context menu: built-in TabGroupChip already aggregates right-click
@@ -665,200 +712,121 @@ export class TabGroupManager {
 
         // Group is born collapsed (cross-group drop, layout restore, etc.):
         // its tabs are about to be added without the collapsed class. Skip
-        // the animation in the upcoming _updateTabGroupClasses call so they
+        // the animation in the upcoming render so they
         // apply the class instantly instead of transitioning from expanded.
         if (tabGroup.collapsed) {
             this._skipNextCollapseAnimation = true;
         }
     }
 
-    private _positionChipForGroup(tabGroup: ITabGroup): void {
-        const entry = this._chipRenderers.get(tabGroup.id);
-        if (!entry) {
-            return;
+    /** Apply a tab's tab group classes and accent, or clear them; start
+     *  the expand animation of a tab whose tab group opened. Returns
+     *  whether it animates. */
+    private _renderTab(tab: Tab, tg: ITabGroup | undefined): boolean {
+        const el = tab.element;
+        toggleClass(el, 'dv-tab--grouped', !!tg);
+        const ids = tg?.panelIds ?? [];
+        toggleClass(el, 'dv-tab--group-first', ids[0] === tab.panel.id);
+        toggleClass(
+            el,
+            'dv-tab--group-last',
+            ids[ids.length - 1] === tab.panel.id
+        );
+
+        if (!tg) {
+            el.classList.remove(
+                'dv-tab--group-collapsed',
+                'dv-tab--group-expanding'
+            );
+            el.style.removeProperty('width');
+            el.style.removeProperty('--dv-tab-group-color');
+            return false;
         }
 
-        const chipEl = entry.chip.element;
-        const panelIds = tabGroup.panelIds;
-
-        if (panelIds.length === 0) {
-            chipEl.remove();
-            return;
+        // Expose the resolved group color as a CSS custom property so
+        // pure-CSS themes can use it for borders, backgrounds, etc.
+        applyTabGroupAccent(
+            el,
+            tg.color,
+            this._ctx.accessor.tabGroupColorPalette
+        );
+        if (tg.collapsed || !el.classList.contains('dv-tab--group-collapsed')) {
+            return false;
         }
 
-        const firstPanelId = panelIds[0];
-        const firstTabEntry = this._ctx.getTabMap().get(firstPanelId);
-
-        if (!firstTabEntry) {
-            chipEl.remove();
-            return;
-        }
-
-        const firstTabEl = firstTabEntry.value.element;
-        if (chipEl.nextSibling !== firstTabEl) {
-            this._ctx.tabsList.insertBefore(chipEl, firstTabEl);
-        }
+        // Collapsed → expanding: animate back
+        const panelId = tab.panel.id;
+        el.classList.remove('dv-tab--group-collapsed');
+        el.classList.add('dv-tab--group-expanding');
+        // Clean up any previous transitionend listener from a rapid
+        // collapse/expand cycle
+        this._pendingTransitionCleanups.get(panelId)?.();
+        const onEnd = () => {
+            el.classList.remove('dv-tab--group-expanding');
+            el.style.removeProperty('width');
+            el.removeEventListener('transitionend', onEnd);
+            clearTimeout(fallbackTimer);
+            this._pendingTransitionCleanups.delete(panelId);
+        };
+        // Fallback in case transitionend never fires (e.g. element removed
+        // from DOM mid-transition)
+        const fallbackTimer = setTimeout(onEnd, 300);
+        this._pendingTransitionCleanups.set(panelId, onEnd);
+        el.addEventListener('transitionend', onEnd);
+        return true;
     }
 
-    private _updateTabGroupClasses(): void {
-        const model = this._ctx.group.model;
-        const tabGroups = model.getTabGroups();
-        const tabs = this._ctx.getTabs();
+    /** Collapse the tabs of a collapsed tab group that are still open:
+     *  animated, or at once after `skipNextCollapseAnimation`. Returns
+     *  whether it animates. */
+    private _collapseTabs(tg: ITabGroup): boolean {
+        if (!tg.collapsed) {
+            return false;
+        }
         const tabMap = this._ctx.getTabMap();
-        let hasAnimation = false;
+        const open = tg.panelIds.flatMap((pid) => {
+            const el = tabMap.get(pid)?.value.element;
+            return el && !el.classList.contains('dv-tab--group-collapsed')
+                ? [el]
+                : [];
+        });
+        if (open.length === 0) {
+            return false;
+        }
 
-        // Build a lookup: panelId → tabGroup
-        const panelGroupMap = new Map<string, ITabGroup>();
-        for (const tg of tabGroups) {
+        if (this._skipNextCollapseAnimation) {
+            // Disable transitions so the CSS transition on
+            // dv-tab--group-collapsed doesn't fire.
+            const affected: HTMLElement[] = [];
             for (const pid of tg.panelIds) {
-                panelGroupMap.set(pid, tg);
-            }
-        }
-
-        for (const tabEntry of tabs) {
-            const tab = tabEntry.value;
-            const panelId = tab.panel.id;
-            const tg = panelGroupMap.get(panelId);
-
-            const isGrouped = !!tg;
-            toggleClass(tab.element, 'dv-tab--grouped', isGrouped);
-
-            if (tg) {
-                const ids = tg.panelIds;
-                const isFirst = ids[0] === panelId;
-                const isLast = ids[ids.length - 1] === panelId;
-
-                toggleClass(tab.element, 'dv-tab--group-first', isFirst);
-                toggleClass(tab.element, 'dv-tab--group-last', isLast);
-
-                // Expose the resolved group color as a CSS custom property
-                // so pure-CSS themes can use it for borders, backgrounds, etc.
-                applyTabGroupAccent(
-                    tab.element,
-                    tg.color,
-                    this._ctx.accessor.tabGroupColorPalette
-                );
-
-                // Collapse / expand with animation
-                const isCollapsed = tab.element.classList.contains(
-                    'dv-tab--group-collapsed'
-                );
-                if (!tg.collapsed && isCollapsed) {
-                    // Collapsed → expanding: animate back
-                    hasAnimation = true;
-                    tab.element.classList.remove('dv-tab--group-collapsed');
-                    tab.element.classList.add('dv-tab--group-expanding');
-
-                    // Clean up any previous transitionend listener
-                    // from a rapid collapse/expand cycle
-                    this._pendingTransitionCleanups.get(panelId)?.();
-
-                    const onEnd = () => {
-                        tab.element.classList.remove('dv-tab--group-expanding');
-                        tab.element.style.removeProperty('width');
-                        tab.element.removeEventListener('transitionend', onEnd);
-                        clearTimeout(fallbackTimer);
-                        this._pendingTransitionCleanups.delete(panelId);
-                    };
-                    // Fallback in case transitionend never fires
-                    // (e.g. element removed from DOM mid-transition)
-                    const fallbackTimer = setTimeout(onEnd, 300);
-                    this._pendingTransitionCleanups.set(panelId, onEnd);
-                    tab.element.addEventListener('transitionend', onEnd);
-                }
-            } else {
-                toggleClass(tab.element, 'dv-tab--group-first', false);
-                toggleClass(tab.element, 'dv-tab--group-last', false);
-                tab.element.classList.remove(
-                    'dv-tab--group-collapsed',
-                    'dv-tab--group-expanding'
-                );
-                tab.element.style.removeProperty('width');
-                tab.element.style.removeProperty('--dv-tab-group-color');
-            }
-        }
-
-        const activeGroupIds = new Set<string>();
-
-        // Handle collapse animation per group
-        for (const tg of tabGroups) {
-            activeGroupIds.add(tg.id);
-
-            const hasNewCollapse =
-                tg.collapsed &&
-                tg.panelIds.some((pid) => {
-                    const te = tabMap.get(pid);
-                    return (
-                        te &&
-                        !te.value.element.classList.contains(
-                            'dv-tab--group-collapsed'
-                        )
-                    );
-                });
-
-            if (hasNewCollapse) {
-                if (this._skipNextCollapseAnimation) {
-                    // Apply collapsed state instantly (no animation).
-                    // Disable transitions so the CSS transition on
-                    // dv-tab--group-collapsed doesn't fire.
-                    const affected: HTMLElement[] = [];
-                    for (const pid of tg.panelIds) {
-                        const te = tabMap.get(pid);
-                        if (te) {
-                            te.value.element.style.transition = 'none';
-                            te.value.element.classList.add(
-                                'dv-tab--group-collapsed'
-                            );
-                            affected.push(te.value.element);
-                        }
-                    }
-                    if (affected.length > 0) {
-                        // `void` marks this offsetHeight read as an intentional
-                        // layout reflow, not a dead expression.
-                        void affected[0].offsetHeight; // single reflow
-                        for (const el of affected) {
-                            el.style.removeProperty('transition');
-                        }
-                    }
-                } else {
-                    hasAnimation = true;
-                    const isVert = this._ctx.getDirection() === 'vertical';
-                    for (const pid of tg.panelIds) {
-                        const te = tabMap.get(pid);
-                        if (
-                            te &&
-                            !te.value.element.classList.contains(
-                                'dv-tab--group-collapsed'
-                            )
-                        ) {
-                            const rect =
-                                te.value.element.getBoundingClientRect();
-                            if (isVert) {
-                                te.value.element.style.height = `${rect.height}px`;
-                            } else {
-                                te.value.element.style.width = `${rect.width}px`;
-                            }
-                            // `void` marks this read as an intentional reflow.
-                            void te.value.element.offsetHeight; // force reflow
-                            te.value.element.classList.add(
-                                'dv-tab--group-collapsed'
-                            );
-                        }
-                    }
+                const el = tabMap.get(pid)?.value.element;
+                if (el) {
+                    el.style.transition = 'none';
+                    el.classList.add('dv-tab--group-collapsed');
+                    affected.push(el);
                 }
             }
-        }
-
-        this._skipNextCollapseAnimation = false;
-
-        this._ensureIndicator();
-        if (this._indicator) {
-            this._indicator.syncUnderlineElements(activeGroupIds);
-            if (hasAnimation) {
-                this._indicator.trackUnderlines();
-            } else {
-                this._indicator.positionUnderlines();
+            // `void` marks this offsetHeight read as an intentional layout
+            // reflow, not a dead expression.
+            void affected[0].offsetHeight; // single reflow
+            for (const el of affected) {
+                el.style.removeProperty('transition');
             }
+            return false;
         }
+
+        const isVert = this._ctx.getDirection() === 'vertical';
+        for (const el of open) {
+            const rect = el.getBoundingClientRect();
+            if (isVert) {
+                el.style.height = `${rect.height}px`;
+            } else {
+                el.style.width = `${rect.width}px`;
+            }
+            // `void` marks this read as an intentional reflow.
+            void el.offsetHeight; // force reflow
+            el.classList.add('dv-tab--group-collapsed');
+        }
+        return true;
     }
 }
