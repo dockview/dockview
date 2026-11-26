@@ -2148,7 +2148,7 @@ export class DockviewGroupPanelModel
             type === 'header' &&
             getPanelData()?.groupId !== this.id
         ) {
-            return;
+            return false;
         }
 
         // An `edge` content drop (a resolver's outer "dock to the layout edge"
