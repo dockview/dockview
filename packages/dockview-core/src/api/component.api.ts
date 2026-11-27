@@ -1403,11 +1403,6 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
         );
     }
 
-    /**
-     * @deprecated Use `panel.api.moveTo({ group, at: { tabGroup, index } })`,
-     * which also activates the panel unless `skipSetActive` is set and fires
-     * `onDidMovePanel`.
-     */
     addPanelToTabGroup(options: {
         groupId: string;
         tabGroupId: string;
@@ -1424,11 +1419,6 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
         );
     }
 
-    /**
-     * @deprecated Use `panel.api.moveTo({ group, at: { index } })`, which
-     * also activates the panel unless `skipSetActive` is set and fires
-     * `onDidMovePanel`.
-     */
     removePanelFromTabGroup(options: {
         groupId: string;
         panelId: string;

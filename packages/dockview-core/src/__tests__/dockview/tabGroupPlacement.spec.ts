@@ -392,7 +392,7 @@ describe('tab group placement', () => {
             const c = dockview.getGroupPanel('c')!;
 
             expect(() =>
-                c.api.moveTo({ group, index: 0, at: { at: { tabGroup: x } } })
+                c.api.moveTo({ group, index: 0, at: { tabGroup: x } })
             ).toThrow(/index cannot be combined with at/);
             expect(() =>
                 dockview.addPanel({
@@ -661,6 +661,24 @@ describe('tab group placement', () => {
             dropOnStrip(dockview, group, 'c', 0, null);
 
             expect(ats).toEqual([{ tabGroup: x, index: 1 }, { index: 0 }]);
+
+            dockview.dispose();
+        });
+
+        test('a drop that carries no panel still reports its tab group', () => {
+            const { dockview, group } = setup(['a', 'b', 'c']);
+            const x = createTabGroup(dockview, group, ['a', 'b']);
+            const ats: unknown[] = [];
+            dockview.onDidDrop((e) => ats.push(e.at));
+
+            (group.model as any).tabsContainer.tabs.fireDrop({
+                event: new Event('drop'),
+                index: 1,
+                targetTabGroupId: x.id,
+                indexInTabGroup: 1,
+            });
+
+            expect(ats).toEqual([{ tabGroup: x, index: 1 }]);
 
             dockview.dispose();
         });

@@ -25,12 +25,18 @@ const tabGroup = api.createTabGroup({
     color: 'blue',
 });
 
-// Add a panel to the tab group
-const panel = api.getPanel('panel-1');
-panel?.api.moveTo({ group: panel.group, at: { tabGroup } });
+// Add panels to the tab group
+api.addPanelToTabGroup({
+    groupId: 'group-1',
+    tabGroupId: tabGroup.id,
+    panelId: 'panel-1',
+});
 
-// Take it out of its tab group, at index 0
-panel?.api.moveTo({ group: panel.group, at: { index: 0 } });
+// Remove a panel from its tab group
+api.removePanelFromTabGroup({
+    groupId: 'group-1',
+    panelId: 'panel-1',
+});
 
 // Dissolve a tab group (removes all panels from it and destroys it)
 api.dissolveTabGroup({
@@ -46,7 +52,7 @@ api.moveTabGroup({
 });
 ```
 
-`api.addPanelToTabGroup` and `api.removePanelFromTabGroup`, and `addPanel` and `removePanel` on a tab group, still work but are deprecated in favour of `moveTo`. Unlike them, `moveTo` activates the panel (unless `skipSetActive` is set) and fires `onDidMovePanel`.
+`addPanel` and `removePanel` on a tab group still work but are deprecated in favour of these `api` methods.
 
 ### Placing panels in a tab group
 

@@ -52,9 +52,9 @@ export interface ITabGroup {
     }>;
     readonly onDidCollapseChange: Event<boolean>;
     readonly onDidDestroy: Event<void>;
-    /** @deprecated Use `panel.api.moveTo({ group, at: { tabGroup, index } })`. */
+    /** @deprecated Use `api.addPanelToTabGroup`. */
     addPanel(panelId: string, index?: number): void;
-    /** @deprecated Use `panel.api.moveTo({ group, at: { index } })`. */
+    /** @deprecated Use `api.removePanelFromTabGroup`. */
     removePanel(panelId: string): boolean;
     indexOfPanel(panelId: string): number;
     containsPanel(panelId: string): boolean;

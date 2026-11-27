@@ -41,6 +41,8 @@ api.onDidMovePanel((event: MovePanelEvent) => {
     // event.panel: IDockviewPanel
     // event.from: DockviewGroupPanel, the group the panel left
     // event.to: DockviewGroupPanel, the group the panel now belongs to
+    // event.at: where it now is in that group's tab strip,
+    //   { tabGroup, index } in a tab group, { index } outside one
 });
 ```
 

@@ -148,9 +148,9 @@ export class DockviewDidDropEvent extends DockviewEvent {
     }
 
     /**
-     * For a drop on a group's tab bar, where in the tab strip it lands: in a
-     * tab group, or at {@link index} outside one. `undefined` for a drop on
-     * a group's content or a layout edge.
+     * For a drop on a group's tab bar, where in the tab strip it asks to
+     * land: in a tab group, or at {@link index} outside one. `undefined` for
+     * a drop on a group's content or a layout edge.
      */
     get at(): TabStripTarget<ITabGroup> | undefined {
         return this.options.at;
@@ -721,7 +721,7 @@ export class DockviewGroupPanelModel
                     resolvedIndex,
                     undefined,
                     undefined,
-                    this._tabGroupPlacementForDrop(draggedPanelId, event)
+                    this._tabGroupPlacementForDrop(event)
                 );
             }),
 
@@ -2118,11 +2118,10 @@ export class DockviewGroupPanelModel
 
     /** The tab group placement a tab drop asks for, if any. */
     private _tabGroupPlacementForDrop(
-        draggedPanelId: string | null,
         event: TabDropIndexEvent
     ): TabGroupPlacement | undefined {
         const { targetTabGroupId, indexInTabGroup } = event;
-        if (!draggedPanelId || targetTabGroupId === undefined) {
+        if (targetTabGroupId === undefined) {
             return undefined;
         }
         if (

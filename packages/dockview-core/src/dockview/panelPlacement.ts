@@ -19,7 +19,7 @@ export function resolvePanelPlacement(
     if (at === undefined) {
         return { index };
     }
-    if (at.tabGroup !== undefined) {
+    if (at.tabGroup !== undefined && at.tabGroup !== null) {
         return { tabGroup: at.tabGroup, indexInTabGroup: at.index };
     }
     return { index: at.index };

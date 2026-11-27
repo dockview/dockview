@@ -915,7 +915,8 @@ export interface PanelOptions<P extends object = Parameters> {
  *   `index` among its tabs; the end when omitted.
  *
  * `G` is how the tab group is given: `ITabGroup | string` when you pass a
- * target, `ITabGroup` when dockview reports one.
+ * target, `ITabGroup` when dockview reports one. Check `at.tabGroup` to
+ * tell the two apart.
  */
 export type TabStripTarget<G = ITabGroup | string> =
     | { readonly index: number; readonly tabGroup?: never }
