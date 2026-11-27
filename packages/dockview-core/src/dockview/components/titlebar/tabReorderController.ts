@@ -950,23 +950,37 @@ export class TabReorderController extends CompositeDisposable {
         this.updateWrapDropIndicator(index);
     }
 
-    /**
-     * The tab group a wrapped drop at slot `index` joins, by the rule of the
-     * single-row drag: a slot between two members joins their tab group, as
-     * does the slot before the first member once the pointer is past the
-     * chip, and a member released at its own slot stays.
-     */
     private _wrappedTargetTabGroup(
         index: number,
         clientX: number,
         clientY: number
     ): string | null {
+        const { sourceTabId, sourceIndex } = this._animState!;
+        return this.tabGroupAtSlot(
+            index,
+            { id: sourceTabId, index: sourceIndex },
+            (tabGroup, tabIndex) =>
+                this._pastChip(tabGroup, tabIndex, clientX, clientY)
+        );
+    }
+
+    /**
+     * The tab group a tab dropped at slot `index` (an index into the live
+     * tab list) joins: a slot between two members joins their tab group, as
+     * does the slot before the first member when `pastChip` says the pointer
+     * is past the chip, and a member released at its own slot stays.
+     * `pastChip` gets the tab group and the index of the tab after its chip.
+     */
+    tabGroupAtSlot(
+        index: number,
+        source: { id: string | null; index: number },
+        pastChip: (tabGroup: ITabGroup, tabIndex: number) => boolean
+    ): string | null {
         if (this._tabGroupManager.chipRenderers.size === 0) {
             return null;
         }
-        const { sourceTabId, sourceIndex } = this._animState!;
         const isSource = (i: number): boolean =>
-            this._tabs[i].value.panel.id === sourceTabId;
+            this._tabs[i].value.panel.id === source.id;
         const tabGroupAt = (i: number): ITabGroup | undefined =>
             i >= 0 && i < this._tabs.length
                 ? this.group.model.getTabGroupForPanel(
@@ -983,19 +997,15 @@ export class TabReorderController extends CompositeDisposable {
             next++;
         }
         const after = tabGroupAt(next);
-        if (after && after === tabGroupAt(prev)) {
-            return after.id;
-        }
-        if (after && this._pastChip(after, next, clientX, clientY)) {
+        if (after && (after === tabGroupAt(prev) || pastChip(after, next))) {
             return after.id;
         }
 
-        const own = tabGroupAt(sourceIndex);
-        if (!own || (index !== sourceIndex && index !== sourceIndex + 1)) {
+        const own = tabGroupAt(source.index);
+        if (!own || (index !== source.index && index !== source.index + 1)) {
             return null;
         }
-        return own.panelIds[0] !== sourceTabId ||
-            this._pastChip(own, sourceIndex, clientX, clientY)
+        return own.panelIds[0] !== source.id || pastChip(own, source.index)
             ? own.id
             : null;
     }

@@ -730,6 +730,74 @@ describe('tabs', () => {
         });
     });
 
+    describe('default-mode drop tab group target', () => {
+        // [chip X] a b c d, with a b c in tab group X
+        function setup(sourceGroupId: string, sourceId: string) {
+            const { tabs, group, accessor } = createTabsForDropTest();
+            (accessor.options as any).theme = { tabAnimation: 'default' };
+            ['a', 'b', 'c', 'd'].forEach((id, i) =>
+                tabs.openPanel(createMockPanel(id), i)
+            );
+            const noopEvent = () => ({ dispose: jest.fn() });
+            const x = {
+                id: 'x',
+                panelIds: ['a', 'b', 'c'],
+                collapsed: false,
+                label: '',
+                color: undefined,
+                onDidChange: noopEvent,
+                onDidPanelChange: noopEvent,
+                onDidCollapseChange: noopEvent,
+            };
+            (group.model as any).getTabGroups = () => [x];
+            (group.model as any).getTabGroupForPanel = (id: string) =>
+                x.panelIds.includes(id) ? x : undefined;
+            tabs.updateTabGroups();
+            LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
+                [
+                    new PanelTransfer(
+                        'test-accessor-id',
+                        sourceGroupId,
+                        sourceId
+                    ),
+                ],
+                PanelTransfer.prototype
+            );
+            const drops: TabDropIndexEvent[] = [];
+            tabs.onDrop((e) => drops.push(e));
+            return { tabs, drops };
+        }
+
+        const target = (
+            sourceGroupId: string,
+            sourceId: string,
+            tabIndex: number,
+            side: 'left' | 'right'
+        ): string | null | undefined => {
+            const { tabs, drops } = setup(sourceGroupId, sourceId);
+            simulateDropOnTab(tabs, tabIndex, side);
+            return drops[0]?.targetTabGroupId;
+        };
+
+        test('a drop between two members joins their tab group', () => {
+            expect(target('other-group-id', 'z', 1, 'left')).toBe('x');
+            expect(target('other-group-id', 'z', 1, 'right')).toBe('x');
+        });
+
+        test('a drop on the first member joins at the front', () => {
+            expect(target('other-group-id', 'z', 0, 'left')).toBe('x');
+        });
+
+        test('a drop after the last member lands outside the tab group', () => {
+            expect(target('other-group-id', 'z', 2, 'right')).toBeNull();
+            expect(target('other-group-id', 'z', 3, 'left')).toBeNull();
+        });
+
+        test('the last member released next to its own slot stays', () => {
+            expect(target('test-group-id', 'c', 3, 'left')).toBe('x');
+        });
+    });
+
     describe('delete', () => {
         test('does not throw when id is not present on an empty tabs list', () => {
             const cut = new Tabs(
