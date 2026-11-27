@@ -292,6 +292,24 @@ export class TabReorderController extends CompositeDisposable {
         return this._direction === 'vertical' ? 'margin-top' : 'margin-left';
     }
 
+    /** Whether a drag payload comes from this strip: this view and group.
+     *  Ids are only unique within a view, so another dockview instance can
+     *  share a group or panel id. */
+    private _isFromThisStrip(data: PanelTransfer): boolean {
+        return (
+            data.viewId === this.accessor.id && data.groupId === this.group.id
+        );
+    }
+
+    /** The dragged tab's id when it is one of this strip's tabs, else null:
+     *  a tab from elsewhere is not in the strip, whatever its id. */
+    private get _localSourceTabId(): string | null {
+        const animState = this._animState;
+        return animState && animState.sourceIndex !== -1
+            ? animState.sourceTabId
+            : null;
+    }
+
     private getAverageTabSize(): number {
         if (this._tabs.length === 0) {
             return 0;
@@ -556,7 +574,7 @@ export class TabReorderController extends CompositeDisposable {
         const data = getPanelData();
         if (
             data?.tabGroupId &&
-            data.groupId !== this.group.id &&
+            !this._isFromThisStrip(data) &&
             this._animState.sourceTabGroupId !== data.tabGroupId
         ) {
             this._animState = null;
@@ -582,7 +600,7 @@ export class TabReorderController extends CompositeDisposable {
         if (
             !data ||
             !(data.panelId || data.tabGroupId) ||
-            data.groupId === this.group.id ||
+            this._isFromThisStrip(data) ||
             // A locked group takes no new panels from its header.
             this.group.locked
         ) {
@@ -600,8 +618,12 @@ export class TabReorderController extends CompositeDisposable {
         data: PanelTransfer,
         avgSize: number
     ): TabAnimationState {
-        // External group drag: look up the source group to size the gap.
-        const sourceGroup = this.accessor.getPanel(data.groupId);
+        // External group drag: look up the source group to size the gap. A
+        // group from another dockview instance is not ours to look up.
+        const sourceGroup =
+            data.viewId === this.accessor.id
+                ? this.accessor.getPanel(data.groupId)
+                : undefined;
         const sourceTg = sourceGroup?.model
             .getTabGroups()
             .find((tg) => tg.id === data.tabGroupId);
@@ -770,7 +792,7 @@ export class TabReorderController extends CompositeDisposable {
             const tab = this._tabs[i].value;
             const id = tab.panel.id;
             if (
-                id === animState.sourceTabId ||
+                id === this._localSourceTabId ||
                 animState.sourceGroupPanelIds?.has(id)
             ) {
                 continue;
@@ -826,7 +848,10 @@ export class TabReorderController extends CompositeDisposable {
 
         const slotStart =
             animState.containerStart + this._offsetAt(layout, ins);
-        const { prev, next } = this._slotNeighbours(ins, animState.sourceTabId);
+        const { prev, next } = this._slotNeighbours(
+            ins,
+            this._localSourceTabId
+        );
         // the chip before `next` when the dragged tab sits between them: a
         // collapsed tab group's chip is its whole extent, so half is enough
         const pastChip = (tabGroup: ITabGroup, tabIndex: number): boolean => {
@@ -839,7 +864,7 @@ export class TabReorderController extends CompositeDisposable {
         };
         const targetTabGroupId = this.tabGroupAtSlot(
             ins,
-            { id: animState.sourceTabId, index: animState.sourceIndex },
+            { id: this._localSourceTabId, index: animState.sourceIndex },
             pastChip
         );
 
@@ -923,10 +948,9 @@ export class TabReorderController extends CompositeDisposable {
         clientX: number,
         clientY: number
     ): string | null {
-        const { sourceTabId, sourceIndex } = this._animState!;
         return this.tabGroupAtSlot(
             index,
-            { id: sourceTabId, index: sourceIndex },
+            { id: this._localSourceTabId, index: this._animState!.sourceIndex },
             (tabGroup, tabIndex) =>
                 this._pastChip(tabGroup, tabIndex, clientX, clientY)
         );
@@ -1097,7 +1121,7 @@ export class TabReorderController extends CompositeDisposable {
      * so their own positions don't bias the hit-test.
      */
     private _wrappedDragEntries(): WrappedTabEntry[] {
-        const sourceId = this._animState?.sourceTabId;
+        const sourceId = this._localSourceTabId;
         const sourceGroupIds = this._animState?.sourceGroupPanelIds;
         const entries: WrappedTabEntry[] = [];
         for (let i = 0; i < this._tabs.length; i++) {
@@ -1165,7 +1189,7 @@ export class TabReorderController extends CompositeDisposable {
         if (count === 0) {
             return;
         }
-        const sourceId = this._animState?.sourceTabId;
+        const sourceId = this._localSourceTabId;
         if (index < count) {
             const el = this._tabs[index].value.element;
             // The slot at the source's own position is a no-op drop; don't draw
@@ -1270,7 +1294,11 @@ export class TabReorderController extends CompositeDisposable {
         if (animState.sourceTabGroupId && animState.sourceGroupPanelIds) {
             return animState.sourceGapSize;
         }
-        const sourceRect = animState.tabPositions.get(animState.sourceTabId);
+        const sourceId = this._localSourceTabId;
+        const sourceRect =
+            sourceId === null
+                ? undefined
+                : animState.tabPositions.get(sourceId);
         return sourceRect
             ? this._mainAxisSize(sourceRect)
             : this.getAverageTabSize();
@@ -1294,7 +1322,7 @@ export class TabReorderController extends CompositeDisposable {
         const tg = spans.find((span) => span.first === next?.index)?.tabGroup;
         if (
             !tg ||
-            tg.panelIds.includes(animState.sourceTabId) ||
+            tg.panelIds.includes(this._localSourceTabId ?? '') ||
             (animState.targetTabGroupId !== null &&
                 !(animState.targetTabGroupId === tg.id && tg.collapsed))
         ) {

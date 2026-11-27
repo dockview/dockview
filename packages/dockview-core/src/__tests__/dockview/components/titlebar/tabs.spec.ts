@@ -1003,6 +1003,50 @@ describe('tabs', () => {
         });
     });
 
+    describe('a drag from another dockview instance', () => {
+        function setup(data: PanelTransfer) {
+            const { tabs, accessor } = createTabsForDropTest();
+            (accessor.options as any).theme = { tabAnimation: 'smooth' };
+            ['a', 'b', 'c'].forEach((id, i) =>
+                tabs.openPanel(createMockPanel(id), i)
+            );
+            LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
+                [data],
+                PanelTransfer.prototype
+            );
+            const reorder = (tabs as any)._reorder;
+            const taken = reorder.processDragOver(0, 0);
+            return { reorder, taken };
+        }
+
+        test('is not taken for this strip when its group id matches', () => {
+            const { reorder, taken } = setup(
+                new PanelTransfer('other-view', 'test-group-id', 'z')
+            );
+            expect(taken).toBe(true);
+            expect(reorder.animState.sourceIndex).toBe(-1);
+        });
+
+        test('does not hide a local tab that shares its id', () => {
+            const { reorder } = setup(
+                new PanelTransfer('other-view', 'other-group-id', 'b')
+            );
+            expect(
+                reorder
+                    ._walkStrip()
+                    .stops.map((s: { index: number }) => s.index)
+            ).toEqual([0, 1, 2]);
+        });
+
+        test('a tab group chip never reads a local group with its id', () => {
+            const { reorder, taken } = setup(
+                new PanelTransfer('other-view', 'test-group-id', null, 'tg')
+            );
+            expect(taken).toBe(true);
+            expect([...reorder.animState.sourceGroupPanelIds]).toEqual([]);
+        });
+    });
+
     describe('delete', () => {
         test('does not throw when id is not present on an empty tabs list', () => {
             const cut = new Tabs(
