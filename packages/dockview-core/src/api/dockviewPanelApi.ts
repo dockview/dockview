@@ -10,6 +10,8 @@ import {
     DockviewGroupPanelLocationChangeEvent,
 } from './dockviewGroupPanelApi';
 import { DockviewGroupLocation } from '../dockview/dockviewGroupPanelModel';
+import { DockviewPanelPlacement } from '../dockview/options';
+import { validatePanelPlacement } from '../dockview/panelPlacement';
 
 export interface TitleEvent {
     readonly title: string;
@@ -31,7 +33,9 @@ export interface GroupChangedEvent {
     // empty
 }
 
-export type DockviewPanelMoveParams = DockviewGroupMoveParams;
+export interface DockviewPanelMoveParams
+    extends DockviewGroupMoveParams,
+        DockviewPanelPlacement {}
 
 export interface DockviewPanelApi
     extends Omit<
@@ -201,6 +205,8 @@ export class DockviewPanelApiImpl
     }
 
     moveTo(options: DockviewPanelMoveParams): void {
+        validatePanelPlacement(options);
+
         // Programmatic relocation: tag it `'api'` so the `'move'` layout
         // mutation reports the correct origin. User-gesture moves (DnD) drive
         // `accessor.moveGroupOrPanel` directly and keep the default `'user'`.
@@ -213,6 +219,8 @@ export class DockviewPanelApiImpl
                         ? (options.position ?? 'center')
                         : 'center',
                     index: options.index,
+                    tabGroup: options.tabGroup,
+                    indexInTabGroup: options.indexInTabGroup,
                 },
                 skipSetActive: options.skipSetActive,
             })

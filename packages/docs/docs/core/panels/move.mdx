@@ -20,6 +20,24 @@ You can move a panel through the [Panel API](/docs/api/dockview/panelApi) and yo
 panel.api.moveTo({ group, position, index });
 ```
 
+## Tab groups
+
+An `index` never splits a [tab group](/docs/core/panels/tabGroups). If it falls between two tabs of a tab group, the panel moves to the nearer edge of that tab group instead.
+
+To place a panel in a tab group, pass `tabGroup` (the tab group or its id) and, optionally, its position within the tab group. `tabGroup` and `index` can't be combined: the tab group's members decide where the tab goes.
+
+```ts
+// join a tab group as its second tab
+panel.api.moveTo({ group, tabGroup, indexInTabGroup: 1 });
+
+// leave any tab group
+panel.api.moveTo({ group, index: 0, tabGroup: null });
+```
+
+The tab group must belong to `group`, and `position` must be `'center'` (or omitted); otherwise `moveTo` throws without changing the layout. `addPanel` accepts the same `tabGroup` and `indexInTabGroup` options in its `position`.
+
+## Move a group
+
 An equivalent method for moving groups is available on the group `api`.
 
 ```ts

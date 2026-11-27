@@ -219,12 +219,12 @@ describe('pinned tabs: integration', () => {
         expect(tabEl(c).querySelector('.dv-tab-pin')).not.toBeNull();
     });
 
-    test('the pinned class survives a reorder (which recreates the tab)', () => {
+    test('the pinned class survives a reorder', () => {
         const dockview = make({ enabled: true });
         const { a, c } = threePanels(dockview);
 
         c.api.setPinned(true);
-        // Reorder unpinned tabs to force the strip (and tab elements) to rebuild.
+        // reorder the unpinned tabs
         a.api.moveTo({ index: 2 });
 
         expect(tabEl(c).classList.contains('dv-tab--pinned')).toBe(true);
@@ -371,7 +371,118 @@ describe('pinned tabs: integration', () => {
         expect(order()).toEqual(['z1', 'a']);
     });
 
-    test('a within-group move is left to the drop resolver (deferred flip survives)', async () => {
+    test('an API move keeps a tab on its side of the pinned block', () => {
+        const dockview = make({ enabled: true });
+        const { a, b, c, order } = threePanels(dockview);
+        dockview.addPanel({ id: 'd', component: 'default' });
+        a.api.setPinned(true);
+        b.api.setPinned(true);
+        expect(order()).toEqual(['a', 'b', 'c', 'd']);
+
+        // an unpinned tab cannot land before the pinned block
+        c.api.moveTo({ index: 0 });
+        expect(order()).toEqual(['a', 'b', 'c', 'd']);
+
+        // a pinned tab cannot land after it
+        a.api.moveTo({ index: 3 });
+        expect(order()).toEqual(['b', 'a', 'c', 'd']);
+        expect(a.api.isPinned).toBe(true);
+    });
+
+    test('a pinned tab moved by index never splits a tab group', () => {
+        const dockview = make({ enabled: true });
+        const { a, order } = threePanels(dockview);
+        dockview.addPanel({ id: 'd', component: 'default' });
+        const groupId = a.api.group.id;
+        const x = dockview.api.createTabGroup({ groupId, label: 'X' });
+        for (const panelId of ['b', 'c', 'd']) {
+            dockview.api.addPanelToTabGroup({
+                groupId,
+                panelId,
+                tabGroupId: x.id,
+            });
+        }
+        a.api.setPinned(true);
+
+        a.api.moveTo({ index: 2 });
+
+        expect(order()).toEqual(['a', 'b', 'c', 'd']);
+        expect(x.panelIds).toEqual(['b', 'c', 'd']);
+    });
+
+    test('pinning a tab takes it out of its tab group', () => {
+        const dockview = make({ enabled: true });
+        const { a, order } = threePanels(dockview);
+        const groupId = a.api.group.id;
+        const x = dockview.api.createTabGroup({ groupId, label: 'X' });
+        for (const panelId of ['b', 'c']) {
+            dockview.api.addPanelToTabGroup({
+                groupId,
+                panelId,
+                tabGroupId: x.id,
+            });
+        }
+        const removed: string[] = [];
+        dockview.api.onDidRemovePanelFromTabGroup((e) =>
+            removed.push(e.panelId)
+        );
+
+        dockview.getGroupPanel('c')!.api.setPinned(true);
+
+        expect(order()).toEqual(['c', 'a', 'b']);
+        expect(x.panelIds).toEqual(['b']);
+        expect(removed).toEqual(['c']);
+    });
+
+    test('adding a pinned tab to a tab group unpins it', () => {
+        const dockview = make({ enabled: true });
+        const { a, b, order } = threePanels(dockview);
+        const groupId = a.api.group.id;
+        a.api.setPinned(true);
+        const x = dockview.api.createTabGroup({ groupId, label: 'X' });
+        dockview.api.addPanelToTabGroup({
+            groupId,
+            panelId: 'c',
+            tabGroupId: x.id,
+        });
+
+        dockview.api.addPanelToTabGroup({
+            groupId,
+            panelId: 'a',
+            tabGroupId: x.id,
+            index: 0,
+        });
+
+        expect(a.api.isPinned).toBe(false);
+        expect(x.panelIds).toEqual(['a', 'c']);
+        expect(order()).toEqual(['b', 'a', 'c']);
+        expect(b.api.isPinned).toBe(false);
+    });
+
+    test('with pinning turned off, a still-flagged tab can join a tab group', () => {
+        const dockview = make({ enabled: true });
+        const { a, order } = threePanels(dockview);
+        const groupId = a.api.group.id;
+        dockview.getGroupPanel('c')!.api.setPinned(true);
+        dockview.updateOptions({ pinnedTabs: { enabled: false } });
+        const x = dockview.api.createTabGroup({ groupId, label: 'X' });
+
+        dockview.api.addPanelToTabGroup({
+            groupId,
+            panelId: 'a',
+            tabGroupId: x.id,
+        });
+        dockview.api.addPanelToTabGroup({
+            groupId,
+            panelId: 'c',
+            tabGroupId: x.id,
+        });
+
+        expect(x.panelIds).toEqual(['a', 'c']);
+        expect(order()).toEqual(['a', 'c', 'b']);
+    });
+
+    test('a drop across the boundary flips the pin, then lands where dropped', () => {
         const dockview = make({
             enabled: true,
             togglePinOnCrossBoundaryDrag: true,
@@ -381,21 +492,19 @@ describe('pinned tabs: integration', () => {
         expect(order()).toEqual(['c', 'a', 'b']);
 
         // A header drop of the pinned tab past the boundary: the resolver
-        // lets it land and defers the unpin to a microtask.
+        // unpins it first, then the drop places it.
         const index = dockview.pinnedTabsService!.resolveDropIndex(
             c.api.group,
             'c',
             2
         );
         expect(index).toBe(2);
-        c.api.moveTo({ index });
-
-        // The move hook must not clamp it back before the flip runs.
-        expect(order()).toEqual(['a', 'b', 'c']);
-        expect(c.api.isPinned).toBe(true);
-
-        await Promise.resolve();
         expect(c.api.isPinned).toBe(false);
+        dockview.moveGroupOrPanel({
+            from: { groupId: c.api.group.id, panelId: 'c' },
+            to: { group: c.api.group, position: 'center', index },
+        });
+
         expect(order()).toEqual(['a', 'b', 'c']);
     });
 
@@ -632,7 +741,7 @@ describe('pinned tabs: reorder guard', () => {
     });
 
     describe('flip (togglePinOnCrossBoundaryDrag: true)', () => {
-        test('dragging an unpinned tab into the pinned zone pins it', async () => {
+        test('dragging an unpinned tab into the pinned zone pins it', () => {
             const svc = makeService({
                 enabled: true,
                 togglePinOnCrossBoundaryDrag: true,
@@ -643,14 +752,12 @@ describe('pinned tabs: reorder guard', () => {
                 { id: 'a', pinned: false, setPinned },
             ]);
 
+            // pinned before the move, so the strip places it in the block
             expect(svc.resolveDropIndex(g, 'a', 0)).toBe(0);
-            expect(setPinned).not.toHaveBeenCalled(); // deferred
-
-            await Promise.resolve();
             expect(setPinned).toHaveBeenCalledWith(true);
         });
 
-        test('dragging a pinned tab into the unpinned zone unpins it', async () => {
+        test('dragging a pinned tab into the unpinned zone unpins it', () => {
             const svc = makeService({
                 enabled: true,
                 togglePinOnCrossBoundaryDrag: true,
@@ -663,8 +770,6 @@ describe('pinned tabs: reorder guard', () => {
 
             // boundary excluding p = 0; index 1 crosses into the unpinned zone
             expect(svc.resolveDropIndex(g, 'p', 1)).toBe(1);
-
-            await Promise.resolve();
             expect(setPinned).toHaveBeenCalledWith(false);
         });
     });
@@ -972,6 +1077,15 @@ describe('pinned tabs: separate-row mode', () => {
         expect(moveTo).toHaveBeenCalledWith({ index: 2, skipSetActive: true });
         expect(order()).toEqual(['b', 'c', 'a']);
         // The row DOM reconciles to the new order after the drop.
+        expect(rowTabs().map((el) => el.textContent)).toEqual(['b', 'c', 'a']);
+    });
+
+    test('the row follows a reorder made through the API', () => {
+        const dockview = make({ enabled: true, mode: 'separate-row' });
+        const { a } = setupThreePinned(dockview);
+
+        a.api.moveTo({ index: 2 });
+
         expect(rowTabs().map((el) => el.textContent)).toEqual(['b', 'c', 'a']);
     });
 

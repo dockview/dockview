@@ -47,6 +47,9 @@ export class ReactHeaderActionsRendererPart implements IHeaderActionsRenderer {
             this._group.model.onDidRemovePanel(() => {
                 this.updatePanels();
             }),
+            this._group.model.onDidChangeTabOrder(() => {
+                this.updatePanels();
+            }),
             this._group.model.onDidActivePanelChange(() => {
                 this.updateActivePanel();
             }),

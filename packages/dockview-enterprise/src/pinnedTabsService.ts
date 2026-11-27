@@ -115,6 +115,7 @@ class SecondRowController extends CompositeDisposable {
             // event fires), so re-render on add as well as remove.
             this.group.model.onDidAddPanel(() => this.render()),
             this.group.model.onDidRemovePanel(() => this.render()),
+            this.group.model.onDidChangeTabOrder(() => this.render()),
             // Active changes are frequent (every tab click) but don't change the
             // pinned set, so flip the active class without rebuilding the row.
             this.group.model.onDidActivePanelChange(() => this._syncActive()),
@@ -303,8 +304,8 @@ class SecondRowController extends CompositeDisposable {
                     );
                     // The within-row index is the strip index (pinned tabs are
                     // the first N of the strip); `skipSetActive` keeps a reorder
-                    // from stealing activation. `enforceOrder` preserves this
-                    // manual order, and `render()` reconciles the row on dragend.
+                    // from stealing activation. The strip keeps this manual
+                    // order, and `render()` reconciles the row on dragend.
                     panel?.api.moveTo({
                         index: targetIndex,
                         skipSetActive: true,
@@ -325,8 +326,8 @@ class SecondRowController extends CompositeDisposable {
         // computed against the pre-pin row before the block grows.
         const slot = this._insertionSlot(event.clientX);
         this._clearIndicator();
-        // Pinning appends the panel to the pinned block (enforceOrder) and
-        // re-renders the row; move it to the drop slot within the block.
+        // Pinning appends the panel to the pinned block and re-renders the
+        // row; move it to the drop slot within the block.
         incoming.api.setPinned(true);
         const pinnedCount = this.group.model.panels.filter(
             (p) => p.api.isPinned
@@ -405,7 +406,7 @@ class SecondRowController extends CompositeDisposable {
             ?.classList.remove('dv-pinned-tab--dragging');
         // Release the shared payload + row-drag flag raised on dragstart. The
         // main strip's drop handler already read them synchronously during any
-        // drop, and a deferred unpin captured its panel directly.
+        // drop.
         LocalSelectionTransfer.getInstance<PanelTransfer>().clearData(
             PanelTransfer.prototype
         );
@@ -539,9 +540,6 @@ export class PinnedTabsService
         SecondRowController
     >();
 
-    /** Re-entrancy guard: reordering moves panels, which must not re-trigger. */
-    private _enforcing = false;
-
     private get _separateRow(): boolean {
         return (
             !!this._host.options.pinnedTabs?.enabled &&
@@ -590,7 +588,7 @@ export class PinnedTabsService
                     this._pinnedIds.delete(event.panel.id);
                 }
 
-                this.enforceOrder(group);
+                // The strip has already moved the tab into its section.
                 // Refresh the dropdown so the pin takes effect immediately
                 // rather than waiting for the next resize/observer fire.
                 group.model.header.refreshOverflow();
@@ -627,17 +625,12 @@ export class PinnedTabsService
             this._host.onDidRemovePanel((panel) => {
                 this._pinnedIds.delete(panel.id);
             }),
-            // A cross-group move carries the panel's pinned flag with it but
-            // fires no pin-change event, so re-assert the invariant on the
-            // destination. A within-group move (from === to) is left alone:
-            // the drop resolver already placed it, and its deferred flip is
-            // still pending.
+            // A cross-group move lands a pinned tab in the destination's
+            // pinned section; refresh that group's dropdown.
             this._host.onDidMovePanel(({ from, to }) => {
-                if (from === to) {
-                    return;
+                if (from !== to) {
+                    to.model.header.refreshOverflow();
                 }
-                this.enforceOrder(to);
-                to.model.header.refreshOverflow();
             }),
             // A restore populates panels' `isPinned` directly (not via the
             // gated setter), so seed the store from them and re-assert the
@@ -714,12 +707,11 @@ export class PinnedTabsService
      * Keep a header drop on the correct side of the pin boundary. By default a
      * cross-boundary drop is **clamped** back (Chrome-style). Opt in to
      * flipping the dragged panel's pinned state with
-     * `togglePinOnCrossBoundaryDrag: true` (VS-Code-style). The flip is
-     * deferred to a microtask so it runs after the in-progress move settles,
-     * then the pinned-change handler re-orders the strip.
+     * `togglePinOnCrossBoundaryDrag: true` (VS-Code-style). The flip happens
+     * before the move, so the strip places the tab in its new section.
      *
-     * The boundary is the pinned count *excluding the dragged panel* (it is
-     * removed and re-inserted during the move, so the index is post-removal).
+     * The boundary is the pinned count *excluding the dragged panel*: the
+     * index is counted without it.
      */
     resolveDropIndex(
         group: DockviewGroupPanel,
@@ -760,7 +752,8 @@ export class PinnedTabsService
                 return index;
             }
             if (flip) {
-                queueMicrotask(() => dragged.api.setPinned(false));
+                // Unpin first: the strip then places the tab by the drop.
+                dragged.api.setPinned(false);
                 return index;
             }
             return boundary;
@@ -771,72 +764,20 @@ export class PinnedTabsService
             return index;
         }
         if (flip) {
-            queueMicrotask(() => dragged.api.setPinned(true));
+            // Pin first: the strip then places the tab by the drop.
+            dragged.api.setPinned(true);
             return index;
         }
         return boundary;
     }
 
     /**
-     * Re-assert the pinned-first invariant on `group`'s tab strip by moving
-     * panels into the computed order. A no-op while the feature is dormant
-     * (`pinnedTabs.enabled` unset) or while a reorder is already in flight.
+     * Re-assert the pinned-first order on `group`'s tab strip, for pinned
+     * state the strip has not seen change: a restore, or pinning turned on or
+     * off (with it off, no tab counts as pinned).
      */
     enforceOrder(group: DockviewGroupPanel): void {
-        if (!this._host.options.pinnedTabs?.enabled || this._enforcing) {
-            return;
-        }
-
-        const panels = group.model.panels;
-        const currentOrder = panels.map((panel) => panel.id);
-        const byId = new Map(panels.map((panel) => [panel.id, panel]));
-
-        // Pinned order follows the current strip order (empty canonical order),
-        // so a manual drag-reorder within the pinned block is preserved and a
-        // newly-pinned tab appends to the block; only the pinned-first partition
-        // is enforced.
-        const target = computePinnedFirstOrder(
-            currentOrder,
-            (id) => byId.get(id)?.api.isPinned ?? false,
-            []
-        );
-
-        // Already correct, so avoid a needless move storm (and active flicker).
-        if (target.every((id, index) => currentOrder[index] === id)) {
-            return;
-        }
-
-        this._enforcing = true;
-        try {
-            // Preserve the active panel: an in-strip move removes + re-opens
-            // the panel, which reassigns active when the moved panel was the
-            // active one.
-            const active = group.model.activePanel;
-
-            // Track the live order in a local array (updated to mirror each
-            // move) so we can skip in-place panels without re-scanning the
-            // shifting model, which keeps the loop O(n) rather than O(n^2).
-            const live = [...currentOrder];
-            for (let index = 0; index < target.length; index++) {
-                const id = target[index];
-                if (live[index] === id) {
-                    continue;
-                }
-                const from = live.indexOf(id, index);
-                if (from === -1) {
-                    continue;
-                }
-                live.splice(from, 1);
-                live.splice(index, 0, id);
-                byId.get(id)?.api.moveTo({ index, skipSetActive: true });
-            }
-
-            if (active && group.model.activePanel !== active) {
-                active.api.setActive();
-            }
-        } finally {
-            this._enforcing = false;
-        }
+        group.model.reconcilePinnedOrder();
     }
 
     dispose(): void {

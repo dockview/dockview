@@ -66,6 +66,7 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
      */
     private readonly _continuationMarkers = new Map<string, HTMLElement[]>();
     private _rafId: number | null = null;
+    private _positionPending = false;
 
     get underlines(): ReadonlyMap<string, HTMLElement> {
         return this._underlines;
@@ -73,8 +74,15 @@ abstract class BaseTabGroupIndicator implements ITabGroupIndicator {
 
     constructor(protected readonly _ctx: TabGroupIndicatorContext) {}
 
+    /** Reposition the underlines on the next frame; calls before then
+     *  share one frame. */
     positionUnderlines(): void {
+        if (this._positionPending) {
+            return;
+        }
+        this._positionPending = true;
         requestAnimationFrame(() => {
+            this._positionPending = false;
             this._positionUnderlinesSync();
         });
     }

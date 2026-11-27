@@ -97,6 +97,9 @@ export class AngularHeaderActionsRenderer implements IHeaderActionsRenderer {
             this.group.model.onDidRemovePanel(() => {
                 this.assign({ panels: this.group.model.panels });
             }),
+            this.group.model.onDidChangeTabOrder(() => {
+                this.assign({ panels: this.group.model.panels });
+            }),
             this.group.model.onDidActivePanelChange(() => {
                 this.assign({
                     activePanel: this.group.model.activePanel as

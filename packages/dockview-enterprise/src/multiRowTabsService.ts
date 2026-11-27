@@ -239,6 +239,7 @@ class WrapController extends CompositeDisposable {
             // tallest tab) before counting columns.
             this.group.model.onDidAddPanel(() => this.remeasure()),
             this.group.model.onDidRemovePanel(() => this.remeasure()),
+            this.group.model.onDidChangeTabOrder(() => this.remeasure()),
             // A title edit changes a vertical tab's natural (rotated) length, so
             // the tallest-tab height may move; re-measure so the uniform height
             // still contains every tab. A no-op for horizontal wrap.

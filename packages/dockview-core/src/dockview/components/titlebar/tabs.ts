@@ -1,6 +1,7 @@
 import { getPanelData } from '../../../dnd/dataTransfer';
 import {
     addClasses,
+    forceReflow,
     isChildEntirelyVisibleWithinParent,
     OverflowObserver,
     removeClasses,
@@ -15,6 +16,7 @@ import {
     MutableDisposable,
 } from '../../../lifecycle';
 import { Scrollbar } from '../../../scrollbar';
+import { longestIncreasingRun } from '../../../array';
 import { PointerDragController } from '../../../dnd/pointer/pointerDragController';
 import { DockviewComponent } from '../../dockviewComponent';
 import { DockviewGroupPanel } from '../../dockviewGroupPanel';
@@ -823,11 +825,11 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         this._focusTab(activeIndex > -1 ? activeIndex : 0);
     }
 
-    setActivePanel(panel: IDockviewPanel): void {
+    setActivePanel(panel: IDockviewPanel | undefined): void {
         const isVertical = this._direction === 'vertical';
 
         for (const tab of this._tabs) {
-            const isActivePanel = panel.id === tab.value.panel.id;
+            const isActivePanel = panel?.id === tab.value.panel.id;
             tab.value.setActive(isActivePanel);
 
             if (isActivePanel) {
@@ -976,8 +978,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                         if (!wrap) {
                             tab.element.style.transition = 'none';
                             toggleClass(tab.element, 'dv-tab--dragging', true);
-                            // `void` marks this read as an intentional reflow.
-                            void tab.element.offsetHeight; // force reflow
+                            forceReflow(tab.element);
                         }
 
                         this._animState.currentInsertionIndex ??= sourceIndex;
@@ -1157,11 +1158,55 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         this.addTab(value, index);
         this._scheduleOverflowRefresh();
 
-        // A new tab may have been inserted between a chip and its
-        // group's first tab, so reposition all chips to stay correct.
-        this._tabGroupManager.positionAllChips();
+        // A new tab may sit between a chip and its tab group's first tab.
+        this._tabGroupManager.render();
 
         // If a tab was added during active drag, refresh positions
+        if (this._animState) {
+            this._animState.tabPositions = this.snapshotTabPositions();
+            this._animState.chipSizes =
+                this._tabGroupManager.snapshotChipSizes();
+            this.applyDragOverTransforms();
+        }
+    }
+
+    /**
+     * Put the existing tabs in `order` (panel ids). Only tabs outside the
+     * longest run already in order are moved, and each keeps its element, id
+     * and active state; focus inside a moved tab is restored.
+     */
+    reorder(order: readonly string[]): void {
+        const next = order
+            .map((id) => this._tabMap.get(id))
+            .filter((tab): tab is IValueDisposable<Tab> => tab !== undefined);
+        if (next.length !== this._tabs.length) {
+            return;
+        }
+        const current = new Map(this._tabs.map((tab, index) => [tab, index]));
+        const kept = longestIncreasingRun(next, (tab) => current.get(tab)!);
+        if (kept.size === next.length) {
+            return;
+        }
+
+        const active = this._tabsList.ownerDocument.activeElement;
+        let refocus: HTMLElement | undefined;
+        for (let i = next.length - 1; i >= 0; i--) {
+            const tab = next[i];
+            if (kept.has(tab)) {
+                continue;
+            }
+            if (active && tab.value.element.contains(active)) {
+                refocus = active as HTMLElement;
+            }
+            const refNode =
+                i + 1 < next.length ? next[i + 1].value.element : null;
+            this._tabsList.insertBefore(tab.value.element, refNode);
+        }
+        this._tabs = next;
+        refocus?.focus();
+
+        this._tabGroupManager.render();
+        this._scheduleOverflowRefresh();
         if (this._animState) {
             this._animState.tabPositions = this.snapshotTabPositions();
             this._animState.chipSizes =
@@ -1452,9 +1497,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                     true
                 );
             }
-            // `void` marks this read as an intentional single reflow for the
-            // entire batch.
-            void this._tabsList.offsetHeight;
+            forceReflow(this._tabsList); // one reflow for the batch
 
             const underline = this._tabGroupManager.groupUnderlines.get(
                 tabGroup.id

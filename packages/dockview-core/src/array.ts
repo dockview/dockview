@@ -71,3 +71,37 @@ export function remove<T>(array: T[], value: T): boolean {
     }
     return false;
 }
+
+/** The items of the longest run whose `key` strictly increases, in order. */
+export function longestIncreasingRun<T>(
+    items: readonly T[],
+    key: (item: T) => number
+): Set<T> {
+    // tails[k]: index of the smallest last item of a run of length k + 1
+    const tails: number[] = [];
+    const parent: number[] = new Array(items.length).fill(-1);
+    items.forEach((item, i) => {
+        const value = key(item);
+        let lo = 0;
+        let hi = tails.length;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (key(items[tails[mid]]) < value) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        parent[i] = lo > 0 ? tails[lo - 1] : -1;
+        tails[lo] = i;
+    });
+    const run = new Set<T>();
+    for (
+        let i = tails.length > 0 ? tails[tails.length - 1] : -1;
+        i !== -1;
+        i = parent[i]
+    ) {
+        run.add(items[i]);
+    }
+    return run;
+}

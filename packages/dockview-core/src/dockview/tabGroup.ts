@@ -66,7 +66,14 @@ export interface ITabGroup {
     dispose(): void;
 }
 
+/** Applies membership changes requested through a tab group's public API. */
+export interface TabGroupOwner {
+    addPanel(panelId: string, index?: number): void;
+    removePanel(panelId: string): boolean;
+}
+
 export class TabGroup extends CompositeDisposable implements ITabGroup {
+    private _owner: TabGroupOwner | undefined;
     private _label: string;
     private _color: string | undefined;
     private _collapsed = false;
@@ -164,7 +171,42 @@ export class TabGroup extends CompositeDisposable implements ITabGroup {
         );
     }
 
+    /** Route `addPanel`/`removePanel` through `owner`, which keeps the tab
+     *  strip in order. */
+    setOwner(owner: TabGroupOwner | undefined): void {
+        this._owner = owner;
+    }
+
     addPanel(panelId: string, index?: number): void {
+        if (this.isDisposed) {
+            return;
+        }
+        if (this._owner) {
+            this._owner.addPanel(panelId, index);
+            return;
+        }
+        if (!this._panelIds.includes(panelId)) {
+            this.insertMember(panelId, index);
+            this.notifyPanelChange(panelId, 'add');
+        }
+    }
+
+    removePanel(panelId: string): boolean {
+        if (this.isDisposed) {
+            return false;
+        }
+        if (this._owner) {
+            return this._owner.removePanel(panelId);
+        }
+        const removed = this.removeMember(panelId);
+        if (removed) {
+            this.notifyPanelChange(panelId, 'remove');
+        }
+        return removed;
+    }
+
+    /** Insert into the member list only, without firing `onDidPanelChange`. */
+    insertMember(panelId: string, index?: number): void {
         if (this.isDisposed) {
             return;
         }
@@ -178,10 +220,16 @@ export class TabGroup extends CompositeDisposable implements ITabGroup {
                 : Math.max(0, Math.min(index, this._panelIds.length));
 
         this._panelIds.splice(insertIndex, 0, panelId);
-        this._onDidPanelChange.fire({ panelId, type: 'add' });
     }
 
-    removePanel(panelId: string): boolean {
+    notifyPanelChange(panelId: string, type: 'add' | 'remove'): void {
+        if (!this.isDisposed) {
+            this._onDidPanelChange.fire({ panelId, type });
+        }
+    }
+
+    /** Remove from the member list only, without firing `onDidPanelChange`. */
+    removeMember(panelId: string): boolean {
         if (this.isDisposed) {
             return false;
         }
@@ -190,7 +238,6 @@ export class TabGroup extends CompositeDisposable implements ITabGroup {
             return false;
         }
         this._panelIds.splice(index, 1);
-        this._onDidPanelChange.fire({ panelId, type: 'remove' });
         return true;
     }
 

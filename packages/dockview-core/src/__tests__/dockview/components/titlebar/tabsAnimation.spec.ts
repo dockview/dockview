@@ -716,6 +716,46 @@ describe('tabs - animation', () => {
             );
         });
 
+        test.each([
+            [true, 'monitoring-group', 4],
+            [false, null, 3],
+        ])('just before a tab group, half its chip is enough when collapsed (%s)', (collapsed, target, index) => {
+            // [A][B][C][D][Monitoring chip][E]: drag D, cursor at 260, a
+            // third of the way across the 30px Monitoring chip at 240.
+            const { tabs, group } = createTabs({ tabAnimation: 'smooth' });
+            const ids = ['panel-a', 'panel-b', 'panel-c', 'panel-d', 'panel-e'];
+            ids.forEach((id, i) => tabs.openPanel(createMockPanel(id), i));
+            const elements = getTabElements(tabs);
+            [0, 80, 160, 240, 300].forEach((left, i) =>
+                mockTabRect(elements[i], { left, width: 80 })
+            );
+            const monitoring = {
+                id: 'monitoring-group',
+                panelIds: ['panel-e'],
+                collapsed,
+            };
+            (group.model as any).getTabGroups = () => [monitoring];
+            (tabs as any)._tabGroupManager._chipRenderers.set(
+                'monitoring-group',
+                {
+                    chip: { element: document.createElement('span') },
+                    disposable: { dispose: jest.fn() },
+                }
+            );
+
+            fireEvent.dragStart(elements[3]);
+            flushRAF();
+            const state = getAnimState(tabs);
+            state.chipSizes.set('monitoring-group', 30);
+            state.containerStart = 0;
+            state.cursorOffsetFromDragStart = 40;
+
+            (tabs as any).handleDragOver({ clientX: 260 } as DragEvent);
+
+            expect(getAnimState(tabs).targetTabGroupId).toBe(target);
+            expect(getAnimState(tabs).currentInsertionIndex).toBe(index);
+        });
+
         test('dragging a group chip just before another group keeps insertion index outside the group (issue #1264)', () => {
             // Regression: dragging a chip onto the left of a standalone tab
             // T, when a chip group sits immediately to T's right, must drop

@@ -63,6 +63,7 @@ describe('dockviewGroupPanel', () => {
                     renderer: 'onlyWhenVisible',
                     onDidTitleChange: jest.fn(),
                     onDidParametersChange: jest.fn(),
+                    onDidChangePinned: jest.fn(),
                 },
                 layout: jest.fn(),
                 runEvents: jest.fn(),

@@ -60,11 +60,15 @@ export interface ITabsContainer extends IDisposable {
     hidden: boolean;
     direction: DockviewHeaderDirection;
     delete(id: string): void;
+    /** Put the existing tabs in `order` (panel ids), moving tab elements
+     *  rather than re-creating them. */
+    reorder(order: readonly string[]): void;
     indexOf(id: string): number;
     getTabId(panelId: string): string | undefined;
     getPanelForTab(element: Element): IDockviewPanel | undefined;
     setActive(isGroupActive: boolean): void;
-    setActivePanel(panel: IDockviewPanel): void;
+    /** Highlight `panel`'s tab, or no tab for `undefined`. */
+    setActivePanel(panel: IDockviewPanel | undefined): void;
     focusActiveTab(): void;
     isActive(tab: Tab): boolean;
     closePanel(panel: IDockviewPanel): void;
@@ -407,12 +411,16 @@ export class TabsContainer
         // noop
     }
 
+    reorder(order: readonly string[]): void {
+        this.tabs.reorder(order);
+    }
+
     delete(id: string): void {
         this.tabs.delete(id);
         this.updateClassnames();
     }
 
-    setActivePanel(panel: IDockviewPanel): void {
+    setActivePanel(panel: IDockviewPanel | undefined): void {
         this.tabs.setActivePanel(panel);
     }
 

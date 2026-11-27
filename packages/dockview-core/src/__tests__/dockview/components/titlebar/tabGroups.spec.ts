@@ -595,13 +595,17 @@ describe('TabGroupManager', () => {
     });
 
     describe('chip positioning helpers', () => {
-        test('positionAllChips returns early when there are no chips', () => {
-            const { manager } = createManager();
-            expect(() => manager.positionAllChips()).not.toThrow();
+        test('render with no tab groups leaves the tabs ungrouped', () => {
+            const tabs = [createTab('p1')];
+            const { manager } = createManager({ tabs });
+            manager.render();
+            expect(
+                tabs[0].value.element.classList.contains('dv-tab--grouped')
+            ).toBe(false);
         });
 
-        test('positionAllChips re-inserts chips before their first tab', () => {
-            const tabs = [createTab('p1'), createTab('p2')];
+        test('render places each chip before its first member and sets the tab classes in one pass', () => {
+            const tabs = [createTab('p1'), createTab('p2'), createTab('p3')];
             const tg = makeGroup('g1', ['p1', 'p2']);
             const { manager, tabsList } = createManager({
                 tabs,
@@ -611,12 +615,26 @@ describe('TabGroupManager', () => {
             manager.update();
             const chipEl = manager.chipRenderers.get('g1')!.chip.element;
 
-            // move the chip elsewhere then re-position
+            // the strip changes under the chip: p2 leads the tab group now
+            // and p3 joins it at the end
             tabsList.appendChild(chipEl);
-            expect(tabsList.firstChild).not.toBe(chipEl);
+            tg.removeMember('p2');
+            tg.insertMember('p2', 0);
+            tg.insertMember('p3');
+            const [p1, p2, p3] = tabs;
+            tabsList.insertBefore(p2.value.element, p1.value.element);
+            tabs.splice(0, 2, p2, p1);
 
-            manager.positionAllChips();
-            expect(tabsList.firstChild).toBe(chipEl);
+            manager.render();
+
+            expect(chipEl.nextSibling).toBe(p2.value.element);
+            const has = (tab: IValueDisposable<Tab>, cls: string): boolean =>
+                tab.value.element.classList.contains(cls);
+            expect(has(p2, 'dv-tab--group-first')).toBe(true);
+            expect(has(p1, 'dv-tab--group-first')).toBe(false);
+            expect(has(p3, 'dv-tab--grouped')).toBe(true);
+            expect(has(p3, 'dv-tab--group-last')).toBe(true);
+            expect(has(p1, 'dv-tab--group-last')).toBe(false);
         });
 
         test('snapshotChipSizes returns a size per chip', () => {

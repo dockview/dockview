@@ -2375,7 +2375,7 @@ describe('dockviewComponent', () => {
 
     // Regression test for #1254. After a cross-group tab-group chip
     // drag, the chip element is detached from the DOM (the source tab
-    // group becomes empty, so `_positionChipForGroup` removes it).
+    // group becomes empty, so `render` removes it).
     // `dragend` therefore can't bubble to `_tabsList`, which historically
     // left the `panelTransfer` singleton populated with the chip drag's
     // payload (including `tabGroupId`).

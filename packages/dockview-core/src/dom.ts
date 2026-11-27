@@ -35,6 +35,15 @@ export class OverflowObserver extends CompositeDisposable {
     }
 }
 
+/**
+ * Force a synchronous layout, so styles set before the call are where a
+ * transition started after it begins (for example, disable a transition,
+ * set a size, force a reflow, then re-enable it).
+ */
+export function forceReflow(element: HTMLElement): void {
+    element.getBoundingClientRect();
+}
+
 export function watchElementResize(
     element: HTMLElement,
     cb: (entry: ResizeObserverEntry) => void

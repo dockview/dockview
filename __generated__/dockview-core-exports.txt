@@ -81,6 +81,7 @@ DockviewPanel
 DockviewPanelApi
 DockviewPanelMoveParams
 DockviewPanelPinnedChangeEvent
+DockviewPanelPlacement
 DockviewPanelRenderer
 DockviewPopoutGroupOptions
 DockviewReadyEvent
