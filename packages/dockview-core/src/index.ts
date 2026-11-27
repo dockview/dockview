@@ -248,6 +248,7 @@ export {
     type ITabGroupChipsService,
     type IPinnedTabsHost,
     type IPinnedTabsService,
+    type TabDropResolution,
     type IAdvancedOverflowHost,
     type IAdvancedOverflowService,
     type IAdvancedOverflowRenderContext,

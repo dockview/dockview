@@ -10,6 +10,7 @@ import {
     IPinnedTabsService,
     LocalSelectionTransfer,
     PanelTransfer,
+    TabDropResolution,
 } from 'dockview';
 
 /**
@@ -581,7 +582,7 @@ export class PinnedTabsService
             this._host.onDidAddGroup((group) => {
                 this._groups.add(group);
                 group.model.header.setDropIndexResolver((panelId, index) =>
-                    this.resolveDropIndex(group, panelId, index)
+                    this.resolveDrop(group, panelId, index)
                 );
                 if (this._separateRow) {
                     this._secondRows.set(
@@ -644,29 +645,39 @@ export class PinnedTabsService
      *  overflow. Always `false`; removed in the next major. */
     readonly isExcludedFromOverflow = (_panelId: string): boolean => false;
 
-    /**
-     * Keep a header drop on the correct side of the pin boundary. By default a
-     * cross-boundary drop is **clamped** back (Chrome-style). Opt in to
-     * flipping the dragged panel's pinned state with
-     * `togglePinOnCrossBoundaryDrag: true` (VS-Code-style). The flip happens
-     * before the move, so the strip places the tab in its new section.
-     *
-     * The boundary is the pinned count *excluding the dragged panel*: the
-     * index is counted without it.
-     */
+    /** @deprecated Use `resolveDrop`. Removed in the next major. */
     resolveDropIndex(
         group: DockviewGroupPanel,
         panelId: string,
         index: number
     ): number {
+        return this.resolveDrop(group, panelId, index).index;
+    }
+
+    /**
+     * Keep a header drop on the correct side of the pin boundary. By default a
+     * cross-boundary drop is **clamped** back (Chrome-style). Opt in to
+     * flipping the dragged panel's pinned state with
+     * `togglePinOnCrossBoundaryDrag: true` (VS-Code-style). Nothing changes
+     * here: the drop applies a flip before the move, once `onWillDrop` lets
+     * it go ahead, so the strip places the tab in its new section.
+     *
+     * The boundary is the pinned count *excluding the dragged panel*: the
+     * index is counted without it.
+     */
+    resolveDrop(
+        group: DockviewGroupPanel,
+        panelId: string,
+        index: number
+    ): TabDropResolution {
         if (!this._host.options.pinnedTabs?.enabled) {
-            return index;
+            return { index };
         }
 
         const dragged = group.model.panels.find((p) => p.id === panelId);
         if (!dragged) {
             // Cross-group drop: the boundary is enforced within a group only.
-            return index;
+            return { index };
         }
 
         let boundary = 0;
@@ -690,26 +701,16 @@ export class PinnedTabsService
         if (dragged.api.isPinned) {
             // A pinned tab may land anywhere in [0, boundary].
             if (index <= boundary) {
-                return index;
+                return { index };
             }
-            if (flip) {
-                // Unpin first: the strip then places the tab by the drop.
-                dragged.api.setPinned(false);
-                return index;
-            }
-            return boundary;
+            return flip ? { index, pinned: false } : { index: boundary };
         }
 
         // An unpinned tab may land anywhere in [boundary, end].
         if (index >= boundary) {
-            return index;
+            return { index };
         }
-        if (flip) {
-            // Pin first: the strip then places the tab by the drop.
-            dragged.api.setPinned(true);
-            return index;
-        }
-        return boundary;
+        return flip ? { index, pinned: true } : { index: boundary };
     }
 
     /** @deprecated No replacement needed: core re-sorts the strip when pin

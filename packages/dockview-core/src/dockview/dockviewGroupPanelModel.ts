@@ -37,11 +37,13 @@ import {
     ITabsContainer,
     TabDragEvent,
     TabDropIndexEvent,
+    TabDropResolver,
     TabsContainer,
 } from './components/titlebar/tabsContainer';
 import { IWatermarkRenderer } from './types';
 import { DockviewGroupPanel } from './dockviewGroupPanel';
 import { IDockviewPanel } from './dockviewPanel';
+import { TabDropResolution } from './moduleContracts';
 import {
     DockviewDndOverlayEvent,
     DockviewUnhandledDragOverEvent,
@@ -228,9 +230,9 @@ export interface IHeader {
     /** Enable/disable sticky-on-scroll for pinned tabs (PinnedTabs inline mode):
      *  pinned tabs freeze to the left edge as the strip scrolls. No-op default. */
     setPinnedSticky(enabled: boolean): void;
-    /** Register a resolver that clamps/redirects a header drop index (used by
-     *  the PinnedTabs module to enforce the pin boundary). Identity default. */
-    setDropIndexResolver(fn: (panelId: string, index: number) => number): void;
+    /** Register a resolver for header drops against the pin boundary (used
+     *  by the PinnedTabs module). Identity default. */
+    setDropIndexResolver(fn: TabDropResolver): void;
     /** Mount (or clear, with `undefined`) a second tab row above the main strip
      *  (PinnedTabs `separate-row` mode). The module owns the element. */
     setPinnedRow(el: HTMLElement | undefined): void;
@@ -703,27 +705,31 @@ export class DockviewGroupPanelModel
             this.tabsContainer.onDrop((event) => {
                 // Capture panel data before handleDropEvent (which may trigger moves)
                 const dragData = getPanelData();
-                const draggedPanelId = dragData?.panelId ?? null;
-
-                // Let an injected resolver (PinnedTabs) clamp/redirect the drop
-                // index, e.g. so an unpinned tab cannot land left of a pinned
-                // one. Identity by default; only same-panel header drops carry
-                // a panel id to resolve against.
-                const resolvedIndex = draggedPanelId
-                    ? this.tabsContainer.resolveDropIndex(
+                // Only a tab of this dockview is resolved against this
+                // group's pin boundary (PinnedTabs): one from another instance
+                // may share a local panel's id.
+                const draggedPanelId =
+                    dragData?.viewId === this.accessor.id
+                        ? dragData.panelId
+                        : null;
+                const drop: TabDropResolution = draggedPanelId
+                    ? this.tabsContainer.resolveDrop(
                           draggedPanelId,
                           event.index
                       )
-                    : event.index;
+                    : { index: event.index };
 
                 this.handleDropEvent(
                     'header',
                     event.event,
                     'center',
-                    resolvedIndex,
+                    drop.index,
                     undefined,
                     undefined,
-                    this._tabDropTarget(event)
+                    {
+                        target: this._tabDropTarget(event, drop.index),
+                        pinned: drop.pinned,
+                    }
                 );
             }),
 
@@ -2123,13 +2129,14 @@ export class DockviewGroupPanelModel
 
     /**
      * Where a tab drop asks to land, if it says which tab group: in the one
-     * it names, or top-level at `event.index` for none (or one this group no
+     * it names, or top-level at `index` for none (or one this group no
      * longer has).
      */
     private _tabDropTarget(
-        event: TabDropIndexEvent
+        event: TabDropIndexEvent,
+        index: number
     ): TabStripTarget<ITabGroup> | undefined {
-        const { index, targetTabGroupId, indexInTabGroup } = event;
+        const { targetTabGroupId, indexInTabGroup } = event;
         if (targetTabGroupId === undefined) {
             return undefined;
         }
@@ -2149,9 +2156,14 @@ export class DockviewGroupPanelModel
         index?: number,
         edge?: boolean,
         edgeGroup?: boolean,
-        /** Where a tab drop asks to land, when it says which tab group. */
-        tabDropTarget?: TabStripTarget<ITabGroup>
+        tabDrop?: {
+            /** Where it asks to land, when it says which tab group. */
+            target?: TabStripTarget<ITabGroup>;
+            /** The pinned state the dropped tab takes, if it changes. */
+            pinned?: boolean;
+        }
     ): boolean {
+        const tabDropTarget = tabDrop?.target;
         if (this.locked === 'no-drop-target') {
             return false;
         }
@@ -2276,6 +2288,12 @@ export class DockviewGroupPanelModel
                 if (oldIndex === index) {
                     return false;
                 }
+            }
+
+            if (tabDrop?.pinned !== undefined) {
+                // Pin first: the move then places the tab by the drop.
+                const dragged = this._panels.find((p) => p.id === data.panelId);
+                dragged?.api.setPinned(tabDrop.pinned);
             }
 
             this._onMove.fire({
