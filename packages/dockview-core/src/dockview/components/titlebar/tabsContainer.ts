@@ -25,9 +25,19 @@ import {
 } from './tabOverflowControl';
 import { DockviewHeaderDirection } from '../../options';
 import { applyTabGroupAccent } from '../../tabGroupAccent';
-import { IAdvancedOverflowRenderContext } from '../../moduleContracts';
+import {
+    IAdvancedOverflowRenderContext,
+    TabDropResolution,
+} from '../../moduleContracts';
 import { PopupService } from '../popupService';
 import { createPinButton } from '../../../svg';
+
+/** Resolves a header drop against the pin boundary; a number is the index
+ *  alone. */
+export type TabDropResolver = (
+    panelId: string,
+    index: number
+) => number | TabDropResolution;
 
 export interface TabDropIndexEvent {
     readonly event: DragEvent | PointerEvent;
@@ -90,8 +100,8 @@ export interface ITabsContainer extends IDisposable {
     setForcedOverflow(fn: (panelId: string) => boolean): void;
     setPinnedSticky(enabled: boolean): void;
     refreshOverflow(): void;
-    setDropIndexResolver(fn: (panelId: string, index: number) => number): void;
-    resolveDropIndex(panelId: string, index: number): number;
+    setDropIndexResolver(fn: TabDropResolver): void;
+    resolveDrop(panelId: string, index: number): TabDropResolution;
     setPinnedRow(el: HTMLElement | undefined): void;
 }
 
@@ -113,14 +123,11 @@ export class TabsContainer
     private _hidden = false;
     private _direction: DockviewHeaderDirection = 'horizontal';
     /**
-     * Clamps/redirects a header drop index, wired by the PinnedTabs module to
-     * keep drops on the correct side of the pin boundary. Identity by default
-     * so behaviour is unchanged when the module is absent.
+     * Resolves a header drop against the pin boundary, wired by the
+     * PinnedTabs module. Identity by default so behaviour is unchanged when
+     * the module is absent.
      */
-    private _dropIndexResolver: (panelId: string, index: number) => number = (
-        _panelId,
-        index
-    ) => index;
+    private _dropIndexResolver: TabDropResolver = (_panelId, index) => index;
     /** The pinned second-row element (PinnedTabs `separate-row` mode), owned by
      *  the module and mounted here. Undefined when there is no row. */
     private _pinnedRow: HTMLElement | undefined = undefined;
@@ -479,12 +486,13 @@ export class TabsContainer
         );
     }
 
-    setDropIndexResolver(fn: (panelId: string, index: number) => number): void {
+    setDropIndexResolver(fn: TabDropResolver): void {
         this._dropIndexResolver = fn;
     }
 
-    resolveDropIndex(panelId: string, index: number): number {
-        return this._dropIndexResolver(panelId, index);
+    resolveDrop(panelId: string, index: number): TabDropResolution {
+        const resolved = this._dropIndexResolver(panelId, index);
+        return typeof resolved === 'number' ? { index: resolved } : resolved;
     }
 
     private updateClassnames(): void {

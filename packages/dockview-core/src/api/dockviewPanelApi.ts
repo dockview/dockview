@@ -205,7 +205,7 @@ export class DockviewPanelApiImpl
     }
 
     moveTo(options: DockviewPanelMoveParams): void {
-        const placement = resolvePanelPlacement(options);
+        const at = resolvePanelPlacement(options);
 
         // Programmatic relocation: tag it `'api'` so the `'move'` layout
         // mutation reports the correct origin. User-gesture moves (DnD) drive
@@ -218,9 +218,7 @@ export class DockviewPanelApiImpl
                     position: options.group
                         ? (options.position ?? 'center')
                         : 'center',
-                    index: placement.index,
-                    tabGroup: placement.tabGroup,
-                    indexInTabGroup: placement.indexInTabGroup,
+                    at,
                 },
                 skipSetActive: options.skipSetActive,
             })

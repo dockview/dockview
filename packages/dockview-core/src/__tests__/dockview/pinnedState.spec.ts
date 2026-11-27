@@ -1,5 +1,6 @@
 import { DockviewComponent } from '../../dockview/dockviewComponent';
 import { IContentRenderer } from '../../dockview/types';
+import { LocalSelectionTransfer, PanelTransfer } from '../../dnd/dataTransfer';
 
 class TestContent implements IContentRenderer {
     readonly element = document.createElement('div');
@@ -183,5 +184,69 @@ describe('pinned state', () => {
         expect(dockview.api.getTabGroups({ groupId })).toEqual([pair]);
 
         dockview.dispose();
+    });
+
+    describe('a header drop that flips a pin', () => {
+        /** A header drop of `panelId` at `index`, its resolver asking to
+         *  unpin it, dragged from `viewId`. */
+        function drop(
+            dockview: DockviewComponent,
+            panelId: string,
+            index: number,
+            viewId: string = dockview.id
+        ): void {
+            const group = dockview.groups[0];
+            const header = (group.model as any).tabsContainer;
+            header.setDropIndexResolver((_id: string, i: number) => ({
+                index: i,
+                pinned: false,
+            }));
+            const transfer =
+                LocalSelectionTransfer.getInstance<PanelTransfer>();
+            transfer.setData(
+                [new PanelTransfer(viewId, group.id, panelId)],
+                PanelTransfer.prototype
+            );
+            header.tabs.fireDrop({
+                event: new Event('drop'),
+                index,
+                targetTabGroupId: null,
+            });
+            transfer.clearData(PanelTransfer.prototype);
+        }
+
+        function threeWithPin(): DockviewComponent {
+            const dockview = setup();
+            for (const id of ['a', 'b', 'c']) {
+                dockview.addPanel({ id, component: 'default' });
+            }
+            dockview.getGroupPanel('c')!.api.setPinned(true);
+            return dockview;
+        }
+
+        test('applies the pin, then lands where dropped', () => {
+            const dockview = threeWithPin();
+            drop(dockview, 'c', 2);
+            expect(dockview.getGroupPanel('c')!.api.isPinned).toBe(false);
+            expect(order(dockview)).toEqual(['a', 'b', 'c']);
+            dockview.dispose();
+        });
+
+        test('changes nothing when onWillDrop cancels it', () => {
+            const dockview = threeWithPin();
+            dockview.onWillDrop((event) => event.preventDefault());
+            drop(dockview, 'c', 2);
+            expect(dockview.getGroupPanel('c')!.api.isPinned).toBe(true);
+            expect(order(dockview)).toEqual(['c', 'a', 'b']);
+            dockview.dispose();
+        });
+
+        test('is never asked of a tab from another dockview', () => {
+            const dockview = threeWithPin();
+            drop(dockview, 'c', 2, 'another-dockview');
+            expect(dockview.getGroupPanel('c')!.api.isPinned).toBe(true);
+            expect(order(dockview)).toEqual(['c', 'a', 'b']);
+            dockview.dispose();
+        });
     });
 });

@@ -679,15 +679,29 @@ export interface IPinnedTabsService extends IDisposable {
     /** @deprecated Use `panel.api.isPinned`: core keeps pinned tabs out of
      *  overflow. Removed in the next major. */
     isExcludedFromOverflow(panelId: string): boolean;
-    /** Clamp/redirect a proposed header drop `index` against the group's pin
-     *  boundary so the dragged panel lands on the correct side. May flip the
-     *  panel's pinned state instead of clamping when
-     *  `togglePinOnCrossBoundaryDrag` is enabled. */
+    /** Where a header drop of `panelId` at `index` lands against the
+     *  group's pin boundary: clamped to the right side, or, when
+     *  `togglePinOnCrossBoundaryDrag` is on, at `index` with the pinned
+     *  state flipped. Changes nothing itself; the drop applies the result. */
+    resolveDrop(
+        group: DockviewGroupPanel,
+        panelId: string,
+        index: number
+    ): TabDropResolution;
+    /** @deprecated Use `resolveDrop`, which also says how the pin changes.
+     *  Removed in the next major. */
     resolveDropIndex(
         group: DockviewGroupPanel,
         panelId: string,
         index: number
     ): number;
+}
+
+/** Where a header drop lands once the pin boundary is applied. */
+export interface TabDropResolution {
+    readonly index: number;
+    /** The pinned state the dropped tab takes, when the drop changes it. */
+    readonly pinned?: boolean;
 }
 
 // --- AdvancedOverflow ---

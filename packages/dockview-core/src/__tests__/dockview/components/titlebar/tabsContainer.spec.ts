@@ -1684,12 +1684,18 @@ describe('tabsContainer', () => {
             const cut = new TabsContainer(makeAccessor(), makeGroup());
 
             // identity by default
-            expect(cut.resolveDropIndex('panel', 4)).toBe(4);
+            expect(cut.resolveDrop('panel', 4)).toEqual({ index: 4 });
 
             const resolver = jest.fn().mockReturnValue(9);
             cut.setDropIndexResolver(resolver);
-            expect(cut.resolveDropIndex('panel', 4)).toBe(9);
+            expect(cut.resolveDrop('panel', 4)).toEqual({ index: 9 });
             expect(resolver).toHaveBeenCalledWith('panel', 4);
+
+            cut.setDropIndexResolver(() => ({ index: 2, pinned: true }));
+            expect(cut.resolveDrop('panel', 4)).toEqual({
+                index: 2,
+                pinned: true,
+            });
         });
 
         test('setPinnedRow mounts, replaces and removes the pinned row', () => {

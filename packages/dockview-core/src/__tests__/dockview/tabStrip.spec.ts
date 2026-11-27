@@ -32,6 +32,33 @@ describe('TabStrip', () => {
         expect(s.tabGroupOf('a')).toBeUndefined();
     });
 
+    describe("membership is the tab groups' member lists", () => {
+        test('a tab group out of the strip no longer counts', () => {
+            const { s, x } = withTabGroup();
+            s.unwrap(x);
+            // the member list is the caller's to clear
+            expect(x.panelIds).toEqual(['c', 'd', 'e']);
+            expect(s.tabGroupOf('d')).toBeUndefined();
+            expect(s.tabGroups()).toEqual([]);
+        });
+
+        test('a tab group the strip does not hold never counts', () => {
+            const s = strip(['a', 'b']);
+            const other = new TabGroup('other');
+            other.addPanel('a');
+            expect(s.tabGroupOf('a')).toBeUndefined();
+        });
+
+        test('a panel that leaves is no longer a member', () => {
+            const { s, x } = withTabGroup();
+            s.move('d', { index: 0 });
+            expect(x.panelIds).toEqual(['c', 'e']);
+            expect(s.tabGroupOf('d')).toBeUndefined();
+            s.remove('c');
+            expect(x.panelIds).toEqual(['e']);
+        });
+    });
+
     describe('move into a tab group', () => {
         test('places the panel by the tab group, not where it was', () => {
             const { s, x } = withTabGroup();

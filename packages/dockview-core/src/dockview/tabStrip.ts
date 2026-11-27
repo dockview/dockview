@@ -26,14 +26,14 @@ export type StripTarget =
  * order. Tab groups live only in the unpinned section.
  *
  * A tab group has a place in the strip only while it has members; an empty
- * one is not an item. Member lists are edited silently: the caller fires the
- * tab group's events once the strip is in its final state.
+ * one is not an item. Membership is each tab group's own member list, which
+ * only the strip edits for the tab groups it holds. The edits are silent: the
+ * caller fires the tab group's events once the strip is in its final state.
  */
 export class TabStrip<T extends { readonly id: string }> {
     private readonly _pinned: T[] = [];
     private readonly _items: TabStripItem<T>[] = [];
     private readonly _panels = new Map<string, T>();
-    private readonly _tabGroupOf = new Map<string, TabGroup>();
 
     constructor(private readonly isPinned: (panel: T) => boolean) {}
 
@@ -64,7 +64,12 @@ export class TabStrip<T extends { readonly id: string }> {
     }
 
     tabGroupOf(panelId: string): TabGroup | undefined {
-        return this._tabGroupOf.get(panelId);
+        for (const item of this._items) {
+            if ('tabGroup' in item && item.tabGroup.containsPanel(panelId)) {
+                return item.tabGroup;
+            }
+        }
+        return undefined;
     }
 
     /** The tab groups with tabs, in tab order. */
@@ -113,7 +118,7 @@ export class TabStrip<T extends { readonly id: string }> {
             }
             return;
         }
-        const current = this._tabGroupOf.get(panelId);
+        const current = this.tabGroupOf(panelId);
 
         if ('tabGroup' in target) {
             const tabGroup = target.tabGroup;
@@ -157,7 +162,7 @@ export class TabStrip<T extends { readonly id: string }> {
             (p) => this.isPinned(p) && !this._pinned.includes(p)
         );
         for (const panel of pinned) {
-            const leftTabGroup = this._tabGroupOf.get(panel.id);
+            const leftTabGroup = this.tabGroupOf(panel.id);
             this.detach(panel.id);
             this._pinned.push(panel);
             changes.push({ panel, leftTabGroup });
@@ -171,7 +176,7 @@ export class TabStrip<T extends { readonly id: string }> {
      * without members gives the panel its place.
      */
     leave(panelId: string): TabGroup | undefined {
-        const tabGroup = this._tabGroupOf.get(panelId);
+        const tabGroup = this.tabGroupOf(panelId);
         const panel = this._panels.get(panelId);
         if (!tabGroup || !panel) {
             return undefined;
@@ -189,7 +194,7 @@ export class TabStrip<T extends { readonly id: string }> {
 
     /** Remove a panel. Returns the tab group it was in. */
     remove(panelId: string): TabGroup | undefined {
-        const tabGroup = this._tabGroupOf.get(panelId);
+        const tabGroup = this.tabGroupOf(panelId);
         const pinnedIndex = this._pinned.findIndex((p) => p.id === panelId);
         if (pinnedIndex === -1) {
             this.detach(panelId);
@@ -215,7 +220,8 @@ export class TabStrip<T extends { readonly id: string }> {
 
     /**
      * Replace a tab group's item with its members as top-level panels, in
-     * place. The tab group's own member list is left to the caller.
+     * place. The tab group's member list is left to the caller: it no longer
+     * counts once the tab group is out of the strip.
      */
     unwrap(tabGroup: TabGroup): void {
         const slot = this.slotOfTabGroup(tabGroup);
@@ -225,9 +231,8 @@ export class TabStrip<T extends { readonly id: string }> {
         const panels: TabStripItem<T>[] = [];
         for (const id of tabGroup.panelIds) {
             const panel = this._panels.get(id);
-            if (panel && this._tabGroupOf.get(id) === tabGroup) {
+            if (panel) {
                 panels.push({ panel });
-                this._tabGroupOf.delete(id);
             }
         }
         this._items.splice(slot, 1, ...panels);
@@ -274,13 +279,12 @@ export class TabStrip<T extends { readonly id: string }> {
         if (this.slotOfTabGroup(tabGroup) === -1) {
             this._items.splice(this.clampSlot(slot()), 0, { tabGroup });
         }
-        this._tabGroupOf.set(panelId, tabGroup);
         tabGroup.insertMember(panelId, index);
     }
 
     /** Take a panel out of the items, or out of its tab group's members. */
     private detach(panelId: string): void {
-        const tabGroup = this._tabGroupOf.get(panelId);
+        const tabGroup = this.tabGroupOf(panelId);
         if (tabGroup) {
             this.removeMember(tabGroup, panelId);
             return;
@@ -292,7 +296,6 @@ export class TabStrip<T extends { readonly id: string }> {
     }
 
     private removeMember(tabGroup: TabGroup, panelId: string): void {
-        this._tabGroupOf.delete(panelId);
         tabGroup.removeMember(panelId);
         if (tabGroup.isEmpty) {
             const slot = this.slotOfTabGroup(tabGroup);

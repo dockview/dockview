@@ -3,6 +3,8 @@ import {
     DockviewComponent,
     getPanelData,
     IContentRenderer,
+    LocalSelectionTransfer,
+    PanelTransfer,
 } from 'dockview-core';
 import {
     computePinnedFirstOrder,
@@ -482,7 +484,7 @@ describe('pinned tabs: integration', () => {
         expect(order()).toEqual(['a', 'c', 'b']);
     });
 
-    test('a drop across the boundary flips the pin, then lands where dropped', () => {
+    test('resolving a drop across the boundary asks for the flip, changing nothing', () => {
         const dockview = make({
             enabled: true,
             togglePinOnCrossBoundaryDrag: true,
@@ -491,21 +493,97 @@ describe('pinned tabs: integration', () => {
         c.api.setPinned(true);
         expect(order()).toEqual(['c', 'a', 'b']);
 
-        // A header drop of the pinned tab past the boundary: the resolver
-        // unpins it first, then the drop places it.
-        const index = dockview.pinnedTabsService!.resolveDropIndex(
-            c.api.group,
-            'c',
-            2
-        );
-        expect(index).toBe(2);
-        expect(c.api.isPinned).toBe(false);
-        dockview.moveGroupOrPanel({
-            from: { groupId: c.api.group.id, panelId: 'c' },
-            to: { group: c.api.group, position: 'center', index },
+        const svc = dockview.pinnedTabsService!;
+        expect(svc.resolveDrop(c.api.group, 'c', 2)).toEqual({
+            index: 2,
+            pinned: false,
         });
+        expect(svc.resolveDropIndex(c.api.group, 'c', 2)).toBe(2);
+        expect(c.api.isPinned).toBe(true);
+        expect(order()).toEqual(['c', 'a', 'b']);
+    });
 
+    /** A header drop of `panelId` at `index`, dragged from `viewId`. */
+    const dropOnStrip = (
+        dockview: DockviewComponent,
+        panel: { api: any },
+        index: number,
+        viewId: string = dockview.id
+    ): void => {
+        const group = panel.api.group;
+        const transfer = LocalSelectionTransfer.getInstance<PanelTransfer>();
+        transfer.setData(
+            [new PanelTransfer(viewId, group.id, panel.api.id)],
+            PanelTransfer.prototype
+        );
+        group.model.header.tabs.fireDrop({
+            event: new Event('drop'),
+            index,
+            targetTabGroupId: null,
+        });
+        transfer.clearData(PanelTransfer.prototype);
+    };
+
+    test('a header drop across the boundary flips the pin, then lands there', () => {
+        const dockview = make({
+            enabled: true,
+            togglePinOnCrossBoundaryDrag: true,
+        });
+        const { c, order } = threePanels(dockview);
+        c.api.setPinned(true);
+
+        dropOnStrip(dockview, c, 2);
+
+        expect(c.api.isPinned).toBe(false);
         expect(order()).toEqual(['a', 'b', 'c']);
+    });
+
+    test('a clamped header drop reports where it lands', () => {
+        const dockview = make({ enabled: true });
+        const { a, c, order } = threePanels(dockview);
+        c.api.setPinned(true);
+        const at: unknown[] = [];
+        dockview.onWillDrop((event) => at.push(event.at));
+
+        // an unpinned tab dropped before the pinned one is clamped after it
+        dropOnStrip(dockview, a, 0);
+
+        expect(at).toEqual([{ index: 1 }]);
+        expect(order()).toEqual(['c', 'a', 'b']);
+    });
+
+    test('a cancelled drop across the boundary keeps the pin', () => {
+        const dockview = make({
+            enabled: true,
+            togglePinOnCrossBoundaryDrag: true,
+        });
+        const { c, order } = threePanels(dockview);
+        c.api.setPinned(true);
+        dockview.onWillDrop((event) => event.preventDefault());
+
+        dropOnStrip(dockview, c, 2);
+
+        expect(c.api.isPinned).toBe(true);
+        expect(order()).toEqual(['c', 'a', 'b']);
+    });
+
+    test('a tab from another dockview never changes a local pin', () => {
+        const dockview = make({
+            enabled: true,
+            togglePinOnCrossBoundaryDrag: true,
+        });
+        const { c, order } = threePanels(dockview);
+        c.api.setPinned(true);
+        const drops: (number | undefined)[] = [];
+        dockview.onDidDrop((event) => drops.push(event.index));
+
+        // the dragged tab shares local `c`'s id
+        dropOnStrip(dockview, c, 2, 'another-dockview');
+
+        expect(c.api.isPinned).toBe(true);
+        expect(order()).toEqual(['c', 'a', 'b']);
+        // and its drop index is not clamped to the local pin boundary
+        expect(drops).toEqual([2]);
     });
 
     test('the active panel survives a pin reorder', () => {
@@ -561,13 +639,13 @@ describe('pinned tabs: integration', () => {
         const resolve = spy.mock.calls[spy.mock.calls.length - 1][0] as (
             panelId: string,
             index: number
-        ) => number;
+        ) => unknown;
 
         x.api.setPinned(true); // group [x(pinned), y]; boundary for dragging y = 1
         // An unpinned tab cannot land left of the pin boundary.
-        expect(resolve('y', 0)).toBe(1);
+        expect(resolve('y', 0)).toEqual({ index: 1 });
         // A pinned tab cannot land in the unpinned zone.
-        expect(resolve('x', 5)).toBe(0);
+        expect(resolve('x', 5)).toEqual({ index: 0 });
 
         spy.mockRestore();
     });
@@ -892,9 +970,13 @@ describe('pinned tabs: reorder guard', () => {
                 { id: 'a', pinned: false, setPinned },
             ]);
 
-            // pinned before the move, so the strip places it in the block
-            expect(svc.resolveDropIndex(g, 'a', 0)).toBe(0);
-            expect(setPinned).toHaveBeenCalledWith(true);
+            // the drop pins it before the move, so the strip places it in
+            // the block; resolving changes nothing
+            expect(svc.resolveDrop(g, 'a', 0)).toEqual({
+                index: 0,
+                pinned: true,
+            });
+            expect(setPinned).not.toHaveBeenCalled();
         });
 
         test('dragging a pinned tab into the unpinned zone unpins it', () => {
@@ -909,8 +991,11 @@ describe('pinned tabs: reorder guard', () => {
             ]);
 
             // boundary excluding p = 0; index 1 crosses into the unpinned zone
-            expect(svc.resolveDropIndex(g, 'p', 1)).toBe(1);
-            expect(setPinned).toHaveBeenCalledWith(false);
+            expect(svc.resolveDrop(g, 'p', 1)).toEqual({
+                index: 1,
+                pinned: false,
+            });
+            expect(setPinned).not.toHaveBeenCalled();
         });
     });
 
@@ -930,11 +1015,14 @@ describe('pinned tabs: reorder guard', () => {
             ]);
 
             svc.beginRowDrag('p');
-            // Not clamped back to the boundary: the drop index is honoured…
-            expect(svc.resolveDropIndex(g, 'p', 1)).toBe(1);
+            // Not clamped back to the boundary: the drop index is honoured,
+            // and the drop unpins the panel.
+            expect(svc.resolveDrop(g, 'p', 1)).toEqual({
+                index: 1,
+                pinned: false,
+            });
             await Promise.resolve();
-            // …and the panel unpins.
-            expect(setPinned).toHaveBeenCalledWith(false);
+            expect(setPinned).not.toHaveBeenCalled();
         });
 
         test('the forced flip ends with the drag (clamp restored)', () => {

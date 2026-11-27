@@ -126,7 +126,11 @@ import {
 import { IHeaderActionsHost } from './headerActionsService';
 import { AnchoredBox, AnchorPosition, Box, LayoutChangeReason } from '../types';
 import { ITabGroup } from './tabGroup';
-import { resolvePanelPlacement } from './panelPlacement';
+import {
+    flatIndexOfTarget,
+    resolvePanelPlacement,
+    tabGroupOfTarget,
+} from './panelPlacement';
 import {
     DEFAULT_FLOATING_GROUP_OVERFLOW_SIZE,
     DEFAULT_FLOATING_GROUP_POSITION,
@@ -306,15 +310,6 @@ export interface SerializedDockviewGroup {
     panels: Record<string, GroupviewPanelState>;
 }
 
-function tabGroupIdOf(
-    tabGroup: ITabGroup | string | null | undefined
-): string | undefined {
-    if (tabGroup === null || tabGroup === undefined) {
-        return undefined;
-    }
-    return typeof tabGroup === 'string' ? tabGroup : tabGroup.id;
-}
-
 export interface MovePanelEvent {
     panel: IDockviewPanel;
     from: DockviewGroupPanel;
@@ -348,11 +343,10 @@ type MoveGroupOrPanelOptions = {
     to: {
         group: DockviewGroupPanel;
         position: Position;
+        /** Shorthand for `at: { index }`. */
         index?: number;
-        /** A tab group in `group` to place the panel in; `null` for none. */
-        tabGroup?: ITabGroup | string | null;
-        /** Position within `tabGroup`. */
-        indexInTabGroup?: number;
+        /** Where a moved panel lands in `group`'s tab strip. */
+        at?: TabStripTarget;
     };
     skipSetActive?: boolean;
     keepEmptyGroups?: boolean;
@@ -4727,10 +4721,8 @@ export class DockviewComponent
         ) {
             return;
         }
-        const tabGroupId = tabGroupIdOf(
-            resolvePanelPlacement(position).tabGroup
-        );
-        if (tabGroupId === undefined) {
+        const tabGroup = tabGroupOfTarget(resolvePanelPlacement(position));
+        if (tabGroup === undefined) {
             return;
         }
         let referenceGroup: DockviewGroupPanel | undefined;
@@ -4757,7 +4749,7 @@ export class DockviewComponent
             !options?.floating &&
                 (referenceGroup.api.location.type === 'edge' ||
                     target === 'center'),
-            tabGroupId
+            tabGroup
         );
     }
 
@@ -4827,7 +4819,7 @@ export class DockviewComponent
             height: options.initialHeight,
         };
 
-        let index: number | undefined;
+        let at: TabStripTarget | undefined;
 
         const shouldSkipSetActive = (group: DockviewGroupPanel) =>
             !!options.inactive && group.model.size > 0;
@@ -4838,7 +4830,7 @@ export class DockviewComponent
                     typeof options.position.referencePanel === 'string'
                         ? this.getGroupPanel(options.position.referencePanel)
                         : options.position.referencePanel;
-                index = resolvePanelPlacement(options.position).index;
+                at = resolvePanelPlacement(options.position);
 
                 if (!referencePanel) {
                     const referenceId =
@@ -4857,7 +4849,7 @@ export class DockviewComponent
                         ? this._groups.get(options.position.referenceGroup)
                               ?.value
                         : options.position.referenceGroup;
-                index = resolvePanelPlacement(options.position).index;
+                at = resolvePanelPlacement(options.position);
 
                 if (!referenceGroup) {
                     const referenceId =
@@ -4877,7 +4869,7 @@ export class DockviewComponent
                 group.model.openPanel(panel, {
                     skipSetActive: shouldSkipSetActive(group),
                     skipSetGroupActive: options.inactive,
-                    index,
+                    at,
                 });
 
                 if (!options.inactive) {
@@ -4905,13 +4897,6 @@ export class DockviewComponent
                 !options.floating &&
                 (referenceGroup.api.location.type === 'edge' ||
                     target === 'center');
-            const placement =
-                options.position &&
-                (isPanelOptionsWithPanel(options.position) ||
-                    isPanelOptionsWithGroup(options.position))
-                    ? resolvePanelPlacement(options.position)
-                    : undefined;
-            const tabGroupId = tabGroupIdOf(placement?.tabGroup);
 
             if (options.floating) {
                 const group = this.createGroup();
@@ -4935,16 +4920,14 @@ export class DockviewComponent
                 group.model.openPanel(panel, {
                     skipSetActive: shouldSkipSetActive(group),
                     skipSetGroupActive: options.inactive,
-                    index,
+                    at,
                 });
             } else if (isWithinGroup) {
                 panel = this.createPanel(options, referenceGroup);
                 referenceGroup.model.openPanel(panel, {
                     skipSetActive: shouldSkipSetActive(referenceGroup),
                     skipSetGroupActive: options.inactive,
-                    index,
-                    tabGroupId,
-                    indexInTabGroup: placement?.indexInTabGroup,
+                    at,
                 });
 
                 referenceGroup.api.setSize({
@@ -4981,7 +4964,7 @@ export class DockviewComponent
                 group.model.openPanel(panel, {
                     skipSetActive: shouldSkipSetActive(group),
                     skipSetGroupActive: options.inactive,
-                    index,
+                    at,
                 });
 
                 if (!options.inactive) {
@@ -5009,7 +4992,7 @@ export class DockviewComponent
             group.model.openPanel(panel, {
                 skipSetActive: shouldSkipSetActive(group),
                 skipSetGroupActive: options.inactive,
-                index,
+                at,
             });
         } else {
             const group = this.createGroupAtLocation(
@@ -5022,7 +5005,7 @@ export class DockviewComponent
             group.model.openPanel(panel, {
                 skipSetActive: shouldSkipSetActive(group),
                 skipSetGroupActive: options.inactive,
-                index,
+                at,
             });
 
             if (!options.inactive) {
@@ -5913,23 +5896,25 @@ export class DockviewComponent
     }
 
     moveGroupOrPanel(options: MoveGroupOrPanelOptions): void {
-        const tabGroupId = tabGroupIdOf(options.to.tabGroup);
-        if (tabGroupId !== undefined) {
+        const tabGroup = tabGroupOfTarget(options.to.at);
+        if (tabGroup !== undefined) {
             this.validateTabGroupPlacement(
                 options.to.group,
                 !options.to.position || options.to.position === 'center',
-                tabGroupId
+                tabGroup
             );
         }
         this.mutation('move', () => this._doMoveGroupOrPanel(options));
     }
 
-    /** Throw, before anything changes, if `tabGroupId` can't take the panel. */
+    /** Throw, before anything changes, if `tabGroup` can't take the panel. */
     private validateTabGroupPlacement(
         group: DockviewGroupPanel,
         isWithinGroup: boolean,
-        tabGroupId: string
+        tabGroup: ITabGroup | string
     ): void {
+        const tabGroupId =
+            typeof tabGroup === 'string' ? tabGroup : tabGroup.id;
         if (!isWithinGroup) {
             throw new Error(
                 'dockview: a tab group can only be given when placing a panel within a group'
@@ -5938,7 +5923,7 @@ export class DockviewComponent
         if (
             !group.model
                 .getTabGroups()
-                .some((tabGroup) => tabGroup.id === tabGroupId)
+                .some((candidate) => candidate.id === tabGroupId)
         ) {
             throw new Error(
                 `dockview: tab group ${tabGroupId} does not exist in group ${group.id}`
@@ -5954,7 +5939,11 @@ export class DockviewComponent
         sourceItemId: string
     ): void {
         const destinationGroup = options.to.group;
-        const tabGroupId = tabGroupIdOf(options.to.tabGroup);
+        const at =
+            options.to.at ??
+            (options.to.index === undefined
+                ? undefined
+                : { index: options.to.index });
 
         if (sourceGroup === destinationGroup) {
             // A reorder within the group: the panel stays put, only its place
@@ -5965,9 +5954,7 @@ export class DockviewComponent
             }
             this.movingLock(() =>
                 sourceGroup.model.movePanel(panel, {
-                    index: options.to.index,
-                    tabGroupId,
-                    indexInTabGroup: options.to.indexInTabGroup,
+                    at,
                     skipSetActive: options.skipSetActive,
                 })
             );
@@ -5999,10 +5986,7 @@ export class DockviewComponent
 
         this.movingLock(() =>
             destinationGroup.model.openPanel(removedPanel, {
-                // Joining a tab group places the panel by its members.
-                index: tabGroupId === undefined ? options.to.index : undefined,
-                tabGroupId,
-                indexInTabGroup: options.to.indexInTabGroup,
+                at,
                 skipSetActive:
                     (options.skipSetActive ?? false) &&
                     !isDestinationGroupEmpty,
@@ -6021,7 +6005,8 @@ export class DockviewComponent
         const sourceGroupId = options.from.groupId;
         const sourceItemId = options.from.panelId;
         const destinationTarget = options.to.position;
-        const destinationIndex = options.to.index;
+        const destinationIndex =
+            options.to.index ?? flatIndexOfTarget(options.to.at);
 
         const sourceGroup = sourceGroupId
             ? this._groups.get(sourceGroupId)?.value
@@ -6868,15 +6853,7 @@ export class DockviewComponent
                     this._advancedDnDService?.dispatchWillDragGroup(event);
                 }),
                 view.model.onMove((event) => {
-                    const {
-                        groupId,
-                        itemId,
-                        target,
-                        index,
-                        tabGroupId,
-                        tabGroup,
-                        indexInTabGroup,
-                    } = event;
+                    const { groupId, itemId, target, tabGroupId, at } = event;
                     this.moveGroupOrPanel({
                         from: {
                             groupId: groupId,
@@ -6886,9 +6863,7 @@ export class DockviewComponent
                         to: {
                             group: view,
                             position: target,
-                            index,
-                            tabGroup,
-                            indexInTabGroup,
+                            at,
                         },
                     });
                 }),

@@ -37,11 +37,13 @@ import {
     ITabsContainer,
     TabDragEvent,
     TabDropIndexEvent,
+    TabDropResolver,
     TabsContainer,
 } from './components/titlebar/tabsContainer';
 import { IWatermarkRenderer } from './types';
 import { DockviewGroupPanel } from './dockviewGroupPanel';
 import { IDockviewPanel } from './dockviewPanel';
+import { TabDropResolution } from './moduleContracts';
 import {
     DockviewDndOverlayEvent,
     DockviewUnhandledDragOverEvent,
@@ -60,20 +62,15 @@ import {
     TabGroupOptions,
 } from './tabGroup';
 import { EdgeGroupPosition } from './dockviewShell';
-import { TabStrip } from './tabStrip';
+import { StripTarget, TabStrip } from './tabStrip';
+import { flatIndexOfTarget, tabGroupOfTarget } from './panelPlacement';
 
-interface TabGroupPlacement {
-    /** The tab group a moved panel joins; `null` for none. */
-    tabGroup: string | null;
-    /** Position within `tabGroup`. */
-    indexInTabGroup?: number;
-}
-
-interface GroupMoveEvent extends Partial<TabGroupPlacement> {
+interface GroupMoveEvent {
     groupId: string;
     itemId?: string;
     target: Position;
-    index?: number;
+    /** Where the moved panel, group or tab group lands in the tab strip. */
+    at?: TabStripTarget<ITabGroup>;
     /** The tab group being moved, for a tab group drag. */
     tabGroupId?: string;
 }
@@ -233,9 +230,9 @@ export interface IHeader {
     /** Enable/disable sticky-on-scroll for pinned tabs (PinnedTabs inline mode):
      *  pinned tabs freeze to the left edge as the strip scrolls. No-op default. */
     setPinnedSticky(enabled: boolean): void;
-    /** Register a resolver that clamps/redirects a header drop index (used by
-     *  the PinnedTabs module to enforce the pin boundary). Identity default. */
-    setDropIndexResolver(fn: (panelId: string, index: number) => number): void;
+    /** Register a resolver for header drops against the pin boundary (used
+     *  by the PinnedTabs module). Identity default. */
+    setDropIndexResolver(fn: TabDropResolver): void;
     /** Mount (or clear, with `undefined`) a second tab row above the main strip
      *  (PinnedTabs `separate-row` mode). The module owns the element. */
     setPinnedRow(el: HTMLElement | undefined): void;
@@ -708,27 +705,31 @@ export class DockviewGroupPanelModel
             this.tabsContainer.onDrop((event) => {
                 // Capture panel data before handleDropEvent (which may trigger moves)
                 const dragData = getPanelData();
-                const draggedPanelId = dragData?.panelId ?? null;
-
-                // Let an injected resolver (PinnedTabs) clamp/redirect the drop
-                // index, e.g. so an unpinned tab cannot land left of a pinned
-                // one. Identity by default; only same-panel header drops carry
-                // a panel id to resolve against.
-                const resolvedIndex = draggedPanelId
-                    ? this.tabsContainer.resolveDropIndex(
+                // Only a tab of this dockview is resolved against this
+                // group's pin boundary (PinnedTabs): one from another instance
+                // may share a local panel's id.
+                const draggedPanelId =
+                    dragData?.viewId === this.accessor.id
+                        ? dragData.panelId
+                        : null;
+                const drop: TabDropResolution = draggedPanelId
+                    ? this.tabsContainer.resolveDrop(
                           draggedPanelId,
                           event.index
                       )
-                    : event.index;
+                    : { index: event.index };
 
                 this.handleDropEvent(
                     'header',
                     event.event,
                     'center',
-                    resolvedIndex,
+                    drop.index,
                     undefined,
                     undefined,
-                    this._tabGroupPlacementForDrop(event)
+                    {
+                        target: this._tabDropTarget(event, drop.index),
+                        pinned: drop.pinned,
+                    }
                 );
             }),
 
@@ -1545,30 +1546,30 @@ export class DockviewGroupPanelModel
     public openPanel(
         panel: IDockviewPanel,
         options: {
+            /** Shorthand for `at: { index }`. */
             index?: number;
+            /** Where a newly added panel goes in the tab strip. */
+            at?: TabStripTarget;
             skipSetActive?: boolean;
             skipSetGroupActive?: boolean;
-            /** A tab group in this group for a newly added panel to join. */
-            tabGroupId?: string;
-            /** Position within `tabGroupId`. Defaults to the end. */
-            indexInTabGroup?: number;
         } = {}
     ): number {
+        const at =
+            options.at ??
+            (options.index === undefined
+                ? undefined
+                : { index: options.index });
         // Clamp before any mutation: the panel may already have left its
         // source group, so a throw here would orphan it.
-        if (
-            typeof options.index !== 'number' ||
-            options.index > this.panels.length
-        ) {
-            options.index = this.panels.length;
-        } else if (options.index < 0) {
-            options.index = 0;
-        }
+        const requested = flatIndexOfTarget(at);
+        const index =
+            typeof requested !== 'number' || requested > this.panels.length
+                ? this.panels.length
+                : Math.max(0, requested);
 
-        const tabGroup =
-            options.tabGroupId !== undefined && !this._strip.has(panel.id)
-                ? this._tabGroupMap.get(options.tabGroupId)
-                : undefined;
+        const tabGroup = this._strip.has(panel.id)
+            ? undefined
+            : this._tabGroupNamedBy(at);
 
         if (tabGroup?.isDisposed === false) {
             // tab groups live only in the unpinned section
@@ -1582,10 +1583,9 @@ export class DockviewGroupPanelModel
             skipSetActive: options.skipSetActive,
         });
 
-        this.doAddPanel(panel, options.index, {
+        this.doAddPanel(panel, index, {
             skipSetActive: skipSetActive,
-            tabGroup,
-            indexInTabGroup: options.indexInTabGroup,
+            target: tabGroup ? { tabGroup, index: at?.index } : undefined,
         });
 
         if (tabGroup && this._strip.tabGroupOf(panel.id) === tabGroup) {
@@ -1629,24 +1629,21 @@ export class DockviewGroupPanelModel
     /**
      * Move a panel already in this group to a new place in its tab strip: a
      * reorder, so it is not removed and re-added and no panel events fire.
-     * Without `tabGroupId` the panel leaves any tab group.
+     * Outside a tab group, or without `at`, the panel leaves any tab group;
+     * without `at` it goes to the end.
      */
     public movePanel(
         panel: IDockviewPanel,
         options: {
-            index?: number;
-            tabGroupId?: string;
-            indexInTabGroup?: number;
+            at?: TabStripTarget;
             skipSetActive?: boolean;
         } = {}
     ): void {
         if (!this._strip.has(panel.id)) {
             return;
         }
-        const tabGroup =
-            options.tabGroupId === undefined
-                ? undefined
-                : this._tabGroupMap.get(options.tabGroupId);
+        const { at } = options;
+        const tabGroup = this._tabGroupNamedBy(at);
 
         this._bracketTabGroupMutation(() => {
             if (tabGroup) {
@@ -1656,8 +1653,11 @@ export class DockviewGroupPanelModel
                 this._strip.move(
                     panel.id,
                     tabGroup
-                        ? { tabGroup, index: options.indexInTabGroup }
-                        : { index: options.index ?? this._panels.length }
+                        ? { tabGroup, index: at?.index }
+                        : {
+                              index:
+                                  flatIndexOfTarget(at) ?? this._panels.length,
+                          }
                 )
             );
         });
@@ -1916,23 +1916,14 @@ export class DockviewGroupPanelModel
         index: number = this.panels.length,
         options?: {
             skipSetActive?: boolean;
-            tabGroup?: TabGroup;
-            indexInTabGroup?: number;
+            /** Where in the strip, when not top-level at `index`. */
+            target?: StripTarget;
         }
     ): void {
         const hasExistingPanel = this._strip.has(panel.id);
 
         if (!hasExistingPanel) {
-            this._strip.add(
-                panel,
-                options?.tabGroup
-                    ? {
-                          tabGroup: options.tabGroup,
-                          index: options.indexInTabGroup,
-                      }
-                    : { index },
-                index
-            );
+            this._strip.add(panel, options?.target ?? { index }, index);
             index = this._strip.toArray().indexOf(panel);
         }
 
@@ -2115,49 +2106,47 @@ export class DockviewGroupPanelModel
         return this.canDisplayOverlay(event, position, 'content');
     }
 
-    /** Where a header drop at `index` with `placement` lands in the strip. */
-    private _dropTargetAt(
-        index: number,
-        placement: TabGroupPlacement | undefined
-    ): TabStripTarget<ITabGroup> {
-        const tabGroup =
-            typeof placement?.tabGroup === 'string'
-                ? this._tabGroupMap.get(placement.tabGroup)
-                : undefined;
-        return tabGroup
-            ? {
-                  tabGroup,
-                  index: placement?.indexInTabGroup ?? tabGroup.size,
-              }
-            : { index };
-    }
-
-    /** Whether `placement` would move `panelId` into or out of a tab group. */
-    private _changesTabGroup(
-        panelId: string,
-        placement: TabGroupPlacement | undefined
-    ): boolean {
-        return (
-            placement !== undefined &&
-            placement.tabGroup !== (this._strip.tabGroupOf(panelId)?.id ?? null)
+    /** The tab group of this group that `at` names, if any. */
+    private _tabGroupNamedBy(
+        at: TabStripTarget | undefined
+    ): TabGroup | undefined {
+        const tabGroup = tabGroupOfTarget(at);
+        if (tabGroup === undefined) {
+            return undefined;
+        }
+        return this._tabGroupMap.get(
+            typeof tabGroup === 'string' ? tabGroup : tabGroup.id
         );
     }
 
-    /** The tab group placement a tab drop asks for, if any. */
-    private _tabGroupPlacementForDrop(
-        event: TabDropIndexEvent
-    ): TabGroupPlacement | undefined {
+    /** Whether landing at `at` moves `panelId` into or out of a tab group. */
+    private _changesTabGroup(
+        panelId: string,
+        at: TabStripTarget<ITabGroup>
+    ): boolean {
+        return tabGroupOfTarget(at) !== this._strip.tabGroupOf(panelId);
+    }
+
+    /**
+     * Where a tab drop asks to land, if it says which tab group: in the one
+     * it names, or top-level at `index` for none (or one this group no
+     * longer has).
+     */
+    private _tabDropTarget(
+        event: TabDropIndexEvent,
+        index: number
+    ): TabStripTarget<ITabGroup> | undefined {
         const { targetTabGroupId, indexInTabGroup } = event;
         if (targetTabGroupId === undefined) {
             return undefined;
         }
-        if (
-            targetTabGroupId === null ||
-            !this._tabGroupMap.has(targetTabGroupId)
-        ) {
-            return { tabGroup: null };
-        }
-        return { tabGroup: targetTabGroupId, indexInTabGroup };
+        const tabGroup =
+            targetTabGroupId === null
+                ? undefined
+                : this._tabGroupMap.get(targetTabGroupId);
+        return tabGroup
+            ? { tabGroup, index: indexInTabGroup ?? tabGroup.size }
+            : { index };
     }
 
     private handleDropEvent(
@@ -2167,8 +2156,14 @@ export class DockviewGroupPanelModel
         index?: number,
         edge?: boolean,
         edgeGroup?: boolean,
-        tabGroupPlacement?: TabGroupPlacement
+        tabDrop?: {
+            /** Where it asks to land, when it says which tab group. */
+            target?: TabStripTarget<ITabGroup>;
+            /** The pinned state the dropped tab takes, if it changes. */
+            pinned?: boolean;
+        }
     ): boolean {
+        const tabDropTarget = tabDrop?.target;
         if (this.locked === 'no-drop-target') {
             return false;
         }
@@ -2203,7 +2198,7 @@ export class DockviewGroupPanelModel
 
         const at =
             type === 'header' && typeof index === 'number'
-                ? this._dropTargetAt(index, tabGroupPlacement)
+                ? (tabDropTarget ?? { index })
                 : undefined;
 
         const willDropEvent = new DockviewWillDropEvent({
@@ -2259,7 +2254,7 @@ export class DockviewGroupPanelModel
                 this._onMove.fire({
                     target: position,
                     groupId: groupId,
-                    index,
+                    at: index === undefined ? undefined : { index },
                     tabGroupId: data.tabGroupId,
                 });
                 return false;
@@ -2279,7 +2274,8 @@ export class DockviewGroupPanelModel
                 this.accessor.options.closeEmptyGroups !== false &&
                 !(
                     type === 'header' &&
-                    this._changesTabGroup(data.panelId, tabGroupPlacement)
+                    tabDropTarget !== undefined &&
+                    this._changesTabGroup(data.panelId, tabDropTarget)
                 )
             ) {
                 return false;
@@ -2294,12 +2290,17 @@ export class DockviewGroupPanelModel
                 }
             }
 
+            if (tabDrop?.pinned !== undefined) {
+                // Pin first: the move then places the tab by the drop.
+                const dragged = this._panels.find((p) => p.id === data.panelId);
+                dragged?.api.setPinned(tabDrop.pinned);
+            }
+
             this._onMove.fire({
                 target: position,
                 groupId: data.groupId,
                 itemId: data.panelId,
-                index,
-                ...tabGroupPlacement,
+                at,
             });
             return true;
         } else {
