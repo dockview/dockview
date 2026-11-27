@@ -3309,12 +3309,19 @@ export class DockviewComponent
         if (this.isPinningActive !== wasPinningActive) {
             // Flagged tabs gain or lose their pin; each group's strip moves
             // them as their pin state changes.
-            for (const panel of this.panels) {
-                if (panel.isPinned && panel instanceof DockviewPanel) {
-                    panel.api._onDidChangePinned.fire({
-                        isPinned: panel.api.isPinned,
-                    });
-                }
+            for (const group of this.groups) {
+                group.model.batchPinChanges(() => {
+                    for (const panel of group.panels) {
+                        if (panel.isPinned && panel instanceof DockviewPanel) {
+                            const isPinned = panel.api.isPinned;
+                            panel.api._onDidChangePinned.fire({ isPinned });
+                            this._onDidPanelPinnedChange.fire({
+                                panel,
+                                isPinned,
+                            });
+                        }
+                    }
+                });
             }
         }
 

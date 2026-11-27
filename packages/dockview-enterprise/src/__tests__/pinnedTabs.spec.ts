@@ -719,6 +719,52 @@ describe('pinned tabs: one owner for pin state', () => {
         expect(enforceOrder).not.toHaveBeenCalled();
     });
 
+    test('a flagged tab moved into another group’s tab group while pinning is off stays in it', () => {
+        const dockview = make();
+        dockview.addPanel({ id: 'a', component: 'default' });
+        const b = dockview.addPanel({ id: 'b', component: 'default' });
+        const x = dockview.addPanel({
+            id: 'x',
+            component: 'default',
+            position: { direction: 'right' },
+        });
+        b.api.setPinned(true);
+        dockview.updateOptions({ pinnedTabs: { enabled: false } });
+        const other = x.api.group;
+        const tabGroup = dockview.api.createTabGroup({ groupId: other.id });
+        dockview.api.addPanelToTabGroup({
+            groupId: other.id,
+            tabGroupId: tabGroup.id,
+            panelId: 'x',
+        });
+
+        b.api.moveTo({ group: other, at: { tabGroup } });
+        dockview.updateOptions({ pinnedTabs: { enabled: true } });
+
+        expect(tabGroup.panelIds).toEqual(['x', 'b']);
+        expect(b.api.isPinned).toBe(false);
+    });
+
+    test('switching pinning re-sorts each group once and tells the component', () => {
+        const dockview = make();
+        const panels = ['a', 'b', 'c'].map((id) =>
+            dockview.addPanel({ id, component: 'default' })
+        );
+        panels[1].api.setPinned(true);
+        panels[2].api.setPinned(true);
+        const model = panels[0].api.group.model;
+        const reconcile = jest.spyOn(model, 'reconcilePinnedOrder');
+        const changes: string[] = [];
+        dockview.onDidPanelPinnedChange((e) =>
+            changes.push(`${e.panel.id}:${e.isPinned}`)
+        );
+
+        dockview.updateOptions({ pinnedTabs: { enabled: false } });
+
+        expect(reconcile).toHaveBeenCalledTimes(1);
+        expect(changes).toEqual(['b:false', 'c:false']);
+    });
+
     test('a flagged tab that joins a tab group while pinning is off stays in it', () => {
         const dockview = make();
         dockview.addPanel({ id: 'a', component: 'default' });

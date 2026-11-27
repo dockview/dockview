@@ -654,9 +654,8 @@ export interface IPinnedTabsHost {
     /** Fires after a panel's pinned flag is mutated via the gated
      *  `setPanelPinned`; the service's sole trigger to re-order the strip. */
     readonly onDidPanelPinnedChange: Event<DockviewPanelPinnedChangeEvent>;
-    /** Fires after a `fromJSON` restore completes; the service seeds its
-     *  pinned store from the restored panels' `isPinned` flags and re-asserts
-     *  the invariant. */
+    /** Fires after a `fromJSON` restore completes; the service renders its
+     *  pinned second rows. */
     readonly onDidLayoutFromJSON: Event<void>;
     /** @deprecated Unused: core keeps pinned tabs in step. */
     readonly onDidRemovePanel: Event<IDockviewPanel>;

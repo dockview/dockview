@@ -258,6 +258,9 @@ export interface IDockviewGroupPanelModel extends IPanel {
     readonly onDidChangeTabOrder: Event<void>;
     /** Move panels whose pinned state changed into their section. */
     reconcilePinnedOrder(): void;
+    /** Run `fire`, which fires pin changes for this group's panels, then
+     *  re-sort the strip and refresh overflow once. */
+    batchPinChanges(fire: () => void): void;
     readonly onDidActivePanelChange: Event<DockviewGroupActivePanelChangeEvent>;
     readonly onMove: Event<GroupMoveEvent>;
     locked: DockviewGroupPanelLocked;
@@ -406,6 +409,10 @@ export class DockviewGroupPanelModel
         new Emitter<DockviewDndOverlayEvent>();
     readonly onUnhandledDragOver: Event<DockviewDndOverlayEvent> =
         this._onUnhandledDragOver.event;
+
+    /** Set while {@link batchPinChanges} fires pin changes, so the strip
+     *  re-sorts once for all of them. */
+    private _pinChangesBatched = false;
 
     private readonly _tabGroups: TabGroup[] = [];
     private readonly _tabGroupMap = new Map<string, TabGroup>();
@@ -938,7 +945,7 @@ export class DockviewGroupPanelModel
         }
 
         this._bracketTabGroupMutation(() => {
-            this._unpinToJoin(panelId);
+            this._unpinToJoin(this._panels.find((p) => p.id === panelId));
             this._moveInStrip(panelId, () =>
                 this._strip.move(panelId, { tabGroup, index })
             );
@@ -1012,16 +1019,15 @@ export class DockviewGroupPanelModel
         this.tabsContainer.updateTabGroups();
     }
 
-    /** Pinned for tab order: only while pinning is enabled and the pinned
-     *  tabs feature is present, so a stale flag never locks a tab in front. */
+    /** Pinned for tab order: the panel's pin, which counts only while
+     *  pinning is on. */
     private _isPinned(panel: IDockviewPanel): boolean {
         return panel.api.isPinned;
     }
 
     /** Unpin a panel about to join a tab group: tab groups live only in the
      *  unpinned section. */
-    private _unpinToJoin(panelId: string): void {
-        const panel = this._panels.find((p) => p.id === panelId);
+    private _unpinToJoin(panel: IDockviewPanel | undefined): void {
         if (!panel?.isPinned) {
             return;
         }
@@ -1039,6 +1045,17 @@ export class DockviewGroupPanelModel
      * pinned panel leaves its tab group for the end of the pinned block, a
      * newly unpinned one goes to the front of the rest.
      */
+    batchPinChanges(fire: () => void): void {
+        this._pinChangesBatched = true;
+        try {
+            fire();
+        } finally {
+            this._pinChangesBatched = false;
+        }
+        this.reconcilePinnedOrder();
+        this.tabsContainer.refreshOverflow();
+    }
+
     reconcilePinnedOrder(): void {
         const changes = this._strip.reconcilePinned();
         if (changes.length === 0) {
@@ -1553,9 +1570,9 @@ export class DockviewGroupPanelModel
                 ? this._tabGroupMap.get(options.tabGroupId)
                 : undefined;
 
-        if (tabGroup?.isDisposed === false && this._isPinned(panel)) {
+        if (tabGroup?.isDisposed === false) {
             // tab groups live only in the unpinned section
-            panel.api.setPinned(false);
+            this._unpinToJoin(panel);
         }
 
         const skipSetActive = !!options.skipSetActive;
@@ -1633,7 +1650,7 @@ export class DockviewGroupPanelModel
 
         this._bracketTabGroupMutation(() => {
             if (tabGroup) {
-                this._unpinToJoin(panel.id);
+                this._unpinToJoin(panel);
             }
             this._moveInStrip(panel.id, () =>
                 this._strip.move(
@@ -1948,6 +1965,9 @@ export class DockviewGroupPanelModel
                     this._onDidPanelParametersChange.fire(event)
                 ),
                 panel.api.onDidChangePinned(() => {
+                    if (this._pinChangesBatched) {
+                        return;
+                    }
                     this.reconcilePinnedOrder();
                     // pinned tabs never overflow
                     this.tabsContainer.refreshOverflow();
