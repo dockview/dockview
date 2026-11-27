@@ -1130,9 +1130,14 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                         (sourceIndex !== -1 && sourceIndex < insertionIndex
                             ? 1
                             : 0);
-                    const targetTabGroupId =
-                        this.group.model.getTabGroupForPanel(tab.panel.id)
-                            ?.id ?? null;
+                    // the pointer is over this tab, so it is past the chip
+                    // only of a tab group this tab leads
+                    const targetTabGroupId = this._reorder.tabGroupAtSlot(
+                        insertionIndex,
+                        { id: data?.panelId ?? null, index: sourceIndex },
+                        (_tabGroup, tabIndexAfterChip) =>
+                            tabIndexAfterChip === tabIndex
+                    );
                     this._onDrop.fire({
                         event: event.nativeEvent,
                         index: adjustedIndex,

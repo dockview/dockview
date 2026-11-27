@@ -72,6 +72,15 @@ A plain `index` never splits a tab group: a panel placed between two tabs of a t
 
 A [pinned tab](/docs/core/panels/pinnedTabs) can't be in a tab group: adding one to a tab group unpins it, and pinning a grouped tab takes it out of its tab group.
 
+### Dragging tabs into a tab group
+
+A tab dragged into a tab strip joins a tab group when it is dropped:
+
+- between two of the tab group's tabs;
+- before the tab group's first tab, past its chip.
+
+A tab dropped before the chip, or after the tab group's last tab, lands outside the tab group. A tab of a tab group dropped back where it started stays in the tab group. The same rule applies with either tab animation and on wrapped tab strips.
+
 ## Querying tab groups
 
 ```ts
