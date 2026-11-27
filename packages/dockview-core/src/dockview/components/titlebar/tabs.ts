@@ -1410,6 +1410,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
             }
         }
 
+        const smooth = this.accessor.options.theme?.tabAnimation === 'smooth';
         this._reorder.beginDrag(
             {
                 sourceTabId: '',
@@ -1430,10 +1431,11 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                     this._direction
                 ),
             },
-            true
+            // only the smooth animation collapses the tab group first
+            smooth
         );
 
-        if (this.accessor.options.theme?.tabAnimation !== 'smooth') {
+        if (!smooth) {
             return;
         }
 
