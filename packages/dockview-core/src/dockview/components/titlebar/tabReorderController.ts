@@ -51,6 +51,22 @@ export function indexAfterLeaving(slot: number, sourceIndex: number): number {
     return slot - (sourceIndex !== -1 && sourceIndex < slot ? 1 : 0);
 }
 
+/** The dragged tab's id when it is one of the strip's tabs, else null: a
+ *  tab from elsewhere is not in the strip, whatever its id. */
+function localSourceTabId(state: TabAnimationState): string | null {
+    return state.sourceIndex === -1 ? null : state.sourceTabId;
+}
+
+/** A tab drop, resolved: where the tab lands and the tab group it joins. */
+export interface TabDrop {
+    /** The index the tab ends up at, once it has left its own slot. */
+    readonly index: number;
+    /** The tab group it joins, or `null` for none. */
+    readonly targetTabGroupId: string | null;
+    /** Its position among that tab group's other members. */
+    readonly indexInTabGroup?: number;
+}
+
 /**
  * Main-axis extent of a rect. Tabs flow along x in a horizontal header
  * (top/bottom) and along y in a vertical one (the left/right edge groups),
@@ -322,13 +338,9 @@ export class TabReorderController extends CompositeDisposable {
         );
     }
 
-    /** The dragged tab's id when it is one of this strip's tabs, else null:
-     *  a tab from elsewhere is not in the strip, whatever its id. */
+    /** {@link localSourceTabId} of the drag in progress. */
     private get _localSourceTabId(): string | null {
-        const animState = this._animState;
-        return animState && animState.sourceIndex !== -1
-            ? animState.sourceTabId
-            : null;
+        return this._animState ? localSourceTabId(this._animState) : null;
     }
 
     private getAverageTabSize(): number {
@@ -482,25 +494,53 @@ export class TabReorderController extends CompositeDisposable {
      * when the drop changes neither position nor group membership; a drop at
      * the source's own slot still commits when it joins or leaves a group.
      */
-    resolveTabDrop(
-        animState: TabAnimationState
-    ): { index: number; targetTabGroupId: string | null } | null {
+    resolveTabDrop(animState: TabAnimationState): TabDrop | null {
         const insertionIndex = animState.currentInsertionIndex;
         if (insertionIndex === null) {
             return null;
         }
-        const { sourceIndex, targetTabGroupId } = animState;
-        const index = indexAfterLeaving(insertionIndex, sourceIndex);
-        if (
-            this.isNoOpDrop(
-                index,
-                { id: animState.sourceTabId, index: sourceIndex },
-                targetTabGroupId
-            )
-        ) {
-            return null;
+        const source = {
+            id: localSourceTabId(animState),
+            index: animState.sourceIndex,
+        };
+        const drop = this.dropAt(
+            insertionIndex,
+            source,
+            animState.targetTabGroupId
+        );
+        return this.isNoOpDrop(drop.index, source, drop.targetTabGroupId)
+            ? null
+            : drop;
+    }
+
+    /**
+     * A tab dropped at live-list `slot` into `targetTabGroupId`: its index
+     * once the dragged tab has left its own slot, and its position among the
+     * tab group's members other than the dragged tab.
+     */
+    dropAt(
+        slot: number,
+        source: { id: string | null; index: number },
+        targetTabGroupId: string | null
+    ): TabDrop {
+        const index = indexAfterLeaving(slot, source.index);
+        const tabGroup =
+            targetTabGroupId === null
+                ? undefined
+                : this.group.model
+                      .getTabGroups()
+                      .find((tg) => tg.id === targetTabGroupId);
+        if (!tabGroup) {
+            return { index, targetTabGroupId };
         }
-        return { index, targetTabGroupId };
+        let indexInTabGroup = 0;
+        for (let i = 0; i < slot && i < this._tabs.length; i++) {
+            const id = this._tabs[i].value.panel.id;
+            if (id !== source.id && tabGroup.panelIds.includes(id)) {
+                indexInTabGroup++;
+            }
+        }
+        return { index, targetTabGroupId, indexInTabGroup };
     }
 
     /**

@@ -788,6 +788,24 @@ describe('tabs', () => {
             expect(target('other-group-id', 'z', 1, 'right')).toBe('x');
         });
 
+        test('a drop into a tab group reports its position among the other members', () => {
+            const position = (
+                sourceGroupId: string,
+                sourceId: string,
+                tabIndex: number,
+                side: 'left' | 'right'
+            ) => {
+                const { tabs, drops } = setup(sourceGroupId, sourceId);
+                simulateDropOnTab(tabs, tabIndex, side);
+                return drops[0]?.indexInTabGroup;
+            };
+            expect(position('other-group-id', 'z', 0, 'left')).toBe(0);
+            expect(position('other-group-id', 'z', 1, 'left')).toBe(1);
+            expect(position('other-group-id', 'z', 1, 'right')).toBe(2);
+            // c is one of the members: it does not count itself
+            expect(position('test-group-id', 'c', 1, 'left')).toBe(1);
+        });
+
         test('a drop on the first member joins at the front', () => {
             expect(target('other-group-id', 'z', 0, 'left')).toBe('x');
         });

@@ -68,27 +68,6 @@ export class TabStrip<T extends { readonly id: string }> {
     }
 
     /**
-     * The position among `tabGroup`'s members for a panel dropped at flat
-     * `index`, counted without `excludeId` (the dragged panel).
-     */
-    indexInTabGroupAt(
-        tabGroup: TabGroup,
-        index: number,
-        excludeId: string
-    ): number {
-        const order = this.toArray()
-            .map((p) => p.id)
-            .filter((id) => id !== excludeId);
-        return tabGroup.panelIds.filter((id) => {
-            if (id === excludeId) {
-                return false;
-            }
-            const position = order.indexOf(id);
-            return position !== -1 && position < index;
-        }).length;
-    }
-
-    /**
      * Add a new panel at `target`. A pinned panel goes in the pinned section
      * whatever the target. A disposed tab group leaves the panel top-level at
      * `fallbackIndex`; one without members takes its place there.

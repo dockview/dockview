@@ -35,12 +35,12 @@ import { ITabGroupChipRenderer } from '../../framework';
 import { DroptargetEvent, Position } from '../../../dnd/droptarget';
 import { pointerBackend } from '../../../dnd/backend';
 import {
-    indexAfterLeaving,
     ITabReorderHost,
     mainAxisCursor,
     mainAxisSize,
     mainAxisStart,
     TabAnimationState,
+    TabDrop,
     TabReorderController,
 } from './tabReorderController';
 
@@ -1494,20 +1494,18 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
     /** A drop on half `position` of the tab at `tabIndex`, by the tab group
      *  rule. The pointer is over that tab, so it is past the chip only of a
      *  tab group that tab leads. */
-    private _resolveDropOnTab(
-        tabIndex: number,
-        position: Position
-    ): { index: number; targetTabGroupId: string | null } {
+    private _resolveDropOnTab(tabIndex: number, position: Position): TabDrop {
         const slot = this._slotOnTab(tabIndex, position);
         const source = this._source(this._localSourceIndex(getPanelData()));
-        return {
-            index: indexAfterLeaving(slot, source.index),
-            targetTabGroupId: this._reorder.tabGroupAtSlot(
+        return this._reorder.dropAt(
+            slot,
+            source,
+            this._reorder.tabGroupAtSlot(
                 slot,
                 source,
                 (_tabGroup, tabIndexAfterChip) => tabIndexAfterChip === tabIndex
-            ),
-        };
+            )
+        );
     }
 
     /** The index of the dragged tab when it is one of this strip's own,
@@ -1571,21 +1569,22 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         }
 
         const source = this._source(this._localSourceIndex(data));
-        const index = indexAfterLeaving(insertionIndex, source.index);
-        const targetTabGroupId = this._reorder.tabGroupAtSlot(
+        const drop = this._reorder.dropAt(
             insertionIndex,
             source,
-            // the pointer is past every chip but this one
-            (candidate) => candidate.id !== tabGroup.id
+            this._reorder.tabGroupAtSlot(
+                insertionIndex,
+                source,
+                // the pointer is past every chip but this one
+                (candidate) => candidate.id !== tabGroup.id
+            )
         );
-        if (this._reorder.isNoOpDrop(index, source, targetTabGroupId)) {
+        if (
+            this._reorder.isNoOpDrop(drop.index, source, drop.targetTabGroupId)
+        ) {
             return;
         }
-        this._onDrop.fire({
-            event: event.nativeEvent,
-            index,
-            targetTabGroupId,
-        });
+        this._onDrop.fire({ event: event.nativeEvent, ...drop });
     }
 
     /**

@@ -36,6 +36,7 @@ import {
     GroupDragEvent,
     ITabsContainer,
     TabDragEvent,
+    TabDropIndexEvent,
     TabsContainer,
 } from './components/titlebar/tabsContainer';
 import { IWatermarkRenderer } from './types';
@@ -701,32 +702,15 @@ export class DockviewGroupPanelModel
                       )
                     : event.index;
 
-                const moved = this.handleDropEvent(
+                this.handleDropEvent(
                     'header',
                     event.event,
                     'center',
                     resolvedIndex,
                     undefined,
                     undefined,
-                    this._tabGroupPlacementForDrop(
-                        draggedPanelId,
-                        event.targetTabGroupId,
-                        resolvedIndex
-                    )
+                    this._tabGroupPlacementForDrop(draggedPanelId, event)
                 );
-
-                // A drop that moved nothing (refused or cancelled) can still
-                // change the panel's tab group where it stands.
-                if (
-                    !moved &&
-                    draggedPanelId &&
-                    dragData?.viewId === this.accessor.id
-                ) {
-                    this._applyDropTabGroupInPlace(
-                        draggedPanelId,
-                        event.targetTabGroupId
-                    );
-                }
             }),
 
             this.contentContainer.onDidFocus(() => {
@@ -2076,54 +2060,33 @@ export class DockviewGroupPanelModel
         return this.canDisplayOverlay(event, position, 'content');
     }
 
-    /** Join or leave `targetTabGroupId` without moving the panel. */
-    private _applyDropTabGroupInPlace(
+    /** Whether `placement` would move `panelId` into or out of a tab group. */
+    private _changesTabGroup(
         panelId: string,
-        targetTabGroupId: string | null | undefined
-    ): void {
-        if (targetTabGroupId === null) {
-            this.removePanelFromTabGroup(panelId);
-            return;
-        }
-        const tabGroup =
-            targetTabGroupId === undefined
-                ? undefined
-                : this._tabGroupMap.get(targetTabGroupId);
-        const index = this._panels.findIndex((p) => p.id === panelId);
-        if (!tabGroup || index === -1) {
-            return;
-        }
-        const indexInTabGroup = tabGroup.panelIds.filter(
-            (id) => this._panels.findIndex((p) => p.id === id) < index
-        ).length;
-        this.addPanelToTabGroup(tabGroup.id, panelId, indexInTabGroup);
+        placement: TabGroupPlacement | undefined
+    ): boolean {
+        return (
+            placement !== undefined &&
+            placement.tabGroup !== (this._strip.tabGroupOf(panelId)?.id ?? null)
+        );
     }
 
-    /** The tab group a dropped panel joins, and its position in it, worked
-     *  out from the drop index before the panel moves. */
+    /** The tab group placement a tab drop asks for, if any. */
     private _tabGroupPlacementForDrop(
         draggedPanelId: string | null,
-        targetTabGroupId: string | null | undefined,
-        index: number | undefined
+        event: TabDropIndexEvent
     ): TabGroupPlacement | undefined {
+        const { targetTabGroupId, indexInTabGroup } = event;
         if (!draggedPanelId || targetTabGroupId === undefined) {
             return undefined;
         }
-        const tabGroup =
-            targetTabGroupId === null
-                ? undefined
-                : this._tabGroupMap.get(targetTabGroupId);
-        if (!tabGroup) {
+        if (
+            targetTabGroupId === null ||
+            !this._tabGroupMap.has(targetTabGroupId)
+        ) {
             return { tabGroup: null };
         }
-        return {
-            tabGroup: tabGroup.id,
-            indexInTabGroup: this._strip.indexInTabGroupAt(
-                tabGroup,
-                index ?? this._panels.length,
-                draggedPanelId
-            ),
-        };
+        return { tabGroup: targetTabGroupId, indexInTabGroup };
     }
 
     private handleDropEvent(
@@ -2236,7 +2199,11 @@ export class DockviewGroupPanelModel
             if (
                 fromSameGroup &&
                 this.tabsContainer.size === 1 &&
-                this.accessor.options.closeEmptyGroups !== false
+                this.accessor.options.closeEmptyGroups !== false &&
+                !(
+                    type === 'header' &&
+                    this._changesTabGroup(data.panelId, tabGroupPlacement)
+                )
             ) {
                 return false;
             }
