@@ -1,4 +1,4 @@
-import { getPanelData } from '../../../dnd/dataTransfer';
+import { getPanelData, PanelTransfer } from '../../../dnd/dataTransfer';
 import {
     addClasses,
     isChildEntirelyVisibleWithinParent,
@@ -1064,9 +1064,13 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                 this._pendingCollapse = false;
 
                 const tabIndex = this._tabs.findIndex((x) => x.value === tab);
+                const afterPosition =
+                    this._direction === 'vertical' ? 'bottom' : 'right';
                 if (animState) {
                     const dropIndex =
-                        event.position === 'right' ? tabIndex + 1 : tabIndex;
+                        event.position === afterPosition
+                            ? tabIndex + 1
+                            : tabIndex;
 
                     if (animState.sourceTabGroupId) {
                         this._commitGroupMove(
@@ -1113,18 +1117,12 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                     // the pointer is over, then adjust for same-group removal:
                     // when the source tab sits before the insertion point,
                     // removing it shifts all subsequent indices down by one.
-                    const afterPosition =
-                        this._direction === 'vertical' ? 'bottom' : 'right';
                     const insertionIndex =
                         event.position === afterPosition
                             ? tabIndex + 1
                             : tabIndex;
                     const data = getPanelData();
-                    const sourceIndex = data
-                        ? this._tabs.findIndex(
-                              (x) => x.value.panel.id === data.panelId
-                          )
-                        : -1;
+                    const sourceIndex = this._localSourceIndex(data);
                     const adjustedIndex =
                         insertionIndex -
                         (sourceIndex !== -1 && sourceIndex < insertionIndex
@@ -1531,13 +1529,27 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
      * A drop on a tab group chip means "insert before this group". Resolve to
      * the index of the group's first tab, adjusting for same-group removal
      * (when the source tab is currently to the left of the target slot, its
-     * removal shifts the insertion index down by one). Always clears
-     * `targetTabGroupId` so the dropped tab lands outside the group.
+     * removal shifts the insertion index down by one). The pointer is over
+     * the chip, so the drop lands outside this tab group, though a tab
+     * released at its own slot keeps its own.
      *
      * A chip dropped on a chip is a group move: the panel path would route it
      * through the cross-group machinery, which rebuilds the tab group under a
      * new id.
      */
+    /** The index of the dragged tab when it is one of this strip's own,
+     *  else -1. A tab from another view or group may share a local id. */
+    private _localSourceIndex(data: PanelTransfer | undefined): number {
+        if (
+            !data?.panelId ||
+            data.viewId !== this.accessor.id ||
+            data.groupId !== this.group.id
+        ) {
+            return -1;
+        }
+        return this._tabs.findIndex((x) => x.value.panel.id === data.panelId);
+    }
+
     private _handleChipDrop(tabGroup: ITabGroup, event: DroptargetEvent): void {
         const firstPanelId = tabGroup.panelIds[0];
         if (!firstPanelId) {
@@ -1564,17 +1576,29 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
             return;
         }
 
-        const sourceIndex =
-            data?.groupId === this.group.id && data?.panelId
-                ? this._tabs.findIndex((x) => x.value.panel.id === data.panelId)
-                : -1;
+        const sourceIndex = this._localSourceIndex(data);
         const adjustedIndex =
             insertionIndex -
             (sourceIndex !== -1 && sourceIndex < insertionIndex ? 1 : 0);
+        // the pointer is over the chip, so never past it
+        const targetTabGroupId = this._reorder.tabGroupAtSlot(
+            insertionIndex,
+            { id: data?.panelId ?? null, index: sourceIndex },
+            () => false
+        );
+        if (
+            adjustedIndex === sourceIndex &&
+            targetTabGroupId ===
+                (this.group.model.getTabGroupForPanel(
+                    this._tabs[sourceIndex].value.panel.id
+                )?.id ?? null)
+        ) {
+            return; // nothing moves and nothing joins or leaves
+        }
         this._onDrop.fire({
             event: event.nativeEvent,
             index: adjustedIndex,
-            targetTabGroupId: null,
+            targetTabGroupId,
         });
     }
 

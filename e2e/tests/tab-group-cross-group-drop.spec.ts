@@ -62,4 +62,47 @@ test.describe('tab-group chip dropped across groups', () => {
             expect(await groupOf(page, 'green')).toBe(right);
         });
     }
+
+    // With no theme set, a tab dragged in from another group joins a tab
+    // group by the same rule as a drag within the group: the far half of a
+    // tab group's last tab lands after the tab group.
+    for (const dnd of ['html5', 'pointer'] as const) {
+        test(`[${dnd}] a tab dropped on the far half of another group's last grouped tab lands outside its tab group`, async ({
+            page,
+        }) => {
+            const { left } = await setup(page, dnd);
+
+            const source = (await page
+                .locator('.dv-tab', { hasText: 'blue' })
+                .boundingBox())!;
+            const target = (await page
+                .locator('.dv-tab', { hasText: 'green' })
+                .boundingBox())!;
+
+            const from = {
+                x: source.x + source.width / 2,
+                y: source.y + source.height / 2,
+            };
+            const to = {
+                x: target.x + target.width - 3,
+                y: target.y + target.height / 2,
+            };
+
+            await page.mouse.move(from.x, from.y);
+            await page.mouse.down();
+            await page.mouse.move(from.x + 6, from.y, { steps: 3 });
+            await page.mouse.move(to.x, to.y, { steps: 16 });
+            await page.waitForTimeout(400);
+            await page.mouse.move(to.x - 1, to.y);
+            await page.mouse.up();
+            await page.waitForTimeout(300);
+
+            expect(await groupOf(page, 'blue')).toBe(left);
+            expect(
+                await page.evaluate(() =>
+                    (window as any).__dv.isInTabGroup('blue')
+                )
+            ).toBe(false);
+        });
+    }
 });
