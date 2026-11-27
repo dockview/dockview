@@ -1,6 +1,7 @@
 import { getPanelData } from '../../../dnd/dataTransfer';
 import {
     addClasses,
+    forceReflow,
     isChildEntirelyVisibleWithinParent,
     OverflowObserver,
     removeClasses,
@@ -977,8 +978,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                         if (!wrap) {
                             tab.element.style.transition = 'none';
                             toggleClass(tab.element, 'dv-tab--dragging', true);
-                            // `void` marks this read as an intentional reflow.
-                            void tab.element.offsetHeight; // force reflow
+                            forceReflow(tab.element);
                         }
 
                         this._animState.currentInsertionIndex ??= sourceIndex;
@@ -1502,9 +1502,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                     true
                 );
             }
-            // `void` marks this read as an intentional single reflow for the
-            // entire batch.
-            void this._tabsList.offsetHeight;
+            forceReflow(this._tabsList); // one reflow for the batch
 
             const underline = this._tabGroupManager.groupUnderlines.get(
                 tabGroup.id

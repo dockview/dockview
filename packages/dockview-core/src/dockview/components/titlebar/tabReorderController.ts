@@ -1,5 +1,10 @@
 import { getPanelData, PanelTransfer } from '../../../dnd/dataTransfer';
-import { getEventDocument, getHitTestRoot, toggleClass } from '../../../dom';
+import {
+    forceReflow,
+    getEventDocument,
+    getHitTestRoot,
+    toggleClass,
+} from '../../../dom';
 import { PointerDragEndEvent } from '../../../dnd/pointer/types';
 import { CompositeDisposable, IValueDisposable } from '../../../lifecycle';
 import { DockviewComponent } from '../../dockviewComponent';
@@ -1218,7 +1223,7 @@ export class TabReorderController extends CompositeDisposable {
             }
         }
         if (affected.length > 0) {
-            affected[0].getBoundingClientRect(); // single reflow for entire batch
+            forceReflow(affected[0]); // one reflow for the batch
             for (const el of affected) {
                 el.style.removeProperty('transition');
             }
@@ -1379,7 +1384,7 @@ export class TabReorderController extends CompositeDisposable {
         if (skipTransition) {
             el.style.transition = 'none';
             el.style.setProperty(property, value);
-            el.getBoundingClientRect(); // force reflow before re-enabling
+            forceReflow(el);
             el.style.removeProperty('transition');
         } else {
             el.style.setProperty(property, value);
