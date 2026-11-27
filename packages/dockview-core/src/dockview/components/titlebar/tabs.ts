@@ -1132,7 +1132,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                     // only of a tab group this tab leads
                     const targetTabGroupId = this._reorder.tabGroupAtSlot(
                         insertionIndex,
-                        { id: data?.panelId ?? null, index: sourceIndex },
+                        this._source(sourceIndex),
                         (_tabGroup, tabIndexAfterChip) =>
                             tabIndexAfterChip === tabIndex
                     );
@@ -1525,18 +1525,6 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         });
     }
 
-    /**
-     * A drop on a tab group chip means "insert before this group". Resolve to
-     * the index of the group's first tab, adjusting for same-group removal
-     * (when the source tab is currently to the left of the target slot, its
-     * removal shifts the insertion index down by one). The pointer is over
-     * the chip, so the drop lands outside this tab group, though a tab
-     * released at its own slot keeps its own.
-     *
-     * A chip dropped on a chip is a group move: the panel path would route it
-     * through the cross-group machinery, which rebuilds the tab group under a
-     * new id.
-     */
     /** The index of the dragged tab when it is one of this strip's own,
      *  else -1. A tab from another view or group may share a local id. */
     private _localSourceIndex(data: PanelTransfer | undefined): number {
@@ -1550,6 +1538,29 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         return this._tabs.findIndex((x) => x.value.panel.id === data.panelId);
     }
 
+    /** The dragged tab for `tabGroupAtSlot`: none unless it is local. */
+    private _source(sourceIndex: number): { id: string | null; index: number } {
+        return {
+            id:
+                sourceIndex === -1
+                    ? null
+                    : this._tabs[sourceIndex].value.panel.id,
+            index: sourceIndex,
+        };
+    }
+
+    /**
+     * A drop on a tab group chip means "insert before this group". Resolve to
+     * the index of the group's first tab, adjusting for same-group removal
+     * (when the source tab is currently to the left of the target slot, its
+     * removal shifts the insertion index down by one). The pointer is over
+     * the chip, so the drop lands outside this tab group, though a tab
+     * released at its own slot keeps its own.
+     *
+     * A chip dropped on a chip is a group move: the panel path would route it
+     * through the cross-group machinery, which rebuilds the tab group under a
+     * new id.
+     */
     private _handleChipDrop(tabGroup: ITabGroup, event: DroptargetEvent): void {
         const firstPanelId = tabGroup.panelIds[0];
         if (!firstPanelId) {
@@ -1580,11 +1591,11 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         const adjustedIndex =
             insertionIndex -
             (sourceIndex !== -1 && sourceIndex < insertionIndex ? 1 : 0);
-        // the pointer is over the chip, so never past it
         const targetTabGroupId = this._reorder.tabGroupAtSlot(
             insertionIndex,
-            { id: data?.panelId ?? null, index: sourceIndex },
-            () => false
+            this._source(sourceIndex),
+            // the pointer is past every chip but this one
+            (candidate) => candidate.id !== tabGroup.id
         );
         if (
             adjustedIndex === sourceIndex &&

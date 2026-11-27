@@ -819,7 +819,7 @@ export class TabReorderController extends CompositeDisposable {
         const after = this._tabGroupAt(next);
         const joinsFromBefore =
             next !== ins &&
-            after !== undefined &&
+            !!after &&
             after.id === targetTabGroupId &&
             this._tabGroupAt(prev) !== after;
         return {

@@ -83,8 +83,10 @@ test.describe('tab-group chip dropped across groups', () => {
                 x: source.x + source.width / 2,
                 y: source.y + source.height / 2,
             };
+            // just past the midpoint: on the far half, where the old
+            // drag-image hit-test still landed inside the tab group
             const to = {
-                x: target.x + target.width - 3,
+                x: target.x + target.width / 2 + 4,
                 y: target.y + target.height / 2,
             };
 
@@ -93,7 +95,7 @@ test.describe('tab-group chip dropped across groups', () => {
             await page.mouse.move(from.x + 6, from.y, { steps: 3 });
             await page.mouse.move(to.x, to.y, { steps: 16 });
             await page.waitForTimeout(400);
-            await page.mouse.move(to.x - 1, to.y);
+            await page.mouse.move(to.x + 1, to.y);
             await page.mouse.up();
             await page.waitForTimeout(300);
 

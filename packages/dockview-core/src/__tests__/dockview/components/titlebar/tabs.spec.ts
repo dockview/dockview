@@ -891,6 +891,84 @@ describe('tabs', () => {
                 expect.objectContaining({ index: 1, targetTabGroupId: null }),
             ]);
         });
+
+        test('a lone member dropped on the next chip stays in its tab group', () => {
+            // [chip Y] b [chip X] c d: b is back at its own slot, past its
+            // own chip, so nothing happens
+            const { tabs, group, accessor } = createTabsForDropTest();
+            (accessor.options as any).theme = { tabAnimation: 'default' };
+            ['b', 'c', 'd'].forEach((id, i) =>
+                tabs.openPanel(createMockPanel(id), i)
+            );
+            const noopEvent = () => ({ dispose: jest.fn() });
+            const tabGroup = (id: string, panelIds: string[]) => ({
+                id,
+                panelIds,
+                collapsed: false,
+                label: '',
+                color: undefined,
+                onDidChange: noopEvent,
+                onDidPanelChange: noopEvent,
+                onDidCollapseChange: noopEvent,
+            });
+            const y = tabGroup('y', ['b']);
+            const x = tabGroup('x', ['c', 'd']);
+            (group.model as any).getTabGroups = () => [y, x];
+            (group.model as any).getTabGroupForPanel = (id: string) =>
+                [y, x].find((tg) => tg.panelIds.includes(id));
+            tabs.updateTabGroups();
+
+            const drops: TabDropIndexEvent[] = [];
+            tabs.onDrop((e) => drops.push(e));
+            LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
+                [new PanelTransfer('test-accessor-id', 'test-group-id', 'b')],
+                PanelTransfer.prototype
+            );
+            const chipEl = (tabs as any)._tabGroupManager._chipRenderers.get(
+                'x'
+            ).chip.element as HTMLElement;
+            jest.spyOn(chipEl, 'offsetWidth', 'get').mockReturnValue(40);
+            jest.spyOn(chipEl, 'offsetHeight', 'get').mockReturnValue(30);
+            fireEvent.dragEnter(chipEl);
+            fireEvent(
+                chipEl,
+                createOffsetDragOverEvent({ clientX: 10, clientY: 0 })
+            );
+            fireEvent.drop(chipEl.querySelector('.dv-drop-target-dropzone')!);
+
+            expect(drops).toHaveLength(0);
+        });
+
+        test('an anim-state drop on the bottom half of a vertical tab lands after it', () => {
+            // a tab drop that still holds anim state, as one from another
+            // dockview instance does with the pointer backend
+            const { tabs, drops } = setup('other-group-id', 'z');
+            tabs.direction = 'vertical';
+            (tabs as any)._reorder.animState = {
+                sourceTabId: 'z',
+                sourceIndex: -1,
+                currentInsertionIndex: null,
+                targetTabGroupId: null,
+                sourceTabGroupId: null,
+                sourceGroupPanelIds: null,
+                tabPositions: new Map(),
+                chipSizes: new Map(),
+                sourceChipSize: 0,
+                cursorOffsetFromDragStart: 0,
+                sourceGapSize: 0,
+                containerStart: 0,
+            };
+            const targetEl = getTabElements(tabs)[3];
+            jest.spyOn(targetEl, 'offsetWidth', 'get').mockReturnValue(80);
+            jest.spyOn(targetEl, 'offsetHeight', 'get').mockReturnValue(30);
+            fireEvent.dragEnter(targetEl);
+            fireEvent(
+                targetEl,
+                createOffsetDragOverEvent({ clientX: 40, clientY: 25 })
+            );
+            fireEvent.drop(targetEl.querySelector('.dv-drop-target-dropzone')!);
+            expect(drops[0]?.index).toBe(4);
+        });
     });
 
     describe('delete', () => {
