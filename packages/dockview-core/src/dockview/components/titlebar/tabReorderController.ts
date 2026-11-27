@@ -43,6 +43,15 @@ export interface TabAnimationState {
 }
 
 /**
+ * The index a tab dropped at live-list slot `slot` ends up at, once the
+ * dragged tab (at `sourceIndex`, or -1 when it comes from elsewhere) has
+ * left its own slot.
+ */
+export function indexAfterLeaving(slot: number, sourceIndex: number): number {
+    return slot - (sourceIndex !== -1 && sourceIndex < slot ? 1 : 0);
+}
+
+/**
  * Main-axis extent of a rect. Tabs flow along x in a horizontal header
  * (top/bottom) and along y in a vertical one (the left/right edge groups),
  * so the reorder math reads every size through this.
@@ -442,21 +451,36 @@ export class TabReorderController extends CompositeDisposable {
             return null;
         }
         const { sourceIndex, targetTabGroupId } = animState;
-        const index =
-            insertionIndex -
-            (sourceIndex !== -1 && sourceIndex < insertionIndex ? 1 : 0);
-
-        // Same slot, same group (or none): the move would remove and re-add
-        // the tab, which also dissolves a group it is the only member of.
+        const index = indexAfterLeaving(insertionIndex, sourceIndex);
         if (
-            index === sourceIndex &&
-            targetTabGroupId ===
-                (this.group.model.getTabGroupForPanel(animState.sourceTabId)
-                    ?.id ?? null)
+            this.isNoOpDrop(
+                index,
+                { id: animState.sourceTabId, index: sourceIndex },
+                targetTabGroupId
+            )
         ) {
             return null;
         }
         return { index, targetTabGroupId };
+    }
+
+    /**
+     * Whether the dragged tab, dropped at `index` into `targetTabGroupId`,
+     * stays where it is and in the tab group it is in. Committing such a
+     * drop would remove and re-add the tab, which also dissolves a tab group
+     * it is the only member of.
+     */
+    isNoOpDrop(
+        index: number,
+        source: { id: string | null; index: number },
+        targetTabGroupId: string | null
+    ): boolean {
+        return (
+            source.id !== null &&
+            index === source.index &&
+            targetTabGroupId ===
+                (this.group.model.getTabGroupForPanel(source.id)?.id ?? null)
+        );
     }
 
     /** Commit a smooth-mode single-tab drop from the current insertion index
@@ -546,11 +570,11 @@ export class TabReorderController extends CompositeDisposable {
      */
     private _initAnimStateForExternalDrag(): boolean {
         const data = getPanelData();
-        // In default animation mode, individual tab drops are handled by per-tab
+        // Outside smooth mode, individual tab drops are handled by per-tab
         // Droptargets; only chip drags need tabs-list-level handling so drops on
         // void space still work.
         if (
-            this.accessor.options.theme?.tabAnimation === 'default' &&
+            this.accessor.options.theme?.tabAnimation !== 'smooth' &&
             !data?.tabGroupId
         ) {
             return false;
@@ -739,15 +763,6 @@ export class TabReorderController extends CompositeDisposable {
      */
     private _walkStrip(): StripLayout {
         const animState = this._animState!;
-        const tabGroupOf = new Map<string, ITabGroup>();
-        if (this._tabGroupManager.chipRenderers.size > 0) {
-            for (const tg of this.group.model.getTabGroups()) {
-                for (const id of tg.panelIds) {
-                    tabGroupOf.set(id, tg);
-                }
-            }
-        }
-
         const stops: StripStop[] = [];
         const spans: TabGroupSpan[] = [];
         let offset = 0;
@@ -760,7 +775,7 @@ export class TabReorderController extends CompositeDisposable {
             ) {
                 continue;
             }
-            const tabGroup = tabGroupOf.get(id);
+            const tabGroup = this._tabGroupAt(i);
             const chip =
                 tabGroup?.panelIds[0] === id
                     ? (animState.chipSizes.get(tabGroup.id) ?? 0)
@@ -796,31 +811,50 @@ export class TabReorderController extends CompositeDisposable {
         if (ins === null) {
             return { insertionIndex: null, targetTabGroupId: null };
         }
+        if (animState.sourceTabGroupId) {
+            // a tab group never lands inside another: snap to the nearer edge
+            const span = layout.spans.find(
+                ({ first, last }) => ins >= first && ins <= last
+            );
+            return {
+                insertionIndex: span
+                    ? nearerEdge(ins, span.first, span.last + 1)
+                    : ins,
+                targetTabGroupId: null,
+            };
+        }
+
         const slotStart =
             animState.containerStart + this._offsetAt(layout, ins);
-        const chipEnd = (tg: ITabGroup, fraction = 1): number =>
-            slotStart + (animState.chipSizes.get(tg.id) ?? 0) * fraction;
-        const outside = (): DragOverTarget => ({
-            insertionIndex: ins,
-            targetTabGroupId: this._sourceTabGroupAtOwnSlot(
-                ins,
-                mousePos,
-                chipEnd
-            ),
-        });
+        const { prev, next } = this._slotNeighbours(ins, animState.sourceTabId);
+        // the chip before `next` when the dragged tab sits between them: a
+        // collapsed tab group's chip is its whole extent, so half is enough
+        const pastChip = (tabGroup: ITabGroup, tabIndex: number): boolean => {
+            const fraction =
+                tabGroup.collapsed && tabIndex === next && next !== ins
+                    ? 0.5
+                    : 1;
+            const chip = animState.chipSizes.get(tabGroup.id) ?? 0;
+            return mousePos >= slotStart + chip * fraction;
+        };
+        const targetTabGroupId = this.tabGroupAtSlot(
+            ins,
+            { id: animState.sourceTabId, index: animState.sourceIndex },
+            pastChip
+        );
 
-        for (const span of layout.spans) {
-            const target = this._resolveAgainstSpan(
-                span,
-                ins,
-                mousePos,
-                chipEnd
-            );
-            if (target !== undefined) {
-                return target ?? outside();
-            }
-        }
-        return outside();
+        // The dragged tab right before a tab group it joins: the gap goes
+        // past the chip, in front of the first member.
+        const after = this._tabGroupAt(next);
+        const joinsFromBefore =
+            next !== ins &&
+            !!after &&
+            after.id === targetTabGroupId &&
+            this._tabGroupAt(prev) !== after;
+        return {
+            insertionIndex: joinsFromBefore ? next : ins,
+            targetTabGroupId,
+        };
     }
 
     /**
@@ -849,47 +883,6 @@ export class TabReorderController extends CompositeDisposable {
         return insertionIndex;
     }
 
-    /**
-     * How the tab group `span` governs slot `ins`: `undefined` when the slot
-     * is neither in it nor just before it, null when the drop stays outside
-     * it, else the target. A tab group drag never lands inside another tab
-     * group, so it snaps to the nearer edge. A tab drag joins the tab group
-     * it lands in, except at its first slot, where the cursor must be past
-     * the chip.
-     */
-    private _resolveAgainstSpan(
-        { tabGroup: tg, first, last }: TabGroupSpan,
-        ins: number,
-        mousePos: number,
-        chipEnd: (tg: ITabGroup, fraction?: number) => number
-    ): DragOverTarget | null | undefined {
-        const inside = ins >= first && ins <= last;
-        if (!inside && ins !== first - 1) {
-            return undefined;
-        }
-        if (this._animState!.sourceTabGroupId) {
-            const insertionIndex = inside
-                ? nearerEdge(ins, first, last + 1)
-                : ins;
-            return { insertionIndex, targetTabGroupId: null };
-        }
-        const joined = { insertionIndex: ins, targetTabGroupId: tg.id };
-        if (inside) {
-            return ins === first && mousePos < chipEnd(tg) ? null : joined;
-        }
-        // Just before the tab group: a drop past the chip joins at the front,
-        // but only when the dragged tab itself is all that sits in between. A
-        // collapsed tab group's chip is its whole extent, so half of it is
-        // enough.
-        if (this._tabs[ins]?.value.panel.id !== this._animState!.sourceTabId) {
-            return undefined;
-        }
-        if (mousePos < chipEnd(tg, tg.collapsed ? 0.5 : 1)) {
-            return null;
-        }
-        return { ...joined, insertionIndex: first };
-    }
-
     /** The original main-axis offset of insertion slot `index`, before the
      *  chip of the tab that follows it. */
     private _offsetAt(layout: StripLayout, index: number): number {
@@ -897,36 +890,6 @@ export class TabReorderController extends CompositeDisposable {
             layout.stops.find((stop) => stop.index >= index)?.start ??
             layout.end
         );
-    }
-
-    /**
-     * The tab group a single tab released at its own slot stays in: the
-     * spans exclude the dragged tab, so a lone or last member's own slot
-     * falls in none. At the first member's slot the chip edge gates it.
-     */
-    private _sourceTabGroupAtOwnSlot(
-        insertionIndex: number,
-        mousePos: number,
-        chipEnd: (tg: ITabGroup) => number
-    ): string | null {
-        const { sourceIndex, sourceTabId, sourceGroupPanelIds } =
-            this._animState!;
-        if (
-            sourceGroupPanelIds ||
-            sourceIndex === -1 ||
-            (insertionIndex !== sourceIndex &&
-                insertionIndex !== sourceIndex + 1) ||
-            this._tabGroupManager.chipRenderers.size === 0
-        ) {
-            return null;
-        }
-        const tg = this.group.model
-            .getTabGroups()
-            .find((candidate) => candidate.panelIds.includes(sourceTabId));
-        if (!tg || (tg.panelIds[0] === sourceTabId && mousePos < chipEnd(tg))) {
-            return null;
-        }
-        return tg.id;
     }
 
     /**
@@ -984,15 +947,32 @@ export class TabReorderController extends CompositeDisposable {
         if (this._tabGroupManager.chipRenderers.size === 0) {
             return null;
         }
-        const isSource = (i: number): boolean =>
-            this._tabs[i].value.panel.id === source.id;
-        const tabGroupAt = (i: number): ITabGroup | undefined =>
-            i >= 0 && i < this._tabs.length
-                ? this.group.model.getTabGroupForPanel(
-                      this._tabs[i].value.panel.id
-                  )
-                : undefined;
+        const { prev, next } = this._slotNeighbours(index, source.id);
+        const after = this._tabGroupAt(next);
+        if (
+            after &&
+            (after === this._tabGroupAt(prev) || pastChip(after, next))
+        ) {
+            return after.id;
+        }
 
+        const own = this._tabGroupAt(source.index);
+        if (!own || (index !== source.index && index !== source.index + 1)) {
+            return null;
+        }
+        return own.panelIds[0] !== source.id || pastChip(own, source.index)
+            ? own.id
+            : null;
+    }
+
+    /** The nearest tabs before and after slot `index`, skipping the dragged
+     *  tab; -1 or the tab count when there is none. */
+    private _slotNeighbours(
+        index: number,
+        sourceId: string | null
+    ): { prev: number; next: number } {
+        const isSource = (i: number): boolean =>
+            this._tabs[i].value.panel.id === sourceId;
         let prev = index - 1;
         while (prev >= 0 && isSource(prev)) {
             prev--;
@@ -1001,18 +981,22 @@ export class TabReorderController extends CompositeDisposable {
         while (next < this._tabs.length && isSource(next)) {
             next++;
         }
-        const after = tabGroupAt(next);
-        if (after && (after === tabGroupAt(prev) || pastChip(after, next))) {
-            return after.id;
-        }
+        return { prev, next };
+    }
 
-        const own = tabGroupAt(source.index);
-        if (!own || (index !== source.index && index !== source.index + 1)) {
-            return null;
+    /** The tab group of the tab at `index`, if there is a tab there. Tab
+     *  groups only count while they have chips. */
+    private _tabGroupAt(index: number): ITabGroup | undefined {
+        if (
+            index < 0 ||
+            index >= this._tabs.length ||
+            this._tabGroupManager.chipRenderers.size === 0
+        ) {
+            return undefined;
         }
-        return own.panelIds[0] !== source.id || pastChip(own, source.index)
-            ? own.id
-            : null;
+        return this.group.model.getTabGroupForPanel(
+            this._tabs[index].value.panel.id
+        );
     }
 
     /** Whether the pointer is on the line of the tab at `tabIndex` (the

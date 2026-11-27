@@ -121,6 +121,16 @@ function mockVerticalTabRect(
     );
 }
 
+/** Answer `getTabGroupForPanel` from the stubbed `getTabGroups`. */
+function stubTabGroupForPanel(group: DockviewGroupPanel): void {
+    (group.model as any).getTabGroupForPanel = (panelId: string) =>
+        (group.model as any)
+            .getTabGroups()
+            .find((tg: { panelIds: string[] }) =>
+                tg.panelIds.includes(panelId)
+            );
+}
+
 describe('tabs - animation', () => {
     let rAFCallbacks: FrameRequestCallback[];
 
@@ -670,6 +680,7 @@ describe('tabs - animation', () => {
                 featureGroup,
                 monitoringGroup,
             ];
+            stubTabGroupForPanel(group);
 
             // Set up chip renderers map so the code knows there are chips
             const chipRenderers = (tabs as any)._tabGroupManager
@@ -735,6 +746,7 @@ describe('tabs - animation', () => {
                 collapsed,
             };
             (group.model as any).getTabGroups = () => [monitoring];
+            stubTabGroupForPanel(group);
             (tabs as any)._tabGroupManager._chipRenderers.set(
                 'monitoring-group',
                 {
@@ -786,6 +798,7 @@ describe('tabs - animation', () => {
                 collapsed: false,
             };
             (group.model as any).getTabGroups = () => [groupA];
+            stubTabGroupForPanel(group);
 
             const chipRenderers = (tabs as any)._tabGroupManager
                 ._chipRenderers as Map<string, any>;
@@ -860,6 +873,7 @@ describe('tabs - animation', () => {
                 featureGroup,
                 monitoringGroup,
             ];
+            stubTabGroupForPanel(group);
 
             const chipRenderers = (tabs as any)._tabGroupManager
                 ._chipRenderers as Map<string, any>;
@@ -1742,6 +1756,7 @@ describe('tabs - animation', () => {
 
             // The tab group does not exist in this group (simulate cross-group)
             (group.model as any).getTabGroups = () => [];
+            stubTabGroupForPanel(group);
 
             // Set up PanelTransfer so _commitGroupMove reads it
             const transfer = dataTransfer.LocalSelectionTransfer.getInstance();
@@ -1788,6 +1803,7 @@ describe('tabs - animation', () => {
 
             // The tab group does not exist in this group
             (group.model as any).getTabGroups = () => [];
+            stubTabGroupForPanel(group);
 
             const transfer = dataTransfer.LocalSelectionTransfer.getInstance();
             transfer.setData(
@@ -2126,6 +2142,7 @@ describe('tabs - animation', () => {
             // the dragged tab group; that group lives in another dockview
             // group. Simulate the cross-group condition.
             (group.model as any).getTabGroups = () => [];
+            stubTabGroupForPanel(group);
             (accessor as any).moveGroupOrPanel = jest.fn();
             (accessor as any).getPanel = jest.fn().mockReturnValue({
                 model: {
@@ -2203,6 +2220,7 @@ describe('tabs - animation', () => {
             // new panel order. This is the path that actually runs on drop.
             const panelOrder = ['panel-a', 'panel-b', 'panel-c', 'panel-d'];
             (group.model as any).getTabGroups = () => [tabGroup];
+            stubTabGroupForPanel(group);
             (group.model as any).moveTabGroup = (
                 tabGroupId: string,
                 targetIndex: number
