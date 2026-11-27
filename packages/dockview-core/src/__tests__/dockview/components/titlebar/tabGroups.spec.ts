@@ -648,6 +648,21 @@ describe('TabGroupManager', () => {
             expect(sizes.has('g1')).toBe(true);
             expect(typeof sizes.get('g1')).toBe('number');
         });
+
+        test('snapshotChipSizes counts the chip’s margins along the strip', () => {
+            const tabs = [createTab('p1')];
+            const tg = makeGroup('g1', ['p1']);
+            const { manager } = createManager({ tabs, tabGroups: [tg] });
+            manager.update();
+            const chip = manager.chipRenderers.get('g1')!.chip.element;
+            jest.spyOn(chip, 'getBoundingClientRect').mockReturnValue({
+                width: 24,
+                height: 19,
+            } as DOMRect);
+            chip.style.margin = '0 8px';
+
+            expect(manager.snapshotChipSizes().get('g1')).toBe(40);
+        });
     });
 
     describe('direction & drag-and-drop state', () => {
