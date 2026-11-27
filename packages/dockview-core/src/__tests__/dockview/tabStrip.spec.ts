@@ -254,4 +254,34 @@ describe('TabStrip', () => {
         s.leave('a');
         expect(events).toEqual([]);
     });
+
+    describe('ignores what it does not hold', () => {
+        test('moving an unknown panel changes nothing', () => {
+            const s = strip(['a', 'b']);
+            s.move('zz', { index: 0 });
+            expect(order(s)).toEqual(['a', 'b']);
+        });
+
+        test('a panel in no tab group leaves none', () => {
+            const s = strip(['a', 'b']);
+            expect(s.leave('a')).toBeUndefined();
+            expect(order(s)).toEqual(['a', 'b']);
+        });
+
+        test('moving a tab group with no members changes nothing', () => {
+            const s = strip(['a', 'b']);
+            s.moveTabGroup(new TabGroup('x'), 0);
+            expect(order(s)).toEqual(['a', 'b']);
+        });
+    });
+
+    test('removes a pinned panel from the pinned section', () => {
+        const s = new TabStrip<P>((p) => !!p.pinned);
+        s.add({ id: 'p1', pinned: true }, { index: 0 }, 0);
+        s.add({ id: 'a' }, { index: 1 }, 1);
+
+        expect(s.remove('p1')).toBeUndefined();
+        expect(order(s)).toEqual(['a']);
+        expect(s.has('p1')).toBe(false);
+    });
 });

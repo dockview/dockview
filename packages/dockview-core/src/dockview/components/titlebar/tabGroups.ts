@@ -270,14 +270,24 @@ export class TabGroupManager {
         }
     }
 
-    /** Each chip's extent along the strip's main axis: width for a horizontal
-     *  header, height for a vertical one. */
+    /** Each chip's extent along the strip, margins included: the space it
+     *  takes from the tabs either side. */
     snapshotChipSizes(): Map<string, number> {
         const isVertical = this._ctx.getDirection() === 'vertical';
         const sizes = new Map<string, number>();
         for (const [groupId, entry] of this._chipRenderers) {
-            const rect = entry.chip.element.getBoundingClientRect();
-            sizes.set(groupId, isVertical ? rect.height : rect.width);
+            const el = entry.chip.element;
+            const rect = el.getBoundingClientRect();
+            const style = getComputedStyle(el);
+            const margins = isVertical
+                ? Number.parseFloat(style.marginTop) +
+                  Number.parseFloat(style.marginBottom)
+                : Number.parseFloat(style.marginLeft) +
+                  Number.parseFloat(style.marginRight);
+            sizes.set(
+                groupId,
+                (isVertical ? rect.height : rect.width) + (margins || 0)
+            );
         }
         return sizes;
     }

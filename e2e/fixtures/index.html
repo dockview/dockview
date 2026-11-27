@@ -1468,6 +1468,9 @@
                         return g ? g.panels.map((p) => p.id) : [];
                     },
                 };
+                // The component itself, for specs that drive the public API
+                // directly (tab-strip-behaviour.spec.ts).
+                window.__dockview = dockview;
                 window.__ready = true;
             })();
         </script>

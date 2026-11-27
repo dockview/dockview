@@ -1065,6 +1065,167 @@ describe('tabs', () => {
         });
     });
 
+    describe('drag state paths', () => {
+        const dragState = (overrides: object) => ({
+            sourceTabId: '',
+            sourceIndex: -1,
+            currentInsertionIndex: null,
+            targetTabGroupId: null,
+            sourceTabGroupId: null,
+            sourceGroupPanelIds: null,
+            tabPositions: new Map(),
+            chipSizes: new Map(),
+            sourceChipSize: 0,
+            cursorOffsetFromDragStart: 0,
+            sourceGapSize: 0,
+            containerStart: 0,
+            ...overrides,
+        });
+
+        function setup() {
+            const { tabs, accessor } = createTabsForDropTest();
+            (accessor.options as any).theme = { tabAnimation: 'default' };
+            ['a', 'b', 'c'].forEach((id, i) =>
+                tabs.openPanel(createMockPanel(id), i)
+            );
+            const commitGroupMove = jest
+                .spyOn(tabs as any, '_commitGroupMove')
+                .mockImplementation(() => undefined);
+            return { tabs, accessor, commitGroupMove };
+        }
+
+        test('a tab group dropped on the empty strip space moves to its slot', () => {
+            const { tabs, commitGroupMove } = setup();
+            (tabs as any)._reorder.beginDrag(
+                dragState({ sourceTabGroupId: 'g', currentInsertionIndex: 2 })
+            );
+
+            expect(tabs.handleVoidDrop()).toBe(true);
+            expect(commitGroupMove).toHaveBeenCalledWith('g', 2);
+            expect((tabs as any)._animState).toBeNull();
+        });
+
+        test('the empty strip space ignores a drop that is not a tab group drag', () => {
+            const { tabs } = setup();
+            expect(tabs.handleVoidDrop()).toBe(false);
+        });
+
+        test('a tab group dropped on a tab moves to the tab’s slot', () => {
+            const { tabs, commitGroupMove } = setup();
+            (tabs as any)._reorder.beginDrag(
+                dragState({ sourceTabGroupId: 'g' })
+            );
+
+            // the drop the pointer backend delivers to the tab under it,
+            // before any drag-over placed the tab group
+            (tabs as any)._tabs[1].value._onDropped.fire({
+                position: 'right',
+                nativeEvent: new Event('drop'),
+            });
+
+            expect(commitGroupMove).toHaveBeenCalledWith('g', 2);
+        });
+
+        test('a smooth drop that still holds drag state animates the move', () => {
+            const { tabs, accessor } = setup();
+            (accessor.options as any).theme = { tabAnimation: 'smooth' };
+            const flip = jest
+                .spyOn(tabs, 'runFlipAnimation')
+                .mockImplementation(() => undefined);
+            // a tab from another view, still holding the strip's drag state
+            LocalSelectionTransfer.getInstance<PanelTransfer>().setData(
+                [new PanelTransfer('other-view', 'other-group-id', 'z')],
+                PanelTransfer.prototype
+            );
+            (tabs as any)._reorder.beginDrag(
+                dragState({ sourceTabId: 'z', currentInsertionIndex: 1 })
+            );
+            const drops: TabDropIndexEvent[] = [];
+            tabs.onDrop((e) => drops.push(e));
+
+            // the drop the pointer backend delivers to the tab under it
+            (tabs as any)._tabs[2].value._onDropped.fire({
+                position: 'right',
+                nativeEvent: new Event('drop'),
+            });
+
+            expect(drops.map((d) => d.index)).toEqual([1]);
+            expect(flip).toHaveBeenCalledWith(
+                expect.any(Map),
+                'z',
+                true,
+                undefined
+            );
+        });
+    });
+
+    describe('reorder', () => {
+        function setup() {
+            const { tabs } = createTabsForDropTest();
+            ['a', 'b', 'c'].forEach((id, i) =>
+                tabs.openPanel(createMockPanel(id), i)
+            );
+            const list = (tabs as any)._tabsList as HTMLElement;
+            const ids = () => [...tabs.panels];
+            return { tabs, list, ids };
+        }
+
+        test('ignores an order that does not list every tab', () => {
+            const { tabs, ids } = setup();
+            tabs.reorder(['c', 'a']);
+            tabs.reorder(['c', 'a', 'zz']);
+            expect(ids()).toEqual(['a', 'b', 'c']);
+        });
+
+        test('moves no element when the order is unchanged', () => {
+            const { tabs, list } = setup();
+            const insert = jest.spyOn(list, 'insertBefore');
+            tabs.reorder(['a', 'b', 'c']);
+            expect(insert).not.toHaveBeenCalled();
+        });
+
+        test('during a drag, re-measures the tabs it moved', () => {
+            const { tabs, ids } = setup();
+            const reorder = (tabs as any)._reorder;
+            const stale = new Map();
+            reorder.beginDrag({
+                sourceTabId: 'a',
+                sourceIndex: 0,
+                currentInsertionIndex: null,
+                targetTabGroupId: null,
+                sourceTabGroupId: null,
+                sourceGroupPanelIds: null,
+                tabPositions: stale,
+                chipSizes: new Map(),
+                sourceChipSize: 0,
+                cursorOffsetFromDragStart: 0,
+                sourceGapSize: 0,
+                containerStart: 0,
+            });
+
+            tabs.reorder(['c', 'a', 'b']);
+
+            expect(ids()).toEqual(['c', 'a', 'b']);
+            expect(reorder.animState.tabPositions).not.toBe(stale);
+            expect([...reorder.animState.tabPositions.keys()]).toEqual([
+                'c',
+                'a',
+                'b',
+            ]);
+        });
+
+        test('outside a drag, measures nothing', () => {
+            const { tabs } = setup();
+            const reorder = (tabs as any)._reorder;
+            const measure = jest.spyOn(reorder, 'snapshotTabPositions');
+
+            tabs.reorder(['c', 'a', 'b']);
+
+            expect(measure).not.toHaveBeenCalled();
+            expect(reorder.animState).toBeNull();
+        });
+    });
+
     describe('delete', () => {
         test('does not throw when id is not present on an empty tabs list', () => {
             const cut = new Tabs(

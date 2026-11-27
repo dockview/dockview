@@ -36,7 +36,7 @@ api.onDidActivePanelChange((event: DockviewActivePanelChangeEvent) => {
     // event.origin: 'user' | 'api'
 });
 
-// Fires when a panel moves from one group to another
+// Fires when a panel moves, to another group or within its own
 api.onDidMovePanel((event: MovePanelEvent) => {
     // event.panel: IDockviewPanel
     // event.from: DockviewGroupPanel, the group the panel left
@@ -48,6 +48,8 @@ api.onDidMovePanel((event: MovePanelEvent) => {
 
 :::info
 `onDidAddPanel` and `onDidRemovePanel` fire during panel moves. A panel being moved from group A to group B will trigger a remove followed by an add. Use `onDidMovePanel` if you only want to react to explicit moves.
+
+A move within a group, such as a tab reorder, fires only `onDidMovePanel`, with `from` and `to` the same group. Listen to it, not to add and remove, to notice a reorder.
 :::
 
 ### Relocation paths

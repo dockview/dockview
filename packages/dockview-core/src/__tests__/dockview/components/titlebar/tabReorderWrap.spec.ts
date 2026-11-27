@@ -18,12 +18,11 @@ describe('TabReorderController wrapped insertion index', () => {
         'left' | 'right' | 'top' | 'bottom' | 'width' | 'height'
     >;
 
-    const tab = (id: string, rect: Rect) => ({
-        value: {
-            panel: { id },
-            element: { getBoundingClientRect: () => rect as DOMRect },
-        },
-    });
+    const tab = (id: string, rect: Rect) => {
+        const element = document.createElement('div');
+        element.getBoundingClientRect = () => rect as DOMRect;
+        return { value: { panel: { id }, element } };
+    };
 
     function controllerFor(
         direction: DockviewHeaderDirection,
@@ -259,6 +258,54 @@ describe('TabReorderController wrapped insertion index', () => {
             });
             expect(target(c, 0, 10)).toBeNull();
             expect(target(c, 0, 25)).toBe('x');
+            c.dispose();
+        });
+
+        test('a tab group whose chip is not rendered counts as passed', () => {
+            const c = controller('s');
+            const chips = (c as any).host.tabGroupManager.chipRenderers;
+            chips.set('other', chips.get('x'));
+            chips.delete('x');
+            expect(target(c, 0, 10)).toBe('x');
+            c.dispose();
+        });
+
+        test('a chip that ends the line before is passed', () => {
+            // the chip wrapped onto the row above the tab group's first tab
+            const c = controller('s', x.panelIds, {
+                ...row(0, 20),
+                top: -40,
+                bottom: -21,
+                height: 19,
+            });
+            expect(target(c, 0, 10)).toBe('x');
+            c.dispose();
+        });
+
+        test('a wrapped drag over a slot between members marks it and its tab group', () => {
+            const c = controller('s');
+            const tabsList: HTMLElement = (c as any).host.tabsList;
+            tabsList.classList.add('dv-tabs-container--wrap');
+            const tabs = (c as any).host.tabItems;
+
+            c.handleDragOver({ clientX: 60, clientY: 10 });
+
+            expect(c.animState!.currentInsertionIndex).toBe(1);
+            expect(c.animState!.targetTabGroupId).toBe('x');
+            expect(
+                tabs[1].value.element.classList.contains(
+                    'dv-tab--reorder-before'
+                )
+            ).toBe(true);
+
+            // the same slot again changes nothing
+            tabs[1].value.element.classList.remove('dv-tab--reorder-before');
+            c.handleDragOver({ clientX: 61, clientY: 10 });
+            expect(
+                tabs[1].value.element.classList.contains(
+                    'dv-tab--reorder-before'
+                )
+            ).toBe(false);
             c.dispose();
         });
 
