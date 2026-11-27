@@ -25,18 +25,12 @@ const tabGroup = api.createTabGroup({
     color: 'blue',
 });
 
-// Add panels to the tab group
-api.addPanelToTabGroup({
-    groupId: 'group-1',
-    tabGroupId: tabGroup.id,
-    panelId: 'panel-1',
-});
+// Add a panel to the tab group
+const panel = api.getPanel('panel-1');
+panel?.api.moveTo({ group: panel.group, at: { tabGroup } });
 
-// Remove a panel from its tab group
-api.removePanelFromTabGroup({
-    groupId: 'group-1',
-    panelId: 'panel-1',
-});
+// Take it out of its tab group, at index 0
+panel?.api.moveTo({ group: panel.group, at: { index: 0 } });
 
 // Dissolve a tab group (removes all panels from it and destroys it)
 api.dissolveTabGroup({
@@ -52,6 +46,8 @@ api.moveTabGroup({
 });
 ```
 
+`api.addPanelToTabGroup` and `api.removePanelFromTabGroup`, and `addPanel` and `removePanel` on a tab group, still work but are deprecated in favour of `moveTo`. Unlike them, `moveTo` activates the panel (unless `skipSetActive` is set) and fires `onDidMovePanel`.
+
 ### Placing panels in a tab group
 
 `addPanel` and `moveTo` can place a panel straight into a tab group, at a position within it:
@@ -60,12 +56,12 @@ api.moveTabGroup({
 api.addPanel({
     id: 'panel-2',
     component: 'default',
-    position: { referenceGroup: 'group-1', tabGroup, indexInTabGroup: 0 },
+    position: { referenceGroup: 'group-1', at: { tabGroup, index: 0 } },
 });
 
 // panel-3 is already in group-1: join the tab group without changing group
 const panel = api.getPanel('panel-3');
-panel?.api.moveTo({ group: panel.group, tabGroup });
+panel?.api.moveTo({ group: panel.group, at: { tabGroup } });
 ```
 
 A plain `index` never splits a tab group: a panel placed between two tabs of a tab group moves to the nearer edge of it. See [Move panel](/docs/core/panels/move#tab-groups).
@@ -84,8 +80,11 @@ A tab dropped before the chip, or after the tab group's last tab, lands outside 
 ## Querying tab groups
 
 ```ts
-// Get all tab groups in a group panel
+// Get all tab groups in a group panel, in the order they were created
 const tabGroups = api.getTabGroups({ groupId: 'group-1' });
+
+// ...or in the order they appear in the tab strip (empty ones last)
+const inTabOrder = api.getTabGroups({ groupId: 'group-1', order: 'tab' });
 
 // Find which tab group a panel belongs to
 const tabGroup = api.getTabGroupForPanel({
@@ -275,7 +274,7 @@ api.onDidTabGroupChange((event) => {});
 api.onDidTabGroupCollapsedChange((event) => {});
 ```
 
-`onDidMovePanel` reports the tab group a moved panel ended up in as `event.tabGroup`.
+`onDidMovePanel` reports where a moved panel ended up as `event.at`: `{ tabGroup, index }` in a tab group, `{ index }` outside one.
 
 Individual tab groups also expose events:
 

@@ -481,6 +481,8 @@ export function computePinnedRowDropIndex(
  * @param currentOrder panel ids in their current strip order
  * @param isPinned     predicate: is this panel id pinned?
  * @param pinnedOrder  canonical order of pinned ids
+ * @deprecated Unused by dockview: pinned tabs are kept first in the tab
+ * strip, in tab order. Read `group.panels` and filter on `api.isPinned`.
  */
 export function computePinnedFirstOrder(
     currentOrder: string[],
