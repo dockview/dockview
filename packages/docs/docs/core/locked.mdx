@@ -18,7 +18,7 @@ You may want to combine this with `disableDnd={true}` to provide a locked grid w
 
 ## Locking a group
 
-Locking an individual group prevents users from dragging new panels into it, while leaving the rest of the layout fully interactive. You can still add panels to a locked group programmatically through the API.
+Locking an individual group prevents users from dragging new panels into it, while leaving the rest of the layout fully interactive. This applies to every user gesture that would add a panel: dropping on the group's content or tab strip, [keyboard docking](/docs/advanced/keyboard#keyboard-docking), dropping onto a locked [edge group](/docs/core/groups/edgeGroups), and [Smart Guides](/docs/core/dnd/smartGuides) merges. You can still add panels to a locked group programmatically through the API.
 
 ```tsx
 panel.group.locked = true;

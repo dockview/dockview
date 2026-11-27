@@ -103,6 +103,12 @@ readers:
 2. **Pick an edge**: arrow keys choose a split edge (left / right / top /
    bottom), or the centre to tab into the group; `Enter` commits the move.
 
+A [locked group](/docs/core/locked) refuses a landing it would not accept from a
+drag (its centre when `locked` is `true`, any position when it is
+`'no-drop-target'`). No drop preview is shown for that landing, and `Enter`
+announces that the move is not allowed and stays in move mode so you can pick
+again.
+
 `Esc` steps back a phase, or cancels the move entirely from the first phase.
 From the target phase, `Ctrl+Shift+F` floats the panel into a new floating group
 instead of docking it.
