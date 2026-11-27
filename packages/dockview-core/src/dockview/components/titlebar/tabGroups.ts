@@ -1,4 +1,4 @@
-import { toggleClass } from '../../../dom';
+import { forceReflow, toggleClass } from '../../../dom';
 import { addDisposableListener } from '../../../events';
 import {
     getPanelData,
@@ -83,11 +83,6 @@ interface ChipRendererEntry {
     disposable: IDisposable;
     dropTarget: IDropTarget;
     pointerDropTarget: IDropTarget;
-}
-
-/** Flush pending style changes so the next class change transitions. */
-function forceReflow(el: HTMLElement): void {
-    el.getBoundingClientRect();
 }
 
 export class TabGroupManager {
@@ -842,9 +837,7 @@ export class TabGroupManager {
                     affected.push(el);
                 }
             }
-            // `void` marks this offsetHeight read as an intentional layout
-            // reflow, not a dead expression.
-            void affected[0].offsetHeight; // single reflow
+            forceReflow(affected[0]); // one reflow for the batch
             for (const el of affected) {
                 el.style.removeProperty('transition');
             }
