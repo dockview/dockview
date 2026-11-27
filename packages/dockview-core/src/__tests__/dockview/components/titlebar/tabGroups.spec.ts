@@ -663,6 +663,25 @@ describe('TabGroupManager', () => {
 
             expect(manager.snapshotChipSizes().get('g1')).toBe(40);
         });
+
+        test('snapshotChipSizes uses height and vertical margins for a vertical header', () => {
+            const tabs = [createTab('p1')];
+            const tg = makeGroup('g1', ['p1']);
+            const { manager } = createManager({
+                tabs,
+                tabGroups: [tg],
+                direction: 'vertical',
+            });
+            manager.update();
+            const chip = manager.chipRenderers.get('g1')!.chip.element;
+            jest.spyOn(chip, 'getBoundingClientRect').mockReturnValue({
+                width: 24,
+                height: 19,
+            } as DOMRect);
+            chip.style.margin = '4px 8px';
+
+            expect(manager.snapshotChipSizes().get('g1')).toBe(27);
+        });
     });
 
     describe('direction & drag-and-drop state', () => {
