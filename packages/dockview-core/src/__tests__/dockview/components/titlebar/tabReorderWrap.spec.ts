@@ -165,4 +165,109 @@ describe('TabReorderController wrapped insertion index', () => {
             c.dispose();
         });
     });
+
+    describe('tab group target', () => {
+        // one row: [chip X 0..20] a 20..70, b 70..120, c 120..170, then d
+        // 170..220 outside the tab group; s 220..270 is dragged
+        const row = (left: number, right: number) => ({
+            left,
+            right,
+            top: 0,
+            bottom: 26,
+            width: right - left,
+            height: 26,
+        });
+        const x = { id: 'x', panelIds: ['a', 'b', 'c'] };
+
+        function controller(
+            sourceTabId: string,
+            members: string[] = x.panelIds
+        ): TabReorderController {
+            const tabs = [
+                tab('a', row(20, 70)),
+                tab('b', row(70, 120)),
+                tab('c', row(120, 170)),
+                tab('d', row(170, 220)),
+                tab('s', row(220, 270)),
+            ];
+            const tabGroup = { ...x, panelIds: members };
+            const host = fromPartial<ITabReorderHost>({
+                tabItems: tabs as any,
+                direction: 'horizontal',
+                tabsList: document.createElement('div'),
+                tabGroupManager: {
+                    chipRenderers: new Map([
+                        [
+                            'x',
+                            {
+                                chip: {
+                                    element: {
+                                        getBoundingClientRect: () => row(0, 20),
+                                    },
+                                },
+                            },
+                        ],
+                    ]),
+                } as any,
+                groupPanel: {
+                    model: {
+                        getTabGroupForPanel: (id: string) =>
+                            members.includes(id) ? tabGroup : undefined,
+                    },
+                } as any,
+            });
+            const c = new TabReorderController(host);
+            c.animState = {
+                sourceTabId,
+                sourceIndex: tabs.findIndex(
+                    (t) => t.value.panel.id === sourceTabId
+                ),
+            } as any;
+            return c;
+        }
+
+        const target = (
+            c: TabReorderController,
+            index: number,
+            x: number
+        ): string | null => (c as any)._wrappedTargetTabGroup(index, x, 10);
+
+        test('a slot between two members joins their tab group', () => {
+            const c = controller('s');
+            expect(target(c, 1, 60)).toBe('x');
+            expect(target(c, 2, 110)).toBe('x');
+            c.dispose();
+        });
+
+        test('the slot before the first member joins only past the chip', () => {
+            const c = controller('s');
+            expect(target(c, 0, 25)).toBe('x');
+            expect(target(c, 0, 10)).toBeNull();
+            // on another line
+            expect((c as any)._wrappedTargetTabGroup(0, 25, 100)).toBeNull();
+            c.dispose();
+        });
+
+        test('a slot after the last member stays outside', () => {
+            const c = controller('s');
+            expect(target(c, 3, 160)).toBeNull();
+            expect(target(c, 4, 210)).toBeNull();
+            c.dispose();
+        });
+
+        test('a last member released at its own slot stays in its tab group', () => {
+            const c = controller('c');
+            expect(target(c, 2, 140)).toBe('x');
+            expect(target(c, 3, 160)).toBe('x');
+            expect(target(c, 4, 210)).toBeNull();
+            c.dispose();
+        });
+
+        test('a lone member released at its own slot stays only past the chip', () => {
+            const c = controller('a', ['a']);
+            expect(target(c, 0, 25)).toBe('x');
+            expect(target(c, 0, 10)).toBeNull();
+            c.dispose();
+        });
+    });
 });

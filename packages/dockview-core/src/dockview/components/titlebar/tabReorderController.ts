@@ -934,17 +934,99 @@ export class TabReorderController extends CompositeDisposable {
             return;
         }
         const index = this.computeWrappedInsertionIndex(clientX, clientY);
-        // targetTabGroupId stays null: wrap reorder is single-tab within the
-        // group; group-chip drops keep the 1-D path (chips don't wrap in v1).
+        const targetTabGroupId = this._wrappedTargetTabGroup(
+            index,
+            clientX,
+            clientY
+        );
         if (
             index === this._animState.currentInsertionIndex &&
-            this._animState.targetTabGroupId === null
+            targetTabGroupId === this._animState.targetTabGroupId
         ) {
             return;
         }
         this._animState.currentInsertionIndex = index;
-        this._animState.targetTabGroupId = null;
+        this._animState.targetTabGroupId = targetTabGroupId;
         this.updateWrapDropIndicator(index);
+    }
+
+    /**
+     * The tab group a wrapped drop at slot `index` joins, by the rule of the
+     * single-row drag: a slot between two members joins their tab group, as
+     * does the slot before the first member once the pointer is past the
+     * chip, and a member released at its own slot stays.
+     */
+    private _wrappedTargetTabGroup(
+        index: number,
+        clientX: number,
+        clientY: number
+    ): string | null {
+        if (this._tabGroupManager.chipRenderers.size === 0) {
+            return null;
+        }
+        const { sourceTabId, sourceIndex } = this._animState!;
+        const isSource = (i: number): boolean =>
+            this._tabs[i].value.panel.id === sourceTabId;
+        const tabGroupAt = (i: number): ITabGroup | undefined =>
+            i >= 0 && i < this._tabs.length
+                ? this.group.model.getTabGroupForPanel(
+                      this._tabs[i].value.panel.id
+                  )
+                : undefined;
+
+        let prev = index - 1;
+        while (prev >= 0 && isSource(prev)) {
+            prev--;
+        }
+        let next = index;
+        while (next < this._tabs.length && isSource(next)) {
+            next++;
+        }
+        const after = tabGroupAt(next);
+        if (after && after === tabGroupAt(prev)) {
+            return after.id;
+        }
+        if (after && this._pastChip(after, next, clientX, clientY)) {
+            return after.id;
+        }
+
+        const own = tabGroupAt(sourceIndex);
+        if (!own || (index !== sourceIndex && index !== sourceIndex + 1)) {
+            return null;
+        }
+        return own.panelIds[0] !== sourceTabId ||
+            this._pastChip(own, sourceIndex, clientX, clientY)
+            ? own.id
+            : null;
+    }
+
+    /** Whether the pointer is on the line of the tab at `tabIndex` (the
+     *  first tab after `tabGroup`'s chip) and past the chip. */
+    private _pastChip(
+        tabGroup: ITabGroup,
+        tabIndex: number,
+        clientX: number,
+        clientY: number
+    ): boolean {
+        const isVertical = this._direction === 'vertical';
+        const cross = isVertical ? clientX : clientY;
+        const main = isVertical ? clientY : clientX;
+        const tab = this._tabs[tabIndex].value.element.getBoundingClientRect();
+        const lineStart = isVertical ? tab.left : tab.top;
+        const lineEnd = isVertical ? tab.right : tab.bottom;
+        if (cross < lineStart || cross > lineEnd) {
+            return false;
+        }
+        const chip = this._tabGroupManager.chipRenderers
+            .get(tabGroup.id)
+            ?.chip.element.getBoundingClientRect();
+        if (
+            !chip ||
+            Math.abs((isVertical ? chip.left : chip.top) - lineStart) > 2
+        ) {
+            return true; // the chip ends the line before
+        }
+        return main >= (isVertical ? chip.bottom : chip.right);
     }
 
     /**

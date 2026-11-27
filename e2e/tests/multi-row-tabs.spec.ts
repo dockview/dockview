@@ -438,17 +438,15 @@ test.describe('multi-row tabs (wrap mode)', () => {
         expect(joined).toBe(true);
     });
 
-    test('a tab dropped inside a tab group it is not joining snaps to the nearer edge (smooth mode)', async ({
+    test('a tab dropped between tab group members joins it at that slot (smooth mode)', async ({
         page,
     }) => {
-        // the wrapped smooth reorder never joins a tab group, so the drop
-        // lands at the group's nearer edge rather than splitting it
         const { order, joined } = await dropIntoTabGroup(
             page,
             'overflow=wrap&smooth=1'
         );
-        expect(order.slice(0, 11)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 19]);
-        expect(joined).toBe(false);
+        expect(order.slice(0, 11)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 19, 8, 9]);
+        expect(joined).toBe(true);
     });
 
     // Arrow Up/Down move the roving focus between wrapped rows (core keeps
