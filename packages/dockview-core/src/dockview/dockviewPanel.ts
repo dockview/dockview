@@ -23,6 +23,10 @@ export interface IDockviewPanel extends IDisposable, IPanel {
     readonly minimumHeight?: number;
     readonly maximumWidth?: number;
     readonly maximumHeight?: number;
+    /**
+     * The stored pin flag, which is saved with the layout and kept while
+     * pinning is off. Whether the tab is pinned now is `api.isPinned`.
+     */
     readonly isPinned: boolean;
     setPinned(pinned: boolean): void;
     updateParentGroup(
