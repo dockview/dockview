@@ -939,6 +939,38 @@ describe('tabs', () => {
             expect(drops).toHaveLength(0);
         });
 
+        test('an anim-state drop takes its slot and tab group from the hit-test', () => {
+            // the hit-test put the drop between a and b; the pointer is
+            // released over d
+            const { tabs, drops } = setup('other-group-id', 'z');
+            (tabs as any)._reorder.animState = {
+                sourceTabId: 'z',
+                sourceIndex: -1,
+                currentInsertionIndex: 1,
+                targetTabGroupId: 'x',
+                sourceTabGroupId: null,
+                sourceGroupPanelIds: null,
+                tabPositions: new Map(),
+                chipSizes: new Map(),
+                sourceChipSize: 0,
+                cursorOffsetFromDragStart: 0,
+                sourceGapSize: 0,
+                containerStart: 0,
+            };
+            // keep the seeded hit-test result through the dragover
+            jest.spyOn(
+                (tabs as any)._reorder,
+                'handleDragOver'
+            ).mockImplementation(() => undefined);
+            simulateDropOnTab(tabs, 3, 'right');
+            expect(
+                drops.map(({ index, targetTabGroupId }) => ({
+                    index,
+                    targetTabGroupId,
+                }))
+            ).toEqual([{ index: 1, targetTabGroupId: 'x' }]);
+        });
+
         test('an anim-state drop on the bottom half of a vertical tab lands after it', () => {
             // a tab drop that still holds anim state, as one from another
             // dockview instance does with the pointer backend

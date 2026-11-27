@@ -32,9 +32,10 @@ import { TabDragEvent, TabDropIndexEvent } from './tabsContainer';
 import { ITabGroup } from '../../tabGroup';
 import { TabGroupManager } from './tabGroups';
 import { ITabGroupChipRenderer } from '../../framework';
-import { DroptargetEvent } from '../../../dnd/droptarget';
+import { DroptargetEvent, Position } from '../../../dnd/droptarget';
 import { pointerBackend } from '../../../dnd/backend';
 import {
+    indexAfterLeaving,
     ITabReorderHost,
     mainAxisCursor,
     mainAxisSize,
@@ -1064,83 +1065,54 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                 this._pendingCollapse = false;
 
                 const tabIndex = this._tabs.findIndex((x) => x.value === tab);
-                const afterPosition =
-                    this._direction === 'vertical' ? 'bottom' : 'right';
-                if (animState) {
-                    const dropIndex =
-                        event.position === afterPosition
-                            ? tabIndex + 1
-                            : tabIndex;
-
-                    if (animState.sourceTabGroupId) {
-                        this._commitGroupMove(
-                            animState.sourceTabGroupId,
-                            animState.currentInsertionIndex ?? dropIndex
-                        );
-                        return;
-                    }
-
-                    this._reorder.uncollapseSourceTab(animState.sourceTabId);
-
-                    const firstPositions = this.snapshotTabPositions();
-                    this.resetTabTransforms();
-
-                    this._onDrop.fire({
-                        event: event.nativeEvent,
-                        index: dropIndex,
-                        targetTabGroupId: animState.targetTabGroupId,
-                    });
-
-                    if (
-                        this.accessor.options.theme?.tabAnimation === 'smooth'
-                    ) {
-                        this.runFlipAnimation(
-                            firstPositions,
-                            animState.sourceTabId,
-                            animState.sourceIndex === -1,
-                            animState.sourceIndex === -1
-                                ? undefined
-                                : {
-                                      from: Math.min(
-                                          animState.sourceIndex,
-                                          dropIndex
-                                      ),
-                                      to: Math.max(
-                                          animState.sourceIndex,
-                                          dropIndex
-                                      ),
-                                  }
-                        );
-                    }
-                } else {
-                    // Compute insertion index based on which half of the tab
-                    // the pointer is over, then adjust for same-group removal:
-                    // when the source tab sits before the insertion point,
-                    // removing it shifts all subsequent indices down by one.
-                    const insertionIndex =
-                        event.position === afterPosition
-                            ? tabIndex + 1
-                            : tabIndex;
-                    const data = getPanelData();
-                    const sourceIndex = this._localSourceIndex(data);
-                    const adjustedIndex =
-                        insertionIndex -
-                        (sourceIndex !== -1 && sourceIndex < insertionIndex
-                            ? 1
-                            : 0);
-                    // the pointer is over this tab, so it is past the chip
-                    // only of a tab group this tab leads
-                    const targetTabGroupId = this._reorder.tabGroupAtSlot(
-                        insertionIndex,
-                        this._source(sourceIndex),
-                        (_tabGroup, tabIndexAfterChip) =>
-                            tabIndexAfterChip === tabIndex
+                if (!animState) {
+                    const drop = this._resolveDropOnTab(
+                        tabIndex,
+                        event.position
                     );
-                    this._onDrop.fire({
-                        event: event.nativeEvent,
-                        index: adjustedIndex,
-                        targetTabGroupId,
-                    });
+                    this._onDrop.fire({ event: event.nativeEvent, ...drop });
+                    return;
+                }
+                if (animState.sourceTabGroupId) {
+                    this._commitGroupMove(
+                        animState.sourceTabGroupId,
+                        animState.currentInsertionIndex ??
+                            this._slotOnTab(tabIndex, event.position)
+                    );
+                    return;
+                }
+
+                // A drop that still holds drag state (a tab from another
+                // dockview instance with the pointer backend): the slot and
+                // the tab group both come from the strip's hit-test, or from
+                // the tab when the hit-test has not placed it.
+                const drop =
+                    animState.currentInsertionIndex === null
+                        ? this._resolveDropOnTab(tabIndex, event.position)
+                        : this._reorder.resolveTabDrop(animState);
+                this._reorder.uncollapseSourceTab(animState.sourceTabId);
+                if (!drop) {
+                    this.resetTabTransforms();
+                    return;
+                }
+
+                const firstPositions = this.snapshotTabPositions();
+                this.resetTabTransforms();
+                this._onDrop.fire({ event: event.nativeEvent, ...drop });
+
+                if (this.accessor.options.theme?.tabAnimation === 'smooth') {
+                    const { sourceIndex } = animState;
+                    this.runFlipAnimation(
+                        firstPositions,
+                        animState.sourceTabId,
+                        sourceIndex === -1,
+                        sourceIndex === -1
+                            ? undefined
+                            : {
+                                  from: Math.min(sourceIndex, drop.index),
+                                  to: Math.max(sourceIndex, drop.index),
+                              }
+                    );
                 }
             }),
             tab.onWillShowOverlay((event) => {
@@ -1523,6 +1495,32 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         });
     }
 
+    /** The live-list slot for a drop on half `position` of the tab at
+     *  `tabIndex`. */
+    private _slotOnTab(tabIndex: number, position: Position): number {
+        const after = this._direction === 'vertical' ? 'bottom' : 'right';
+        return position === after ? tabIndex + 1 : tabIndex;
+    }
+
+    /** A drop on half `position` of the tab at `tabIndex`, by the tab group
+     *  rule. The pointer is over that tab, so it is past the chip only of a
+     *  tab group that tab leads. */
+    private _resolveDropOnTab(
+        tabIndex: number,
+        position: Position
+    ): { index: number; targetTabGroupId: string | null } {
+        const slot = this._slotOnTab(tabIndex, position);
+        const source = this._source(this._localSourceIndex(getPanelData()));
+        return {
+            index: indexAfterLeaving(slot, source.index),
+            targetTabGroupId: this._reorder.tabGroupAtSlot(
+                slot,
+                source,
+                (_tabGroup, tabIndexAfterChip) => tabIndexAfterChip === tabIndex
+            ),
+        };
+    }
+
     /** The index of the dragged tab when it is one of this strip's own,
      *  else -1. A tab from another view or group may share a local id. */
     private _localSourceIndex(data: PanelTransfer | undefined): number {
@@ -1585,28 +1583,20 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
             return;
         }
 
-        const sourceIndex = this._localSourceIndex(data);
-        const adjustedIndex =
-            insertionIndex -
-            (sourceIndex !== -1 && sourceIndex < insertionIndex ? 1 : 0);
+        const source = this._source(this._localSourceIndex(data));
+        const index = indexAfterLeaving(insertionIndex, source.index);
         const targetTabGroupId = this._reorder.tabGroupAtSlot(
             insertionIndex,
-            this._source(sourceIndex),
+            source,
             // the pointer is past every chip but this one
             (candidate) => candidate.id !== tabGroup.id
         );
-        if (
-            adjustedIndex === sourceIndex &&
-            targetTabGroupId ===
-                (this.group.model.getTabGroupForPanel(
-                    this._tabs[sourceIndex].value.panel.id
-                )?.id ?? null)
-        ) {
-            return; // nothing moves and nothing joins or leaves
+        if (this._reorder.isNoOpDrop(index, source, targetTabGroupId)) {
+            return;
         }
         this._onDrop.fire({
             event: event.nativeEvent,
-            index: adjustedIndex,
+            index,
             targetTabGroupId,
         });
     }

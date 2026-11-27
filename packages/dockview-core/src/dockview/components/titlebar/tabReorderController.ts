@@ -43,6 +43,15 @@ export interface TabAnimationState {
 }
 
 /**
+ * The index a tab dropped at live-list slot `slot` ends up at, once the
+ * dragged tab (at `sourceIndex`, or -1 when it comes from elsewhere) has
+ * left its own slot.
+ */
+export function indexAfterLeaving(slot: number, sourceIndex: number): number {
+    return slot - (sourceIndex !== -1 && sourceIndex < slot ? 1 : 0);
+}
+
+/**
  * Main-axis extent of a rect. Tabs flow along x in a horizontal header
  * (top/bottom) and along y in a vertical one (the left/right edge groups),
  * so the reorder math reads every size through this.
@@ -442,21 +451,36 @@ export class TabReorderController extends CompositeDisposable {
             return null;
         }
         const { sourceIndex, targetTabGroupId } = animState;
-        const index =
-            insertionIndex -
-            (sourceIndex !== -1 && sourceIndex < insertionIndex ? 1 : 0);
-
-        // Same slot, same group (or none): the move would remove and re-add
-        // the tab, which also dissolves a group it is the only member of.
+        const index = indexAfterLeaving(insertionIndex, sourceIndex);
         if (
-            index === sourceIndex &&
-            targetTabGroupId ===
-                (this.group.model.getTabGroupForPanel(animState.sourceTabId)
-                    ?.id ?? null)
+            this.isNoOpDrop(
+                index,
+                { id: animState.sourceTabId, index: sourceIndex },
+                targetTabGroupId
+            )
         ) {
             return null;
         }
         return { index, targetTabGroupId };
+    }
+
+    /**
+     * Whether the dragged tab, dropped at `index` into `targetTabGroupId`,
+     * stays where it is and in the tab group it is in. Committing such a
+     * drop would remove and re-add the tab, which also dissolves a tab group
+     * it is the only member of.
+     */
+    isNoOpDrop(
+        index: number,
+        source: { id: string | null; index: number },
+        targetTabGroupId: string | null
+    ): boolean {
+        return (
+            source.id !== null &&
+            index === source.index &&
+            targetTabGroupId ===
+                (this.group.model.getTabGroupForPanel(source.id)?.id ?? null)
+        );
     }
 
     /** Commit a smooth-mode single-tab drop from the current insertion index
