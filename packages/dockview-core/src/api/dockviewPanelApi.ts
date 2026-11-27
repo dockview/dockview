@@ -55,10 +55,10 @@ export interface DockviewPanelApi
     readonly title: string | undefined;
     /**
      * Whether this panel's tab is pinned. Pinned tabs render before unpinned
-     * tabs, never overflow, and resist cross-boundary reorder. Owned by the
-     * PinnedTabs module. Reads `false` until a panel is pinned, which requires
-     * `pinnedTabs.enabled` (both `setPinned` and restore are gated on it), so a
-     * component with pinning disabled always reports `false`.
+     * tabs, never overflow, and resist cross-boundary reorder. Needs the
+     * PinnedTabs module and `pinnedTabs.enabled`: while pinning is off this
+     * reads `false`, and a pin set before comes back when it is turned on
+     * again (`onDidChangePinned` fires both times).
      */
     readonly isPinned: boolean;
     readonly onDidActiveGroupChange: Event<ActiveGroupEvent>;
@@ -124,7 +124,7 @@ export class DockviewPanelApiImpl
     }
 
     get isPinned(): boolean {
-        return this.panel.isPinned;
+        return this.panel.isPinned && this.accessor.isPinningActive;
     }
 
     get isGroupActive(): boolean {

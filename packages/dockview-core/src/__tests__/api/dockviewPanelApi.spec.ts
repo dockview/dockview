@@ -231,9 +231,20 @@ describe('groupPanelApi', () => {
         expect(cut.title).toBe('a_title');
     });
 
-    test('isPinned delegates to panel.isPinned', () => {
-        const { cut } = createFixture({ panel: { isPinned: true } as any });
+    test('isPinned is the pin flag while pinning is on', () => {
+        const { cut } = createFixture({
+            panel: { isPinned: true } as any,
+            accessor: { isPinningActive: true },
+        });
         expect(cut.isPinned).toBe(true);
+    });
+
+    test('isPinned reads false while pinning is off', () => {
+        const { cut } = createFixture({
+            panel: { isPinned: true } as any,
+            accessor: { isPinningActive: false },
+        });
+        expect(cut.isPinned).toBe(false);
     });
 
     test('isGroupActive delegates to group.isActive', () => {

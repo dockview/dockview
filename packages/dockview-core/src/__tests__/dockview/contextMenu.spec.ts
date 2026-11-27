@@ -21,6 +21,7 @@ function makeAccessor(
         getTabGroupChipContextMenuItems?: jest.Mock;
         createContextMenuItemComponent?: jest.Mock;
         api?: any;
+        pinningActive?: boolean;
     } = {}
 ) {
     const openPopover = jest.fn();
@@ -34,7 +35,11 @@ function makeAccessor(
                 overrides.getTabGroupChipContextMenuItems,
             createContextMenuItemComponent:
                 overrides.createContextMenuItemComponent,
+            pinnedTabs: overrides.pinningActive
+                ? { enabled: true, contextMenuItem: false }
+                : undefined,
         },
+        pinnedTabsService: overrides.pinningActive ? ({} as any) : undefined,
         api: overrides.api ?? ({} as any),
         popupService,
         getPopupServiceForGroup: () => popupService,
@@ -1514,6 +1519,7 @@ describe('ContextMenuController', () => {
         test('renders "Pin tab" and pins on click when unpinned', () => {
             const { accessor, openPopover } = makeAccessor({
                 getTabContextMenuItems: jest.fn().mockReturnValue(['pin']),
+                pinningActive: true,
             });
             const controller = new ContextMenuController(accessor);
             const setPinned = jest.fn();
@@ -1535,6 +1541,7 @@ describe('ContextMenuController', () => {
         test('renders "Unpin tab" and unpins on click when pinned', () => {
             const { accessor, openPopover } = makeAccessor({
                 getTabContextMenuItems: jest.fn().mockReturnValue(['pin']),
+                pinningActive: true,
             });
             const controller = new ContextMenuController(accessor);
             const setPinned = jest.fn();
@@ -1551,6 +1558,28 @@ describe('ContextMenuController', () => {
 
             fireEvent.click(item);
             expect(setPinned).toHaveBeenCalledWith(false);
+        });
+
+        test('is left out while pinning is off', () => {
+            const { accessor, openPopover } = makeAccessor({
+                getTabContextMenuItems: jest
+                    .fn()
+                    .mockReturnValue(['pin', 'close']),
+            });
+            const controller = new ContextMenuController(accessor);
+
+            controller.show(
+                pinPanel(true),
+                makeGroup(),
+                new MouseEvent('contextmenu', { cancelable: true })
+            );
+
+            const menuEl = openPopover.mock.calls[0][0] as HTMLElement;
+            expect(
+                [...menuEl.querySelectorAll('.dv-context-menu-item')].map(
+                    (el) => el.textContent
+                )
+            ).toEqual(['Close']);
         });
     });
 

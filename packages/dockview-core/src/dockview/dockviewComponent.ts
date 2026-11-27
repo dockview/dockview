@@ -505,6 +505,9 @@ export interface IDockviewComponent extends IBaseGrid<DockviewGroupPanel> {
     moveGroupOrPanel(options: MoveGroupOrPanelOptions): void;
     moveGroup(options: MoveGroupOptions): void;
     setPanelPinned(panel: DockviewPanel, pinned: boolean): void;
+    /** Whether pinning is on: `pinnedTabs.enabled` with the PinnedTabs
+     *  module registered. A panel's pin flag counts only while it is. */
+    readonly isPinningActive: boolean;
     doSetGroupActive: (group: DockviewGroupPanel, skipFocus?: boolean) => void;
     removeGroup: (group: DockviewGroupPanel) => void;
     addPanel<T extends object = Parameters>(
@@ -1622,6 +1625,10 @@ export class DockviewComponent
         return this._moduleRegistry.services.pinnedTabsService;
     }
 
+    get isPinningActive(): boolean {
+        return !!this.options.pinnedTabs?.enabled && !!this.pinnedTabsService;
+    }
+
     get advancedOverflowService(): IAdvancedOverflowService | undefined {
         // Owned by AdvancedOverflowModule; undefined when the module is not
         // registered, so callers must `?.`-guard (the free flat overflow list
@@ -1641,22 +1648,10 @@ export class DockviewComponent
      * ordering.
      */
     setPanelPinned(panel: DockviewPanel, pinned: boolean): void {
-        if (panel.isPinned === pinned) {
-            return;
-        }
-
-        if (!this.options.pinnedTabs?.enabled) {
-            // Feature dormant; pinning is opt-in via `pinnedTabs.enabled`.
-            return;
-        }
-
-        // Not routed through assertModule: reaching here means
-        // `pinnedTabs.enabled` is set, so the option rule in optionsModules.ts
-        // has already reported the missing module at construction (or at the
-        // updateOptions that enabled it). Warning again here would report the
-        // same module twice for one mistake.
-        const service = this.pinnedTabsService;
-        if (!service) {
+        // Not routed through assertModule: with `pinnedTabs.enabled` set, the
+        // option rule in optionsModules.ts has already reported a missing
+        // module, and warning here would report it twice.
+        if (panel.isPinned === pinned || !this.isPinningActive) {
             return;
         }
 
@@ -3261,6 +3256,7 @@ export class DockviewComponent
 
         const oldDisableDnd = this.options.disableDnd;
         const oldDndStrategy = this.options.dndStrategy;
+        const wasPinningActive = this.isPinningActive;
         this._options = { ...this.options, ...options };
         const newDisableDnd = this.options.disableDnd;
         const newDndStrategy = this.options.dndStrategy;
@@ -3307,6 +3303,25 @@ export class DockviewComponent
                 this._options.tabGroupAccent !== 'off';
             for (const group of this.groups) {
                 group.model.refreshTabGroupAccent();
+            }
+        }
+
+        if (this.isPinningActive !== wasPinningActive) {
+            // Flagged tabs gain or lose their pin; each group's strip moves
+            // them as their pin state changes.
+            for (const group of this.groups) {
+                group.model.batchPinChanges(() => {
+                    for (const panel of group.panels) {
+                        if (panel.isPinned && panel instanceof DockviewPanel) {
+                            const isPinned = panel.api.isPinned;
+                            panel.api._onDidChangePinned.fire({ isPinned });
+                            this._onDidPanelPinnedChange.fire({
+                                panel,
+                                isPinned,
+                            });
+                        }
+                    }
+                });
             }
         }
 

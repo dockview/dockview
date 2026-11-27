@@ -654,32 +654,26 @@ export interface IPinnedTabsHost {
     /** Fires after a panel's pinned flag is mutated via the gated
      *  `setPanelPinned`; the service's sole trigger to re-order the strip. */
     readonly onDidPanelPinnedChange: Event<DockviewPanelPinnedChangeEvent>;
-    /** Fires after a `fromJSON` restore completes; the service seeds its
-     *  pinned store from the restored panels' `isPinned` flags and re-asserts
-     *  the invariant. */
+    /** Fires after a `fromJSON` restore completes; the service renders its
+     *  pinned second rows. */
     readonly onDidLayoutFromJSON: Event<void>;
-    /** Fires when a panel is removed; the service prunes it from its pinned
-     *  bookkeeping so a closed pinned panel's id can't leak. */
+    /** @deprecated Unused: core keeps pinned tabs in step. */
     readonly onDidRemovePanel: Event<IDockviewPanel>;
-    /** Fires once a panel's relocation has settled. A cross-group move carries
-     *  no pin-change event, so the service re-asserts the pinned-first
-     *  invariant on the destination group here. */
+    /** @deprecated Unused: core keeps pinned tabs in step. */
     readonly onDidMovePanel: Event<MovePanelEvent>;
 }
 
 /**
- * Pinned-tabs module service. Its presence is what
- * `DockviewComponent.setPanelPinned` checks (via `assertModule`) before
- * mutating pinned state; the pinned-first ordering is enforced internally and
- * reactively as panels are pinned/unpinned, added, or moved.
+ * Pinned-tabs module service. Its presence, with `pinnedTabs.enabled`, turns
+ * pinning on (`DockviewComponent.isPinningActive`). Core keeps each tab strip
+ * in step with pin state; the service owns the pinned UI and drop policy.
  *
  * @internal
  */
 export interface IPinnedTabsService extends IDisposable {
-    /** Re-assert the pinned-first invariant on a single group's tab strip. */
+    /** @deprecated Core keeps the strip in step with pin state; unused. */
     enforceOrder(group: DockviewGroupPanel): void;
-    /** Pure predicate (handed to each group's `Tabs`); true keeps the panel
-     *  out of the overflow dropdown. */
+    /** @deprecated Core keeps pinned tabs out of overflow; unused. */
     isExcludedFromOverflow(panelId: string): boolean;
     /** Clamp/redirect a proposed header drop `index` against the group's pin
      *  boundary so the dragged panel lands on the correct side. May flip the

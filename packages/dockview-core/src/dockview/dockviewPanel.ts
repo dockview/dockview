@@ -191,18 +191,20 @@ export class DockviewPanel
     }
 
     /**
-     * Low-level pinned-state mutation. Sets the flag and fires the panel-api
-     * event. The public, module-gated entry point is
-     * `panel.api.setPinned` → `DockviewComponent.setPanelPinned`, which decides
-     * whether pinning is active before reaching here; this method itself does
-     * not gate, so the ordering module and serialization can drive it directly.
+     * Set the stored pin flag, ungated (restore and tab group joins use it).
+     * The flag counts only while pinning is active; the panel api's
+     * `onDidChangePinned` fires when the pin it reports changes. The public,
+     * gated entry point is `panel.api.setPinned`.
      */
     setPinned(pinned: boolean): void {
         if (this._pinned === pinned) {
             return;
         }
+        const wasPinned = this.api.isPinned;
         this._pinned = pinned;
-        this.api._onDidChangePinned.fire({ isPinned: pinned });
+        if (this.api.isPinned !== wasPinned) {
+            this.api._onDidChangePinned.fire({ isPinned: this.api.isPinned });
+        }
     }
 
     setRenderer(renderer: DockviewPanelRenderer): void {

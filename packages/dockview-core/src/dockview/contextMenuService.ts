@@ -210,11 +210,17 @@ export class ContextMenuController implements IContextMenuService {
      * `getTabContextMenuItems` itself.
      */
     private _shouldInjectPin(): boolean {
-        const pinnedTabs = this.accessor.options.pinnedTabs;
+        return (
+            this._isPinningActive() &&
+            this.accessor.options.pinnedTabs?.contextMenuItem !== false
+        );
+    }
+
+    /** Pinning is on: `pinnedTabs.enabled` with the PinnedTabs module. */
+    private _isPinningActive(): boolean {
         return (
             !!this.accessor.pinnedTabsService &&
-            !!pinnedTabs?.enabled &&
-            pinnedTabs.contextMenuItem !== false
+            !!this.accessor.options.pinnedTabs?.enabled
         );
     }
 
@@ -352,6 +358,9 @@ export class ContextMenuController implements IContextMenuService {
                     panel.api.location.type === 'popout'
                 );
             case 'pin':
+                if (!this._isPinningActive()) {
+                    return undefined;
+                }
                 return buildItem(
                     panel.api.isPinned ? 'Unpin tab' : 'Pin tab',
                     close,
