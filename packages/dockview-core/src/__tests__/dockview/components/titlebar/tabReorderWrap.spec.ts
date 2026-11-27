@@ -181,7 +181,8 @@ describe('TabReorderController wrapped insertion index', () => {
 
         function controller(
             sourceTabId: string,
-            members: string[] = x.panelIds
+            members: string[] = x.panelIds,
+            chipRect = row(0, 20)
         ): TabReorderController {
             const tabs = [
                 tab('a', row(20, 70)),
@@ -202,7 +203,7 @@ describe('TabReorderController wrapped insertion index', () => {
                             {
                                 chip: {
                                     element: {
-                                        getBoundingClientRect: () => row(0, 20),
+                                        getBoundingClientRect: () => chipRect,
                                     },
                                 },
                             },
@@ -245,6 +246,19 @@ describe('TabReorderController wrapped insertion index', () => {
             expect(target(c, 0, 10)).toBeNull();
             // on another line
             expect((c as any)._wrappedTargetTabGroup(0, 25, 100)).toBeNull();
+            c.dispose();
+        });
+
+        test('a chip shorter than the tabs is still on their line', () => {
+            // the chip is centred on the line, so its top is below the tabs'
+            const c = controller('s', x.panelIds, {
+                ...row(0, 20),
+                top: 6,
+                bottom: 20,
+                height: 14,
+            });
+            expect(target(c, 0, 10)).toBeNull();
+            expect(target(c, 0, 25)).toBe('x');
             c.dispose();
         });
 

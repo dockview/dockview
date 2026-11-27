@@ -1020,10 +1020,13 @@ export class TabReorderController extends CompositeDisposable {
         const chip = this._tabGroupManager.chipRenderers
             .get(tabGroup.id)
             ?.chip.element.getBoundingClientRect();
-        if (
-            !chip ||
-            Math.abs((isVertical ? chip.left : chip.top) - lineStart) > 2
-        ) {
+        if (!chip) {
+            return true;
+        }
+        const [chipStart, chipEnd] = isVertical
+            ? [chip.left, chip.right]
+            : [chip.top, chip.bottom];
+        if (chipEnd <= lineStart || chipStart >= lineEnd) {
             return true; // the chip ends the line before
         }
         return main >= (isVertical ? chip.bottom : chip.right);
