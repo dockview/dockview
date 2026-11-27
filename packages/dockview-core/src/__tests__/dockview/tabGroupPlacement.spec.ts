@@ -54,7 +54,7 @@ function dropOnStrip(
     group: DockviewGroupPanel,
     panelId: string,
     index: number,
-    targetTabGroupId: string | null,
+    tabGroup: { id: string; index: number } | null,
     viewId: string = dockview.id
 ): void {
     const transfer = LocalSelectionTransfer.getInstance<PanelTransfer>();
@@ -65,7 +65,8 @@ function dropOnStrip(
     (group.model as any).tabsContainer.tabs.fireDrop({
         event: new Event('drop'),
         index,
-        targetTabGroupId,
+        targetTabGroupId: tabGroup?.id ?? null,
+        indexInTabGroup: tabGroup?.index,
     });
     transfer.clearData(PanelTransfer.prototype);
 }
@@ -531,7 +532,7 @@ describe('tab group placement', () => {
             const { dockview, group } = setup();
             const x = createTabGroup(dockview, group, ['a', 'b', 'd']);
 
-            dropOnStrip(dockview, group, 'c', 1, x.id);
+            dropOnStrip(dockview, group, 'c', 1, { id: x.id, index: 1 });
 
             expect(x.panelIds).toEqual(['a', 'c', 'b', 'd']);
             expect(strip(group)).toEqual(['a', 'c', 'b', 'd']);
@@ -567,7 +568,14 @@ describe('tab group placement', () => {
             const { dockview, group } = setup(['a', 'b', 'c']);
             const x = createTabGroup(dockview, group, ['a', 'b']);
 
-            dropOnStrip(dockview, group, 'c', 1, x.id, 'another-instance');
+            dropOnStrip(
+                dockview,
+                group,
+                'c',
+                1,
+                { id: x.id, index: 1 },
+                'another-instance'
+            );
             dropOnStrip(dockview, group, 'a', 0, null, 'another-instance');
 
             expect(x.panelIds).toEqual(['a', 'b']);
@@ -576,15 +584,43 @@ describe('tab group placement', () => {
             dockview.dispose();
         });
 
-        test('a cancelled drop still applies its tab group change in place', () => {
+        test('a cancelled drop changes nothing', () => {
             const { dockview, group } = setup(['a', 'b', 'c']);
             const x = createTabGroup(dockview, group, ['a', 'b']);
             dockview.onWillDrop((event) => event.preventDefault());
 
-            dropOnStrip(dockview, group, 'c', 2, x.id);
+            dropOnStrip(dockview, group, 'c', 2, { id: x.id, index: 2 });
+            dropOnStrip(dockview, group, 'a', 0, null);
+
+            expect(x.panelIds).toEqual(['a', 'b']);
+            expect(strip(group)).toEqual(['a', 'b', 'c']);
+
+            dockview.dispose();
+        });
+
+        test('a drop at its own slot that changes the tab group is a move', () => {
+            const { dockview, group } = setup(['a', 'b', 'c']);
+            const x = createTabGroup(dockview, group, ['a', 'b']);
+            const moved: string[] = [];
+            dockview.onDidMovePanel((e) => moved.push(e.panel.id));
+
+            dropOnStrip(dockview, group, 'c', 2, { id: x.id, index: 2 });
 
             expect(x.panelIds).toEqual(['a', 'b', 'c']);
-            expect(strip(group)).toEqual(['a', 'b', 'c']);
+            expect(moved).toEqual(['c']);
+
+            dockview.dispose();
+        });
+
+        test('a lone tab dropped at its own slot with no tab group change does nothing', () => {
+            const { dockview, group } = setup(['a']);
+            const moved: string[] = [];
+            dockview.onDidMovePanel((e) => moved.push(e.panel.id));
+
+            dropOnStrip(dockview, group, 'a', 0, null);
+
+            expect(strip(group)).toEqual(['a']);
+            expect(moved).toEqual([]);
 
             dockview.dispose();
         });

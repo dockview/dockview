@@ -218,12 +218,12 @@ describe('TabReorderController wrapped insertion index', () => {
                 } as any,
             });
             const c = new TabReorderController(host);
-            c.animState = {
+            c.beginDrag({
                 sourceTabId,
                 sourceIndex: tabs.findIndex(
                     (t) => t.value.panel.id === sourceTabId
                 ),
-            } as any;
+            } as any);
             return c;
         }
 

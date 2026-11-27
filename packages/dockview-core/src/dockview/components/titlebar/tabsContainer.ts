@@ -32,7 +32,12 @@ import { createPinButton } from '../../../svg';
 export interface TabDropIndexEvent {
     readonly event: DragEvent | PointerEvent;
     readonly index: number;
+    /** The tab group the dropped tab joins; `null` for none, absent when
+     *  the drop leaves membership as it is. */
     readonly targetTabGroupId?: string | null;
+    /** Its position among `targetTabGroupId`'s other members (default:
+     *  last). */
+    readonly indexInTabGroup?: number;
 }
 
 export interface TabDragEvent {

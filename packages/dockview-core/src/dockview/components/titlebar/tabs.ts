@@ -35,12 +35,12 @@ import { ITabGroupChipRenderer } from '../../framework';
 import { DroptargetEvent, Position } from '../../../dnd/droptarget';
 import { pointerBackend } from '../../../dnd/backend';
 import {
-    indexAfterLeaving,
     ITabReorderHost,
     mainAxisCursor,
     mainAxisSize,
     mainAxisStart,
     TabAnimationState,
+    TabDrop,
     TabReorderController,
 } from './tabReorderController';
 
@@ -93,20 +93,9 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
     private readonly _tabGroupManager: TabGroupManager;
     private readonly _reorder: TabReorderController;
 
-    // The reorder/animation state lives in the controller; these accessors
-    // bridge the (many) `Tabs` call sites (and the test suite, which reads
-    // `(tabs as any)._animState` / `_pendingCollapse`) onto it.
+    /** The drag in progress, which the reorder controller owns. */
     private get _animState(): TabAnimationState | null {
         return this._reorder.animState;
-    }
-    private set _animState(value: TabAnimationState | null) {
-        this._reorder.animState = value;
-    }
-    private get _pendingCollapse(): boolean {
-        return this._reorder.pendingCollapse;
-    }
-    private set _pendingCollapse(value: boolean) {
-        this._reorder.pendingCollapse = value;
     }
 
     // --- ITabReorderHost ---
@@ -359,7 +348,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         const sourceTabGroupId = this._animState.sourceTabGroupId;
         const insertionIndex =
             this._animState.currentInsertionIndex ?? this._tabs.length;
-        this._animState = null;
+        this._reorder.take();
         this._commitGroupMove(sourceTabGroupId, insertionIndex);
         return true;
     }
@@ -648,9 +637,10 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                     // Clear it explicitly here before processing the drop.
                     this.group.model.dropTargetContainer?.model?.clear();
 
-                    const animState = this._animState;
-                    this._animState = null;
-                    this._pendingCollapse = false;
+                    const animState = this._reorder.take();
+                    if (!animState) {
+                        return;
+                    }
 
                     // Handle group drag (entire group repositioned)
                     if (animState.sourceTabGroupId) {
@@ -941,23 +931,27 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                         (x) => x.value === tab
                     );
 
-                    this._animState = {
-                        sourceTabId: panel.id,
-                        sourceIndex,
-                        tabPositions: this.snapshotTabPositions(),
-                        chipSizes: this._tabGroupManager.snapshotChipSizes(),
-                        currentInsertionIndex: null,
-                        targetTabGroupId: null,
-                        sourceTabGroupId: null,
-                        sourceGroupPanelIds: null,
-                        sourceChipSize: 0,
-                        cursorOffsetFromDragStart: tabSize / 2,
-                        sourceGapSize: tabSize,
-                        containerStart: mainAxisStart(
-                            this._tabsList.getBoundingClientRect(),
-                            this._direction
-                        ),
-                    };
+                    this._reorder.beginDrag(
+                        {
+                            sourceTabId: panel.id,
+                            sourceIndex,
+                            tabPositions: this.snapshotTabPositions(),
+                            chipSizes:
+                                this._tabGroupManager.snapshotChipSizes(),
+                            currentInsertionIndex: null,
+                            targetTabGroupId: null,
+                            sourceTabGroupId: null,
+                            sourceGroupPanelIds: null,
+                            sourceChipSize: 0,
+                            cursorOffsetFromDragStart: tabSize / 2,
+                            sourceGapSize: tabSize,
+                            containerStart: mainAxisStart(
+                                this._tabsList.getBoundingClientRect(),
+                                this._direction
+                            ),
+                        },
+                        true
+                    );
 
                     // Collapse the source tab after the browser captures the
                     // drag image, then open the gap at the source position in
@@ -967,10 +961,8 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                     // and collapsing the source would reflow the wrapped rows
                     // mid-drag under the 2-D hit-test, so skip the collapse and
                     // leave the source in place.
-                    this._pendingCollapse = true;
                     requestAnimationFrame(() => {
-                        this._pendingCollapse = false;
-                        if (!this._animState) {
+                        if (!this._reorder.settleCollapse(sourceIndex)) {
                             return;
                         }
                         const wrap = this._tabsList.classList.contains(
@@ -982,7 +974,6 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                             forceReflow(tab.element);
                         }
 
-                        this._animState.currentInsertionIndex ??= sourceIndex;
                         // Apply gap with transitions disabled on the target
                         // (no-op in wrap).
                         this.applyDragOverTransforms(true);
@@ -1060,9 +1051,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                 }
             }),
             tab.onDrop((event) => {
-                const animState = this._animState;
-                this._animState = null;
-                this._pendingCollapse = false;
+                const animState = this._reorder.take();
 
                 const tabIndex = this._tabs.findIndex((x) => x.value === tab);
                 if (!animState) {
@@ -1199,7 +1188,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
 
         if (this._animState?.sourceTabId === id) {
             this.resetTabTransforms();
-            this._animState = null;
+            this._reorder.take();
         }
 
         // Force-clean any pending transitionend listener
@@ -1421,27 +1410,32 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
             }
         }
 
-        this._animState = {
-            sourceTabId: '',
-            sourceIndex: firstIdx,
-            tabPositions: this.snapshotTabPositions(),
-            chipSizes: this._tabGroupManager.snapshotChipSizes(),
-            currentInsertionIndex: null,
-            targetTabGroupId: null,
-            sourceTabGroupId: tabGroup.id,
-            sourceGroupPanelIds: new Set(tabGroup.panelIds),
-            sourceChipSize: mainAxisSize(chipRect, this._direction),
-            cursorOffsetFromDragStart:
-                mainAxisCursor(event, this._direction) -
-                mainAxisStart(chipRect, this._direction),
-            sourceGapSize: groupGapSize,
-            containerStart: mainAxisStart(
-                this._tabsList.getBoundingClientRect(),
-                this._direction
-            ),
-        };
+        const smooth = this.accessor.options.theme?.tabAnimation === 'smooth';
+        this._reorder.beginDrag(
+            {
+                sourceTabId: '',
+                sourceIndex: firstIdx,
+                tabPositions: this.snapshotTabPositions(),
+                chipSizes: this._tabGroupManager.snapshotChipSizes(),
+                currentInsertionIndex: null,
+                targetTabGroupId: null,
+                sourceTabGroupId: tabGroup.id,
+                sourceGroupPanelIds: new Set(tabGroup.panelIds),
+                sourceChipSize: mainAxisSize(chipRect, this._direction),
+                cursorOffsetFromDragStart:
+                    mainAxisCursor(event, this._direction) -
+                    mainAxisStart(chipRect, this._direction),
+                sourceGapSize: groupGapSize,
+                containerStart: mainAxisStart(
+                    this._tabsList.getBoundingClientRect(),
+                    this._direction
+                ),
+            },
+            // only the smooth animation collapses the tab group first
+            smooth
+        );
 
-        if (this.accessor.options.theme?.tabAnimation !== 'smooth') {
+        if (!smooth) {
             return;
         }
 
@@ -1449,10 +1443,8 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         // image, then open the gap at the source position, all instant
         // (no transitions).
         const groupPanelIds = new Set(tabGroup.panelIds);
-        this._pendingCollapse = true;
         requestAnimationFrame(() => {
-            this._pendingCollapse = false;
-            if (!this._animState) {
+            if (!this._reorder.settleCollapse(firstIdx)) {
                 return;
             }
             for (const t of this._tabs) {
@@ -1481,7 +1473,6 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                 underline.style.display = 'none';
             }
 
-            this._animState.currentInsertionIndex ??= firstIdx;
             this.applyDragOverTransforms(true);
 
             for (const t of this._tabs) {
@@ -1505,20 +1496,18 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
     /** A drop on half `position` of the tab at `tabIndex`, by the tab group
      *  rule. The pointer is over that tab, so it is past the chip only of a
      *  tab group that tab leads. */
-    private _resolveDropOnTab(
-        tabIndex: number,
-        position: Position
-    ): { index: number; targetTabGroupId: string | null } {
+    private _resolveDropOnTab(tabIndex: number, position: Position): TabDrop {
         const slot = this._slotOnTab(tabIndex, position);
         const source = this._source(this._localSourceIndex(getPanelData()));
-        return {
-            index: indexAfterLeaving(slot, source.index),
-            targetTabGroupId: this._reorder.tabGroupAtSlot(
+        return this._reorder.dropAt(
+            slot,
+            source,
+            this._reorder.tabGroupAtSlot(
                 slot,
                 source,
                 (_tabGroup, tabIndexAfterChip) => tabIndexAfterChip === tabIndex
-            ),
-        };
+            )
+        );
     }
 
     /** The index of the dragged tab when it is one of this strip's own,
@@ -1573,9 +1562,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         if (data?.tabGroupId) {
             // Spend the anim state, as `tab.onDrop` does, so the pointer
             // backend's later `onDragEnd` commit skips this release.
-            const animState = this._animState;
-            this._animState = null;
-            this._pendingCollapse = false;
+            const animState = this._reorder.take();
             this._commitGroupMove(
                 data.tabGroupId,
                 animState?.currentInsertionIndex ?? insertionIndex
@@ -1584,21 +1571,22 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         }
 
         const source = this._source(this._localSourceIndex(data));
-        const index = indexAfterLeaving(insertionIndex, source.index);
-        const targetTabGroupId = this._reorder.tabGroupAtSlot(
+        const drop = this._reorder.dropAt(
             insertionIndex,
             source,
-            // the pointer is past every chip but this one
-            (candidate) => candidate.id !== tabGroup.id
+            this._reorder.tabGroupAtSlot(
+                insertionIndex,
+                source,
+                // the pointer is past every chip but this one
+                (candidate) => candidate.id !== tabGroup.id
+            )
         );
-        if (this._reorder.isNoOpDrop(index, source, targetTabGroupId)) {
+        if (
+            this._reorder.isNoOpDrop(drop.index, source, drop.targetTabGroupId)
+        ) {
             return;
         }
-        this._onDrop.fire({
-            event: event.nativeEvent,
-            index,
-            targetTabGroupId,
-        });
+        this._onDrop.fire({ event: event.nativeEvent, ...drop });
     }
 
     /**

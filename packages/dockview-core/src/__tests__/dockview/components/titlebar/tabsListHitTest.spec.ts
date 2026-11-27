@@ -228,7 +228,7 @@ describe('tabs - strip is a pointer hit-test stop', () => {
         });
 
         if (animState) {
-            (fixture.tabs as any)._animState = animState;
+            (fixture.tabs as any)._reorder.beginDrag(animState);
         }
 
         window.dispatchEvent(
