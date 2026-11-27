@@ -58,11 +58,10 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
     private _showTabsOverflowControl = false;
     /**
      * Predicate that keeps a panel's tab out of the overflow dropdown
-     * regardless of visibility. Wired by the PinnedTabs module so pinned tabs
-     * never overflow. Defaults to a no-op so behaviour is unchanged when the
-     * module is absent. Must stay a pure lookup (no DOM reads) because it runs
-     * inside the overflow filter, which the `OverflowObserver` re-fires on every
-     * resize.
+     * regardless of visibility, on top of pinned tabs, which never overflow.
+     * Defaults to a no-op. Must stay a pure lookup (no DOM reads) because it
+     * runs inside the overflow filter, which the `OverflowObserver` re-fires on
+     * every resize.
      */
     private _overflowExclude: (panelId: string) => boolean = () => false;
     /**
@@ -156,6 +155,12 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         this.refreshOverflow();
     }
 
+    /** Whether a tab stays out of the overflow dropdown: it is pinned, or
+     *  {@link setOverflowExclude} excludes it. */
+    private _isExcludedFromOverflow(tab: Tab): boolean {
+        return !!tab.panel.api?.isPinned || this._overflowExclude(tab.panel.id);
+    }
+
     /**
      * Register a predicate that forces matching panels into the overflow
      * dropdown regardless of horizontal fit (the MultiRowTabs surplus set, the
@@ -205,7 +210,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
     private _applyPinnedSticky(): void {
         const pinned = this._pinnedSticky
             ? this._tabs.filter((tab) =>
-                  this._overflowExclude(tab.value.panel.id)
+                  this._isExcludedFromOverflow(tab.value)
               )
             : [];
 
@@ -1256,6 +1261,8 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
                 el.scrollWidth > el.clientWidth ||
                 el.scrollHeight > el.clientHeight;
             this.toggleDropdown({ reset: !hasOverflow });
+            // an added tab may be pinned
+            this._applyPinnedSticky();
         });
     }
 
@@ -1265,7 +1272,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         // `OverflowObserver` reports no overflow and asks for a reset every time.
         const hasForced = this._tabs.some(
             (tab) =>
-                !this._overflowExclude(tab.value.panel.id) &&
+                !this._isExcludedFromOverflow(tab.value) &&
                 this._forcedOverflow(tab.value.panel.id)
         );
 
@@ -1282,7 +1289,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         const tabs = this._tabs
             .filter(
                 (tab) =>
-                    !this._overflowExclude(tab.value.panel.id) &&
+                    !this._isExcludedFromOverflow(tab.value) &&
                     (this._forcedOverflow(tab.value.panel.id) ||
                         (!options.reset &&
                             !isChildEntirelyVisibleWithinParent(
@@ -1304,7 +1311,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
             : this._tabs
                   .filter(
                       (tab) =>
-                          this._overflowExclude(tab.value.panel.id) &&
+                          this._isExcludedFromOverflow(tab.value) &&
                           tab.value.element.getBoundingClientRect().width > 0 &&
                           !isChildEntirelyVisibleWithinParent(
                               tab.value.element,

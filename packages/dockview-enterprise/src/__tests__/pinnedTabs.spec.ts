@@ -521,57 +521,22 @@ describe('pinned tabs: integration', () => {
         expect(a.api.isActive).toBe(true);
     });
 
-    // The overflow-exclusion predicate is a stable function installed onto each
-    // group's header when the group is created. Capture it by spying on the
-    // header prototype and creating a fresh group.
-    const captureOverflowPredicate = (
-        dockview: DockviewComponent,
-        anchor: { api: any }
-    ) => {
-        const spy = jest.spyOn(
-            Object.getPrototypeOf(anchor.api.group.model.header),
-            'setOverflowExclude'
-        );
-        const fresh = dockview.addPanel({
-            id: 'fresh',
-            component: 'default',
-            position: { direction: 'right' },
-        });
-        const predicate = spy.mock.calls[spy.mock.calls.length - 1][0] as (
-            id: string
-        ) => boolean;
-        spy.mockRestore();
-        return { predicate, freshGroup: fresh.api.group };
-    };
-
-    test('pinning feeds the tab strip an overflow-exclusion predicate', () => {
+    test('pinned tabs are kept out of the overflow dropdown', () => {
         const dockview = make({ enabled: true });
         const a = dockview.addPanel({ id: 'a', component: 'default' });
         const c = dockview.addPanel({ id: 'c', component: 'default' });
-        const { predicate } = captureOverflowPredicate(dockview, a);
+        const tabs = (a.api.group.model.header as any).tabs;
+        const excluded = (panelId: string): boolean =>
+            tabs._isExcludedFromOverflow(
+                tabs._tabs.find((t: any) => t.value.panel.id === panelId).value
+            );
 
         c.api.setPinned(true);
-        // The pinned tab is excluded from overflow; unpinned tabs are not.
-        expect(predicate('c')).toBe(true);
-        expect(predicate('a')).toBe(false);
+        expect(excluded('c')).toBe(true);
+        expect(excluded('a')).toBe(false);
 
         c.api.setPinned(false);
-        expect(predicate('c')).toBe(false);
-    });
-
-    test('closing a pinned panel prunes it from the overflow-exclusion set', () => {
-        const dockview = make({ enabled: true });
-        const a = dockview.addPanel({ id: 'a', component: 'default' });
-        const c = dockview.addPanel({ id: 'c', component: 'default' });
-        const { predicate } = captureOverflowPredicate(dockview, a);
-
-        c.api.setPinned(true);
-        expect(predicate('c')).toBe(true);
-
-        // A close is not an unpin; the id must still be pruned so it can't
-        // linger in the exclusion set and mis-exclude a future reused id.
-        c.api.close();
-        expect(predicate('c')).toBe(false);
+        expect(excluded('c')).toBe(false);
     });
 
     test('each group is wired with a clamping drop-index resolver', () => {
@@ -643,6 +608,135 @@ describe('pinned tabs: integration', () => {
         const dockview = make({ enabled: true, mode: 'separate-row' });
         const anchor = dockview.addPanel({ id: 'a', component: 'default' });
         expect(captureStickyCalls(dockview, anchor)).toEqual([]);
+    });
+});
+
+describe('pinned tabs: one owner for pin state', () => {
+    let container: HTMLElement;
+
+    const make = (
+        pinnedTabs: DockviewComponent['options']['pinnedTabs'] = {
+            enabled: true,
+        }
+    ): DockviewComponent => {
+        container = document.createElement('div');
+        document.body.appendChild(container);
+        const dockview = new DockviewComponent(container, {
+            createComponent: () => new TestPanel(),
+            pinnedTabs,
+        });
+        dockview.layout(1000, 1000);
+        return dockview;
+    };
+
+    afterEach(() => {
+        container.remove();
+    });
+
+    const tabEl = (panel: { id: string; api: any }): HTMLElement =>
+        document.getElementById(
+            panel.api.group.model.header.getTabId(panel.id)!
+        )!;
+    // pinned tabs stay put as the strip scrolls (inline mode)
+    const sticky = (panel: { id: string; api: any }): boolean =>
+        tabEl(panel).classList.contains('dv-tab--pinned-sticky');
+    const order = (dockview: DockviewComponent): string[] =>
+        dockview.groups[0].model.panels.map((p) => p.id);
+
+    test('a tab pinned in a group restored with addGroupFromJSON stays pinned in the strip', async () => {
+        const dockview = make();
+        dockview.addPanel({ id: 'a', component: 'default' });
+        const b = dockview.addPanel({
+            id: 'b',
+            component: 'default',
+            position: { direction: 'right' },
+        });
+        b.api.setPinned(true);
+        const state = dockview.serializeGroup(b.api.group);
+        dockview.removeGroup(b.api.group);
+
+        dockview.addGroupFromJSON(state);
+        await Promise.resolve(); // the strip refreshes after the add
+
+        const restored = dockview.getGroupPanel('b')!;
+        expect(restored.api.isPinned).toBe(true);
+        expect(sticky(restored)).toBe(true);
+    });
+
+    test('a tab a reuse restore unpins is no longer held as pinned', () => {
+        const dockview = make();
+        const a = dockview.addPanel({ id: 'a', component: 'default' });
+        dockview.addPanel({ id: 'b', component: 'default' });
+        const saved = dockview.toJSON();
+        a.api.setPinned(true);
+
+        dockview.fromJSON(saved, { reuseExistingPanels: true });
+
+        const restored = dockview.getGroupPanel('a')!;
+        expect(restored.api.isPinned).toBe(false);
+        expect(sticky(restored)).toBe(false);
+    });
+
+    test('turning pinning off reports tabs unpinned until it is turned back on', () => {
+        const dockview = make();
+        const a = dockview.addPanel({ id: 'a', component: 'default' });
+        dockview.addPanel({ id: 'b', component: 'default' });
+        const c = dockview.addPanel({ id: 'c', component: 'default' });
+        c.api.setPinned(true);
+        const events: boolean[] = [];
+        c.api.onDidChangePinned((e) => events.push(e.isPinned));
+
+        dockview.updateOptions({ pinnedTabs: { enabled: false } });
+
+        expect(c.api.isPinned).toBe(false);
+        expect(tabEl(c).classList.contains('dv-tab--pinned')).toBe(false);
+        expect(order(dockview)).toEqual(['c', 'a', 'b']);
+
+        a.api.moveTo({ index: 0 });
+        dockview.updateOptions({ pinnedTabs: { enabled: true } });
+
+        expect(c.api.isPinned).toBe(true);
+        expect(tabEl(c).classList.contains('dv-tab--pinned')).toBe(true);
+        expect(order(dockview)).toEqual(['c', 'a', 'b']);
+        expect(events).toEqual([false, true]);
+    });
+
+    test('core re-sorts the strip when pinning is turned on or off', () => {
+        const dockview = make();
+        dockview.addPanel({ id: 'a', component: 'default' });
+        const b = dockview.addPanel({ id: 'b', component: 'default' });
+        b.api.setPinned(true);
+        const enforceOrder = jest.spyOn(
+            dockview.pinnedTabsService as PinnedTabsService,
+            'enforceOrder'
+        );
+
+        dockview.updateOptions({ pinnedTabs: { enabled: false } });
+        dockview.getGroupPanel('a')!.api.moveTo({ index: 0 });
+        dockview.updateOptions({ pinnedTabs: { enabled: true } });
+
+        expect(order(dockview)).toEqual(['b', 'a']);
+        expect(enforceOrder).not.toHaveBeenCalled();
+    });
+
+    test('a flagged tab that joins a tab group while pinning is off stays in it', () => {
+        const dockview = make();
+        dockview.addPanel({ id: 'a', component: 'default' });
+        const b = dockview.addPanel({ id: 'b', component: 'default' });
+        b.api.setPinned(true);
+        dockview.updateOptions({ pinnedTabs: { enabled: false } });
+        const group = b.api.group;
+        const tabGroup = dockview.api.createTabGroup({ groupId: group.id });
+        dockview.api.addPanelToTabGroup({
+            groupId: group.id,
+            tabGroupId: tabGroup.id,
+            panelId: 'b',
+        });
+
+        dockview.updateOptions({ pinnedTabs: { enabled: true } });
+
+        expect(tabGroup.panelIds).toEqual(['b']);
+        expect(b.api.isPinned).toBe(false);
     });
 });
 

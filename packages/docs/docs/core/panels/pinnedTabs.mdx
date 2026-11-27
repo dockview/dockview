@@ -131,6 +131,8 @@ api.onDidPanelPinnedChange((event) => {
 `setPinned` only takes effect when `pinnedTabs.enabled` is `true`. With pinning disabled, `isPinned` always reads `false` and `setPinned` is a no-op.
 :::
 
+Turning pinning off with `updateOptions` keeps each tab's pin. While it is off, those tabs read `isPinned: false` and show as unpinned at the front of the unpinned tabs. Turning it back on pins them again. `onDidChangePinned` fires both times. A pinned tab that joins a tab group while pinning is off loses its pin, so it stays in the tab group.
+
 ## Context menu
 
 When `contextMenuItem` is left enabled (the default) a "Pin"/"Unpin" item is added to the tab context menu automatically, toggling based on the tab's current state. If you want to place it yourself, set `pinnedTabs.contextMenuItem: false` to stop the automatic injection (otherwise the item appears twice), then include the built-in `'pin'` item in your own builder:

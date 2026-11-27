@@ -507,16 +507,11 @@ export function computePinnedFirstOrder(
 }
 
 /**
- * Enforces the pinned-first invariant on each group's tab strip. Pinned state
- * itself lives on the panel (`panel.api.isPinned`, mutated through the gated
- * `DockviewComponent.setPanelPinned`); this service only reacts to
- * pinned-state changes and reorders the strip; it never mutates pinned state
- * (except the deliberate cross-boundary-drag flip) or re-implements the tab
- * list.
- *
- * Owns: pinned-first ordering, overflow exclusion, the reorder guard, and (in
- * `separate-row` mode) the pinned second row. Compact rendering + serialization
- * live in core, keyed off the panel's pinned state.
+ * The pinned-tabs UI and drop policy. Pin state lives on the panel, and core
+ * keeps each tab strip in step with it (pinned tabs first, out of overflow).
+ * This service owns the reorder guard (clamp, or flip pin state across the
+ * boundary), the pinned second row in `separate-row` mode, and inline sticky
+ * scrolling.
  */
 export class PinnedTabsService
     implements IPinnedTabsService, IPinnedRowDragHost
@@ -529,11 +524,7 @@ export class PinnedTabsService
      *  `resolveDropIndex`). `undefined` when no row drag is active. */
     private _rowDragPanelId: string | undefined;
 
-    /** Flat set of pinned panel ids: the overflow-exclusion lookup. Panel ids
-     *  are unique component-wide, so a single set serves every group. */
-    private readonly _pinnedIds = new Set<string>();
-
-    /** Live groups, tracked so a `fromJSON` restore can seed every strip. */
+    /** Live groups, tracked to re-render their second rows. */
     private readonly _groups = new Set<DockviewGroupPanel>();
 
     /** Per-group pinned second row (only in `separate-row` mode). */
@@ -582,28 +573,13 @@ export class PinnedTabsService
 
         this._disposable = new CompositeDisposable(
             this._host.onDidPanelPinnedChange((event) => {
-                const group = event.panel.api.group;
-
-                if (event.isPinned) {
-                    this._pinnedIds.add(event.panel.id);
-                } else {
-                    this._pinnedIds.delete(event.panel.id);
-                }
-
-                // The strip has already moved the tab into its section.
-                // Refresh the dropdown so the pin takes effect immediately
-                // rather than waiting for the next resize/observer fire.
-                group.model.header.refreshOverflow();
                 // Move the tab in/out of the pinned second row.
-                this._secondRows.get(group)?.render();
+                this._secondRows.get(event.panel.api.group)?.render();
             }),
-            // Every group's tab strip consults the pinned predicate (overflow)
-            // and the pin-boundary resolver (reorder guard).
+            // Every group's tab strip consults the pin-boundary resolver
+            // (reorder guard).
             this._host.onDidAddGroup((group) => {
                 this._groups.add(group);
-                group.model.header.setOverflowExclude(
-                    this.isExcludedFromOverflow
-                );
                 group.model.header.setDropIndexResolver((panelId, index) =>
                     this.resolveDropIndex(group, panelId, index)
                 );
@@ -622,24 +598,11 @@ export class PinnedTabsService
                 this._secondRows.get(group)?.dispose();
                 this._secondRows.delete(group);
             }),
-            // Drop a removed panel from the pinned set so its id can't leak
-            // into the overflow-exclusion lookup (a close is not an unpin).
-            this._host.onDidRemovePanel((panel) => {
-                this._pinnedIds.delete(panel.id);
-            }),
-            // A cross-group move lands a pinned tab in the destination's
-            // pinned section; refresh that group's dropdown.
-            this._host.onDidMovePanel(({ from, to }) => {
-                if (from !== to) {
-                    to.model.header.refreshOverflow();
-                }
-            }),
-            // A restore populates panels' `isPinned` directly (not via the
-            // gated setter), so seed the store from them and re-assert the
-            // invariant once the layout is fully built.
+            // A restore sets pin flags directly: render the second rows once
+            // the layout is built.
             this._host.onDidLayoutFromJSON(() => {
                 for (const group of this._groups) {
-                    this._seedFromRestore(group);
+                    this._secondRows.get(group)?.render();
                 }
             }),
             // A runtime `updateOptions` can flip the mode (inline <-> separate
@@ -655,9 +618,8 @@ export class PinnedTabsService
 
     /** Re-apply the current pinned-tabs mode to an already-tracked group after
      *  a runtime option change: create or tear down its separate row and set
-     *  inline sticky, then re-assert the pinned-first order and overflow so the
-     *  main strip stays consistent. Idempotent, so a no-op change costs nothing
-     *  visible. */
+     *  inline sticky. Core has already re-sorted the strip. Idempotent, so a
+     *  no-op change costs nothing visible. */
     private _reapplyMode(group: DockviewGroupPanel): void {
         if (this._separateRow) {
             let row = this._secondRows.get(group);
@@ -675,35 +637,11 @@ export class PinnedTabsService
             }
             group.model.header.setPinnedSticky(this._inlineSticky);
         }
-        this.enforceOrder(group);
         group.model.header.refreshOverflow();
     }
 
-    /** Seed the pinned set from a restored group's panels (already in
-     *  pinned-first strip order) and re-assert the invariant + overflow. */
-    private _seedFromRestore(group: DockviewGroupPanel): void {
-        for (const panel of group.model.panels) {
-            if (panel.api.isPinned) {
-                this._pinnedIds.add(panel.id);
-            }
-        }
-        this.enforceOrder(group);
-        group.model.header.refreshOverflow();
-        this._secondRows.get(group)?.render();
-    }
-
-    /**
-     * Keep a panel's tab out of the overflow dropdown when it is pinned. A pure
-     * `Set.has` lookup (no DOM reads) so it is safe to call from the overflow
-     * filter, which re-fires on every resize. Returns `false` while the feature
-     * is dormant.
-     */
-    readonly isExcludedFromOverflow = (panelId: string): boolean => {
-        if (!this._host.options.pinnedTabs?.enabled) {
-            return false;
-        }
-        return this._pinnedIds.has(panelId);
-    };
+    /** @deprecated Core keeps pinned tabs out of overflow; always `false`. */
+    readonly isExcludedFromOverflow = (_panelId: string): boolean => false;
 
     /**
      * Keep a header drop on the correct side of the pin boundary. By default a
@@ -773,13 +711,9 @@ export class PinnedTabsService
         return boundary;
     }
 
-    /**
-     * Re-assert the pinned-first order on `group`'s tab strip, for pinned
-     * state the strip has not seen change: a restore, or pinning turned on or
-     * off (with it off, no tab counts as pinned).
-     */
-    enforceOrder(group: DockviewGroupPanel): void {
-        group.model.reconcilePinnedOrder();
+    /** @deprecated Core keeps the strip in step with pin state; a no-op. */
+    enforceOrder(_group: DockviewGroupPanel): void {
+        // core re-sorts the strip itself
     }
 
     dispose(): void {
@@ -788,7 +722,6 @@ export class PinnedTabsService
             controller.dispose();
         }
         this._secondRows.clear();
-        this._pinnedIds.clear();
         this._groups.clear();
     }
 }

@@ -1015,19 +1015,22 @@ export class DockviewGroupPanelModel
     /** Pinned for tab order: only while pinning is enabled and the pinned
      *  tabs feature is present, so a stale flag never locks a tab in front. */
     private _isPinned(panel: IDockviewPanel): boolean {
-        return (
-            !!panel.api.isPinned &&
-            !!this.accessor.options?.pinnedTabs?.enabled &&
-            !!this.accessor.pinnedTabsService
-        );
+        return panel.api.isPinned;
     }
 
     /** Unpin a panel about to join a tab group: tab groups live only in the
      *  unpinned section. */
     private _unpinToJoin(panelId: string): void {
         const panel = this._panels.find((p) => p.id === panelId);
-        if (panel && this._isPinned(panel)) {
+        if (!panel?.isPinned) {
+            return;
+        }
+        if (this._isPinned(panel)) {
             panel.api.setPinned(false);
+        } else {
+            // pinning is off: clear the flag so the tab stays in its tab
+            // group when pinning comes back
+            panel.setPinned(false);
         }
     }
 
@@ -1944,7 +1947,11 @@ export class DockviewGroupPanelModel
                 panel.api.onDidParametersChange((event) =>
                     this._onDidPanelParametersChange.fire(event)
                 ),
-                panel.api.onDidChangePinned(() => this.reconcilePinnedOrder())
+                panel.api.onDidChangePinned(() => {
+                    this.reconcilePinnedOrder();
+                    // pinned tabs never overflow
+                    this.tabsContainer.refreshOverflow();
+                })
             )
         );
 
