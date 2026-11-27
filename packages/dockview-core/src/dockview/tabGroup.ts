@@ -207,7 +207,8 @@ export class TabGroup extends CompositeDisposable implements ITabGroup {
         return removed;
     }
 
-    /** Insert into the member list only, without firing `onDidPanelChange`. */
+    /** Insert into the member list only, without firing `onDidPanelChange`.
+     *  @internal For the tab strip that holds this tab group. */
     insertMember(panelId: string, index?: number): void {
         if (this.isDisposed) {
             return;
@@ -224,13 +225,15 @@ export class TabGroup extends CompositeDisposable implements ITabGroup {
         this._panelIds.splice(insertIndex, 0, panelId);
     }
 
+    /** @internal Fire `onDidPanelChange` once the tab strip has settled. */
     notifyPanelChange(panelId: string, type: 'add' | 'remove'): void {
         if (!this.isDisposed) {
             this._onDidPanelChange.fire({ panelId, type });
         }
     }
 
-    /** Remove from the member list only, without firing `onDidPanelChange`. */
+    /** Remove from the member list only, without firing `onDidPanelChange`.
+     *  @internal For the tab strip that holds this tab group. */
     removeMember(panelId: string): boolean {
         if (this.isDisposed) {
             return false;
