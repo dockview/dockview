@@ -906,26 +906,34 @@ export interface PanelOptions<P extends object = Parameters> {
 }
 
 /**
- * Where a panel lands in a group's tab strip: at a strip `index`, or in a
- * `tabGroup`. Only applicable if the placement is within an existing group.
- * `index` can't be combined with a `tabGroup`, and `indexInTabGroup` needs
- * one; either mistake throws.
+ * A place in a group's tab strip.
+ *
+ * - `{ index }`: at that index among the group's tabs, outside any tab
+ *   group. An index between two tabs of a tab group moves to the nearer edge
+ *   of that tab group, so the tab never splits it.
+ * - `{ tabGroup, index? }`: in `tabGroup` (the tab group or its id), at
+ *   `index` among its tabs; the end when omitted.
+ *
+ * `G` is how the tab group is given: `ITabGroup | string` when you pass a
+ * target, `ITabGroup` when dockview reports one. Check `at.tabGroup` to
+ * tell the two apart.
+ */
+export type TabStripTarget<G = ITabGroup | string> =
+    | { readonly index: number; readonly tabGroup?: never }
+    | { readonly tabGroup: G; readonly index?: number };
+
+/**
+ * Where a panel lands in a group's tab strip. Only applicable if the
+ * placement is within an existing group.
  */
 export interface DockviewPanelPlacement {
-    /**
-     * The index to place the panel within a group. An index between two tabs
-     * of a tab group moves to the nearer edge of that tab group, so the panel
-     * never splits it.
-     */
+    /** Shorthand for `at: { index }`. Can't be combined with `at`. */
     index?: number;
     /**
-     * The tab group to place the panel in, as the tab group or its id. It must
-     * belong to the group the panel is placed in. `null` places the panel
-     * outside any tab group.
+     * The place in the tab strip. A tab group must belong to the group the
+     * panel is placed in.
      */
-    tabGroup?: ITabGroup | string | null;
-    /** Position within `tabGroup`. Defaults to the end. */
-    indexInTabGroup?: number;
+    at?: TabStripTarget;
 }
 
 type RelativePanel = {

@@ -52,6 +52,7 @@ import {
     DockviewHeaderPosition,
     SmartGuidesOptions,
     isEdgeGroupEnabled,
+    TabStripTarget,
 } from './options';
 import {
     BaseGrid,
@@ -125,7 +126,7 @@ import {
 import { IHeaderActionsHost } from './headerActionsService';
 import { AnchoredBox, AnchorPosition, Box, LayoutChangeReason } from '../types';
 import { ITabGroup } from './tabGroup';
-import { validatePanelPlacement } from './panelPlacement';
+import { resolvePanelPlacement } from './panelPlacement';
 import {
     DEFAULT_FLOATING_GROUP_OVERFLOW_SIZE,
     DEFAULT_FLOATING_GROUP_POSITION,
@@ -322,8 +323,8 @@ export interface MovePanelEvent {
      * its group and the group itself was relocated.
      */
     to: DockviewGroupPanel;
-    /** The tab group the panel now belongs to, if any. */
-    tabGroup?: ITabGroup;
+    /** Where the panel now is in `to`'s tab strip. */
+    at: TabStripTarget<ITabGroup>;
 }
 
 /**
@@ -4711,8 +4712,9 @@ export class DockviewComponent
         ) {
             return;
         }
-        validatePanelPlacement(position);
-        const tabGroupId = tabGroupIdOf(position.tabGroup);
+        const tabGroupId = tabGroupIdOf(
+            resolvePanelPlacement(position).tabGroup
+        );
         if (tabGroupId === undefined) {
             return;
         }
@@ -4821,7 +4823,7 @@ export class DockviewComponent
                     typeof options.position.referencePanel === 'string'
                         ? this.getGroupPanel(options.position.referencePanel)
                         : options.position.referencePanel;
-                index = options.position.index;
+                index = resolvePanelPlacement(options.position).index;
 
                 if (!referencePanel) {
                     const referenceId =
@@ -4840,7 +4842,7 @@ export class DockviewComponent
                         ? this._groups.get(options.position.referenceGroup)
                               ?.value
                         : options.position.referenceGroup;
-                index = options.position.index;
+                index = resolvePanelPlacement(options.position).index;
 
                 if (!referenceGroup) {
                     const referenceId =
@@ -4892,7 +4894,7 @@ export class DockviewComponent
                 options.position &&
                 (isPanelOptionsWithPanel(options.position) ||
                     isPanelOptionsWithGroup(options.position))
-                    ? options.position
+                    ? resolvePanelPlacement(options.position)
                     : undefined;
             const tabGroupId = tabGroupIdOf(placement?.tabGroup);
 
@@ -5891,7 +5893,7 @@ export class DockviewComponent
             panel,
             from,
             to: panel.group,
-            tabGroup: panel.group.model.getTabGroupForPanel(panel.id),
+            at: panel.group.model.tabStripTargetOf(panel.id),
         });
     }
 

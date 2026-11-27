@@ -606,6 +606,12 @@ export class GridviewApi implements CommonApi<SerializedGridviewComponent> {
 
 export interface DockviewGetTabGroupsOptions {
     groupId: string;
+    /**
+     * `'creation'` (default): the order the tab groups were created in.
+     * `'tab'`: the order they appear in the tab strip; tab groups with no
+     * tabs come last.
+     */
+    order?: 'creation' | 'tab';
 }
 
 export class DockviewApi implements CommonApi<SerializedDockview> {
@@ -1425,7 +1431,9 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
 
     getTabGroups(options: DockviewGetTabGroupsOptions): readonly ITabGroup[] {
         const model = this._getGroupModel(options.groupId);
-        return model.getTabGroups();
+        return options.order === 'tab'
+            ? model.getTabGroupsInTabOrder()
+            : model.getTabGroups();
     }
 
     getTabGroupForPanel(options: {

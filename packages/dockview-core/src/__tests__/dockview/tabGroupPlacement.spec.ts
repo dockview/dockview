@@ -232,8 +232,7 @@ describe('tab group placement', () => {
 
             dockview.getGroupPanel('c')!.api.moveTo({
                 group,
-                tabGroup: x.id,
-                indexInTabGroup: 1,
+                at: { tabGroup: x.id, index: 1 },
             });
 
             expect(x.panelIds).toEqual(['a', 'c', 'b', 'd']);
@@ -247,7 +246,9 @@ describe('tab group placement', () => {
             const { dockview, group } = setup();
             const x = createTabGroup(dockview, group, ['a', 'b']);
 
-            dockview.getGroupPanel('d')!.api.moveTo({ group, tabGroup: x });
+            dockview
+                .getGroupPanel('d')!
+                .api.moveTo({ group, at: { tabGroup: x } });
 
             expect(x.panelIds).toEqual(['a', 'b', 'd']);
             expect(strip(group)).toEqual(['a', 'b', 'd', 'c']);
@@ -261,8 +262,7 @@ describe('tab group placement', () => {
 
             dockview.getGroupPanel('d')!.api.moveTo({
                 group,
-                tabGroup: x,
-                indexInTabGroup: 0,
+                at: { tabGroup: x, index: 0 },
             });
 
             expect(x.panelIds).toEqual(['d', 'a', 'b']);
@@ -278,8 +278,7 @@ describe('tab group placement', () => {
 
             dockview.getGroupPanel('b')!.api.moveTo({
                 group,
-                tabGroup: x,
-                indexInTabGroup: 0,
+                at: { tabGroup: x, index: 0 },
             });
 
             expect(group.model.getTabGroups()).toEqual([x]);
@@ -289,14 +288,13 @@ describe('tab group placement', () => {
             dockview.dispose();
         });
 
-        test('tabGroup null leaves the tab group, snapped out of it', () => {
+        test('an index target leaves the tab group, snapped out of it', () => {
             const { dockview, group } = setup();
             const x = createTabGroup(dockview, group, ['a', 'b', 'd']);
 
             dockview.getGroupPanel('b')!.api.moveTo({
                 group,
-                index: 1,
-                tabGroup: null,
+                at: { index: 1 },
             });
 
             expect(x.panelIds).toEqual(['a', 'd']);
@@ -322,8 +320,7 @@ describe('tab group placement', () => {
 
             dockview.getGroupPanel('e')!.api.moveTo({
                 group,
-                tabGroup: x,
-                indexInTabGroup: 1,
+                at: { tabGroup: x, index: 1 },
             });
 
             expect(x.panelIds).toEqual(['a', 'e', 'b']);
@@ -344,12 +341,14 @@ describe('tab group placement', () => {
             dockview.onDidMovePanel((e) =>
                 events.push({
                     id: e.panel.id,
-                    tabGroup: e.tabGroup?.id,
+                    tabGroup: e.at.tabGroup?.id,
                     members: [...x.panelIds],
                 })
             );
 
-            dockview.getGroupPanel('c')!.api.moveTo({ group, tabGroup: x });
+            dockview
+                .getGroupPanel('c')!
+                .api.moveTo({ group, at: { tabGroup: x } });
 
             expect(events).toEqual([
                 { id: 'c', tabGroup: x.id, members: ['a', 'b', 'd', 'c'] },
@@ -370,12 +369,14 @@ describe('tab group placement', () => {
             const y = createTabGroup(dockview, other, ['e'], 'Y');
 
             expect(() =>
-                dockview.getGroupPanel('c')!.api.moveTo({ group, tabGroup: y })
+                dockview
+                    .getGroupPanel('c')!
+                    .api.moveTo({ group, at: { tabGroup: y } })
             ).toThrow(/does not exist in group/);
             expect(() =>
                 dockview.getGroupPanel('c')!.api.moveTo({
                     group,
-                    tabGroup: 'missing',
+                    at: { tabGroup: 'missing' },
                 })
             ).toThrow(/does not exist in group/);
 
@@ -391,18 +392,19 @@ describe('tab group placement', () => {
             const c = dockview.getGroupPanel('c')!;
 
             expect(() =>
-                c.api.moveTo({ group, tabGroup: x, index: 0 })
-            ).toThrow(/index cannot be combined with tabGroup/);
-            expect(() => c.api.moveTo({ group, indexInTabGroup: 0 })).toThrow(
-                /indexInTabGroup requires a tabGroup/
-            );
+                c.api.moveTo({ group, index: 0, at: { tabGroup: x } })
+            ).toThrow(/index cannot be combined with at/);
             expect(() =>
                 dockview.addPanel({
                     id: 'e',
                     component: 'default',
-                    position: { referenceGroup: group, tabGroup: x, index: 1 },
+                    position: {
+                        referenceGroup: group,
+                        index: 1,
+                        at: { tabGroup: x },
+                    },
                 })
-            ).toThrow(/index cannot be combined with tabGroup/);
+            ).toThrow(/index cannot be combined with at/);
 
             expect(strip(group)).toEqual(['a', 'b', 'c', 'd']);
             expect(x.panelIds).toEqual(['a', 'b']);
@@ -420,23 +422,30 @@ describe('tab group placement', () => {
             const c = dockview.getGroupPanel('c')!;
 
             expect(() =>
-                c.api.moveTo({ group, tabGroup: 'missing' })
+                c.api.moveTo({ group, at: { tabGroup: 'missing' } })
             ).toThrow();
             expect(() =>
-                c.api.moveTo({ group, position: 'right', tabGroup: x })
+                c.api.moveTo({ group, position: 'right', at: { tabGroup: x } })
             ).toThrow();
             expect(() =>
                 dockview.addPanel({
                     id: 'e',
                     component: 'default',
-                    position: { referenceGroup: group, tabGroup: 'missing' },
+                    position: {
+                        referenceGroup: group,
+                        at: { tabGroup: 'missing' },
+                    },
                 })
             ).toThrow();
             expect(() =>
                 dockview.addPanel({
                     id: 'e',
                     component: 'default',
-                    position: { referenceGroup: group, tabGroup: x, index: 1 },
+                    position: {
+                        referenceGroup: group,
+                        index: 1,
+                        at: { tabGroup: x },
+                    },
                 })
             ).toThrow();
             expect(() =>
@@ -446,7 +455,7 @@ describe('tab group placement', () => {
                     position: {
                         referencePanel: 'a',
                         direction: 'below',
-                        tabGroup: x,
+                        at: { tabGroup: x },
                     },
                 })
             ).toThrow();
@@ -464,7 +473,7 @@ describe('tab group placement', () => {
                 dockview.getGroupPanel('c')!.api.moveTo({
                     group,
                     position: 'right',
-                    tabGroup: x,
+                    at: { tabGroup: x },
                 })
             ).toThrow(/only be given when placing a panel within a group/);
             expect(dockview.groups).toHaveLength(1);
@@ -482,8 +491,7 @@ describe('tab group placement', () => {
                 component: 'default',
                 position: {
                     referenceGroup: group,
-                    tabGroup: x,
-                    indexInTabGroup: 0,
+                    at: { tabGroup: x, index: 0 },
                 },
             });
 
@@ -504,7 +512,7 @@ describe('tab group placement', () => {
                     position: {
                         referenceGroup: group,
                         direction: 'right',
-                        tabGroup: x,
+                        at: { tabGroup: x },
                     },
                 })
             ).toThrow(/only be given when placing a panel within a group/);
@@ -626,6 +634,74 @@ describe('tab group placement', () => {
         });
     });
 
+    describe('reporting where a tab is', () => {
+        test('onDidMovePanel reports where the panel landed', () => {
+            const { dockview, group } = setup();
+            const x = createTabGroup(dockview, group, ['a', 'b']);
+            const ats: unknown[] = [];
+            dockview.onDidMovePanel((e) => ats.push(e.at));
+
+            dockview
+                .getGroupPanel('c')!
+                .api.moveTo({ group, at: { tabGroup: x, index: 1 } });
+            dockview.getGroupPanel('c')!.api.moveTo({ group, index: 3 });
+
+            expect(ats).toEqual([{ tabGroup: x, index: 1 }, { index: 3 }]);
+
+            dockview.dispose();
+        });
+
+        test('a tab bar drop reports where it lands', () => {
+            const { dockview, group } = setup(['a', 'b', 'c']);
+            const x = createTabGroup(dockview, group, ['a', 'b']);
+            const ats: unknown[] = [];
+            dockview.onWillDrop((e) => ats.push(e.at));
+
+            dropOnStrip(dockview, group, 'c', 1, { id: x.id, index: 1 });
+            dropOnStrip(dockview, group, 'c', 0, null);
+
+            expect(ats).toEqual([{ tabGroup: x, index: 1 }, { index: 0 }]);
+
+            dockview.dispose();
+        });
+
+        test('a drop that carries no panel still reports its tab group', () => {
+            const { dockview, group } = setup(['a', 'b', 'c']);
+            const x = createTabGroup(dockview, group, ['a', 'b']);
+            const ats: unknown[] = [];
+            dockview.onDidDrop((e) => ats.push(e.at));
+
+            (group.model as any).tabsContainer.tabs.fireDrop({
+                event: new Event('drop'),
+                index: 1,
+                targetTabGroupId: x.id,
+                indexInTabGroup: 1,
+            });
+
+            expect(ats).toEqual([{ tabGroup: x, index: 1 }]);
+
+            dockview.dispose();
+        });
+
+        test('getTabGroups lists tab groups in tab order on request', () => {
+            const { dockview, group } = setup();
+            const x = createTabGroup(dockview, group, ['c', 'd'], 'X');
+            const y = createTabGroup(dockview, group, ['a', 'b'], 'Y');
+            const empty = dockview.api.createTabGroup({ groupId: group.id });
+
+            expect(dockview.api.getTabGroups({ groupId: group.id })).toEqual([
+                x,
+                y,
+                empty,
+            ]);
+            expect(
+                dockview.api.getTabGroups({ groupId: group.id, order: 'tab' })
+            ).toEqual([y, x, empty]);
+
+            dockview.dispose();
+        });
+    });
+
     describe('one source of truth', () => {
         test('tabGroup.addPanel and removePanel keep the strip in order', () => {
             const { dockview, group } = setup();
@@ -698,8 +774,7 @@ describe('tab group placement', () => {
             });
             dockview.getGroupPanel('d')!.api.moveTo({
                 group,
-                tabGroup: x,
-                indexInTabGroup: 0,
+                at: { tabGroup: x, index: 0 },
             });
             group.model.moveTabGroup(x.id, 0);
 
@@ -789,7 +864,9 @@ describe('tab group placement', () => {
                 events.push(`join ${e.panelId}`)
             );
 
-            dockview.getGroupPanel('d')!.api.moveTo({ group, tabGroup: x });
+            dockview
+                .getGroupPanel('d')!
+                .api.moveTo({ group, at: { tabGroup: x } });
 
             // a reorder within the group: no remove or add
             expect(events).toEqual(['member add d', 'join d']);

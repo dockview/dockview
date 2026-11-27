@@ -11,7 +11,7 @@ export function nearerEdge(index: number, start: number, end: number): number {
 }
 
 /** Where a panel goes in the strip. */
-export type TabStripTarget =
+export type StripTarget =
     /** At flat `index`, counted without the panel, within the panel's
      *  section. Leaves any tab group. */
     | { readonly index: number }
@@ -67,12 +67,19 @@ export class TabStrip<T extends { readonly id: string }> {
         return this._tabGroupOf.get(panelId);
     }
 
+    /** The tab groups with tabs, in tab order. */
+    tabGroups(): TabGroup[] {
+        return this._items.flatMap((item) =>
+            'tabGroup' in item ? [item.tabGroup] : []
+        );
+    }
+
     /**
      * Add a new panel at `target`. A pinned panel goes in the pinned section
      * whatever the target. A disposed tab group leaves the panel top-level at
      * `fallbackIndex`; one without members takes its place there.
      */
-    add(panel: T, target: TabStripTarget, fallbackIndex: number): void {
+    add(panel: T, target: StripTarget, fallbackIndex: number): void {
         this._panels.set(panel.id, panel);
         const index = 'tabGroup' in target ? fallbackIndex : target.index;
         if (this.isPinned(panel)) {
@@ -93,7 +100,7 @@ export class TabStrip<T extends { readonly id: string }> {
      * the tab group: a tab group without members takes the panel's place. A
      * disposed tab group is a no-op.
      */
-    move(panelId: string, target: TabStripTarget): void {
+    move(panelId: string, target: StripTarget): void {
         const panel = this._panels.get(panelId);
         if (!panel) {
             return;

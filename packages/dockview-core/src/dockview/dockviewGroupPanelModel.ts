@@ -47,6 +47,7 @@ import {
     DockviewUnhandledDragOverEvent,
     DockviewHeaderDirection,
     DockviewHeaderPosition,
+    TabStripTarget,
 } from './options';
 import { OverlayRenderContainer } from '../overlay/overlayRenderContainer';
 import { TitleEvent } from '../api/dockviewPanelApi';
@@ -146,6 +147,15 @@ export class DockviewDidDropEvent extends DockviewEvent {
         return this.options.index;
     }
 
+    /**
+     * For a drop on a group's tab bar, where in the tab strip it asks to
+     * land: in a tab group, or at {@link index} outside one. `undefined` for
+     * a drop on a group's content or a layout edge.
+     */
+    get at(): TabStripTarget<ITabGroup> | undefined {
+        return this.options.at;
+    }
+
     get group(): DockviewGroupPanel | undefined {
         return this.options.group;
     }
@@ -160,6 +170,7 @@ export class DockviewDidDropEvent extends DockviewEvent {
             readonly position: Position;
             readonly panel?: IDockviewPanel;
             readonly index?: number;
+            readonly at?: TabStripTarget<ITabGroup>;
             getData(): PanelTransfer | undefined;
             group?: DockviewGroupPanel;
             api: DockviewApi;
@@ -192,6 +203,7 @@ export class DockviewWillDropEvent extends DockviewDidDropEvent {
         readonly position: Position;
         readonly panel?: IDockviewPanel;
         readonly index?: number;
+        readonly at?: TabStripTarget<ITabGroup>;
         getData(): PanelTransfer | undefined;
         kind: DockviewGroupDropLocation;
         group?: DockviewGroupPanel;
@@ -709,7 +721,7 @@ export class DockviewGroupPanelModel
                     resolvedIndex,
                     undefined,
                     undefined,
-                    this._tabGroupPlacementForDrop(draggedPanelId, event)
+                    this._tabGroupPlacementForDrop(event)
                 );
             }),
 
@@ -1131,6 +1143,15 @@ export class DockviewGroupPanelModel
         return this._tabGroups;
     }
 
+    /** The tab groups in tab strip order, then those with no tabs. */
+    getTabGroupsInTabOrder(): readonly ITabGroup[] {
+        const placed = this._strip.tabGroups();
+        return [
+            ...placed,
+            ...this._tabGroups.filter((tg) => !placed.includes(tg)),
+        ];
+    }
+
     updateTabGroups(): void {
         this.tabsContainer.updateTabGroups();
     }
@@ -1150,6 +1171,13 @@ export class DockviewGroupPanelModel
 
     getTabGroupForPanel(panelId: string): ITabGroup | undefined {
         return this._findTabGroupForPanel(panelId);
+    }
+
+    tabStripTargetOf(panelId: string): TabStripTarget<ITabGroup> {
+        const tabGroup = this._strip.tabGroupOf(panelId);
+        return tabGroup
+            ? { tabGroup, index: tabGroup.indexOfPanel(panelId) }
+            : { index: this._panels.findIndex((p) => p.id === panelId) };
     }
 
     private _findTabGroupForPanel(panelId: string): TabGroup | undefined {
@@ -2060,6 +2088,23 @@ export class DockviewGroupPanelModel
         return this.canDisplayOverlay(event, position, 'content');
     }
 
+    /** Where a header drop at `index` with `placement` lands in the strip. */
+    private _dropTargetAt(
+        index: number,
+        placement: TabGroupPlacement | undefined
+    ): TabStripTarget<ITabGroup> {
+        const tabGroup =
+            typeof placement?.tabGroup === 'string'
+                ? this._tabGroupMap.get(placement.tabGroup)
+                : undefined;
+        return tabGroup
+            ? {
+                  tabGroup,
+                  index: placement?.indexInTabGroup ?? tabGroup.size,
+              }
+            : { index };
+    }
+
     /** Whether `placement` would move `panelId` into or out of a tab group. */
     private _changesTabGroup(
         panelId: string,
@@ -2073,11 +2118,10 @@ export class DockviewGroupPanelModel
 
     /** The tab group placement a tab drop asks for, if any. */
     private _tabGroupPlacementForDrop(
-        draggedPanelId: string | null,
         event: TabDropIndexEvent
     ): TabGroupPlacement | undefined {
         const { targetTabGroupId, indexInTabGroup } = event;
-        if (!draggedPanelId || targetTabGroupId === undefined) {
+        if (targetTabGroupId === undefined) {
             return undefined;
         }
         if (
@@ -2130,11 +2174,17 @@ export class DockviewGroupPanelModel
         const panel =
             typeof index === 'number' ? this.panels[index] : undefined;
 
+        const at =
+            type === 'header' && typeof index === 'number'
+                ? this._dropTargetAt(index, tabGroupPlacement)
+                : undefined;
+
         const willDropEvent = new DockviewWillDropEvent({
             nativeEvent: event,
             position,
             panel,
             index,
+            at,
             getData: () => getPanelData(),
             kind: getKind(),
             group: this.groupPanel,
@@ -2232,6 +2282,7 @@ export class DockviewGroupPanelModel
                     position,
                     panel,
                     index,
+                    at,
                     getData: () => getPanelData(),
                     group: this.groupPanel,
                     api: this._api,

@@ -24,17 +24,22 @@ panel.api.moveTo({ group, position, index });
 
 An `index` never splits a [tab group](/docs/core/panels/tabGroups). If it falls between two tabs of a tab group, the panel moves to the nearer edge of that tab group instead.
 
-To place a panel in a tab group, pass `tabGroup` (the tab group or its id) and, optionally, its position within the tab group. `tabGroup` and `index` can't be combined: the tab group's members decide where the tab goes.
+To say where in the tab strip a panel goes, pass `at`, a `TabStripTarget`:
+
+- `{ index }` places it at that index, outside any tab group. A plain `index` is shorthand for it.
+- `{ tabGroup, index }` places it in a tab group (the tab group or its id), at `index` among the tab group's tabs, or at the end when `index` is left out.
 
 ```ts
 // join a tab group as its second tab
-panel.api.moveTo({ group, tabGroup, indexInTabGroup: 1 });
+panel.api.moveTo({ group, at: { tabGroup, index: 1 } });
 
 // leave any tab group
-panel.api.moveTo({ group, index: 0, tabGroup: null });
+panel.api.moveTo({ group, at: { index: 0 } });
 ```
 
-The tab group must belong to `group`, and `position` must be `'center'` (or omitted); otherwise `moveTo` throws without changing the layout. `addPanel` accepts the same `tabGroup` and `indexInTabGroup` options in its `position`.
+`index` and `at` can't be combined. A tab group must belong to `group`, and `position` must be `'center'` (or omitted). Otherwise `moveTo` throws without changing the layout. `addPanel` accepts the same `index` and `at` options in its `position`.
+
+`onDidMovePanel` reports where the panel landed as `event.at`, and `onWillDrop` and `onDidDrop` report where a drop on the tab bar lands the same way.
 
 ## Move a group
 

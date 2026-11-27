@@ -313,6 +313,7 @@ TabGroupChipsService
 TabGroupColorPalette
 TabGroupOptions
 TabPartInitParameters
+TabStripTarget
 TitleEvent
 ViewFactoryData
 VisibilityEvent
