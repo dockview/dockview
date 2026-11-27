@@ -193,20 +193,41 @@ export class TabReorderController extends CompositeDisposable {
         return this._tabsList.classList.contains(OVERFLOW_WRAP_TABS_CLASS);
     }
 
+    /** The drag in progress. Only this controller starts, changes and
+     *  ends it; `Tabs` reads it. */
     get animState(): TabAnimationState | null {
         return this._animState;
     }
 
-    set animState(value: TabAnimationState | null) {
-        this._animState = value;
+    /**
+     * Start a drag. With `collapseFirst` the gap waits for
+     * {@link settleCollapse}, so it opens in the frame the dragged tab
+     * collapses in.
+     */
+    beginDrag(state: TabAnimationState, collapseFirst = false): void {
+        this._animState = state;
+        this._pendingCollapse = collapseFirst;
     }
 
-    get pendingCollapse(): boolean {
-        return this._pendingCollapse;
+    /**
+     * End the wait {@link beginDrag} started: the gap opens at `slot` unless
+     * the drag has already moved. Returns the drag, or null if it ended in
+     * the meantime.
+     */
+    settleCollapse(slot: number): TabAnimationState | null {
+        this._pendingCollapse = false;
+        if (this._animState) {
+            this._animState.currentInsertionIndex ??= slot;
+        }
+        return this._animState;
     }
 
-    set pendingCollapse(value: boolean) {
-        this._pendingCollapse = value;
+    /** End the drag and hand back its state to commit. */
+    take(): TabAnimationState | null {
+        const state = this._animState;
+        this._animState = null;
+        this._pendingCollapse = false;
+        return state;
     }
 
     set voidContainerElement(el: HTMLElement | null) {

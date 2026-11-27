@@ -290,12 +290,12 @@ describe('tabs - animation', () => {
             elements[1].classList.add('dv-tab--shifting');
 
             // Set animation state
-            (tabs as any)._animState = {
+            (tabs as any)._reorder.beginDrag({
                 sourceTabId: 'panel-a',
                 sourceIndex: 0,
                 tabPositions: new Map(),
                 currentInsertionIndex: null,
-            };
+            });
 
             // Trigger dragend
             const tabsList = (tabs as any)._tabsList as HTMLElement;
@@ -404,7 +404,7 @@ describe('tabs - animation', () => {
             mockTabRect(elements[1], { left: 0, width: 80 });
 
             // tab.onDrop nulls _animState before invoking runFlipAnimation.
-            (tabs as any)._animState = null;
+            (tabs as any)._reorder.take();
             (tabs as any).runFlipAnimation(firstPositions, 'panel-a');
 
             expect(elements[1].style.transform).toBe('translateX(80px)');
@@ -444,7 +444,7 @@ describe('tabs - animation', () => {
             mockTabRect(elements[0], { left: 80, width: 80 });
             mockTabRect(elements[1], { left: 0, width: 80 });
 
-            (tabs as any)._animState = null;
+            (tabs as any)._reorder.take();
             (tabs as any).runFlipAnimation(firstPositions, 'panel-a');
 
             expect(elements[1].style.transform).toBe('translateX(80px)');
@@ -809,7 +809,7 @@ describe('tabs - animation', () => {
 
             // Simulate cross-group chip drag state (source chip from another
             // group, no overlap with destination panels).
-            (tabs as any)._animState = {
+            (tabs as any)._reorder.beginDrag({
                 sourceTabId: '',
                 sourceIndex: -1,
                 tabPositions: (tabs as any).snapshotTabPositions(),
@@ -822,7 +822,7 @@ describe('tabs - animation', () => {
                 cursorOffsetFromDragStart: 40,
                 sourceGapSize: 80,
                 containerStart: 0,
-            };
+            });
 
             // Cursor at clientX=20 → dragLeftEdge = -20, availableSpace = -20.
             // T's midpoint check: 0 + 40 ≤ -20 → false, insertionIndex = 0.
@@ -887,7 +887,7 @@ describe('tabs - animation', () => {
             });
 
             // Manually initialize a group drag (sourceTabGroupId is set)
-            (tabs as any)._animState = {
+            (tabs as any)._reorder.beginDrag({
                 sourceTabId: '',
                 sourceIndex: 0,
                 tabPositions: (tabs as any).snapshotTabPositions(),
@@ -903,7 +903,7 @@ describe('tabs - animation', () => {
                 cursorOffsetFromDragStart: 40,
                 sourceGapSize: 190,
                 containerStart: 0,
-            };
+            });
 
             // Position cursor between C and D (inside Monitoring group range)
             // Without the fix, targetTabGroupId would be 'monitoring-group'
@@ -1131,12 +1131,12 @@ describe('tabs - animation', () => {
             mockTabRect(elements[1], { left: 100, width: 60 });
 
             // Manually initialize external drag state (as dragover listener would)
-            (tabs as any)._animState = {
+            (tabs as any)._reorder.beginDrag({
                 sourceTabId: 'external-panel',
                 sourceIndex: -1,
                 tabPositions: (tabs as any).snapshotTabPositions(),
                 currentInsertionIndex: null,
-            };
+            });
 
             // cursor at 30 → left half of panel-a (midpoint 50) → insert at index 0
             (tabs as any).handleDragOver({ clientX: 30 } as DragEvent);
@@ -2326,14 +2326,14 @@ describe('tabs - animation', () => {
             (accessor as any).getPanel = jest.fn().mockReturnValue(undefined);
 
             // Set up stale _animState from a previous drag of tab group 'old-tg'
-            (tabs as any)._animState = {
+            (tabs as any)._reorder.beginDrag({
                 sourceTabId: '',
                 sourceIndex: -1,
                 sourceTabGroupId: 'old-tg',
                 tabPositions: new Map(),
                 currentInsertionIndex: null,
                 sourceGroupPanelIds: new Set(),
-            };
+            });
 
             // Mock getPanelData to return a different tab group from another group
             (dataTransfer.getPanelData as jest.Mock).mockReturnValue(
@@ -2374,7 +2374,7 @@ describe('tabs - animation', () => {
                 currentInsertionIndex: 2,
                 sourceGroupPanelIds: new Set(),
             };
-            (tabs as any)._animState = originalState;
+            (tabs as any)._reorder.beginDrag(originalState);
 
             // Same tab group id, so not stale
             (dataTransfer.getPanelData as jest.Mock).mockReturnValue(

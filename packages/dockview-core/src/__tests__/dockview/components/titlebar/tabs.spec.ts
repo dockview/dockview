@@ -387,7 +387,7 @@ describe('tabs', () => {
             );
 
             // Simulate what dragstart sets up
-            (tabs as any)._animState = {
+            (tabs as any)._reorder.beginDrag({
                 sourceTabId: 'panel-a',
                 sourceIndex: 0,
                 tabPositions: (tabs as any).snapshotTabPositions(),
@@ -400,7 +400,7 @@ describe('tabs', () => {
                 cursorOffsetFromDragStart: 0,
                 sourceGapSize: 0,
                 containerStart: 0,
-            };
+            });
 
             const tabsList = (tabs as any)._tabsList as HTMLElement;
             const drops: TabDropIndexEvent[] = [];
@@ -463,7 +463,7 @@ describe('tabs', () => {
             );
 
             // Insertion slot 0 is panel-a's own slot and it is ungrouped.
-            (tabs as any)._animState = {
+            (tabs as any)._reorder.beginDrag({
                 sourceTabId: 'panel-a',
                 sourceIndex: 0,
                 tabPositions: (tabs as any).snapshotTabPositions(),
@@ -476,7 +476,7 @@ describe('tabs', () => {
                 cursorOffsetFromDragStart: 0,
                 sourceGapSize: 0,
                 containerStart: 0,
-            };
+            });
 
             const drops: TabDropIndexEvent[] = [];
             tabs.onDrop((e) => drops.push(e));
@@ -943,7 +943,7 @@ describe('tabs', () => {
             // the hit-test put the drop between a and b; the pointer is
             // released over d
             const { tabs, drops } = setup('other-group-id', 'z');
-            (tabs as any)._reorder.animState = {
+            (tabs as any)._reorder.beginDrag({
                 sourceTabId: 'z',
                 sourceIndex: -1,
                 currentInsertionIndex: 1,
@@ -956,7 +956,7 @@ describe('tabs', () => {
                 cursorOffsetFromDragStart: 0,
                 sourceGapSize: 0,
                 containerStart: 0,
-            };
+            });
             // keep the seeded hit-test result through the dragover
             jest.spyOn(
                 (tabs as any)._reorder,
@@ -976,7 +976,7 @@ describe('tabs', () => {
             // dockview instance does with the pointer backend
             const { tabs, drops } = setup('other-group-id', 'z');
             tabs.direction = 'vertical';
-            (tabs as any)._reorder.animState = {
+            (tabs as any)._reorder.beginDrag({
                 sourceTabId: 'z',
                 sourceIndex: -1,
                 currentInsertionIndex: null,
@@ -989,7 +989,7 @@ describe('tabs', () => {
                 cursorOffsetFromDragStart: 0,
                 sourceGapSize: 0,
                 containerStart: 0,
-            };
+            });
             const targetEl = getTabElements(tabs)[3];
             jest.spyOn(targetEl, 'offsetWidth', 'get').mockReturnValue(80);
             jest.spyOn(targetEl, 'offsetHeight', 'get').mockReturnValue(30);
