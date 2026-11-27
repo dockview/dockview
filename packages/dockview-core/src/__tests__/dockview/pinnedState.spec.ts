@@ -147,4 +147,41 @@ describe('pinned state', () => {
 
         dockview.dispose();
     });
+
+    test('pinning a tab group member takes it out, dissolving the tab group it empties', () => {
+        const dockview = setup();
+        dockview.addPanel({ id: 'a', component: 'default' });
+        const b = dockview.addPanel({ id: 'b', component: 'default' });
+        const c = dockview.addPanel({ id: 'c', component: 'default' });
+        const groupId = b.api.group.id;
+        const pair = dockview.api.createTabGroup({ groupId });
+        const lone = dockview.api.createTabGroup({ groupId });
+        dockview.api.addPanelToTabGroup({
+            groupId,
+            tabGroupId: pair.id,
+            panelId: 'a',
+        });
+        dockview.api.addPanelToTabGroup({
+            groupId,
+            tabGroupId: pair.id,
+            panelId: 'b',
+        });
+        dockview.api.addPanelToTabGroup({
+            groupId,
+            tabGroupId: lone.id,
+            panelId: 'c',
+        });
+        const removed: string[] = [];
+        dockview.onDidRemovePanelFromTabGroup((e) => removed.push(e.panelId));
+
+        b.api.setPinned(true);
+        c.api.setPinned(true);
+
+        expect(order(dockview)).toEqual(['b', 'c', 'a']);
+        expect(pair.panelIds).toEqual(['a']);
+        expect(removed).toEqual(['b', 'c']);
+        expect(dockview.api.getTabGroups({ groupId })).toEqual([pair]);
+
+        dockview.dispose();
+    });
 });
