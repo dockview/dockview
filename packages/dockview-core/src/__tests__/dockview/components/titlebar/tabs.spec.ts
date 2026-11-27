@@ -1213,6 +1213,17 @@ describe('tabs', () => {
                 'b',
             ]);
         });
+
+        test('outside a drag, measures nothing', () => {
+            const { tabs } = setup();
+            const reorder = (tabs as any)._reorder;
+            const measure = jest.spyOn(reorder, 'snapshotTabPositions');
+
+            tabs.reorder(['c', 'a', 'b']);
+
+            expect(measure).not.toHaveBeenCalled();
+            expect(reorder.animState).toBeNull();
+        });
     });
 
     describe('delete', () => {

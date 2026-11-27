@@ -649,7 +649,7 @@ describe('TabGroupManager', () => {
             expect(typeof sizes.get('g1')).toBe('number');
         });
 
-        test('snapshotChipSizes counts the chip’s margins along the strip', () => {
+        test('snapshotChipSizes counts chip margins along the strip', () => {
             const tabs = [createTab('p1')];
             const tg = makeGroup('g1', ['p1']);
             const { manager } = createManager({ tabs, tabGroups: [tg] });

@@ -246,6 +246,17 @@ export class TabReorderController extends CompositeDisposable {
         return state;
     }
 
+    /** Measure the strip again during a drag, after tabs were added, moved
+     *  or removed. */
+    remeasure(): void {
+        if (!this._animState) {
+            return;
+        }
+        this._animState.tabPositions = this.snapshotTabPositions();
+        this._animState.chipSizes = this._tabGroupManager.snapshotChipSizes();
+        this.applyDragOverTransforms();
+    }
+
     set voidContainerElement(el: HTMLElement | null) {
         this._voidContainer = el;
     }

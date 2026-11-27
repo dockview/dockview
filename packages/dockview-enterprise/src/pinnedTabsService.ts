@@ -640,7 +640,8 @@ export class PinnedTabsService
         group.model.header.refreshOverflow();
     }
 
-    /** @deprecated Core keeps pinned tabs out of overflow; always `false`. */
+    /** @deprecated Use `panel.api.isPinned`: core keeps pinned tabs out of
+     *  overflow. Always `false`; removed in the next major. */
     readonly isExcludedFromOverflow = (_panelId: string): boolean => false;
 
     /**
@@ -711,7 +712,8 @@ export class PinnedTabsService
         return boundary;
     }
 
-    /** @deprecated Core keeps the strip in step with pin state; a no-op. */
+    /** @deprecated No replacement needed: core re-sorts the strip when pin
+     *  state changes. A no-op; removed in the next major. */
     enforceOrder(_group: DockviewGroupPanel): void {
         // core re-sorts the strip itself
     }

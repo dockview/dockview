@@ -657,9 +657,11 @@ export interface IPinnedTabsHost {
     /** Fires after a `fromJSON` restore completes; the service renders its
      *  pinned second rows. */
     readonly onDidLayoutFromJSON: Event<void>;
-    /** @deprecated Unused: core keeps pinned tabs in step. */
+    /** @deprecated Use the component's `onDidRemovePanel`; the service no
+     *  longer reads this. Removed in the next major. */
     readonly onDidRemovePanel: Event<IDockviewPanel>;
-    /** @deprecated Unused: core keeps pinned tabs in step. */
+    /** @deprecated Use the component's `onDidMovePanel`; the service no
+     *  longer reads this. Removed in the next major. */
     readonly onDidMovePanel: Event<MovePanelEvent>;
 }
 
@@ -671,9 +673,11 @@ export interface IPinnedTabsHost {
  * @internal
  */
 export interface IPinnedTabsService extends IDisposable {
-    /** @deprecated Core keeps the strip in step with pin state; unused. */
+    /** @deprecated No replacement needed: core re-sorts the strip when pin
+     *  state changes. Removed in the next major. */
     enforceOrder(group: DockviewGroupPanel): void;
-    /** @deprecated Core keeps pinned tabs out of overflow; unused. */
+    /** @deprecated Use `panel.api.isPinned`: core keeps pinned tabs out of
+     *  overflow. Removed in the next major. */
     isExcludedFromOverflow(panelId: string): boolean;
     /** Clamp/redirect a proposed header drop `index` against the group's pin
      *  boundary so the dragged panel lands on the correct side. May flip the

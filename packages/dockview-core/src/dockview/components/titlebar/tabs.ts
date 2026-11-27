@@ -1130,13 +1130,8 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         // A new tab may sit between a chip and its tab group's first tab.
         this._tabGroupManager.render();
 
-        // If a tab was added during active drag, refresh positions
-        if (this._animState) {
-            this._animState.tabPositions = this.snapshotTabPositions();
-            this._animState.chipSizes =
-                this._tabGroupManager.snapshotChipSizes();
-            this.applyDragOverTransforms();
-        }
+        // A drag in progress measures the strip again.
+        this._reorder.remeasure();
     }
 
     /**
@@ -1176,12 +1171,7 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
 
         this._tabGroupManager.render();
         this._scheduleOverflowRefresh();
-        if (this._animState) {
-            this._animState.tabPositions = this.snapshotTabPositions();
-            this._animState.chipSizes =
-                this._tabGroupManager.snapshotChipSizes();
-            this.applyDragOverTransforms();
-        }
+        this._reorder.remeasure();
     }
 
     delete(id: string): void {
@@ -1207,13 +1197,8 @@ export class Tabs extends CompositeDisposable implements ITabReorderHost {
         value.element.remove();
         this._scheduleOverflowRefresh();
 
-        // If a non-source tab was removed during active drag, refresh positions
-        if (this._animState) {
-            this._animState.tabPositions = this.snapshotTabPositions();
-            this._animState.chipSizes =
-                this._tabGroupManager.snapshotChipSizes();
-            this.applyDragOverTransforms();
-        }
+        // A drag in progress measures the strip again.
+        this._reorder.remeasure();
     }
 
     private addTab(
