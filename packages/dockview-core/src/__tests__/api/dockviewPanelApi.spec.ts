@@ -368,7 +368,7 @@ describe('groupPanelApi', () => {
             to: {
                 group: targetGroup,
                 position: 'right',
-                index: 3,
+                at: { index: 3 },
             },
             skipSetActive: true,
         });
